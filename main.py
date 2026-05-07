@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+import argparse
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# 强制 stdout/stderr 无缓冲 —— 解决 PowerShell 输出不显示的问题
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
+from src.utils.config import load_config
+from src.utils.logger import setup_logger, get_log_file_path
+from src.providers.factory import create_fetcher, create_llm_provider, create_tts_provider, create_renderer
+from src.pipeline.orchestrator import Orchestrator
+from src.providers.enricher.article_enricher import ArticleEnricher
+
+
+def get_default_date() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def load_prompt_template(product: str = "full") -> str:
+    """Load the R2 prompt template for the given product type.
+
+    The {{ persona }} placeholder is left intact — ScriptWriter injects it
+    so persona handling lives in one place.
+    """
+    if product == "daily_brief":
+        template_name = "daily_brief.md"
+    elif product == "deep_dive":
+        template_name = "deep_dive.md"
+    else:
+        template_name = "script_gen.md"
+
+    template_path = Path(f"prompts/{template_name}")
+    if not template_path.exists():
+        raise FileNotFoundError(f"Prompt template not found: {template_path}")
+    with open(template_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="HN TechPulse: Generate tech video from Hacker News")
+    parser.add_argument("--date", type=str, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
+    parser.add_argument("--steps", type=str, default="fetch,enrich,script,tts,render",
+                        help="Steps to run (comma-separated: fetch,enrich,script,tts,render)")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Config file path")
+    parser.add_argument("--product", type=str, default=None,
+                        help="Product type: daily_brief, deep_dive, or full (default: from config.yaml)")
+
+    args = parser.parse_args()
+
+    steps = [s.strip() for s in args.steps.split(",")]
+
+    config = load_config(args.config)
+
+    # Determine product type: CLI arg > config file > default "full"
+    product = args.product or config.get("pipeline", {}).get("product", "full")
+
+    log_file = get_log_file_path(args.date) if not args.dry_run else None
+    log_level = config.get("logging", {}).get("level", "INFO")
+    logger = setup_logger("hn_techpulse", log_file=log_file, debug=args.debug, level=log_level)
+
+    logger.info("=" * 60)
+    logger.info("Starting HN TechPulse")
+    logger.info(f"Date: {args.date}")
+    logger.info(f"Product: {product}")
+    logger.info(f"Debug mode: {args.debug}")
+    logger.info(f"Dry run: {args.dry_run}")
+    logger.info(f"Pipeline steps: {steps}")
+    logger.info("=" * 60)
+
+    try:
+        content_fetcher = create_fetcher("hn", config, debug=args.debug)
+
+        llm_provider_name = config.get("llm", {}).get("provider", "openai")
+        llm_provider = create_llm_provider(llm_provider_name, config, debug=args.debug)
+
+        tts_provider_name = config.get("tts", {}).get("provider", "edge-tts")
+        tts_provider = create_tts_provider(tts_provider_name, config, debug=args.debug)
+
+        renderer = create_renderer("remotion", config, debug=args.debug)
+
+        logger.info("Using Remotion renderer")
+
+        # Article enricher (optional)
+        article_enricher = None
+        enrich_config = config.get("enrich", {})
+        if enrich_config.get("enabled", False):
+            article_enricher = ArticleEnricher(config, debug=args.debug)
+            logger.info("Article enrichment enabled")
+
+        orchestrator = Orchestrator(
+            config=config,
+            content_fetcher=content_fetcher,
+            llm_provider=llm_provider,
+            tts_provider=tts_provider,
+            renderer=renderer,
+            article_enricher=article_enricher,
+            debug=args.debug,
+            dry_run=args.dry_run
+        )
+
+        prompt_template = load_prompt_template(product)
+
+        orchestrator.run(
+            date=args.date,
+            steps=steps,
+            prompt_template=prompt_template,
+            product=product
+        )
+
+        logger.info("Pipeline completed successfully")
+        return 0
+
+    except Exception as e:
+        logger.error(f"Pipeline failed: {e}", exc_info=True)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

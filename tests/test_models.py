@@ -1,0 +1,148 @@
+import json
+import pytest
+from dataclasses import asdict
+from src.core.models import (
+    ContentComment, ContentItem, ContentPackage,
+    SceneElement, Cue, ScriptSegment, Script,
+    StoryAnalysis, SelectionResult,
+)
+
+
+class TestStoryAnalysis:
+    def test_creation(self):
+        sa = StoryAnalysis(
+            story_index=0,
+            quality_score=8,
+            quality_brief="Great story",
+            topics=["AI", "LLM"],
+            discussion_depth={"level": "deep"},
+            recommended_comments=[{"comment_index": 0}],
+            perspective_pairs=[{"a": 1}],
+            notable_quotes=[{"text": "quote"}],
+            raw_json='{"test": true}',
+        )
+        assert sa.story_index == 0
+        assert sa.quality_score == 8
+        assert sa.topics == ["AI", "LLM"]
+        assert sa.raw_json == '{"test": true}'
+
+    def test_defaults(self):
+        sa = StoryAnalysis(
+            story_index=1,
+            quality_score=5,
+            quality_brief="",
+            topics=[],
+            discussion_depth={},
+            recommended_comments=[],
+            perspective_pairs=[],
+            notable_quotes=[],
+        )
+        assert sa.raw_json == ""
+
+
+class TestSelectionResult:
+    def test_creation(self):
+        sr = SelectionResult(
+            deep_dive_decision={"story_index": 0},
+            quick_selections=[{"story_index": 1}],
+            patterns=[{"name": "pattern1"}],
+            raw_json='{"deep_dive_decision": {"story_index": 0}}',
+        )
+        assert sr.deep_dive_decision["story_index"] == 0
+        assert len(sr.quick_selections) == 1
+
+    def test_defaults(self):
+        sr = SelectionResult(
+            deep_dive_decision={},
+            quick_selections=[],
+            patterns=[],
+        )
+        assert sr.raw_json == ""
+        assert sr.medium_selections == []
+
+
+class TestContentModels:
+    def test_content_comment(self):
+        cc = ContentComment(author="test", content="hello")
+        assert cc.author == "test"
+        assert cc.content_cn is None
+
+    def test_content_item(self):
+        ci = ContentItem(
+            source="hackernews",
+            source_id="123",
+            title="Test",
+            url="https://example.com",
+        )
+        assert ci.comments == []
+        assert ci.score is None
+
+    def test_content_package(self):
+        cp = ContentPackage(date="2026-04-26", items=[])
+        assert cp.deep_dive_indices == []
+        assert cp.brief_indices == []
+        assert cp.quick_news_indices == []
+
+
+class TestScriptModels:
+    def test_scene_element(self):
+        se = SceneElement(
+            element_type="subtitle",
+            start_time=0.0,
+            end_time=5.0,
+            props={"text": "Hello"},
+        )
+        assert se.element_type == "subtitle"
+
+    def test_cue(self):
+        cue = Cue(text="Hello", start_time=0.0, end_time=2.0)
+        assert cue.text == "Hello"
+
+    def test_script_segment(self):
+        seg = ScriptSegment(
+            segment_type="opening",
+            audio_text="Welcome",
+            estimated_duration=10.0,
+        )
+        assert seg.emotion == "neutral"
+        assert seg.scene_elements == []
+        assert seg.actual_duration is None
+
+    def test_script(self):
+        script = Script(
+            title="Test",
+            description="Desc",
+            tags=["tech"],
+            segments=[],
+        )
+        assert script.total_duration is None
+
+    def test_script_serialization_roundtrip(self):
+        seg = ScriptSegment(
+            segment_type="opening",
+            audio_text="Hello world",
+            estimated_duration=15.0,
+            emotion="energetic",
+            scene_elements=[
+                SceneElement(
+                    element_type="subtitle",
+                    start_time=0.0,
+                    end_time=5.0,
+                    props={"text": "Hi"},
+                )
+            ],
+            cues=[Cue(text="Hello", start_time=0.0, end_time=5.0)],
+            meta={"key": "value"},
+        )
+        script = Script(
+            title="Test Script",
+            description="A test",
+            tags=["test"],
+            segments=[seg],
+        )
+        d = asdict(script)
+        json_str = json.dumps(d, ensure_ascii=False)
+        parsed = json.loads(json_str)
+        assert parsed["title"] == "Test Script"
+        assert len(parsed["segments"]) == 1
+        assert parsed["segments"][0]["emotion"] == "energetic"

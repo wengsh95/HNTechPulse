@@ -1,0 +1,278 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 24,
+  "bgColor": "#0d1117",
+  "title": "HN 日报：浏览器生态博弈与硬件控制权之争 (2026-04-26)",
+  "totalDuration": 149.16,
+  "segments": [
+    {
+      "segment_type": "opening",
+      "audio_text": "大家好，这里是 HN TechPulse。今天是 2026 年 4 月 26 日。今日聚焦浏览器隐私架构冲突。辅以量子计算、AI 估值及底层硬件标准的深度讨论。让我们开始。",
+      "duration": 15.5,
+      "start_time": 0.0,
+      "end_time": 15.5,
+      "scene_elements": [
+        {
+          "element_type": "title_card",
+          "start_time": 0.0,
+          "end_time": 15.5,
+          "props": {
+            "title": "HN TechPulse",
+            "subtitle": "2026-04-26"
+          }
+        }
+      ],
+      "audio_path": "audio/segment_00.mp3"
+    },
+    {
+      "segment_type": "deep_dive",
+      "audio_text": "深度观察。Firefox 宣布集成 Brave 的广告拦截引擎组件。这引发了关于浏览器架构与扩展权限的讨论。官方表示，并未计划放弃 MV2 扩展。只是测试开源 Rust 组件以优化列表处理。但社区担心，架构升级常是权力博弈。有评论指出，只有 Chrome 移除了请求拦截 API。Firefox 并没有。用户认为，广告拦截是扩展 API 的核心功能。支持它不仅是锦上添花。更是大多数用户唯一在乎的事。浏览器架构变更，常被视为权力博弈。开源组件复用，模糊了竞争对手界限。用户感知的控制权，比技术细节更具影响力。",
+      "duration": 47.95,
+      "start_time": 15.5,
+      "end_time": 63.45,
+      "scene_elements": [
+        {
+          "element_type": "story_header",
+          "start_time": 0.0,
+          "end_time": 47.95,
+          "props": {
+            "story_title": "Firefox Has Integrated Brave's Adblock Engine",
+            "score": 386,
+            "comments": 226
+          }
+        },
+        {
+          "element_type": "discussion_overview",
+          "start_time": 3.34,
+          "end_time": 9.17,
+          "props": {
+            "participant_count": 156,
+            "thread_depth_max": 12,
+            "active_duration": "14h"
+          }
+        },
+        {
+          "element_type": "comment_card",
+          "start_time": 10.42,
+          "end_time": 18.76,
+          "props": {
+            "author": "evilpie",
+            "score": 156,
+            "text": "We are not, and have no plans to abandon MV2 extensions.",
+            "translation": "我们并未计划放弃 MV2 扩展。",
+            "angle_label": "官方澄清"
+          }
+        },
+        {
+          "element_type": "comment_card",
+          "start_time": 20.02,
+          "end_time": 28.35,
+          "props": {
+            "author": "lxgr",
+            "score": 89,
+            "text": "Only Chrome removed the request blocking API from their MV3 implementation; Firefox did not.",
+            "translation": "只有 Chrome 移除了请求拦截 API，Firefox 并没有。",
+            "angle_label": "技术辨析"
+          }
+        },
+        {
+          "element_type": "comment_card",
+          "start_time": 29.60,
+          "end_time": 37.94,
+          "props": {
+            "author": "michaelt",
+            "score": 210,
+            "text": "Supporting ublock isn't just a nice-to-have add-on feature.",
+            "translation": "支持它不仅是锦上添花。",
+            "angle_label": "用户视角"
+          }
+        },
+        {
+          "element_type": "perspective_compare",
+          "start_time": 37.94,
+          "end_time": 43.78,
+          "props": {
+            "perspective_a": {
+              "label": "平台安全",
+              "text": "架构升级旨在限制恶意权限。",
+              "translation": "架构升级旨在限制恶意权限。",
+              "keywords": ["MV2", "Performance"]
+            },
+            "perspective_b": {
+              "label": "用户控制",
+              "text": "API 限制削弱用户控制权。",
+              "translation": "API 限制削弱用户控制权。",
+              "keywords": ["User Control", "uBlock"]
+            }
+          }
+        },
+        {
+          "element_type": "synthesis_card",
+          "start_time": 43.78,
+          "end_time": 47.95,
+          "props": {
+            "points": [
+              "架构变更即权力博弈",
+              "开源模糊竞争界限",
+              "控制权感知更重要"
+            ]
+          }
+        }
+      ],
+      "audio_path": "audio/segment_01.mp3"
+    },
+    {
+      "segment_type": "quick_news",
+      "audio_text": "快速浏览。Google 计划向 Anthropic 投资 400 亿美元。有人称此为循环交易。或许应视为大规模供应商融资。新款 10GbE USB 适配器评测。指出 iperf3 默认非多线程。高性能电脑中断率足以处理 USB 万兆。IBM 量子后端被指可用随机数替代。电路过长时，量子计算机模仿随机数生成器。做对事却因错因成功。音频接口默认开启 SSH。默认开启验证没问题。但应允许所有者注册自己的密钥。LLM 自动维护 Wiki 项目。我不相信仅凭提示词和代理框架。就能创造有价值的产品。Niri 26.04 滚动平铺合成器发布。这是近年来我远离 Windows。的最佳计算决策。",
+      "duration": 56.16,
+      "start_time": 63.45,
+      "end_time": 119.61,
+      "scene_elements": [
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 0.0,
+          "end_time": 9.50,
+          "props": {
+            "story_title": "Google plans to invest up to $40B in Anthropic",
+            "score": 799,
+            "comment_count": 801,
+            "author": "skybrian",
+            "comment_score": 342,
+            "comment_text": "Some people call this sort of thing a circular deal.",
+            "comment_translation": "有人称此为循环交易。"
+          }
+        },
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 9.50,
+          "end_time": 19.01,
+          "props": {
+            "story_title": "New 10 GbE USB adapters are cooler, smaller, cheaper",
+            "score": 563,
+            "comment_count": 337,
+            "author": "exabrial",
+            "comment_score": 128,
+            "comment_text": "ipferf3 is not multithreaded by default.",
+            "comment_translation": "iperf3 默认非多线程。"
+          }
+        },
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 19.01,
+          "end_time": 28.51,
+          "props": {
+            "story_title": "Replace IBM Quantum back end with /dev/urandom",
+            "score": 350,
+            "comment_count": 45,
+            "author": "Strilanc",
+            "comment_score": 205,
+            "comment_text": "When your circuit is too long, the quantum computer imitates a random number generator.",
+            "comment_translation": "电路过长时，量子计算机模仿随机数生成器。"
+          }
+        },
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 28.51,
+          "end_time": 38.02,
+          "props": {
+            "story_title": "My audio interface has SSH enabled by default",
+            "score": 315,
+            "comment_count": 96,
+            "author": "hoopla_ching",
+            "comment_score": 167,
+            "comment_text": "Ship it with verification on by default, fine, but let the owner enroll their own key.",
+            "comment_translation": "默认开启验证没问题，但应允许所有者注册自己的密钥。"
+          }
+        },
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 38.02,
+          "end_time": 47.52,
+          "props": {
+            "story_title": "Show HN: A Karpathy-style LLM wiki your agents maintain",
+            "score": 229,
+            "comment_count": 106,
+            "author": "frocodillo",
+            "comment_score": 94,
+            "comment_text": "I'm not convinced that it will ever be possible to create valuable products from just a prompt and an agent harness.",
+            "comment_translation": "我不相信仅凭提示词和代理框架就能创造有价值的产品。"
+          }
+        },
+        {
+          "element_type": "news_carousel_card",
+          "start_time": 47.52,
+          "end_time": 56.16,
+          "props": {
+            "story_title": "Niri 26.04: Scrollable-tiling Wayland compositor",
+            "score": 227,
+            "comment_count": 72,
+            "author": "nickjj",
+            "comment_score": 112,
+            "comment_text": "Niri is so good. It was legit the best computing decision I can remember making in recent history to move away from Windows.",
+            "comment_translation": "Niri 很好。这是近年来我远离 Windows 的最佳计算决策。"
+          }
+        }
+      ],
+      "audio_path": "audio/segment_02.mp3"
+    },
+    {
+      "segment_type": "insights",
+      "audio_text": "今日洞察。社区持续关注用户对硬件、软件及数据的控制权。反对平台方的黑盒化与限制。对新兴技术的态度从盲目追捧转向理性审视。关注财务可持续性与实际生产力。当技术光环褪去。社区正转向对基础设施控制权。与真实价值的理性审视。",
+      "duration": 24.29,
+      "start_time": 119.61,
+      "end_time": 143.9,
+      "scene_elements": [
+        {
+          "element_type": "pattern_insight",
+          "start_time": 0.0,
+          "end_time": 12.15,
+          "props": {
+            "pattern_name": "用户主权与平台限制的博弈",
+            "description": "社区持续关注用户对硬件、软件及数据的控制权，反对平台方的黑盒化与限制。",
+            "evidence": [
+              "Firefox 扩展权限",
+              "固件签名机制",
+              "窗口管理器配置"
+            ]
+          }
+        },
+        {
+          "element_type": "pattern_insight",
+          "start_time": 12.15,
+          "end_time": 24.29,
+          "props": {
+            "pattern_name": "技术炒作与落地价值的再评估",
+            "description": "对新兴技术（AI、量子）的态度从盲目追捧转向理性审视，关注财务可持续性与实际生产力。",
+            "evidence": [
+              "AI 供应商融资",
+              "量子基准测试",
+              "自动化笔记影响"
+            ]
+          }
+        }
+      ],
+      "audio_path": "audio/segment_03.mp3"
+    },
+    {
+      "segment_type": "closing",
+      "audio_text": "感谢收看。保持理性，关注价值。我们下期见。",
+      "duration": 5.26,
+      "start_time": 143.9,
+      "end_time": 149.16,
+      "scene_elements": [
+        {
+          "element_type": "outro_card",
+          "start_time": 0.0,
+          "end_time": 5.26,
+          "props": {
+            "text": "HN TechPulse",
+            "subtitle": "See you next time"
+          }
+        }
+      ],
+      "audio_path": "audio/segment_04.mp3"
+    }
+  ],
+  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-04-26\\audio"
+}

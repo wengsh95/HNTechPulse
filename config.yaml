@@ -1,0 +1,101 @@
+logging:
+  level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+llm:
+  provider: "openai"
+  model: "deepseek-v4-pro"
+  max_tokens: 16384
+  temperature: 0.7
+  base_url: "https://api.deepseek.com"
+  json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
+
+tts:
+  provider: "edge-tts"
+  voice: "zh-CN-XiaoxiaoNeural"
+  rate: "+10%"
+  pitch: "+0Hz"
+
+# ── Remotion 专用配置 ──
+remotion:
+  concurrency: null                 # 并发渲染线程数，null=自动检测 CPU 核心数
+  image_format: "jpeg"              # 帧格式：jpeg / png（jpeg 更快更小）
+  codec: "h264"                     # 输出编码：h264 / h265 / vp8 / vp9
+  crf: 23                           # CRF 质量值（0-51，越小越好，推荐 18-23）
+  pixels_per_frame: null            # JPEG 质量控制（仅 jpeg 模式），null=自动
+  browser_executable: null          # Chrome 路径；null=自动检测系统安装的 Chrome/Edge/Chromium
+                                    # 例: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                                    # 留空则让 Remotion 使用自带的 Chrome Headless Shell
+
+video:
+  resolution: [1280, 720]        # 720p 足够（1080p 对文字卡片类视频过剩，且慢 2x）
+  fps: 24                        # 24fps 电影感足够（比 30fps 快 20%）
+  bg_color: "#0d1117"          # GitHub Dark 底色
+  accent_color: "#ff6600"       # HN 橙（score/热度）
+  text_color: "#e6edf3"         # 柔和白
+
+pipeline:
+  product: "daily_brief"         # 产品类型：daily_brief（每日快讯）| deep_dive（深度解读）| full（原有综合模式）
+  num_deep_dive: 1              # 深度观察篇数（deep_dive/full 模式使用）
+  num_brief: 2                  # 简要解读（full 模式使用）
+  num_quick_news: 4             # 快速浏览条数
+  max_stories: 10               # 总选取 story 数
+  top_comments_per_story: 10     # 已废弃（改用下方截断策略）
+  # ── LLM 输入评论截断策略 ──
+  max_comments_for_deep_dive: 150   # deep dive 帖最多传多少条评论 (R2 使用)
+  max_comments_for_quick_item: 15   # quick news 每条最多传多少条 (R2 使用)
+  max_comments_for_brief: 10        # brief 每条最多传多少条 (R2 使用)
+  max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
+  r1_max_workers: 3                # R1a 并发数（同时分析几条 story）
+  # ── 输出控制 ──
+  num_insight_patterns: 3            # 今日洞察模式数
+
+  # ── 深度解读专用 ──
+  deep_dive:
+    duration_target: 330            # 目标总时长（秒），约5.5分钟
+    num_viewpoint_camps: 2          # 观点阵营数
+    num_selected_comments: 4        # 精选评论数（含非主流视角）
+    context_duration: 30            # 背景段时长（秒）
+    viewpoint_duration: 40          # 每个阵营段时长（秒）
+    comment_deep_duration: 60       # 评论深挖段时长（秒）
+    synthesis_duration: 30          # 洞察段时长（秒）
+
+hn:
+  base_url: "https://hacker-news.firebaseio.com/v0"
+  top_stories_count: 300
+  target_stories_count: 10
+  request_timeout: [5, 15]        # [connect_timeout, read_timeout] 秒
+  comment_log_interval: 50          # 每抓取 N 条评论输出一次进度日志（0=关闭）
+  max_comment_depth: 5              # 评论递归最大深度（深层评论价值低，截断可减少 30-50% 请求）
+  max_concurrent_requests: 20       # 并发请求数（控制对 HN API 的压力，建议 10-30）
+  max_retries: 3                    # 单个请求最大重试次数（指数退避：1s → 2s → 4s）
+  granular_cache: true              # 评论级细粒度缓存（支持断点续传，中断重跑跳过已缓存故事）
+  # proxy: "http://127.0.0.1:7890"   # 取消注释以启用代理（字符串格式：http/https 共用）
+  # 或使用字典格式分别配置：
+  # proxy:
+  #   http: "http://127.0.0.1:7890"
+  #   https: "http://127.0.0.1:7890"
+
+# ── 文章内容增强 ──
+enrich:
+  enabled: true                     # 总开关：是否访问文章URL获取内容
+  max_text_length: 8000             # 提取文章正文最大字符数（截断给LLM）
+  max_images: 3                     # 每篇文章最多提取图片数
+  max_image_size: 5242880           # 单张图片最大字节数（5MB）
+  request_timeout: 15               # HTTP请求超时（秒）
+  max_concurrent: 5                 # 并发请求数
+  retry_count: 3                    # 失败重试次数（指数退避：1s → 2s → 4s）
+  request_delay: 0.5                # 请求间隔（秒），避免触发速率限制
+  headless: true                    # 启用 Playwright 无头 Chrome 兜底（aiohttp失败后）
+  # browser_executable: null        # Chrome 路径；null=自动使用 Playwright 自带的 Chromium
+  # proxy: "http://127.0.0.1:7890"  # 代理配置
+  skip_domains:                     # 直接跳过这些域名的 enrich（反爬太重或抓不到正文）
+    - twitter.com
+    - x.com
+    - mobile.twitter.com
+  image_target_size: [1280, 720]    # 图片目标尺寸（超过则等比缩放）
+  summary_max_tokens: 8192           # LLM摘要最大token数
+  llm:                              # 独立LLM配置（可用更便宜的模型做摘要）
+    model: "deepseek-v4-flash"
+    base_url: "https://api.deepseek.com"
+    max_tokens: 8192
+    temperature: 0.5

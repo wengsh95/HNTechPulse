@@ -1,0 +1,597 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 24,
+  "bgColor": "#0d1117",
+  "title": "HN 每日快讯｜谷歌收紧安卓、AirDrop替代争议、Copilot计费变革、蓝绿测试、复古LLM、阿联酋退出OPEC",
+  "totalDuration": 145.41600000000003,
+  "segments": [
+    {
+      "segment_type": "opening",
+      "audio_text": "大家好，我是小P，今天是2026年4月29日，来看看今天 Hacker News 上有什么新鲜事。",
+      "cues": [
+        {
+          "text": "大家好，我是小P。",
+          "start_time": 0.0,
+          "end_time": 2.175
+        },
+        {
+          "text": "今天是2026年4月29日。",
+          "start_time": 2.125,
+          "end_time": 5.17
+        },
+        {
+          "text": "来看看今天Hacker News上有什么新鲜事。",
+          "start_time": 5.17,
+          "end_time": 8.76
+        }
+      ],
+      "duration": 8.76,
+      "start_time": 0.0,
+      "end_time": 8.76,
+      "scene_elements": [
+        {
+          "element_type": "title_card",
+          "start_time": 0.0,
+          "end_time": 8.76,
+          "props": {
+            "title": "HN TechPulse",
+            "subtitle": "2026年4月29日",
+            "stats": "热门速览"
+          }
+        }
+      ],
+      "audio_path": "audio/segment_00.mp3"
+    },
+    {
+      "segment_type": "dashboard",
+      "audio_text": "先看看今天的热度榜。",
+      "cues": [
+        {
+          "text": "先看看今天的热度榜。",
+          "start_time": 0.0,
+          "end_time": 2.208
+        }
+      ],
+      "duration": 2.208,
+      "start_time": 8.76,
+      "end_time": 10.968,
+      "scene_elements": [
+        {
+          "element_type": "dashboard_card",
+          "start_time": 0.0,
+          "end_time": 2.208,
+          "props": {
+            "entries": [
+              {
+                "rank": 1,
+                "story_index": 0,
+                "original_title": "Your phone is about to stop being yours",
+                "title_cn": "",
+                "score": 1258,
+                "comment_count": 577
+              },
+              {
+                "rank": 2,
+                "story_index": 1,
+                "original_title": "Localsend: An open-source cross-platform alternative to AirDrop",
+                "title_cn": "",
+                "score": 798,
+                "comment_count": 244
+              },
+              {
+                "rank": 3,
+                "story_index": 2,
+                "original_title": "GitHub Copilot is moving to usage-based billing",
+                "title_cn": "",
+                "score": 750,
+                "comment_count": 551
+              },
+              {
+                "rank": 4,
+                "story_index": 3,
+                "original_title": "Is my blue your blue? (2024)",
+                "title_cn": "",
+                "score": 674,
+                "comment_count": 461
+              },
+              {
+                "rank": 5,
+                "story_index": 4,
+                "original_title": "Talkie: a 13B vintage language model from 1930",
+                "title_cn": "",
+                "score": 668,
+                "comment_count": 274
+              },
+              {
+                "rank": 6,
+                "story_index": 5,
+                "original_title": "UAE to leave OPEC",
+                "title_cn": "",
+                "score": 400,
+                "comment_count": 539
+              }
+            ]
+          }
+        }
+      ],
+      "audio_path": "audio/segment_01.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "Android 的开放要终结了吗？今天一篇文章引爆了社区。有人觉得这是危言耸听：安卓侧载自由依然远超 iOS，每次收紧都有这种恐慌。但反对者说，谷歌正从禁止系统权限到封锁替代系统，开放已死。更深的担忧是：我们已不再拥有设备，只是在租用。评论里吵成一片，你怎么看？",
+      "cues": [
+        {
+          "text": "Android 的开放要终结了吗？",
+          "start_time": 0.0,
+          "end_time": 2.55
+        },
+        {
+          "text": "今天一篇文章引爆了社区。",
+          "start_time": 2.5,
+          "end_time": 5.068
+        },
+        {
+          "text": "有人觉得这是危言耸听：安卓侧载自由依然远超 iOS，每次收紧都有这种恐慌。",
+          "start_time": 5.068,
+          "end_time": 12.58
+        },
+        {
+          "text": "但反对者说，谷歌正从禁止系统权限到封锁替代系统，开放已死。",
+          "start_time": 12.58,
+          "end_time": 18.67
+        },
+        {
+          "text": "更深的担忧是：我们已不再拥有设备，只是在租用。",
+          "start_time": 18.67,
+          "end_time": 23.125
+        },
+        {
+          "text": "评论里吵成一片，你怎么看？",
+          "start_time": 23.125,
+          "end_time": 25.896
+        }
+      ],
+      "duration": 25.896,
+      "start_time": 10.968,
+      "end_time": 36.864000000000004,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 25.896,
+          "props": {
+            "story_index": 0,
+            "event_summary": "一篇关于谷歌新政策可能终结Android开放性的文章引发社区激烈对立",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "文章夸大恐慌，安卓仍远比iOS自由",
+                "quote": "这种文章每年都会出现，安卓的侧载和自由依然远超iOS，只是在安全与开放间再平衡。",
+                "comment_index": 6
+              },
+              {
+                "stance": "支持",
+                "summary": "谷歌单方面背弃开放承诺，围墙花园完成",
+                "quote": "从禁止系统级权限到封锁替代操作系统，谷歌正逐步收回用户对设备的控制权，开放已死。",
+                "comment_index": 0
+              },
+              {
+                "stance": "担忧",
+                "summary": "个人计算设备所有权逐渐丧失",
+                "quote": "我们不再拥有设备，仅仅是拥有租用权，每一次更新都在侵蚀用户的最终决策能力。",
+                "comment_index": 30
+              }
+            ],
+            "story_title": "Your phone is about to stop being yours",
+            "title_cn": "",
+            "score": 1258,
+            "comment_count": 577,
+            "stance_distribution": {
+              "质疑": 0.33,
+              "支持": 0.33,
+              "担忧": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_02.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "LocalSend 被宣传为 AirDrop 替代品，但争论焦点是自动发现。反对者说，AirDrop 不用同一网络就能传文件，LocalSend 做不到，差得远。中立派认为跨平台能用就不错了，对 Linux 用户是福音。支持者则说开源本身就有价值。少了自动组网，还算替代吗？",
+      "cues": [
+        {
+          "text": "LocalSend 被宣传为 AirDrop 替代品，但争论焦点是自动发现。",
+          "start_time": 0.0,
+          "end_time": 5.493
+        },
+        {
+          "text": "反对者说，AirDrop 不用同一网络就能传文件，LocalSend 做不到，差得远。",
+          "start_time": 5.443,
+          "end_time": 11.614
+        },
+        {
+          "text": "中立派认为跨平台能用就不错了，对 Linux 用户是福音。",
+          "start_time": 11.614,
+          "end_time": 16.955
+        },
+        {
+          "text": "支持者则说开源本身就有价值。",
+          "start_time": 16.955,
+          "end_time": 20.0
+        },
+        {
+          "text": "少了自动组网，还算替代吗？",
+          "start_time": 20.0,
+          "end_time": 22.704
+        }
+      ],
+      "duration": 22.704,
+      "start_time": 36.864000000000004,
+      "end_time": 59.568000000000005,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 22.704,
+          "props": {
+            "story_index": 1,
+            "event_summary": "LocalSend被宣传为AirDrop替代品，社区围绕“替代”的定义展开激烈技术辩论",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "缺失自动组网，不能称为替代品",
+                "quote": "AirDrop的核心能力是无需同一网络即可自动发现并传输，LocalSend要求同在局域网，差得远。",
+                "comment_index": 0
+              },
+              {
+                "stance": "中立",
+                "summary": "跨平台可用性弥补部分差距",
+                "quote": "对于Linux/Windows用户，它确实提供了之前无法实现的便捷，虽不完美，但已足够日常使用。",
+                "comment_index": 1
+              },
+              {
+                "stance": "支持",
+                "summary": "开源与多平台分发本身有价值",
+                "quote": "当你在生态孤岛之间传输文件，LocalSend的Tauri打包与Flutter界面虽笨拙，却已是难得的选择。",
+                "comment_index": 10
+              }
+            ],
+            "story_title": "Localsend: An open-source cross-platform alternative to AirDrop",
+            "title_cn": "",
+            "score": 798,
+            "comment_count": 244,
+            "stance_distribution": {
+              "质疑": 0.33,
+              "中立": 0.33,
+              "支持": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_03.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "Copilot 计费模式大变，从按请求转为按 token，重度用户成本飙升。有人怒斥，这是巨大削减，无限已名存实亡。但也有人冷静看待，认为补贴不可持续。更多人担心，每次补全都怕多花钱，失去了流畅开发的初衷。这场计费焦虑，影响到你了吗？",
+      "cues": [
+        {
+          "text": "Copilot 计费模式大变，从按请求转为按 token，重度用户成本飙升。",
+          "start_time": 0.0,
+          "end_time": 6.152
+        },
+        {
+          "text": "有人怒斥，这是巨大削减，无限已名存实亡。",
+          "start_time": 6.102,
+          "end_time": 10.261
+        },
+        {
+          "text": "但也有人冷静看待，认为补贴不可持续。",
+          "start_time": 10.261,
+          "end_time": 13.852
+        },
+        {
+          "text": "更多人担心，每次补全都怕多花钱，失去了流畅开发的初衷。",
+          "start_time": 13.852,
+          "end_time": 19.33
+        },
+        {
+          "text": "这场计费焦虑，影响到你了吗？",
+          "start_time": 19.33,
+          "end_time": 22.056
+        }
+      ],
+      "duration": 22.056,
+      "start_time": 59.568000000000005,
+      "end_time": 81.62400000000001,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 22.056,
+          "props": {
+            "story_index": 2,
+            "event_summary": "GitHub Copilot从按请求改为按token计费，重度使用成本飙升引发退订潮",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "新定价是巨大削减，补贴终结但未透明",
+                "quote": "我的Copilot使用量在新模型乘数下成本提高了数十倍，所谓‘无限’一夜之间名存实亡。",
+                "comment_index": 4
+              },
+              {
+                "stance": "中立",
+                "summary": "旧模式不可持续，补贴须终止",
+                "quote": "之前请求制定价极易被滥用，公司不可能永远补贴，转向token制是正常的商业修正。",
+                "comment_index": 18
+              },
+              {
+                "stance": "担忧",
+                "summary": "按量计费带来心理负担与预算失控",
+                "quote": "每次代码补全都担心多花一分钱，这种计费焦虑让辅助工具失去了流畅开发的初衷。",
+                "comment_index": 8
+              }
+            ],
+            "story_title": "GitHub Copilot is moving to usage-based billing",
+            "title_cn": "",
+            "score": 750,
+            "comment_count": 551,
+            "stance_distribution": {
+              "质疑": 0.33,
+              "中立": 0.33,
+              "担忧": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_04.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "一个强迫二选一的蓝绿色测试，在 HN 上掀起色彩科学大论战。批评者说，这测的是语言边界不是感知。支持者反驳，迫选法能消除文化噪声。还有人调侃，换个显示器结果就不同了。你觉得那颜色是蓝还是绿？",
+      "cues": [
+        {
+          "text": "一个强迫二选一的蓝绿色测试，在 HN 上掀起色彩科学大论战。",
+          "start_time": 0.0,
+          "end_time": 5.868
+        },
+        {
+          "text": "批评者说，这测的是语言边界不是感知。",
+          "start_time": 5.818,
+          "end_time": 9.511
+        },
+        {
+          "text": "支持者反驳，迫选法能消除文化噪声。",
+          "start_time": 9.511,
+          "end_time": 13.239
+        },
+        {
+          "text": "还有人调侃，换个显示器结果就不同了。",
+          "start_time": 13.239,
+          "end_time": 16.648
+        },
+        {
+          "text": "你觉得那颜色是蓝还是绿？",
+          "start_time": 16.648,
+          "end_time": 19.248
+        }
+      ],
+      "duration": 19.248,
+      "start_time": 81.62400000000001,
+      "end_time": 100.87200000000001,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 19.248,
+          "props": {
+            "story_index": 3,
+            "event_summary": "一个强制二选一的蓝绿色辨别测试引发色彩科学、语言学和实验方法的深度交锋",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "测试混淆了感知与语言范畴",
+                "quote": "这测的不是眼睛看到的颜色，而是你学习到的颜色名称边界，二选一迫选法本身就有严重缺陷。",
+                "comment_index": 0
+              },
+              {
+                "stance": "支持",
+                "summary": "迫选法能消除文化噪声",
+                "quote": "当你不给中间色选项，就能揭示人们底层视觉边界的位置，那些‘既蓝又绿’的回答才是噪声。",
+                "comment_index": 15
+              },
+              {
+                "stance": "调侃",
+                "summary": "结果全看显示器校准",
+                "quote": "换个显示器，我立刻从坚定的‘蓝营’变成了‘绿营’，这测试其实在测面板色域。",
+                "comment_index": 30
+              }
+            ],
+            "story_title": "Is my blue your blue? (2024)",
+            "title_cn": "",
+            "score": 674,
+            "comment_count": 461,
+            "stance_distribution": {
+              "质疑": 0.33,
+              "支持": 0.33,
+              "调侃": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_05.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "一个只训练到 1970 年前的复古语言模型，问答充满时代感——问个人电脑会得到打孔卡时代的回答。但马上有人测出数据泄漏：它竟准确预测了 1972 年大选。中立派则认为，这至少是版权干净的实验。来玩玩看？",
+      "cues": [
+        {
+          "text": "一个只训练到 1970 年前的复古语言模型，问答充满时代感——问个人电脑会得到打孔卡时代的回答。",
+          "start_time": 0.0,
+          "end_time": 8.602
+        },
+        {
+          "text": "但马上有人测出数据泄漏：它竟准确预测了 1972 年大选。",
+          "start_time": 8.602,
+          "end_time": 13.898
+        },
+        {
+          "text": "中立派则认为，这至少是版权干净的实验。",
+          "start_time": 13.898,
+          "end_time": 17.682
+        },
+        {
+          "text": "来玩玩看？",
+          "start_time": 17.682,
+          "end_time": 19.032
+        }
+      ],
+      "duration": 19.032,
+      "start_time": 100.87200000000001,
+      "end_time": 119.90400000000001,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 19.032,
+          "props": {
+            "story_index": 4,
+            "event_summary": "一个只训练了1970年前文本的复古LLM引发关于历史模拟准确性与数据泄漏的讨论",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "复古语感独特，趣味性强",
+                "quote": "问它‘个人电脑’会得到打孔卡时代的回答，这种沉浸式时代感是普通模型无法提供的。",
+                "comment_index": 0
+              },
+              {
+                "stance": "质疑",
+                "summary": "数据泄漏严重，复古纯度不够",
+                "quote": "我让它预测1972年大选结果，它给出了准确答案，说明训练数据肯定包含之后的信息。",
+                "comment_index": 16
+              },
+              {
+                "stance": "中立",
+                "summary": "即使有泄漏，仍是版权干净的实验",
+                "quote": "使用纯公共领域文本训练的模型，至少不用担心版权纠纷，这对某些应用场景很有价值。",
+                "comment_index": 56
+              }
+            ],
+            "story_title": "Talkie: a 13B vintage language model from 1930",
+            "title_cn": "",
+            "score": 668,
+            "comment_count": 274,
+            "stance_distribution": {
+              "支持": 0.33,
+              "质疑": 0.33,
+              "中立": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_06.mp3"
+    },
+    {
+      "segment_type": "story_scan",
+      "audio_text": "有报道称阿联酋或将退出 OPEC，引发石油地缘政治分析。有人觉得 OPEC 配额早已失效，退出只是仪式。支持者认为这是美国主导的战略重组。担忧者则聚焦霍尔木兹海峡危机，认为这是在提前布局。一场联盟重组正在酝酿？",
+      "cues": [
+        {
+          "text": "有报道称阿联酋或将退出 OPEC，引发石油地缘政治分析。",
+          "start_time": 0.0,
+          "end_time": 5.482
+        },
+        {
+          "text": "有人觉得 OPEC 配额早已失效，退出只是仪式。",
+          "start_time": 5.432,
+          "end_time": 9.625
+        },
+        {
+          "text": "支持者认为这是美国主导的战略重组。",
+          "start_time": 9.625,
+          "end_time": 13.102
+        },
+        {
+          "text": "担忧者则聚焦霍尔木兹海峡危机，认为这是在提前布局。",
+          "start_time": 13.102,
+          "end_time": 18.239
+        },
+        {
+          "text": "一场联盟重组正在酝酿？",
+          "start_time": 18.239,
+          "end_time": 20.784
+        }
+      ],
+      "duration": 20.784,
+      "start_time": 119.90400000000001,
+      "end_time": 140.68800000000002,
+      "scene_elements": [
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 20.784,
+          "props": {
+            "story_index": 5,
+            "event_summary": "有报道称阿联酋或将退出OPEC，引发石油地缘政治、石油美元和联盟博弈深度分析",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "OPEC早已失效，退出无实质影响",
+                "quote": "OPEC配额形同虚设，成员国常年超产，阿联酋的退出只是一场早就该发生的仪式。",
+                "comment_index": 24
+              },
+              {
+                "stance": "支持",
+                "summary": "这是美国主导的战略重组信号",
+                "quote": "阿联酋转向与以色列、印度合作，是中东安全架构重组的缩影，背后有华盛顿的战略默许。",
+                "comment_index": 41
+              },
+              {
+                "stance": "担忧",
+                "summary": "霍尔木兹危机可能重塑海湾联盟",
+                "quote": "如果伊朗封锁海峡，阿联酋的油气出口将彻底依赖替代路线，退出OPEC不过是在提前布局。",
+                "comment_index": 1
+              }
+            ],
+            "story_title": "UAE to leave OPEC",
+            "title_cn": "",
+            "score": 400,
+            "comment_count": 539,
+            "stance_distribution": {
+              "质疑": 0.33,
+              "支持": 0.33,
+              "担忧": 0.33
+            }
+          }
+        }
+      ],
+      "audio_path": "audio/segment_07.mp3"
+    },
+    {
+      "segment_type": "closing",
+      "audio_text": "好，今天的速览就到这里，下期再见，多喝热水。",
+      "cues": [
+        {
+          "text": "好，今天的速览就到这里，下期再见，多喝热水。",
+          "start_time": 0.0,
+          "end_time": 4.728
+        }
+      ],
+      "duration": 4.728,
+      "start_time": 140.68800000000002,
+      "end_time": 145.41600000000003,
+      "scene_elements": [
+        {
+          "element_type": "closing_card",
+          "start_time": 0.0,
+          "end_time": 4.728,
+          "props": {
+            "text": "下期再见，多喝热水"
+          }
+        }
+      ],
+      "audio_path": "audio/segment_08.mp3"
+    }
+  ],
+  "audioDir": "D:\\code\\HNTechPulse\\HNTechPulse\\data\\2026-04-29\\audio"
+}

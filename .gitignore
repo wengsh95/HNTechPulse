@@ -1,0 +1,47 @@
+# Environment variables
+.env
+.env.local
+
+# Virtual environment
+.venv/
+
+# uv
+.uv/
+
+# Node
+**/node_modules/
+
+# Data & Logs
+logs/
+data/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing
+**/.pytest_cache/
+**/.coverage
+htmlcov/
+
+# Packaging
+dist/
+build/
+**/*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project-specific
+.workbuddy/
+
+# Claude Code
+.claude/
+skills-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
