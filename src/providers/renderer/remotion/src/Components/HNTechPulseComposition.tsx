@@ -10,40 +10,14 @@ import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
 import { ScriptProps, SegmentData } from "../types";
 import {
   TitleCard,
-  StoryHeader,
-  Highlight,
-  CommentBubble,
   Subtitle,
-  DiscussionOverview,
-  CommentCard,
-  PerspectiveCompare,
-  SynthesisCard,
-  NewsCarouselCard,
-  PatternInsight,
-  OutroCard,
-  HookCard,
-  ConflictCard,
-  TurnCard,
   ClosingCard,
-  DebateCard,
-  InfoTable,
   DashboardCard,
   StoryScanCard,
   ImageCard,
 } from "./Elements";
 
-// ── HN Light 配色 ──────────────────────────────────
-const C_BG = "#f6f6ef";
-const C_TEXT = "#000000";
-const C_DIM = "#828282";
-const C_INFO = "#3c7bb3";
-const C_HN_ORANGE = "#ff6600";
-const C_COMMENT = "#5a5a5a";
-const C_WARN = "#a03030";
-const C_CODE = "#4a4a4a";
-const C_PERSP_A = "#3c7bb3";
-const C_PERSP_B = "#9b4dca";
-const C_CARD_BG = "#ffffff";
+const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #ececf2 0%, #f5f5f7 50%, #e8e8ed 100%)";
 
 /** 元素类型 → React 组件映射 */
 const ELEMENT_RENDERERS: Record<
@@ -51,24 +25,8 @@ const ELEMENT_RENDERERS: Record<
   React.FC<{ elementProps: Record<string, unknown>; duration: number; width: number; height: number }>
 > = {
   title_card: (props) => <TitleCard {...props} />,
-  story_header: (props) => <StoryHeader {...props} />,
-  highlight: (props) => <Highlight {...props} />,
-  comment_bubble: (props) => <CommentBubble {...props} />,
-  subtitle: (props) => <Subtitle {...props} />,
-  discussion_overview: (props) => <DiscussionOverview {...props} />,
-  comment_card: (props) => <CommentCard {...props} />,
-  perspective_compare: (props) => <PerspectiveCompare {...props} />,
-  synthesis_card: (props) => <SynthesisCard {...props} />,
-  news_carousel_card: (props) => <NewsCarouselCard {...props} />,
-  pattern_insight: (props) => <PatternInsight {...props} />,
-  outro_card: (props) => <OutroCard {...props} />,
-  hook_card: (props) => <HookCard {...props} />,
-  conflict_card: (props) => <ConflictCard {...props} />,
-  turn_card: (props) => <TurnCard {...props} />,
   closing_card: (props) => <ClosingCard {...props} />,
-  debate_card: (props) => <DebateCard {...props} />,
   image_card: (props) => <ImageCard {...props} />,
-  info_table: (props) => <InfoTable {...props} />,
   dashboard_card: (props) => <DashboardCard {...props} />,
   story_scan_card: (props) => <StoryScanCard {...props} />,
 };
@@ -143,30 +101,7 @@ const SegmentRenderer: React.FC<{
       name={`segment-${index}-${segment.segment_type}`}
     >
       {/* 背景 */}
-      <AbsoluteFill style={{ backgroundColor: C_BG }} />
-
-      {/* HN 顶部橙色导航条 */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 36,
-        backgroundColor: C_HN_ORANGE,
-        display: "flex",
-        alignItems: "center",
-        paddingLeft: 16,
-        gap: 12,
-        fontFamily: 'Verdana, Geneva, sans-serif',
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#000000",
-        zIndex: 100,
-      }}>
-        <span style={{ fontWeight: 700, letterSpacing: -0.5 }}>YC</span>
-        <span style={{ borderLeft: "1px solid #000", paddingLeft: 12 }}>Hacker News</span>
-        <span style={{ fontWeight: 400, fontSize: 11, color: C_DIM }}>new | threads | comments | show | ask | jobs</span>
-      </div>
+      <AbsoluteFill style={{ background: C_BG }} />
 
       {/* 场景元素 */}
       {segment.scene_elements.map((elem, i) => (
@@ -200,7 +135,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   audioDir,
 }) => {
   return (
-    <AbsoluteFill style={{ backgroundColor: bgColor || C_BG }}>
+    <AbsoluteFill style={{ background: bgColor || C_BG }}>
       {/* 遍历所有 segments，按时间线排列视觉内容 */}
       {segments.map((segment, index) => (
         <SegmentRenderer

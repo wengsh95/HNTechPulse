@@ -39,11 +39,11 @@ class Orchestrator:
         self.content_preparer = ContentPreparer(config, debug=debug)
         self.script_writer = ScriptWriter(config, llm_provider, self.content_preparer, debug=debug)
 
-    def run(self, date: str, steps: Optional[List[str]] = None, prompt_template: str = "", product: str = "full") -> None:
+    def run(self, date: str, steps: Optional[List[str]] = None, prompt_template: str = "") -> None:
         if steps is None:
-            steps = ["fetch", "enrich", "script", "tts", "render"]
+            steps = ["fetch", "enrich", "translate", "script", "tts", "render"]
 
-        self.logger.info(f"Running pipeline, date={date}, steps={steps}, product={product}")
+        self.logger.info(f"Running pipeline, date={date}, steps={steps}, product=daily_brief")
 
         content = None
         script = None
@@ -60,17 +60,20 @@ class Orchestrator:
         if "enrich" in steps:
             content = self._step_enrich(content, date)
 
+        if "translate" in steps:
+            content = self._step_translate(content, date)
+
         if "script" in steps:
-            script = self._step_script(content, prompt_template, date, product)
+            script = self._step_script(content, prompt_template, date)
         else:
             try:
                 script = self.script_writer.load_script(date)
             except FileNotFoundError:
                 self.logger.info("Script not found, generating anyway...")
-                script = self._step_script(content, prompt_template, date, product)
+                script = self._step_script(content, prompt_template, date)
 
         if "tts" in steps:
-            script = self._step_tts(script, date, content, product)
+            script = self._step_tts(script, date, content)
 
         if "preview" in steps:
             self._step_preview(script, date, content)
@@ -78,9 +81,9 @@ class Orchestrator:
         if "render" in steps:
             self._step_render(script, date, content)
 
-        # Save transcript with product-specific format
+        # Save transcript
         if script and ("script" in steps or "tts" in steps):
-            self.script_writer.save_transcript(script, date, content, product)
+            self.script_writer.save_transcript(script, date, content)
 
         self.logger.info("Pipeline completed")
 
@@ -92,11 +95,12 @@ class Orchestrator:
             return ContentPackage(date=date, items=[])
 
         pipeline_cfg = self.config.get("pipeline", {})
+        num_brief_items = pipeline_cfg.get("num_brief_items", 6)
         content = self.content_fetcher.fetch(
             date,
-            num_deep_dive=pipeline_cfg.get("num_deep_dive", 1),
-            num_brief=pipeline_cfg.get("num_brief", 2),
-            num_quick_news=pipeline_cfg.get("num_quick_news", 7),
+            num_deep_dive=0,
+            num_brief=num_brief_items,
+            num_quick_news=0,
         )
         self.content_preparer.save_content(content, date)
         return content
@@ -113,12 +117,50 @@ class Orchestrator:
         self.content_preparer.save_content(content, date)
         return content
 
-    def _step_script(self, content, prompt_template: str, date: str, product: str = "full"):
+    def _step_translate(self, content, date: str):
+        """Translate all story titles using the fast/cheap model. Checkpointed."""
+        self.logger.info("Step: Translate titles")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping translation")
+            return content
+
+        translations_path = Path(f"data/{date}/translations.json")
+
+        # Checkpoint: reuse cached translations
+        if translations_path.exists():
+            self.logger.info(f"  Loading cached translations from {translations_path}")
+            with open(translations_path, "r", encoding="utf-8") as f:
+                translations = json.load(f)
+            for key, value in translations.items():
+                if key.startswith("title_"):
+                    idx = int(key.split("_", 1)[1])
+                    if idx < len(content.items):
+                        content.items[idx].title_cn = value
+            self.content_preparer.save_content(content, date)
+            return content
+
+        content = self.llm_provider.translate_titles(content, "translate.md")
+        self.content_preparer.save_content(content, date)
+
+        # Save checkpoint
+        translations = {}
+        for idx, item in enumerate(content.items):
+            if item.title_cn:
+                translations[f"title_{idx}"] = item.title_cn
+        if translations:
+            translations_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(translations_path, "w", encoding="utf-8") as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+            self.logger.info(f"  Saved {len(translations)} translations to {translations_path}")
+
+        return content
+
+    def _step_script(self, content, prompt_template: str, date: str):
         self.logger.info("=" * 50)
-        self.logger.info(f"Step: Generate script (product={product})")
+        self.logger.info("Step: Generate script (daily_brief)")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
         self.logger.info(f"Model: {self.config.get('llm', {}).get('model', 'unknown')}")
-        self.logger.info(f"Expected LLM calls: R1a={len(content.items)} + R1b=1 + R2=1 = {len(content.items) + 2}")
+        self.logger.info(f"Expected LLM calls: R1a={len(content.items)} + R2={len(content.items)} = {len(content.items) * 2}")
         self.logger.info("=" * 50)
 
         if self.dry_run:
@@ -138,11 +180,11 @@ class Orchestrator:
                 ]
             )
 
-        script = self.script_writer.write(content, prompt_template, product)
+        script = self.script_writer.write(content, prompt_template)
         self.script_writer.save_script(script, date)
         return script
 
-    def _step_tts(self, script: Script, date: str, content=None, product: str = "full") -> Script:
+    def _step_tts(self, script: Script, date: str, content=None) -> Script:
         self.logger.info("Step: Synthesize audio")
         if self.dry_run:
             self.logger.info("Dry run: skipping TTS")

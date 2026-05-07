@@ -57,13 +57,6 @@ class ContentPackage:
 @dataclass
 class StoryAnalysis:
     story_index: int
-    quality_score: int
-    quality_brief: str
-    topics: List[str]
-    discussion_depth: Dict[str, Any]
-    recommended_comments: List[Dict[str, Any]]
-    perspective_pairs: List[Dict[str, Any]]
-    notable_quotes: List[Dict[str, Any]]
     raw_json: str = ""
 
 
@@ -73,6 +66,7 @@ class SelectionResult:
     quick_selections: List[Dict[str, Any]]
     patterns: List[Dict[str, Any]]
     medium_selections: List[Dict[str, Any]] = field(default_factory=list)
+    brief_items: List[Dict[str, Any]] = field(default_factory=list)
     raw_json: str = ""
 
 

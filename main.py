@@ -19,19 +19,13 @@ def get_default_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def load_prompt_template(product: str = "full") -> str:
-    """Load the R2 prompt template for the given product type.
+def load_prompt_template() -> str:
+    """Load the R2 prompt template.
 
     The {{ persona }} placeholder is left intact — ScriptWriter injects it
     so persona handling lives in one place.
     """
-    if product == "daily_brief":
-        template_name = "daily_brief.md"
-    elif product == "deep_dive":
-        template_name = "deep_dive.md"
-    else:
-        template_name = "script_gen.md"
-
+    template_name = "daily_brief.md"
     template_path = Path(f"prompts/{template_name}")
     if not template_path.exists():
         raise FileNotFoundError(f"Prompt template not found: {template_path}")
@@ -47,8 +41,6 @@ def main():
     parser.add_argument("--steps", type=str, default="fetch,enrich,script,tts,render",
                         help="Steps to run (comma-separated: fetch,enrich,script,tts,render)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Config file path")
-    parser.add_argument("--product", type=str, default=None,
-                        help="Product type: daily_brief, deep_dive, or full (default: from config.yaml)")
 
     args = parser.parse_args()
 
@@ -56,8 +48,7 @@ def main():
 
     config = load_config(args.config)
 
-    # Determine product type: CLI arg > config file > default "full"
-    product = args.product or config.get("pipeline", {}).get("product", "full")
+    product = "daily_brief"
 
     log_file = get_log_file_path(args.date) if not args.dry_run else None
     log_level = config.get("logging", {}).get("level", "INFO")
@@ -103,13 +94,12 @@ def main():
             dry_run=args.dry_run
         )
 
-        prompt_template = load_prompt_template(product)
+        prompt_template = load_prompt_template()
 
         orchestrator.run(
             date=args.date,
             steps=steps,
-            prompt_template=prompt_template,
-            product=product
+            prompt_template=prompt_template
         )
 
         logger.info("Pipeline completed successfully")

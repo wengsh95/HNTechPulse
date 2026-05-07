@@ -2,9 +2,7 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Tuple
-from dataclasses import dataclass, field
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 import threading
 from contextlib import contextmanager
 
@@ -12,7 +10,7 @@ from openai import OpenAI
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.core.models import Script, ScriptSegment, SceneElement, Cue, ContentPackage, StoryAnalysis, SelectionResult
+from src.core.models import Script, ScriptSegment, SceneElement, Cue, ContentPackage, SelectionResult
 from src.core.interfaces import LLMProvider
 from src.core.prompts import render_prompt
 from src.utils.logger import setup_logger
@@ -103,53 +101,6 @@ def _floor_index_in_place(d: dict, key: str) -> None:
         d[key] = 0
 
 
-def _clamp_list_in_place(d: dict, key: str, max_val: int) -> None:
-    """Clamp every int in d[key] list to [0, max_val-1]; drop non-ints."""
-    values = d.get(key)
-    if isinstance(values, list):
-        d[key] = [max(0, min(ci, max_val - 1)) for ci in values if isinstance(ci, int)]
-
-
-def _floor_list_in_place(d: dict, key: str) -> None:
-    """Floor every negative int in d[key] list to 0; drop non-ints."""
-    values = d.get(key)
-    if isinstance(values, list):
-        d[key] = [max(0, ci) for ci in values if isinstance(ci, int)]
-
-
-def _get_analyses_dir(date: str) -> Path:
-    return Path(f"data/{date}/analyses")
-
-
-def _get_analysis_path(date: str, idx: int) -> Path:
-    return _get_analyses_dir(date) / f"story_{idx}.json"
-
-
-def _save_analysis(analysis: StoryAnalysis, date: str) -> None:
-    path = _get_analysis_path(date, analysis.story_index)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(analysis.raw_json)
-
-
-def _load_analysis(date: str, idx: int) -> StoryAnalysis | None:
-    path = _get_analysis_path(date, idx)
-    if not path.exists():
-        return None
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.read()
-
-    text = _strip_json_fence(raw)
-
-    d = json.loads(text)
-    return _dict_to_story_analysis(d, raw)
-
-
-def _load_all_analyses(date: str, total: int) -> List[StoryAnalysis | None]:
-    results = []
-    for i in range(total):
-        results.append(_load_analysis(date, i))
-    return results
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -177,117 +128,40 @@ class OpenAILLMProvider(LLMProvider):
                 timeout=httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=10.0),
             )
 
-        self.model = config.get("llm", {}).get("model", "gpt-4o")
-        self.max_tokens = config.get("llm", {}).get("max_tokens", 8192)
-        self.temperature = config.get("llm", {}).get("temperature", 0.7)
-        self.json_parse_max_retries = config.get("llm", {}).get("json_parse_max_retries", 3)
+        llm_cfg = config.get("llm", {})
+        self.model = llm_cfg.get("model", "gpt-4o")
+        self.max_tokens = llm_cfg.get("max_tokens", 8192)
+        self.temperature = llm_cfg.get("temperature", 0.7)
+        self.json_parse_max_retries = llm_cfg.get("json_parse_max_retries", 3)
 
-        pipeline_cfg = config.get("pipeline", {})
-        self.r1_max_workers = pipeline_cfg.get("r1_max_workers", 3)
+        fast_cfg = llm_cfg.get("fast", {})
+        self.fast_model = fast_cfg.get("model", self.model)
+        self.fast_max_tokens = fast_cfg.get("max_tokens", 4096)
+        self.fast_temperature = fast_cfg.get("temperature", 0.3)
+
         self._total_stories = 0
-        self._current_date = ""
-
-    def generate_selection(
-        self,
-        content: ContentPackage,
-        analyze_prompt_template: str,
-        decision_prompt_template: str
-    ) -> SelectionResult:
-        self._current_date = content.date
-        self.logger.info(
-            f"Round 1 starting: {len(content.items)} stories, "
-            f"concurrent workers={self.r1_max_workers}"
-        )
-
-        analyses = self._analyze_all_stories(content, analyze_prompt_template)
-
-        analyses_summary = self._analyses_to_summary_json(analyses)
-        self.logger.info(f"Round 1a complete: {len(analyses)} stories analyzed")
-
-        selection = self._run_r1b_with_checkpoint(analyses_summary, content.date, decision_prompt_template)
-
-        return selection
-
-    def _analyze_all_stories(
-        self,
-        content: ContentPackage,
-        prompt_template: str
-    ) -> List[StoryAnalysis]:
-        self._total_stories = len(content.items)
-        date = self._current_date
-
-        cached = _load_all_analyses(date, self._total_stories)
-        pending_indices = [i for i in range(self._total_stories) if cached[i] is None]
-        done_count = self._total_stories - len(pending_indices)
-
-        if done_count > 0:
-            self.logger.info(
-                f"  Checkpoint recovery: {done_count}/{self._total_stories} cached, "
-                f"{len(pending_indices)} remaining"
-            )
-            if len(pending_indices) == 0:
-                self.logger.info(f"  All stories cached, skipping R1a")
-                return cached
-
-        analyses: List[StoryAnalysis | None] = list(cached)
-        self.logger.info(f"  Starting {len(pending_indices)} analysis tasks (workers={self.r1_max_workers})...")
-
-        t0 = time.monotonic()
-
-        def _analyze_one(idx: int) -> Tuple[int, StoryAnalysis]:
-            result = self.analyze_story(content.items[idx], idx, prompt_template)
-            _save_analysis(result, date)
-            return (idx, result)
-
-        # Warmup: run the first pending analysis serially so the DeepSeek/OpenAI
-        # prompt cache is populated before the concurrent fan-out. Without this
-        # the first r1_max_workers requests all race each other and all miss.
-        warmup_done = 0
-        if len(pending_indices) > 1 and self.r1_max_workers > 1:
-            first_idx = pending_indices[0]
-            self.logger.info(f"  R1a warmup: running story {first_idx} serially to prime cache")
-            _, analyses[first_idx] = _analyze_one(first_idx)
-            pending_indices = pending_indices[1:]
-            warmup_done = 1
-
-        with ThreadPoolExecutor(max_workers=self.r1_max_workers) as executor:
-            futures = {
-                executor.submit(_analyze_one, idx): idx
-                for idx in pending_indices
-            }
-            completed_from_cache = done_count + warmup_done
-            for future in as_completed(futures):
-                idx, analysis = future.result()
-                analyses[idx] = analysis
-                completed_from_cache += 1
-
-        elapsed = time.monotonic() - t0
-        new_count = len(pending_indices) + warmup_done
-        self.logger.info(
-            f"  Round 1a complete: "
-            f"cache_reuse={done_count}, new={new_count}, "
-            f"total_time={elapsed:.1f}s"
-        )
-
-        return [a for a in analyses if a is not None]
 
     def _call_llm_with_json_retry(
         self,
         messages: List[Dict[str, str]],
         label: str,
-        max_tokens: int | None = None
+        max_tokens: int | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
     ) -> str:
         current_messages = list(messages)
         effective_max_tokens = max_tokens or self.max_tokens
+        effective_model = model or self.model
+        effective_temperature = temperature if temperature is not None else self.temperature
 
         for attempt in range(1, self.json_parse_max_retries + 1):
             t0 = time.monotonic()
 
             with self._spinner(f"[{label}] API response pending (attempt {attempt})..."):
                 response = self.client.chat.completions.create(
-                    model=self.model,
+                    model=effective_model,
                     max_tokens=effective_max_tokens,
-                    temperature=self.temperature,
+                    temperature=effective_temperature,
                     messages=current_messages
                 )
             elapsed = time.monotonic() - t0
@@ -349,111 +223,12 @@ class OpenAILLMProvider(LLMProvider):
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10),
            retry_error_callback=lambda retry_state: retry_state.outcome.result())
-    def analyze_story(self, item, index: int, prompt_template: str) -> StoryAnalysis:
-        story_json = self._single_story_to_json(item, index)
-        prompt = render_prompt(prompt_template, story_json=story_json)
-
-        self.logger.info(
-            f"  R1a-{index}/{self._total_stories}: Analyzing: "
-            f"'{item.title[:50]}{'...' if len(item.title) > 50 else ''}' "
-            f"({len(item.comments)} comments, {len(story_json)} chars)"
-        )
-
-        response_text = self._call_llm_with_json_retry(
-            messages=self._split_prompt(prompt),
-            label=f"R1a-{index}"
-        )
-
-        analysis_dict = self._extract_json(response_text)
-        # R1a 不再输出 story_index，由后处理从输入 index 赋值
-        analysis_dict["story_index"] = index
-        # 校验 comment_index 越界
-        self._validate_analysis_indices(analysis_dict, len(item.comments))
-        analysis = _dict_to_story_analysis(analysis_dict, response_text)
-
-        self.logger.info(
-            f"    score={analysis.quality_score}, topics={analysis.topics[:3]}, "
-            f"recommended_comments={len(analysis.recommended_comments)}"
-        )
-        return analysis
-
-    def _run_r1b_with_checkpoint(
-        self,
-        analyses_json: str,
-        date: str,
-        prompt_template: str
-    ) -> SelectionResult:
-        selection_path = Path(f"data/{date}/selection.json")
-
-        if selection_path.exists():
-            self.logger.info(f"  Found existing {selection_path}, loading and skipping R1b")
-            with open(selection_path, "r", encoding="utf-8") as f:
-                raw = f.read()
-
-            text = _strip_json_fence(raw)
-
-            d = json.loads(text)
-            selection = _dict_to_selection(d, raw)
-            dd = selection.deep_dive_decision
-            qs = selection.quick_selections
-            ms = getattr(selection, "medium_selections", [])
-            self.logger.info(
-                f"  Cached selection: "
-                f"deep_dive=story[{dd.get('story_index', '?')}], "
-                f"medium={len(ms)}, quick={len(qs)}, patterns={len(selection.patterns)}"
-            )
-            return selection
-
-        selection = self._global_decision(analyses_json, date, prompt_template)
-
-        selection_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(selection_path, "w", encoding="utf-8") as f:
-            f.write(selection.raw_json)
-        self.logger.info(f"  Saved selection to {selection_path}")
-
-        return selection
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10),
-           retry_error_callback=lambda retry_state: retry_state.outcome.result())
-    def _global_decision(
-        self,
-        analyses_json: str,
-        date: str,
-        prompt_template: str
-    ) -> SelectionResult:
-        prompt = render_prompt(prompt_template, analyses_json=analyses_json, date=date)
-
-        self.logger.info(f"  Round 1b: Global decision (input: {len(analyses_json)} chars)...")
-
-        response_text = self._call_llm_with_json_retry(
-            messages=self._split_prompt(prompt),
-            label="R1b"
-        )
-
-        selection_dict = self._extract_json(response_text)
-        # 校验 story_index / comment_index 越界
-        self._validate_selection_indices(selection_dict, self._total_stories)
-        selection = _dict_to_selection(selection_dict, response_text)
-
-        dd = selection.deep_dive_decision
-        qs = selection.quick_selections
-        ms = getattr(selection, "medium_selections", [])
-        self.logger.info(
-            f"  Round 1b result: "
-            f"deep_dive=story[{dd.get('story_index', '?')}] '{dd.get('reason', '')[:60]}', "
-            f"medium={len(ms)}, quick={len(qs)}, patterns={len(selection.patterns)}"
-        )
-        return selection
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10),
-           retry_error_callback=lambda retry_state: retry_state.outcome.result())
     def generate_script(
         self,
         selection: SelectionResult,
         comments_json: str,
         script_prompt_template: str,
         date: str,
-        product: str = "full"
     ) -> Script:
         self.logger.info("  Round 2: Generating script...")
 
@@ -474,11 +249,177 @@ class OpenAILLMProvider(LLMProvider):
         script_dict = self._extract_json(response_text)
         # 校验 scene_elements 中的 story_index / comment_index 越界
         self._validate_script_indices(script_dict, self._total_stories)
-        script = self._dict_to_script(script_dict, product=product)
+        script = self._dict_to_script(script_dict)
 
         self._validate_script_quality(script)
         self._log_script_preview(script)
         return script
+
+    def _get_segment_cache_path(self, date: str, segment_type: str, story_index: int) -> Path:
+        """获取单个 segment 的缓存文件路径"""
+        cache_dir = Path(f"data/{date}/segments")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"{segment_type}_{story_index}.json"
+
+    def _load_cached_segment(self, date: str, segment_type: str, story_index: int) -> Optional[ScriptSegment]:
+        """加载缓存的 segment"""
+        cache_path = self._get_segment_cache_path(date, segment_type, story_index)
+        if not cache_path.exists():
+            return None
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                seg_dict = json.load(f)
+            # 重建 ScriptSegment 对象
+            scene_elements = [
+                SceneElement(
+                    element_type=e["element_type"],
+                    start_time=e["start_time"],
+                    end_time=e["end_time"],
+                    props=e["props"]
+                )
+                for e in seg_dict.get("scene_elements", [])
+            ]
+            cues = [
+                Cue(
+                    text=c["text"],
+                    start_time=c["start_time"],
+                    end_time=c["end_time"]
+                )
+                for c in seg_dict.get("cues", [])
+            ]
+            return ScriptSegment(
+                segment_type=seg_dict["segment_type"],
+                audio_text=seg_dict["audio_text"],
+                estimated_duration=seg_dict["estimated_duration"],
+                emotion=seg_dict.get("emotion", "neutral"),
+                scene_elements=scene_elements,
+                meta=seg_dict.get("meta", {}),
+                cues=cues
+            )
+        except Exception as e:
+            self.logger.warning(f"    Failed to load cached segment: {e}")
+            return None
+
+    def _save_segment_cache(self, date: str, segment_type: str, story_index: int, segment: ScriptSegment) -> None:
+        """保存 segment 到缓存"""
+        cache_path = self._get_segment_cache_path(date, segment_type, story_index)
+        seg_dict = {
+            "segment_type": segment.segment_type,
+            "audio_text": segment.audio_text,
+            "estimated_duration": segment.estimated_duration,
+            "emotion": segment.emotion,
+            "scene_elements": [
+                {
+                    "element_type": e.element_type,
+                    "start_time": e.start_time,
+                    "end_time": e.end_time,
+                    "props": e.props
+                }
+                for e in segment.scene_elements
+            ],
+            "cues": [
+                {
+                    "text": c.text,
+                    "start_time": c.start_time,
+                    "end_time": c.end_time
+                }
+                for c in segment.cues
+            ],
+            "meta": segment.meta
+        }
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(seg_dict, f, ensure_ascii=False, indent=2)
+
+    def generate_single_story_segment(
+        self,
+        content: ContentPackage,
+        story_index: int,
+        segment_type: str,
+        prompt_template_path: str,
+        date: str,
+        comments_data: Optional[Dict] = None
+    ) -> ScriptSegment:
+        """为单个 story 生成对应的 ScriptSegment，带缓存"""
+        # 先尝试从缓存加载
+        cached = self._load_cached_segment(date, segment_type, story_index)
+        if cached is not None:
+            self.logger.info(f"    [{segment_type}_{story_index}] Loaded from cache")
+            return cached
+
+        self.logger.info(f"    [{segment_type}_{story_index}] Generating...")
+
+        # 准备输入数据
+        item = content.items[story_index]
+        story_json = self._single_story_to_json(item, story_index)
+
+        # 加载提示词模板
+        prompt_path = Path(prompt_template_path)
+        if prompt_path.exists():
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        else:
+            prompt_template = prompt_template_path
+
+        # 准备 comments_json（如果有）
+        comments_json_str = "{}"
+        if comments_data:
+            comments_json_str = json.dumps(comments_data, ensure_ascii=False, indent=2)
+
+        # 渲染提示词
+        prompt = render_prompt(
+            prompt_template,
+            story_json=story_json,
+            story_index=str(story_index),
+            comments_json=comments_json_str,
+            date=date
+        )
+
+        # 调用 LLM
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label=f"{segment_type}_{story_index}"
+        )
+
+        # 解析结果
+        seg_dict = self._extract_json(response_text)
+
+        # 校验索引越界
+        for elem in seg_dict.get("scene_elements", []):
+            props = elem.get("props", {})
+            _clamp_index_in_place(props, "story_index", len(content.items), f"{segment_type} scene_element", self.logger)
+            _floor_index_in_place(props, "comment_index")
+
+        # 构建 ScriptSegment
+        scene_elements = [
+            SceneElement(
+                element_type=e["element_type"],
+                start_time=e["start_time"],
+                end_time=e["end_time"],
+                props=e["props"]
+            )
+            for e in seg_dict.get("scene_elements", [])
+        ]
+        cues = [
+            Cue(
+                text=c["text"],
+                start_time=c["start_time"],
+                end_time=c["end_time"]
+            )
+            for c in seg_dict.get("cues", [])
+        ]
+        segment = ScriptSegment(
+            segment_type=seg_dict.get("segment_type", segment_type),
+            audio_text=seg_dict.get("audio_text", ""),
+            estimated_duration=seg_dict.get("estimated_duration", 30.0),
+            emotion=seg_dict.get("emotion", "neutral"),
+            scene_elements=scene_elements,
+            meta=seg_dict.get("meta", {}),
+            cues=cues
+        )
+
+        # 保存缓存
+        self._save_segment_cache(date, segment_type, story_index, segment)
+        self.logger.info(f"    [{segment_type}_{story_index}] Done")
+        return segment
 
     @contextmanager
     def _spinner(self, label: str):
@@ -766,25 +707,40 @@ class OpenAILLMProvider(LLMProvider):
                     if idx < len(content.items) and ci < len(content.items[idx].comments):
                         content.items[idx].comments[ci].content_cn = value
 
-    def _analyses_to_summary_json(self, analyses: List[StoryAnalysis]) -> str:
-        summary_list = []
-        for a in analyses:
-            d = {
-                "story_index": a.story_index,
-                "quality_score": a.quality_score,
-                "quality_brief": a.quality_brief,
-                "topics": a.topics,
-                "discussion_depth": a.discussion_depth,
-                "recommended_comment_count": len(a.recommended_comments),
-                "recommended_comment_indices": [rc.get("comment_index") for rc in a.recommended_comments],
-                "has_perspective_pairs": len(a.perspective_pairs) > 0,
-                "notable_quote_count": len(a.notable_quotes),
-            }
-            summary_list.append(d)
+    def translate_titles(self, content: ContentPackage, prompt_template: str) -> ContentPackage:
+        """Translate all story titles using the fast/cheap model."""
+        items_to_translate = {}
+        for idx, item in enumerate(content.items):
+            if item.title:
+                items_to_translate[f"title_{idx}"] = item.title
 
-        result = json.dumps(summary_list, ensure_ascii=False, indent=2)
-        self.logger.info(f"Analyses summary: {len(analyses)} stories, {len(result)} chars")
-        return result
+        if not items_to_translate:
+            self.logger.info("  No titles to translate, skipping")
+            return content
+
+        items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
+        prompt = render_prompt(prompt_template, items_json=items_json)
+
+        self.logger.info(f"  Translating {len(items_to_translate)} titles (model={self.fast_model})...")
+
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label="translate",
+            max_tokens=self.fast_max_tokens,
+            model=self.fast_model,
+            temperature=self.fast_temperature,
+        )
+
+        result = self._extract_json(response_text)
+        translations = result.get("translations", {})
+
+        for key, value in translations.items():
+            if key.startswith("title_"):
+                idx = int(key.split("_", 1)[1])
+                if idx < len(content.items):
+                    content.items[idx].title_cn = value
+
+        return content
 
     def _extract_json(self, text: str) -> dict:
         text = _strip_json_fence(text)
@@ -861,12 +817,7 @@ class OpenAILLMProvider(LLMProvider):
                         continue
         raise json.JSONDecodeError("Could not repair JSON", json_str, 0)
 
-    REQUIRED_SEGMENT_TYPES = {"opening", "deep_dive", "medium_dive", "quick_news", "closing"}
-    REQUIRED_SEGMENT_TYPES_BY_PRODUCT = {
-        "full": {"opening", "deep_dive", "medium_dive", "quick_news", "closing"},
-        "daily_brief": {"opening", "dashboard", "story_scan", "closing"},
-        "deep_dive": {"opening", "context", "viewpoint_a", "viewpoint_b", "comment_deep", "synthesis", "closing"},
-    }
+    REQUIRED_SEGMENT_TYPES = {"opening", "dashboard", "story_scan", "closing"}
     DEFAULT_DURATIONS = {
         "opening": 25, "deep_dive": 60, "medium_dive": 30, "quick_news": 50, "closing": 12,
         "dashboard": 10, "story_scan": 100, "quick_briefs": 40, "context": 30, "viewpoint_a": 40, "viewpoint_b": 40,
@@ -893,7 +844,7 @@ class OpenAILLMProvider(LLMProvider):
             return messages
         return [{"role": "user", "content": prompt}]
 
-    def _dict_to_script(self, d: dict, product: str = "full") -> Script:
+    def _dict_to_script(self, d: dict) -> Script:
         segments = []
         seen_types = set()
 
@@ -955,10 +906,10 @@ class OpenAILLMProvider(LLMProvider):
                 meta=meta
             ))
 
-        required_types = self.REQUIRED_SEGMENT_TYPES_BY_PRODUCT.get(product, self.REQUIRED_SEGMENT_TYPES)
+        required_types = self.REQUIRED_SEGMENT_TYPES
         missing = required_types - seen_types
         if missing:
-            self.logger.info(f"  LLM missing segment types for product={product}: {missing}, adding defaults")
+            self.logger.info(f"  LLM missing segment types: {missing}, adding defaults")
             for seg_type in missing:
                 segments.append(ScriptSegment(
                     segment_type=seg_type,
@@ -984,38 +935,6 @@ class OpenAILLMProvider(LLMProvider):
                 return elem.props["story_index"]
         return None
 
-    def _validate_analysis_indices(self, analysis_dict: dict, max_comments: int):
-        """Clamp comment_index values in R1a output to valid range."""
-        for rc in analysis_dict.get("recommended_comments", []):
-            _clamp_index_in_place(rc, "comment_index", max_comments, "R1a: recommended_comments", self.logger)
-        for pp in analysis_dict.get("perspective_pairs", []):
-            for angle_key in ("angle_a", "angle_b"):
-                angle = pp.get(angle_key, {})
-                _clamp_index_in_place(angle, "comment_index", max_comments, f"R1a: perspective_pairs.{angle_key}", self.logger)
-        for nq in analysis_dict.get("notable_quotes", []):
-            _clamp_index_in_place(nq, "comment_index", max_comments, "R1a: notable_quotes", self.logger)
-
-    def _validate_selection_indices(self, selection_dict: dict, max_stories: int):
-        """Clamp story_index / comment_index in R1b output to valid range."""
-        dd = selection_dict.get("deep_dive_decision", {})
-        _clamp_index_in_place(dd, "story_index", max_stories, "R1b: deep_dive_decision", self.logger)
-        _floor_list_in_place(dd, "featured_comment_indices")
-        for p_key in ("perspective_a", "perspective_b"):
-            _floor_index_in_place(dd.get(p_key, {}), "comment_index")
-
-        for i, mi in enumerate(selection_dict.get("medium_selections", [])):
-            _clamp_index_in_place(mi, "story_index", max_stories, f"R1b: medium_selections[{i}]", self.logger)
-        for i, qi in enumerate(selection_dict.get("quick_selections", [])):
-            _clamp_index_in_place(qi, "story_index", max_stories, f"R1b: quick_selections[{i}]", self.logger)
-        for i, bi in enumerate(selection_dict.get("brief_items", [])):
-            _clamp_index_in_place(bi, "story_index", max_stories, f"R1b: brief_items[{i}]", self.logger)
-            for _vp in bi.get("viewpoints", []):
-                _floor_index_in_place(_vp, "comment_index")
-        for p in selection_dict.get("patterns", []):
-            for ev in p.get("evidence", []):
-                _clamp_index_in_place(ev, "story_index", max_stories, "R1b: pattern_evidence", self.logger)
-                _floor_index_in_place(ev, "comment_index")
-
     def _validate_script_indices(self, script_dict: dict, max_stories: int):
         """Clamp story_index / comment_index in R2 scene_elements to valid range."""
         for seg in script_dict.get("segments", []):
@@ -1032,27 +951,3 @@ class OpenAILLMProvider(LLMProvider):
                     _clamp_index_in_place(entry, "story_index", max_stories, "R2: dashboard entry", self.logger)
                 for vp in props.get("viewpoints", []):
                     _floor_index_in_place(vp, "comment_index")
-
-
-def _dict_to_story_analysis(d: dict, raw_json: str) -> StoryAnalysis:
-    return StoryAnalysis(
-        story_index=d.get("story_index", 0),
-        quality_score=d.get("quality_score", 5),
-        quality_brief=d.get("quality_brief", ""),
-        topics=d.get("topics", []),
-        discussion_depth=d.get("discussion_depth", {}),
-        recommended_comments=d.get("recommended_comments", []),
-        perspective_pairs=d.get("perspective_pairs", []),
-        notable_quotes=d.get("notable_quotes", []),
-        raw_json=raw_json
-    )
-
-
-def _dict_to_selection(d: dict, raw_json: str) -> SelectionResult:
-    return SelectionResult(
-        deep_dive_decision=d.get("deep_dive_decision", {}),
-        quick_selections=d.get("quick_selections", []),
-        medium_selections=d.get("medium_selections", []),
-        patterns=d.get("patterns", []),
-        raw_json=raw_json
-    )

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from src.core.models import (
     ContentItem, ContentComment, ContentPackage,
     Script, ScriptSegment, SceneElement, Cue,
-    StoryAnalysis, SelectionResult,
+    SelectionResult,
 )
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.pipeline.content_preparer import ContentPreparer
@@ -108,21 +108,30 @@ class TestContentPreparer:
 
 
 class TestScriptWriter:
-    def test_write_calls_llm_provider(self):
+    def test_write_calls_llm_provider(self, tmp_path):
         config = _make_config()
-        mock_llm = MagicMock(spec=LLMProvider)
-        mock_llm.generate_selection.return_value = _make_selection_result()
-        mock_llm.build_comments_json.return_value = "{}"
-        mock_llm.generate_script.return_value = _make_script()
+        mock_llm = MagicMock()
+        mock_llm.generate_single_story_segment.return_value = ScriptSegment(
+            segment_type="story_scan_item",
+            audio_text="test",
+            estimated_duration=10.0,
+            emotion="upbeat",
+        )
 
         writer = ScriptWriter(config, mock_llm, debug=True)
 
         content = _make_content_package()
-        with patch.object(Path, "exists", return_value=True), \
-             patch.object(Path, "read_text", return_value="prompt text"), \
-             patch("pathlib.Path.exists", return_value=True), \
-             patch.object(Path, "mkdir"):
-            pass
+
+        # Create a real prompts dir with the required prompt file
+        prompts_dir = tmp_path / "prompts"
+        prompts_dir.mkdir()
+        prompt_path = prompts_dir / "daily_brief.md"
+        prompt_path.write_text("{{persona}}", encoding="utf-8")
+
+        script = writer.write(content, str(prompt_path))
+
+        assert mock_llm.generate_single_story_segment.call_count == 6  # num_brief_items default
+        assert len(script.segments) >= 2  # at least opening + closing
 
     def test_write_from_selection_uses_selection_result_from_core(self):
         config = _make_config()
@@ -226,13 +235,11 @@ class TestOrchestrator:
 
 class TestLLMProviderInterface:
     def test_selection_result_importable_from_core(self):
-        from src.core.models import SelectionResult, StoryAnalysis
+        from src.core.models import SelectionResult
         assert SelectionResult is not None
-        assert StoryAnalysis is not None
 
     def test_llm_provider_interface_references_core_types(self):
         import inspect
-        sig = inspect.signature(LLMProvider.generate_selection)
+        sig = inspect.signature(LLMProvider.generate_single_story_segment)
         assert "content" in sig.parameters
-        assert "analyze_prompt_template" in sig.parameters
-        assert "decision_prompt_template" in sig.parameters
+        assert "story_index" in sig.parameters

@@ -12,31 +12,13 @@ class TestStoryAnalysis:
     def test_creation(self):
         sa = StoryAnalysis(
             story_index=0,
-            quality_score=8,
-            quality_brief="Great story",
-            topics=["AI", "LLM"],
-            discussion_depth={"level": "deep"},
-            recommended_comments=[{"comment_index": 0}],
-            perspective_pairs=[{"a": 1}],
-            notable_quotes=[{"text": "quote"}],
             raw_json='{"test": true}',
         )
         assert sa.story_index == 0
-        assert sa.quality_score == 8
-        assert sa.topics == ["AI", "LLM"]
         assert sa.raw_json == '{"test": true}'
 
     def test_defaults(self):
-        sa = StoryAnalysis(
-            story_index=1,
-            quality_score=5,
-            quality_brief="",
-            topics=[],
-            discussion_depth={},
-            recommended_comments=[],
-            perspective_pairs=[],
-            notable_quotes=[],
-        )
+        sa = StoryAnalysis(story_index=1)
         assert sa.raw_json == ""
 
 

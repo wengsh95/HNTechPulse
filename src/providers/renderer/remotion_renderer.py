@@ -638,6 +638,12 @@ class RemotionRenderer(Renderer):
         if r_end < r_start:
             r_end = r_start
 
+        # 当 scene_element 的 end_time 对齐到最后一条 LLM cue 的结尾时，
+        # 说明该元素意图覆盖全段音频。此时直接映射到最后一条 real cue，
+        # 避免 n_llm < n_real 时因索引映射粒度不足导致元素提前结束。
+        if end_idx == n_llm - 1 and abs(elem_end - llm_cues[-1].end_time) < 0.01:
+            r_end = n_real - 1
+
         return (
             float(real_cues[r_start]["start_time"]),
             float(real_cues[r_end]["end_time"]),

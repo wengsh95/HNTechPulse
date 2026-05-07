@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
-    from .models import Script, ContentPackage, SelectionResult, StoryAnalysis, WordTiming
+    from .models import Script, ContentPackage, SelectionResult, WordTiming, ScriptSegment
 
 
 class ContentFetcher(ABC):
@@ -14,20 +14,19 @@ class ContentFetcher(ABC):
 
 
 class LLMProvider(ABC):
-    """LLM 抽象 —— 多轮调用模式 (R1a: 逐条分析 → R1b: 全局决策 → R2: 脚本生成)"""
+    """LLM 抽象 —— R2: 逐条生成脚本"""
 
     @abstractmethod
-    def generate_selection(
+    def generate_single_story_segment(
         self,
         content: "ContentPackage",
-        analyze_prompt_template: str,
-        decision_prompt_template: str
-    ) -> "SelectionResult":
-        """
-        Round 1 完整流程：
-        R1a: 对每条 story 并发分析 → List[StoryAnalysis]
-        R1b: 基于分析结果做全局选题决策 → SelectionResult
-        """
+        story_index: int,
+        segment_type: str,
+        prompt_template_path: str,
+        date: str,
+        comments_data: Optional[dict] = None
+    ) -> "ScriptSegment":
+        """R2: 为单个 story 生成对应的 ScriptSegment"""
         pass
 
     @abstractmethod
@@ -37,9 +36,8 @@ class LLMProvider(ABC):
         comments_json: str,
         script_prompt_template: str,
         date: str,
-        product: str = "full"
     ) -> "Script":
-        """Round 2: 基于选题结果 + 精选评论 → 完整脚本"""
+        """Round 2: 基于选题结果 + 精选评论 → 完整脚本（旧 product 类型兼容）"""
         pass
 
     @abstractmethod

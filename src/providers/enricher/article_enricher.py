@@ -2,8 +2,10 @@ import asyncio
 import io
 import json
 import logging
+import platform
 import random
 import re
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from urllib.parse import urljoin, urlparse
@@ -58,6 +60,52 @@ def _make_headers() -> Dict[str, str]:
     return headers
 
 
+def _find_chrome() -> Optional[str]:
+    """Auto-detect a local Chrome/Chromium executable."""
+    system = platform.system()
+    candidates = []
+
+    if system == "Windows":
+        candidates = [
+            # Chrome stable
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            # Chrome — user install
+            str(Path.home() / r"AppData\Local\Google\Chrome\Application\chrome.exe"),
+            # Chromium
+            str(Path.home() / r"AppData\Local\Chromium\Application\chrome.exe"),
+            # Edge (Chromium-based, Playwright-compatible)
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]
+    elif system == "Darwin":
+        candidates = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+    elif system == "Linux":
+        candidates = [
+            "/usr/bin/google-chrome",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+            "/usr/bin/microsoft-edge",
+            "/snap/bin/chromium",
+        ]
+
+    for path in candidates:
+        if path and shutil.which(path) if system != "Windows" else Path(path).exists():
+            return path
+
+    # Fallback: search PATH
+    for name in ["google-chrome", "chromium-browser", "chromium", "chrome", "msedge"]:
+        found = shutil.which(name)
+        if found:
+            return found
+
+    return None
+
+
 class ArticleEnricher:
     def __init__(self, config: dict, debug: bool = False):
         self.config = config
@@ -77,7 +125,9 @@ class ArticleEnricher:
         self.retry_count = enrich_cfg.get("retry_count", 3)
         self.request_delay = enrich_cfg.get("request_delay", 0.5)
         self.use_headless = enrich_cfg.get("headless", True)
-        self.browser_executable = enrich_cfg.get("browser_executable", None)
+        self.browser_executable = enrich_cfg.get("browser_executable") or _find_chrome()
+        if self.browser_executable:
+            self.logger.debug(f"Using browser: {self.browser_executable}")
 
         # Domains to skip outright — heavy anti-bot, login walls, or
         # sites known to serve nothing useful to scrapers.
