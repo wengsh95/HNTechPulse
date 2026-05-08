@@ -18,11 +18,12 @@ import { ScriptProps } from "./types";
  */
 
 /** calculateMetadata：根据所有 segment 的时长动态计算总帧数 */
-const calcMeta = async ({ props }: { props: ScriptProps }) => {
-  const fps = props.fps ?? 24;
+const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
+  const p = props as unknown as ScriptProps;
+  const fps = p.fps ?? 24;
   const totalDuration =
-    props.totalDuration
-    || (props.segments ?? []).reduce((sum, seg) => sum + (seg.duration ?? 0), 0)
+    p.totalDuration
+    || (p.segments ?? []).reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0)
     || 10;
 
   return {
@@ -48,7 +49,7 @@ export const Root: React.FC = () => {
   return (
     <Composition
       id="HNTechPulseComposition"
-      component={HNTechPulseComposition}
+      component={HNTechPulseComposition as unknown as React.FC<Record<string, unknown>>}
       durationInFrames={240}
       fps={24}
       width={1280}

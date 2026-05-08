@@ -127,8 +127,11 @@ def _expand_story_scan_card(props, content):
     for vp in viewpoints:
         evp = dict(vp)
         comment = _safe_get_comment(item, vp.get("comment_index"))
-        if comment is not None and not evp.get("quote"):
-            evp["quote"] = (comment.content or "")[:50]
+        if comment is not None:
+            if not evp.get("quote"):
+                evp["quote"] = (comment.content or "")[:50]
+            if not evp.get("quote_cn") and comment.content_cn:
+                evp["quote_cn"] = comment.content_cn
         expanded_vps.append(evp)
     result["viewpoints"] = expanded_vps
     if viewpoints and "stance_distribution" not in result:

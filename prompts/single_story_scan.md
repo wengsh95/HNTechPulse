@@ -5,9 +5,11 @@
 
 ## 任务
 
-为一条 HN 帖子生成 **story_scan** 中的单条内容。
+为一条 HN 帖子生成 **story_scan** 中的单条内容。语言风格流畅，口语化，有逻辑，事件捕抓精准。
 
-这是每日快讯（daily_brief）产品的一部分：每条新闻快速扫过，8-12秒，包含事件简述 + 2-3个观点摘要。
+每条新闻快速扫过，8-12秒，包含事件简述 + 2-3个观点摘要 + 一句话（理性内核 + 幽默表达，不要反问）收尾。
+
+如果事件涉及非大众熟悉的专业/文化背景（如技术格式、活动原则、行业惯例等），用一句话补充解释，帮助观众理解"为什么这事重要"。
 
 ---
 
@@ -64,7 +66,7 @@
 - `viewpoints`: 2-3个，覆盖不同 stance（不要只支持和质疑）
 - `viewpoint.summary`: ≤20字，观众扫一眼就懂
 - `viewpoint.quote`: ≤50字，从真实评论摘取原文片段
-- `audio_text`: 80-120字，自然流畅，适合口语播报
+- `audio_text`: 80-120字，自然流畅，适合口语播报。不要用概括性语句重复 event_summary 已说过的结论（如"这说明了XX"），直接推进到观点和收尾
 - `stance_distribution`: 你对整条帖子下所有评论的态度分布估计，key 为 stance（支持|质疑|中立|调侃|担忧），value 为该态度的占比（0-1，总和为1）。仅统计你在 viewpoints 中引用了的 stance 即可。
 - `scene_elements`: 只需 story_scan_card，无需指定 start_time/end_time（由 TTS 音频时长决定）。props 包含 story_index, event_summary, viewpoints, stance_distribution
 
@@ -72,7 +74,6 @@
 
 - 只输出 JSON
 - 翻译准确自然，技术术语保留英文或给标准译名
-- 当故事有图片时（has_images=true），在 scene_elements 中添加一个 image_card
 
 ### 合规性
 

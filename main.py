@@ -24,11 +24,17 @@ def main():
     parser.add_argument("--date", type=str, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
-    parser.add_argument("--steps", type=str, default="fetch,enrich,script,tts,render",
+    parser.add_argument("--steps", type=str, default="fetch,enrich,translate,script,tts,render",
                         help="Steps to run (comma-separated: fetch,enrich,script,tts,render)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Config file path")
+    parser.add_argument("--test-prompt", action="store_true",
+                        help="Test prompts/single_story_scan.md with a mock story and print LLM result")
 
     args = parser.parse_args()
+
+    if args.test_prompt:
+        from test_single_story_prompt import main as test_main
+        return test_main()
 
     steps = [s.strip() for s in args.steps.split(",")]
 

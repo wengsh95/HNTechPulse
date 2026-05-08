@@ -315,8 +315,13 @@ class OpenAILLMProvider(LLMProvider):
             self.logger.info("  No titles to translate, skipping")
             return content
 
+        prompt_path = Path("prompts") / prompt_template
+        if prompt_path.exists():
+            prompt_template_content = prompt_path.read_text(encoding="utf-8")
+        else:
+            prompt_template_content = prompt_template
         items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
-        prompt = render_prompt(prompt_template, items_json=items_json)
+        prompt = render_prompt(prompt_template_content, items_json=items_json)
 
         self.logger.info(f"  Translating {len(items_to_translate)} titles (model={self.fast_model})...")
 
@@ -338,6 +343,66 @@ class OpenAILLMProvider(LLMProvider):
                     content.items[idx].title_cn = value
 
         return content
+
+    def translate_comments(self, content: ContentPackage, comment_refs: dict) -> dict:
+        """Translate only the specified comments using the fast/cheap model.
+
+        Args:
+            content: ContentPackage with stories and comments.
+            comment_refs: If values are strings (flat dict {"comment_S_C": "text"}),
+                          translate them directly. If values are lists (legacy format
+                          {story_index: [comment_index, ...]}), look up full comment
+                          content from content.items.
+
+        Returns:
+            dict mapping "comment_{story_idx}_{comment_idx}" -> translated text.
+        """
+        items_to_translate: dict = {}
+        for key, value in comment_refs.items():
+            if isinstance(value, str):
+                items_to_translate[key] = value
+            elif isinstance(value, list):
+                if not isinstance(key, int):
+                    continue
+                if key >= len(content.items):
+                    continue
+                comments = content.items[key].comments
+                for ci in value:
+                    if ci < len(comments) and comments[ci].content:
+                        items_to_translate[f"comment_{key}_{ci}"] = comments[ci].content
+
+        if not items_to_translate:
+            return {}
+
+        prompt_path = Path("prompts/translate.md")
+        if prompt_path.exists():
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        else:
+            prompt_template = "translate.md"
+        items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
+        prompt = render_prompt(prompt_template, items_json=items_json)
+
+        self.logger.info(
+            f"  Translating {len(items_to_translate)} referenced comments "
+            f"(model={self.fast_model})..."
+        )
+
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label="translate_comments",
+            max_tokens=max(self.fast_max_tokens, 8192),
+            model=self.fast_model,
+            temperature=self.fast_temperature,
+        )
+
+        result = self._extract_json(response_text)
+        translations = result.get("translations", {})
+
+        out = {}
+        for key, value in translations.items():
+            if key.startswith("comment_"):
+                out[key] = value
+        return out
 
     @contextmanager
     def _spinner(self, label: str):

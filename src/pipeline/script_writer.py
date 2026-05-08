@@ -32,10 +32,18 @@ class ScriptWriter:
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             date_display = date_obj.strftime("%Y年%m月%d日")
+            weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+            weekday_str = weekday_names[date_obj.weekday()]
         except (ValueError, TypeError):
             date_display = date
+            weekday_str = None
 
-        audio_text = f"大家好，我是小P，今天是{date_display}。来看看今天的Hacker News热门。"
+        if weekday_str in ("周六", "周日"):
+            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}。周末还在刷科技新闻，你一定是真爱。来看看今天的Hacker News热门。"
+        elif weekday_str == "周五":
+            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}啦！来看看今天的Hacker News热门。"
+        else:
+            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}。来看看今天的Hacker News热门。"
         duration = 7
 
         return ScriptSegment(
@@ -61,9 +69,23 @@ class ScriptWriter:
             meta={}
         )
 
-    def _generate_fixed_closing(self) -> ScriptSegment:
+    def _generate_fixed_closing(self, date: str) -> ScriptSegment:
         """生成每日快讯结尾"""
-        audio_text = "好，今天的速览就到这里，下期再见，多喝热水。"
+        from datetime import datetime
+        try:
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            weekday = date_obj.weekday()
+        except (ValueError, TypeError):
+            weekday = None
+
+        if weekday == 4:
+            audio_text = "好，今天的速览就到这里，周末愉快，多喝热水。"
+        elif weekday == 5:
+            audio_text = "好，今天的速览就到这里，周末继续愉快，多喝热水。"
+        elif weekday == 6:
+            audio_text = "好，今天的速览就到这里，新的一周加油，多喝热水。"
+        else:
+            audio_text = "好，今天的速览就到这里，下期再见，多喝热水。"
         duration = 8
 
         return ScriptSegment(
@@ -101,21 +123,24 @@ class ScriptWriter:
                     "comment_count": item.comment_count,
                 })
 
+        # 13s: 3s pause at top + scroll through overflow + buffer at end
+        dashboard_duration = 13.0
+
         return ScriptSegment(
             segment_type="dashboard",
             audio_text="来看看今天的热门榜单。",
-            estimated_duration=10,
+            estimated_duration=dashboard_duration,
             emotion="neutral",
             scene_elements=[
                 SceneElement(
                     element_type="dashboard_card",
                     start_time=0.0,
-                    end_time=10.0,
+                    end_time=dashboard_duration,
                     props={"entries": entries}
                 )
             ],
             cues=[
-                Cue(text="来看看今天的热门榜单。", start_time=0.0, end_time=10.0)
+                Cue(text="来看看今天的热门榜单。", start_time=0.0, end_time=dashboard_duration)
             ],
             meta={"dashboard": {"entries": entries}}
         )
@@ -172,6 +197,9 @@ class ScriptWriter:
                 sub_segment_char_ranges.append((char_start, char_end))
                 for elem in s.scene_elements:
                     elem.sub_segment_index = i
+                    if elem.element_type == "story_scan_card":
+                        elem.props["display_index"] = i
+                        elem.props["story_count"] = len(story_scan_segs)
                     combined_scene_elements.append(elem)
             total_duration = sum(s.estimated_duration for s in story_scan_segs)
 
@@ -190,7 +218,7 @@ class ScriptWriter:
             segments.append(story_scan_seg)
 
         # 固定结尾
-        segments.append(self._generate_fixed_closing())
+        segments.append(self._generate_fixed_closing(date))
 
         return Script(
             title="HN TechPulse 每日快讯",
@@ -215,6 +243,12 @@ class ScriptWriter:
             if content.items and not has_story_scan:
                 self.logger.info(
                     "Cached script is missing story_scan segment — "
+                    "forcing regeneration"
+                )
+                script_path.unlink()
+            elif not self._validate_cache_metadata(script, content):
+                self.logger.info(
+                    "Cached script is missing timing metadata — "
                     "forcing regeneration"
                 )
                 script_path.unlink()
@@ -414,6 +448,7 @@ class ScriptWriter:
                                 start_time=e["start_time"],
                                 end_time=e["end_time"],
                                 props=e["props"],
+                                sub_segment_index=e.get("sub_segment_index"),
                             )
                             for e in s.get("scene_elements", [])
                         ],
@@ -436,3 +471,25 @@ class ScriptWriter:
             )
         except (KeyError, TypeError) as e:
             raise ValueError(f"Script file {path} has unexpected structure: {e}") from e
+
+    def _validate_cache_metadata(self, script: Script, content) -> bool:
+        """Check cached script has timing metadata needed for card/cue alignment.
+
+        Returns False if the cache is stale and should be regenerated.
+        """
+        story_scan = next(
+            (s for s in script.segments if s.segment_type == "story_scan"), None
+        )
+        if story_scan is None:
+            return True  # No story_scan to validate
+
+        # Must have char_ranges for TTS-based timing
+        if not story_scan.meta.get("sub_segment_char_ranges"):
+            return False
+
+        # Scene elements must know their sub-segment index
+        for elem in story_scan.scene_elements:
+            if elem.sub_segment_index is None:
+                return False
+
+        return True

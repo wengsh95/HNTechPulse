@@ -41,7 +41,7 @@ class Orchestrator:
 
     def run(self, date: str, steps: Optional[List[str]] = None) -> None:
         if steps is None:
-            steps = ["fetch", "enrich", "translate", "script", "tts", "render"]
+            steps = ["fetch", "enrich", "script", "translate", "tts", "render"]
 
         self.logger.info(f"Running pipeline, date={date}, steps={steps}, product=daily_brief")
 
@@ -60,9 +60,6 @@ class Orchestrator:
         if "enrich" in steps:
             content = self._step_enrich(content, date)
 
-        if "translate" in steps:
-            content = self._step_translate(content, date)
-
         if "script" in steps:
             script = self._step_script(content, date)
         else:
@@ -71,6 +68,9 @@ class Orchestrator:
             except FileNotFoundError:
                 self.logger.info("Script not found, generating anyway...")
                 script = self._step_script(content, date)
+
+        if "translate" in steps:
+            content, script = self._step_translate(content, script, date)
 
         if "tts" in steps:
             script = self._step_tts(script, date, content)
@@ -117,12 +117,17 @@ class Orchestrator:
         self.content_preparer.save_content(content, date)
         return content
 
-    def _step_translate(self, content, date: str):
-        """Translate all story titles using the fast/cheap model. Checkpointed."""
-        self.logger.info("Step: Translate titles")
+    def _step_translate(self, content, script, date: str):
+        """Translate titles + referenced comments. Checkpointed.
+
+        Runs after script generation so we know which comments are referenced
+        in story cards. Updates both content (title_cn) and script (dashboard
+        title_translation, viewpoint quote_cn) in place.
+        """
+        self.logger.info("Step: Translate titles and comments")
         if self.dry_run:
             self.logger.info("Dry run: skipping translation")
-            return content
+            return content, script
 
         translations_path = Path(f"data/{date}/translations.json")
 
@@ -136,24 +141,88 @@ class Orchestrator:
                     idx = int(key.split("_", 1)[1])
                     if idx < len(content.items):
                         content.items[idx].title_cn = value
+            self._apply_translations_to_script(script, content, translations)
             self.content_preparer.save_content(content, date)
-            return content
+            self.script_writer.save_script(script, date)
+            return content, script
 
+        # 1. Translate all titles
         content = self.llm_provider.translate_titles(content, "translate.md")
-        self.content_preparer.save_content(content, date)
 
-        # Save checkpoint
+        # 2. Collect referenced comments from story_scan cards
+        comment_refs = self._collect_comment_refs(script)
+
+        # 3. Translate only the referenced comments
+        comment_translations = {}
+        if comment_refs:
+            comment_translations = self.llm_provider.translate_comments(content, comment_refs)
+
+        # 4. Build checkpoint and apply to script
         translations = {}
         for idx, item in enumerate(content.items):
             if item.title_cn:
                 translations[f"title_{idx}"] = item.title_cn
+        translations.update(comment_translations)
+
         if translations:
             translations_path.parent.mkdir(parents=True, exist_ok=True)
             with open(translations_path, "w", encoding="utf-8") as f:
                 json.dump(translations, f, ensure_ascii=False, indent=2)
             self.logger.info(f"  Saved {len(translations)} translations to {translations_path}")
 
-        return content
+        self._apply_translations_to_script(script, content, translations)
+
+        self.content_preparer.save_content(content, date)
+        self.script_writer.save_script(script, date)
+
+        return content, script
+
+    @staticmethod
+    def _collect_comment_refs(script) -> dict:
+        """Collect {key: quote_text} from story_scan viewpoints.
+
+        Keys are "comment_{story_idx}_{comment_idx}", values are the LLM-extracted
+        quote snippets (≤50 chars English) that need translation.
+        """
+        refs = {}
+        for seg in script.segments:
+            if seg.segment_type != "story_scan":
+                continue
+            for elem in seg.scene_elements:
+                if elem.element_type != "story_scan_card":
+                    continue
+                story_idx = elem.props.get("story_index")
+                if story_idx is None:
+                    continue
+                for vp in elem.props.get("viewpoints", []):
+                    ci = vp.get("comment_index")
+                    quote = vp.get("quote", "")
+                    if ci is not None and quote:
+                        key = f"comment_{story_idx}_{ci}"
+                        refs[key] = quote
+        return refs
+
+    @staticmethod
+    def _apply_translations_to_script(script, content, translations: dict) -> None:
+        """Apply translations to script: dashboard title_cn and viewpoint quote_cn."""
+        for seg in script.segments:
+            if seg.segment_type == "dashboard":
+                for elem in seg.scene_elements:
+                    if elem.element_type == "dashboard_card":
+                        for entry in elem.props.get("entries", []):
+                            story_idx = entry.get("story_index")
+                            if story_idx is not None and story_idx < len(content.items):
+                                entry["title_translation"] = content.items[story_idx].title_cn
+            elif seg.segment_type == "story_scan":
+                for elem in seg.scene_elements:
+                    if elem.element_type == "story_scan_card":
+                        story_idx = elem.props.get("story_index")
+                        for vp in elem.props.get("viewpoints", []):
+                            ci = vp.get("comment_index")
+                            if ci is not None and story_idx is not None:
+                                key = f"comment_{story_idx}_{ci}"
+                                if key in translations:
+                                    vp["quote_cn"] = translations[key]
 
     def _step_script(self, content, date: str):
         self.logger.info("=" * 50)
@@ -234,6 +303,10 @@ class Orchestrator:
                 result = self._synthesize_and_save(segment, audio_path, timings_path)
 
             segment.actual_duration = result.duration
+
+            # Dashboard visual needs to be longer than its short narration audio
+            if segment.segment_type == "dashboard":
+                segment.actual_duration = max(segment.estimated_duration, result.duration)
             segment.audio_path = audio_path
 
             if result.word_timings:
@@ -343,6 +416,10 @@ class Orchestrator:
         Falls back to proportional layout when word_timings are unavailable.
         """
         for seg in script.segments:
+            # Dashboard has a fixed visual duration longer than its short narration audio;
+            # skip time remapping so element start/end stay as set in script_writer.
+            if seg.segment_type == "dashboard":
+                continue
             duration = seg.actual_duration or seg.estimated_duration
             if duration <= 0:
                 continue
@@ -356,9 +433,9 @@ class Orchestrator:
                 sub_times = self._map_char_ranges_to_times(
                     seg.audio_text, char_ranges, word_timings_raw, duration
                 )
-                for elem in seg.scene_elements:
-                    idx = elem.sub_segment_index
-                    if idx is not None and idx < len(sub_times):
+                for i, elem in enumerate(seg.scene_elements):
+                    idx = elem.sub_segment_index if elem.sub_segment_index is not None else i
+                    if idx < len(sub_times):
                         elem.start_time = sub_times[idx][0]
                         elem.end_time = sub_times[idx][1]
                     else:
@@ -389,20 +466,45 @@ class Orchestrator:
                     sub_times = self._map_char_ranges_to_times(
                         seg.audio_text, synthetic_ranges, word_timings_raw, duration
                     )
-                    for elem in seg.scene_elements:
-                        idx = elem.sub_segment_index
-                        if idx is not None and idx < len(sub_times):
+                    for i, elem in enumerate(seg.scene_elements):
+                        idx = elem.sub_segment_index if elem.sub_segment_index is not None else i
+                        if idx < len(sub_times):
                             elem.start_time = sub_times[idx][0]
                             elem.end_time = sub_times[idx][1]
                         else:
                             elem.start_time = 0.0
                             elem.end_time = duration
                 else:
-                    # No estimated durations either — even split
-                    for i, elem in enumerate(seg.scene_elements):
-                        per = duration / n if n > 0 else duration
-                        elem.start_time = i * per
-                        elem.end_time = (i + 1) * per
+                    # No estimated durations — synthesize even-char split
+                    # from audio_text so we can still leverage TTS word_timings
+                    # for per-element alignment (better than even time split).
+                    if n > 0 and seg.audio_text:
+                        text_len = len(seg.audio_text)
+                        chars_per = text_len // n
+                        synthetic_ranges = []
+                        char_offset = 0
+                        for i in range(n):
+                            ce = char_offset + (chars_per if i < n - 1 else text_len - char_offset)
+                            if ce <= char_offset:
+                                ce = char_offset + 1
+                            synthetic_ranges.append((char_offset, ce))
+                            char_offset = ce
+                        sub_times = self._map_char_ranges_to_times(
+                            seg.audio_text, synthetic_ranges, word_timings_raw, duration
+                        )
+                        for i, elem in enumerate(seg.scene_elements):
+                            idx = elem.sub_segment_index if elem.sub_segment_index is not None else i
+                            if idx < len(sub_times):
+                                elem.start_time = sub_times[idx][0]
+                                elem.end_time = sub_times[idx][1]
+                            else:
+                                elem.start_time = 0.0
+                                elem.end_time = duration
+                    else:
+                        for i, elem in enumerate(seg.scene_elements):
+                            per = duration / n if n > 0 else duration
+                            elem.start_time = i * per
+                            elem.end_time = (i + 1) * per
             else:
                 # No word_timings at all — proportional layout by estimated durations
                 sub_est = seg.meta.get("sub_segment_estimated_durations")
@@ -442,13 +544,22 @@ class Orchestrator:
         position in audio_text. We assign each word to the sub-segment whose
         char range contains it, then derive per-sub-segment time spans.
         """
-        # Build a list of (char_offset, start_time, end_time) for each word
+        # Build a list of (char_offset, start_time, end_time) for each word.
+        # Use str.find() to locate each word's actual position in audio_text.
+        # Cumulative len() would drift because edge_tts word tokens omit spaces
+        # and other characters present in the original text.
         word_entries = []
-        char_cursor = 0
+        search_pos = 0
         for wt in word_timings_raw:
             text = wt.get("text", "")
-            word_entries.append((char_cursor, wt["start_time"], wt["end_time"]))
-            char_cursor += len(text)
+            idx = audio_text.find(text, search_pos)
+            if idx >= 0:
+                word_entries.append((idx, wt["start_time"], wt["end_time"]))
+                search_pos = idx + len(text)
+            else:
+                # Word not in audio_text (edge_tts normalization) — fall back
+                word_entries.append((search_pos, wt["start_time"], wt["end_time"]))
+                search_pos += len(text)
 
         if not word_entries:
             # No timings: fall back to even split
@@ -468,21 +579,30 @@ class Orchestrator:
                         first_time = st
                     last_time = et
             if first_time is None:
-                # No words in this range — use boundary estimates
+                # No words in this range — placeholder, will be filled below
                 sub_times.append((0.0, 0.0))
             else:
                 sub_times.append((first_time, last_time))
 
-        # Ensure no gaps: each sub-segment starts where the previous ended
-        for i in range(1, len(sub_times)):
-            if sub_times[i][0] > sub_times[i - 1][1]:
-                # Overlap or gap — snap start to previous end
-                sub_times[i] = (sub_times[i - 1][1], sub_times[i][1])
+        # Handle zero-duration entries: fall back to proportional split
+        n = len(char_ranges)
+        per = duration / n if n > 0 else duration
+        for i in range(len(sub_times)):
+            if sub_times[i][0] == 0.0 and sub_times[i][1] == 0.0:
+                sub_times[i] = (i * per, (i + 1) * per)
 
         # Pin first/last to segment boundaries
         if sub_times:
             sub_times[0] = (0.0, sub_times[0][1])
-            sub_times[-1] = (sub_times[-1][0], duration)
+            if sub_times[-1][1] < duration:
+                sub_times[-1] = (sub_times[-1][0], duration)
+
+        # Fill visual gaps by extending the previous card, not pulling the
+        # next card forward.  Preserves real TTS start times so cards don't
+        # appear before their audio.
+        for i in range(1, len(sub_times)):
+            if sub_times[i][0] > sub_times[i - 1][1]:
+                sub_times[i - 1] = (sub_times[i - 1][0], sub_times[i][0])
 
         return sub_times
 

@@ -34,6 +34,11 @@ class LLMProvider(ABC):
         """翻译所有故事标题"""
         pass
 
+    @abstractmethod
+    def translate_comments(self, content: "ContentPackage", comment_refs: dict) -> dict:
+        """翻译指定评论，返回 {comment_{story}_{idx}: 译文} 字典"""
+        pass
+
 
 class TTSResult:
     """TTS 合成结果"""

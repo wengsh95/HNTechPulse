@@ -39,7 +39,7 @@ video:
 
 pipeline:
   product: "daily_brief"         # 产品类型：仅 daily_brief（每日快讯）
-  num_brief_items: 6             # 快讯条目数量
+  num_brief_items: 10            # 快讯条目数量
   max_stories: 10                # 总选取 story 数
   # ── LLM 输入评论截断策略 ──
   max_comments_for_brief: 10        # brief 每条最多传多少条评论 (R2 使用)

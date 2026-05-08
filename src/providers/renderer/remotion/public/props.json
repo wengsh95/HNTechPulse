@@ -4,34 +4,39 @@
   "fps": 24,
   "bgColor": "#0d1117",
   "title": "HN TechPulse 每日快讯",
-  "totalDuration": 183.768,
+  "totalDuration": 279.384,
   "segments": [
     {
       "segment_type": "opening",
-      "audio_text": "大家好，我是小P，今天是2026年05月08日。来看看今天的Hacker News热门。",
+      "audio_text": "大家好，我是小P，今天是2026年05月09日，周六。周末还在刷科技新闻，你一定是真爱。来看看今天的Hacker News热门。",
       "cues": [
         {
-          "text": "大家好，我是小P，今天是2026年05月08日。",
+          "text": "大家好，我是小P，今天是2026年05月09日，周六。",
           "start_time": 0.0,
-          "end_time": 4.539
+          "end_time": 5.118
+        },
+        {
+          "text": "周末还在刷科技新闻，你一定是真爱。",
+          "start_time": 5.068,
+          "end_time": 8.477
         },
         {
           "text": "来看看今天的Hacker News热门。",
-          "start_time": 4.489,
-          "end_time": 7.2
+          "start_time": 8.477,
+          "end_time": 11.184
         }
       ],
-      "duration": 7.2,
+      "duration": 11.184,
       "start_time": 0.0,
-      "end_time": 7.2,
+      "end_time": 11.184,
       "scene_elements": [
         {
           "element_type": "title_card",
           "start_time": 0.0,
-          "end_time": 7.2,
+          "end_time": 11.184,
           "props": {
             "title": "HN TechPulse",
-            "subtitle": "2026年05月08日",
+            "subtitle": "2026年05月09日",
             "stats": ""
           }
         }
@@ -49,68 +54,104 @@
         }
       ],
       "duration": 2.424,
-      "start_time": 7.2,
-      "end_time": 9.624,
+      "start_time": 11.184,
+      "end_time": 13.607999999999999,
       "scene_elements": [
         {
           "element_type": "dashboard_card",
           "start_time": 0.0,
-          "end_time": 2.424,
+          "end_time": 2.425,
           "props": {
             "entries": [
               {
                 "rank": 1,
                 "story_index": 0,
-                "original_title": "Appearing productive in the workplace",
-                "title_translation": null,
-                "score": 1558,
-                "comment_count": 634,
-                "title_cn": ""
+                "original_title": "Cloudflare to cut about 20% workforce",
+                "title_translation": "Cloudflare将裁员约20%",
+                "score": 1096,
+                "comment_count": 745,
+                "title_cn": "Cloudflare将裁员约20%"
               },
               {
                 "rank": 2,
                 "story_index": 1,
-                "original_title": "The map that keeps Burning Man honest",
-                "title_translation": null,
-                "score": 639,
-                "comment_count": 313,
-                "title_cn": ""
+                "original_title": "Canvas is down as ShinyHunters threatens to leak schools’ data",
+                "title_translation": "Canvas宕机，ShinyHunters威胁泄露学校数据",
+                "score": 846,
+                "comment_count": 552,
+                "title_cn": "Canvas宕机，ShinyHunters威胁泄露学校数据"
               },
               {
                 "rank": 3,
                 "story_index": 2,
-                "original_title": "SQLite Is a Library of Congress Recommended Storage Format",
-                "title_translation": null,
-                "score": 625,
-                "comment_count": 184,
-                "title_cn": ""
+                "original_title": "AI slop is killing online communities",
+                "title_translation": "AI垃圾内容正在摧毁在线社区",
+                "score": 764,
+                "comment_count": 656,
+                "title_cn": "AI垃圾内容正在摧毁在线社区"
               },
               {
                 "rank": 4,
                 "story_index": 3,
-                "original_title": "Programming Still Sucks",
-                "title_translation": null,
-                "score": 609,
+                "original_title": "Dirtyfrag: Universal Linux LPE",
+                "title_translation": "Dirtyfrag：通用Linux本地提权漏洞",
+                "score": 732,
                 "comment_count": 304,
-                "title_cn": ""
+                "title_cn": "Dirtyfrag：通用Linux本地提权漏洞"
               },
               {
                 "rank": 5,
                 "story_index": 4,
-                "original_title": "Chrome removes claim of On-device Al not sending data to Google Servers",
-                "title_translation": null,
-                "score": 554,
-                "comment_count": 216,
-                "title_cn": ""
+                "original_title": "Maybe you shouldn't install new software for a bit",
+                "title_translation": "或许你该暂时不要安装新软件",
+                "score": 717,
+                "comment_count": 383,
+                "title_cn": "或许你该暂时不要安装新软件"
               },
               {
                 "rank": 6,
                 "story_index": 5,
-                "original_title": "Higher usage limits for Claude and a compute deal with SpaceX",
-                "title_translation": null,
-                "score": 503,
-                "comment_count": 472,
-                "title_cn": ""
+                "original_title": "Agents need control flow, not more prompts",
+                "title_translation": "智能体需要控制流，而非更多提示",
+                "score": 546,
+                "comment_count": 266,
+                "title_cn": "智能体需要控制流，而非更多提示"
+              },
+              {
+                "rank": 7,
+                "story_index": 6,
+                "original_title": "Poland is now among the 20 largest economies. How it happened",
+                "title_translation": "波兰跻身全球前20大经济体，如何做到的？",
+                "score": 526,
+                "comment_count": 446,
+                "title_cn": "波兰跻身全球前20大经济体，如何做到的？"
+              },
+              {
+                "rank": 8,
+                "story_index": 7,
+                "original_title": "Natural Language Autoencoders: Turning Claude's Thoughts into Text",
+                "title_translation": "自然语言自编码器：将Claude的思考转化为文本",
+                "score": 345,
+                "comment_count": 108,
+                "title_cn": "自然语言自编码器：将Claude的思考转化为文本"
+              },
+              {
+                "rank": 9,
+                "story_index": 8,
+                "original_title": "Brazil's Pix payment system faces pressure from Visa and Mastercard",
+                "title_translation": "巴西Pix支付系统面临Visa和Mastercard的压力",
+                "score": 333,
+                "comment_count": 279,
+                "title_cn": "巴西Pix支付系统面临Visa和Mastercard的压力"
+              },
+              {
+                "rank": 10,
+                "story_index": 9,
+                "original_title": "Hardening Firefox with Claude Mythos Preview",
+                "title_translation": "使用Claude Mythos预览版加固Firefox",
+                "score": 296,
+                "comment_count": 130,
+                "title_cn": "使用Claude Mythos预览版加固Firefox"
               }
             ]
           }
@@ -120,350 +161,687 @@
     },
     {
       "segment_type": "story_scan",
-      "audio_text": "随着大模型工具普及，职场出现了一种新现象：不懂编码的人做出软件，不懂数据架构的人设计数据系统，产出看似专业但缺乏真实判断。有评论忧心，连专家也被AI带偏，作品失却品味；也有人调侃，我们期待的是GLaDOS，得到的却是只会添乱的Wheatley。还有观点认为，这只是作者的嫉妒。这种现象正在改变我们对生产力的定义。 每年火人节结束后，150名志愿者会留在黑石城，用数周时间地毯式清理3800英亩的干湖床，寻找每一颗螺丝、每一片亮片，甚至用像素计数确保残留物不超过标准。这种对不留痕迹的极致追求让很多人心生敬意，但也有人调侃，一个标榜激进自力更生的活动，最后竟需要一张公开的羞耻地图来维持诚实。还有人担忧，逐年上涨的票价正在把参与者变成顾客，减弱了共担清理的责任感。 美国国会图书馆将SQLite列为数据集推荐存储格式，与XML、JSON、CSV并列，看重其公开规范和长期可读性，以最大化数字内容的可访问性。支持者认为这非常适合公共部门数据保存，质疑者则担心它太容易变成缺乏管理的‘影子数据库’。不过很多人也是刚知道这份2018年的旧闻。SQLite是否值得依赖，看你怎么用。 一篇博客《Programming Still Sucks》惹起热议，文章痛斥软件行业被贪婪驱动，用AI取代初级岗位并摧毁知识传承。有人赞赏文笔“尖锐、准确、恰如其分的愤世嫉俗”，也有人称这只是无谓牢骚，初级岗位仍在大量招聘。另有开发者担心 AI 让编程更糟糕，被迫调试看不懂的代码，工作变得更加焦虑。 Chrome悄悄撤下了关于设备端AI不向谷歌服务器发送数据的声明，用户普遍担忧这可能是变相的数据收集手段。有评论认为AI功能更像是在用户不知情下回传信息的后门，也有人指出或许只是优化措辞。调侃者则惊讶为何至今仍有人坚持使用这款浏览器。这场争议再次引发对谷歌隐私承诺的质疑。 Anthropic宣布与SpaceX合作，使用其Colossus 1数据中心300兆瓦计算力，为Claude用户提升速率限制。有用户对此表示欢迎，乐于享受更高的使用额度。但也有声音质疑，认为这更像是Elon放弃xAI、直接出售算力的信号。更有调侃称，声明中提及轨道算力不过是达成交易的筹码而已。",
+      "audio_text": "Cloudflare 突然宣布裁员20%，大约1100人，理由是要拥抱AI时代。但半年前刚招了1111个实习生，网友们觉得这剧情很熟。有人调侃“未来已不是从前”，有人质疑这不过是经济衰退的遮羞布，还有人担心被裁的员工们雪上加霜。裁员潮下，AI的借口越来越不新鲜了。 Canvas被黑，期末考试全乱套了。有教授早就说别信Canvas的成绩簿，自己偷偷用Excel备份。学生也吐槽：这波直接把依赖症暴露了。倒是有人淡定：考试全取消？Everything coming up Milhouse。只能说，鸡蛋别放一个篮子，尤其当篮子还被黑客盯着的时候。 AI 生成的低质内容正在杀死在线社区，这不是危言耸听。有社区管理员每天封禁 600 个 AI 账户，直言快撑不住了。但也有人觉得问题不在 AI，而在人群的鉴别力。还有人直接怼了一句：“Build with AI？不，我才不。” 就像把孩子的涂鸦贴满大街，重要的不是工具，而是知道什么时候该闭嘴。 Dirty Frag漏洞让主流Linux都能本地提权到root，但官方补丁还没着落。评论区里，有人吐槽维护者默认开启0.1%用户才用的模块，有人无奈担心以后周周更新内核，还有人调侃要是Linux软件都有这兼容性就好了。说到底，不用的模块就别加载——少装点，少挨打，安全就是这么简单。 Linux内核又爆新洞，有人觉得现在正是搞供应链攻击的好时机。文章建议：除了打内核补丁，这一周先别装新软件。支持者说这是早晚要爆的雷，质疑者表示不更新本身就不安全。还有网友调侃，这话听起来怎么像黑客说的。记住，最危险的建议往往听起来最安全。 有人说AI agent该强化控制流而不是堆提示词。支持者表示自己加了个简单确定性支架，系统可靠了不少，像开了挂。但也有人试了一圈又回到prompt路线，觉得不能一刀切。还有评论调侃：这不就是低配版微服务吗？换个马甲继续烧token。与其在prompt里写“DO NOT SKIP”，不如直接写几行代码让它跳不了——毕竟，给模型一个防呆设计，总比指望它自己懂事强。 波兰悄悄挤进全球前20大经济体，怎么做到的？有人说全靠欧盟的巨额补贴——波兰确实是过去十年里欧盟资金的最大赢家。但另一拨人指出，同样收钱的国家多了，只有波兰把它变成了持续增长的动力，教育、基建、制造业全面开花。关键在于：钱给对了方向，还得会用。有钱没头脑是浪费，有钱有头脑就变成了奇迹——波兰显然选了后者。 Anthropic 搞了个新花样：把AI内部那些数字激活直接“翻译”成大白话，号称能读懂Claude的小心思。支持的人说这给AI安全开了扇窗，质疑的则问：你怎么知道这翻译准不准？更有人调侃——一堆矩阵乘法还能有信念？这就像给AI装了个测谎仪，但它到底在说真话还是编故事？反正别太当真，毕竟数据包没心跳。 巴西的Pix支付系统太火了，Visa和Mastercard坐不住了，开始游说美国政府施压。有人夸Pix是救星——转账秒到、免手续费，商家还给折扣；但也有人担心央行借机监控你每一笔消费。更尴尬的是，Pix其实跑在AWS上，一断网全国瘫痪。想摆脱美帝垄断？结果只是换了个爹。 Mozilla 用 Anthropic 的 Mythos 从 Firefox 里挖出了 271 个安全 bug，其中 180 个高危。有评论说这只是 271 个有效 bug，别当可利用漏洞；Mozilla 员工表示它们都符合内部安全标准。还有人吐槽 Mozilla 少搞新功能、多写安全代码。AI 挖洞时代来了，但漏洞不会自己‘露’出来，得靠工具去敲。",
       "cues": [
         {
-          "text": "随着大模型工具普及，职场出现了一种新现象：不懂编码的人做出软件，不懂数据架构的人设计数据系统，产出看似专业但缺乏真实判断。",
+          "text": "Cloudflare 突然宣布裁员20%，大约1100人，理由是要拥抱AI时代。",
           "start_time": 0.0,
-          "end_time": 11.852
+          "end_time": 6.914
         },
         {
-          "text": "有评论忧心，连专家也被AI带偏，作品失却品味；也有人调侃，我们期待的是GLaDOS，得到的却是只会添乱的Wheatley。",
-          "start_time": 11.852,
-          "end_time": 22.534
+          "text": "但半年前刚招了1111个实习生，网友们觉得这剧情很熟。",
+          "start_time": 6.864,
+          "end_time": 12.557
         },
         {
-          "text": "还有观点认为，这只是作者的嫉妒。",
-          "start_time": 22.534,
-          "end_time": 25.977
+          "text": "有人调侃“未来已不是从前”，有人质疑这不过是经济衰退的遮羞布，还有人担心被裁的员工们雪上加霜。",
+          "start_time": 12.557,
+          "end_time": 21.08
         },
         {
-          "text": "这种现象正在改变我们对生产力的定义。",
-          "start_time": 25.977,
-          "end_time": 29.5
+          "text": "裁员潮下，AI的借口越来越不新鲜了。",
+          "start_time": 21.08,
+          "end_time": 24.614
         },
         {
-          "text": "每年火人节结束后，150名志愿者会留在黑石城，用数周时间地毯式清理3800英亩的干湖床，寻找每一颗螺丝、每一片亮片，甚至用像素计数确保残留物不超过标准。",
-          "start_time": 29.5,
-          "end_time": 44.25
+          "text": "Canvas被黑，期末考试全乱套了。",
+          "start_time": 24.614,
+          "end_time": 27.761
         },
         {
-          "text": "这种对不留痕迹的极致追求让很多人心生敬意，但也有人调侃，一个标榜激进自力更生的活动，最后竟需要一张公开的羞耻地图来维持诚实。",
-          "start_time": 44.25,
-          "end_time": 55.955
+          "text": "有教授早就说别信Canvas的成绩簿，自己偷偷用Excel备份。",
+          "start_time": 27.761,
+          "end_time": 33.136
         },
         {
-          "text": "还有人担忧，逐年上涨的票价正在把参与者变成顾客，减弱了共担清理的责任感。",
-          "start_time": 55.955,
-          "end_time": 62.864
+          "text": "学生也吐槽：这波直接把依赖症暴露了。",
+          "start_time": 33.136,
+          "end_time": 36.807
         },
         {
-          "text": "美国国会图书馆将SQLite列为数据集推荐存储格式，与XML、JSON、CSV并列，看重其公开规范和长期可读性，以最大化数字内容的可访问性。",
-          "start_time": 62.864,
-          "end_time": 76.818
+          "text": "倒是有人淡定：考试全取消？",
+          "start_time": 36.807,
+          "end_time": 39.534
         },
         {
-          "text": "支持者认为这非常适合公共部门数据保存，质疑者则担心它太容易变成缺乏管理的‘影子数据库’。",
-          "start_time": 76.818,
-          "end_time": 84.773
+          "text": "Everything coming up Milhouse。",
+          "start_time": 39.534,
+          "end_time": 41.795
         },
         {
-          "text": "不过很多人也是刚知道这份2018年的旧闻。",
-          "start_time": 84.773,
-          "end_time": 88.682
+          "text": "只能说，鸡蛋别放一个篮子，尤其当篮子还被黑客盯着的时候。",
+          "start_time": 41.795,
+          "end_time": 47.125
         },
         {
-          "text": "SQLite是否值得依赖，看你怎么用。",
-          "start_time": 88.682,
-          "end_time": 91.977
+          "text": "AI 生成的低质内容正在杀死在线社区，这不是危言耸听。",
+          "start_time": 47.125,
+          "end_time": 52.386
         },
         {
-          "text": "一篇博客《Programming Still Sucks》惹起热议，文章痛斥软件行业被贪婪驱动，用AI取代初级岗位并摧毁知识传承。",
-          "start_time": 91.977,
-          "end_time": 101.761
+          "text": "有社区管理员每天封禁 600 个 AI 账户，直言快撑不住了。",
+          "start_time": 52.386,
+          "end_time": 57.682
         },
         {
-          "text": "有人赞赏文笔“尖锐、准确、恰如其分的愤世嫉俗”，也有人称这只是无谓牢骚，初级岗位仍在大量招聘。",
-          "start_time": 101.761,
-          "end_time": 110.682
+          "text": "但也有人觉得问题不在 AI，而在人群的鉴别力。",
+          "start_time": 57.682,
+          "end_time": 61.898
         },
         {
-          "text": "另有开发者担心 AI 让编程更糟糕，被迫调试看不懂的代码，工作变得更加焦虑。",
-          "start_time": 110.682,
-          "end_time": 117.784
+          "text": "还有人直接怼了一句：“Build with AI？",
+          "start_time": 61.898,
+          "end_time": 65.045
         },
         {
-          "text": "Chrome悄悄撤下了关于设备端AI不向谷歌服务器发送数据的声明，用户普遍担忧这可能是变相的数据收集手段。",
-          "start_time": 117.784,
-          "end_time": 127.057
+          "text": "不，我才不。",
+          "start_time": 65.045,
+          "end_time": 66.682
         },
         {
-          "text": "有评论认为AI功能更像是在用户不知情下回传信息的后门，也有人指出或许只是优化措辞。",
-          "start_time": 127.057,
-          "end_time": 135.159
+          "text": "就像把孩子的涂鸦贴满大街，重要的不是工具，而是知道什么时候该闭嘴。",
+          "start_time": 66.682,
+          "end_time": 72.716
         },
         {
-          "text": "调侃者则惊讶为何至今仍有人坚持使用这款浏览器。",
-          "start_time": 135.159,
-          "end_time": 139.898
+          "text": "Dirty Frag漏洞让主流Linux都能本地提权到root，但官方补丁还没着落。",
+          "start_time": 72.716,
+          "end_time": 78.92
         },
         {
-          "text": "这场争议再次引发对谷歌隐私承诺的质疑。",
-          "start_time": 139.898,
-          "end_time": 143.807
+          "text": "评论区里，有人吐槽维护者默认开启0.1%用户才用的模块，有人无奈担心以后周周更新内核，还有人调侃要是Linux软件都有这兼容性就好了。",
+          "start_time": 78.92,
+          "end_time": 91.705
         },
         {
-          "text": "Anthropic宣布与SpaceX合作，使用其Colossus 1数据中心300兆瓦计算力，为Claude用户提升速率限制。",
-          "start_time": 143.807,
-          "end_time": 152.977
+          "text": "说到底，不用的模块就别加载——少装点，少挨打，安全就是这么简单。",
+          "start_time": 91.705,
+          "end_time": 97.795
         },
         {
-          "text": "有用户对此表示欢迎，乐于享受更高的使用额度。",
-          "start_time": 152.977,
-          "end_time": 157.545
+          "text": "Linux内核又爆新洞，有人觉得现在正是搞供应链攻击的好时机。",
+          "start_time": 97.795,
+          "end_time": 103.318
         },
         {
-          "text": "但也有声音质疑，认为这更像是Elon放弃xAI、直接出售算力的信号。",
-          "start_time": 157.545,
-          "end_time": 163.852
+          "text": "文章建议：除了打内核补丁，这一周先别装新软件。",
+          "start_time": 103.318,
+          "end_time": 108.045
         },
         {
-          "text": "更有调侃称，声明中提及轨道算力不过是达成交易的筹码而已。",
-          "start_time": 163.852,
-          "end_time": 169.416
+          "text": "支持者说这是早晚要爆的雷，质疑者表示不更新本身就不安全。",
+          "start_time": 108.045,
+          "end_time": 113.841
+        },
+        {
+          "text": "还有网友调侃，这话听起来怎么像黑客说的。",
+          "start_time": 113.841,
+          "end_time": 117.75
+        },
+        {
+          "text": "记住，最危险的建议往往听起来最安全。",
+          "start_time": 117.75,
+          "end_time": 121.5
+        },
+        {
+          "text": "有人说AI agent该强化控制流而不是堆提示词。",
+          "start_time": 121.5,
+          "end_time": 126.17
+        },
+        {
+          "text": "支持者表示自己加了个简单确定性支架，系统可靠了不少，像开了挂。",
+          "start_time": 126.17,
+          "end_time": 132.182
+        },
+        {
+          "text": "但也有人试了一圈又回到prompt路线，觉得不能一刀切。",
+          "start_time": 132.182,
+          "end_time": 136.705
+        },
+        {
+          "text": "还有评论调侃：这不就是低配版微服务吗？",
+          "start_time": 136.705,
+          "end_time": 140.398
+        },
+        {
+          "text": "换个马甲继续烧token。",
+          "start_time": 140.398,
+          "end_time": 142.898
+        },
+        {
+          "text": "与其在prompt里写“DO NOT SKIP”，不如直接写几行代码让它跳不了——毕竟，给模型一个防呆设计，总比指望它自己懂事强。",
+          "start_time": 142.898,
+          "end_time": 152.739
+        },
+        {
+          "text": "波兰悄悄挤进全球前20大经济体，怎么做到的？",
+          "start_time": 152.739,
+          "end_time": 157.045
+        },
+        {
+          "text": "有人说全靠欧盟的巨额补贴——波兰确实是过去十年里欧盟资金的最大赢家。",
+          "start_time": 157.045,
+          "end_time": 163.625
+        },
+        {
+          "text": "但另一拨人指出，同样收钱的国家多了，只有波兰把它变成了持续增长的动力，教育、基建、制造业全面开花。",
+          "start_time": 163.625,
+          "end_time": 173.057
+        },
+        {
+          "text": "关键在于：钱给对了方向，还得会用。",
+          "start_time": 173.057,
+          "end_time": 176.523
+        },
+        {
+          "text": "有钱没头脑是浪费，有钱有头脑就变成了奇迹——波兰显然选了后者。",
+          "start_time": 176.523,
+          "end_time": 182.545
+        },
+        {
+          "text": "Anthropic 搞了个新花样：把AI内部那些数字激活直接“翻译”成大白话，号称能读懂Claude的小心思。",
+          "start_time": 182.545,
+          "end_time": 191.42
+        },
+        {
+          "text": "支持的人说这给AI安全开了扇窗，质疑的则问：你怎么知道这翻译准不准？",
+          "start_time": 191.42,
+          "end_time": 198.136
+        },
+        {
+          "text": "更有人调侃——一堆矩阵乘法还能有信念？",
+          "start_time": 198.136,
+          "end_time": 201.818
+        },
+        {
+          "text": "这就像给AI装了个测谎仪，但它到底在说真话还是编故事？",
+          "start_time": 201.818,
+          "end_time": 206.989
+        },
+        {
+          "text": "反正别太当真，毕竟数据包没心跳。",
+          "start_time": 206.989,
+          "end_time": 210.386
+        },
+        {
+          "text": "巴西的Pix支付系统太火了，Visa和Mastercard坐不住了，开始游说美国政府施压。",
+          "start_time": 210.386,
+          "end_time": 217.148
+        },
+        {
+          "text": "有人夸Pix是救星——转账秒到、免手续费，商家还给折扣；但也有人担心央行借机监控你每一笔消费。",
+          "start_time": 217.148,
+          "end_time": 226.193
+        },
+        {
+          "text": "更尴尬的是，Pix其实跑在AWS上，一断网全国瘫痪。",
+          "start_time": 226.193,
+          "end_time": 231.625
+        },
+        {
+          "text": "想摆脱美帝垄断？",
+          "start_time": 231.625,
+          "end_time": 233.511
+        },
+        {
+          "text": "结果只是换了个爹。",
+          "start_time": 233.511,
+          "end_time": 235.375
+        },
+        {
+          "text": "Mozilla 用 Anthropic 的 Mythos 从 Firefox 里挖出了 271 个安全 bug，其中 180 个高危。",
+          "start_time": 235.375,
+          "end_time": 243.068
+        },
+        {
+          "text": "有评论说这只是 271 个有效 bug，别当可利用漏洞；Mozilla 员工表示它们都符合内部安全标准。",
+          "start_time": 243.068,
+          "end_time": 251.352
+        },
+        {
+          "text": "还有人吐槽 Mozilla 少搞新功能、多写安全代码。",
+          "start_time": 251.352,
+          "end_time": 255.625
+        },
+        {
+          "text": "AI 挖洞时代来了，但漏洞不会自己‘露’出来，得靠工具去敲。",
+          "start_time": 255.625,
+          "end_time": 260.808
         }
       ],
-      "duration": 169.416,
-      "start_time": 9.624,
-      "end_time": 179.04,
+      "duration": 260.808,
+      "start_time": 13.607999999999999,
+      "end_time": 274.416,
       "scene_elements": [
         {
           "element_type": "story_scan_card",
           "start_time": 0.0,
-          "end_time": 169.416,
+          "end_time": 24.614,
           "props": {
             "story_index": 0,
-            "event_summary": "AI生成工具让非专业人员大量产出看似规范的文档代码，但缺乏真正专业判断，催生职场虚假繁荣。",
+            "event_summary": "Cloudflare 裁员约20%，1100人，CEO称因AI效率提升重组。",
             "viewpoints": [
               {
-                "stance": "担忧",
-                "summary": "专家品位被AI稀释，作品怪异无灵性",
-                "quote": "I am seeing more and more work produced by experts which seems strangely out of character... it simply lacks taste.",
-                "comment_index": 1
-              },
-              {
                 "stance": "调侃",
-                "summary": "AI助手不是GLaDOS而是Wheatley，只会添乱",
-                "quote": "We were promised GlaDOS, and were given Wheatley.",
-                "comment_index": 49
+                "summary": "招聘实习生又裁员，讽刺",
+                "quote": "The future ain't what it used to be.",
+                "comment_index": 0,
+                "quote_cn": "未来已非昔日模样。"
               },
               {
                 "stance": "质疑",
-                "summary": "作者因嫉妒而批评非专家使用AI",
-                "quote": "The author appears jealous",
-                "comment_index": 74
+                "summary": "AI只是经济衰退的借口",
+                "quote": "economic downturn disguised as increasing velocity",
+                "comment_index": 2,
+                "quote_cn": "伪装成速度提升的经济衰退"
+              },
+              {
+                "stance": "担忧",
+                "summary": "就业市场残酷，被裁者困难",
+                "quote": "The job market is already brutal... some may end up homeless.",
+                "comment_index": 12,
+                "quote_cn": "就业市场已经残酷至极……有些人可能会流落街头。"
               }
             ],
             "stance_distribution": {
-              "担忧": 0.5,
-              "调侃": 0.2,
-              "质疑": 0.3
+              "调侃": 0.3,
+              "质疑": 0.4,
+              "担忧": 0.3
             },
-            "story_title": "Appearing productive in the workplace",
-            "title_cn": "",
-            "score": 1558,
-            "comment_count": 634
+            "display_index": 0,
+            "story_count": 10,
+            "story_title": "Cloudflare to cut about 20% workforce",
+            "title_cn": "Cloudflare将裁员约20%",
+            "score": 1096,
+            "comment_count": 745
           }
         },
         {
           "element_type": "story_scan_card",
-          "start_time": 0.0,
-          "end_time": 169.416,
+          "start_time": 24.614,
+          "end_time": 47.125,
           "props": {
             "story_index": 1,
-            "event_summary": "火人节用“异物地图”追踪清理，150人地毯式检查3800英亩场地，细节至像素计数。",
+            "event_summary": "学习管理系统Canvas遭黑客ShinyHunters攻击，全球数百万学生无法访问，正值期末考试周。",
             "viewpoints": [
               {
-                "stance": "支持",
-                "summary": "尊重火人节认真清理的态度",
-                "quote": "My respect for Burning Man just went up a lot. These big events usually leave a giant mess behind.",
-                "comment_index": 4
-              },
-              {
                 "stance": "质疑",
-                "summary": "自力更生的活动最终仍需公开羞耻地图",
-                "quote": "An event built on radical self-reliance now needs a public shame map to keep people honest.",
-                "comment_index": 38
+                "summary": "教授对Canvas早有戒心",
+                "quote": "I've never liked or trusted Canvas's gradebook; my primary gradebook is always a spreadsheet.",
+                "comment_index": 0,
+                "quote_cn": "我从未喜欢或信任过Canvas的成绩簿；我的主要成绩簿始终是电子表格。"
               },
               {
                 "stance": "担忧",
-                "summary": "高票价滋生顾客心态，清理意愿下降",
-                "quote": "I bet you there would be far less MOOP if a spot at Burning Man didn't cost so much money. When people pay hundreds of dollars, entitlement tends to creep in.",
-                "comment_index": 5
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.5,
-              "质疑": 0.3,
-              "担忧": 0.2
-            },
-            "story_title": "The map that keeps Burning Man honest",
-            "title_cn": "",
-            "score": 639,
-            "comment_count": 313
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 0.0,
-          "end_time": 169.416,
-          "props": {
-            "story_index": 2,
-            "event_summary": "美国国会图书馆推荐SQLite为数据集存储格式，与XML/JSON/CSV并列，以最大化长期可访问性。",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "长期保存最佳选择之一",
-                "quote": "For public-sector data preservation, it may be one of the best options... widely adopted, likely to remain readable, low patent risk.",
-                "comment_index": 6
-              },
-              {
-                "stance": "质疑",
-                "summary": "易变成不受控的影子数据库",
-                "quote": "some firms ban its use... it makes it SO easy to set up a database... a file that can have any extension... can be copied around.",
-                "comment_index": 1
+                "summary": "学生呼吁反思过度依赖",
+                "quote": "The main thing this has revealed is just how dependent students and teachers are on Canvas...",
+                "comment_index": 5,
+                "quote_cn": "这件事主要暴露了学生和教师对Canvas的依赖程度……"
               },
               {
                 "stance": "调侃",
-                "summary": "八年前的旧闻仍让人惊喜",
-                "quote": "this news is nearly EIGHT years old. But I didn't happen to know about it until now... a thank-you for posting it.",
-                "comment_index": 4
+                "summary": "考试取消反而成好消息",
+                "quote": "Yes. Everything coming up Milhouse.",
+                "comment_index": 18,
+                "quote_cn": "是的，一切都在向Milhouse方向发展。"
               }
             ],
             "stance_distribution": {
-              "支持": 0.5,
-              "质疑": 0.3,
+              "质疑": 0.4,
+              "担忧": 0.4,
               "调侃": 0.2
             },
-            "story_title": "SQLite Is a Library of Congress Recommended Storage Format",
-            "title_cn": "",
-            "score": 625,
-            "comment_count": 184
+            "display_index": 1,
+            "story_count": 10,
+            "story_title": "Canvas is down as ShinyHunters threatens to leak schools’ data",
+            "title_cn": "Canvas宕机，ShinyHunters威胁泄露学校数据",
+            "score": 846,
+            "comment_count": 552
           }
         },
         {
           "element_type": "story_scan_card",
-          "start_time": 0.0,
-          "end_time": 169.416,
+          "start_time": 47.125,
+          "end_time": 72.716,
           "props": {
-            "story_index": 3,
-            "event_summary": "博客《Programming Still Sucks》讽刺行业生态，称AI与贪婪正毁掉软件学徒制，引发HN热议。",
+            "story_index": 2,
+            "event_summary": "AI 生成的低质量内容泛滥，正在侵蚀在线社区的活力和信任",
             "viewpoints": [
               {
-                "stance": "支持",
-                "summary": "文章精辟，准确表达行业愤世嫉俗",
-                "quote": "Poignant, accurate, appropriately cynical.",
-                "comment_index": 13
+                "stance": "担忧",
+                "summary": "社区管理员快撑不住了",
+                "quote": "I fear losing the battle.",
+                "comment_index": 0,
+                "quote_cn": "我担心会输掉这场战斗。"
               },
               {
                 "stance": "质疑",
-                "summary": "只是空洞的愤世嫉俗，初级岗位仍在大量招聘",
-                "quote": "This is just a cynical post that adds no new value.",
-                "comment_index": 20
+                "summary": "问题不在 AI 而在人",
+                "quote": "In practice I agree with the author but I think the issue isn't AI or AI slop as much as people's judgement.",
+                "comment_index": 7,
+                "quote_cn": "实际上我同意作者的观点，但我认为问题不在于AI或AI垃圾内容，而在于人们的判断力。"
               },
               {
-                "stance": "担忧",
-                "summary": "AI 让编程更糟，我们得调试看不懂的代码",
-                "quote": "now we have to debug code we didn't write, can't fully understand, and definitely can't explain in a code review.",
-                "comment_index": 7
+                "stance": "调侃",
+                "summary": "拒绝跟风用 AI",
+                "quote": "Build with AI. No, I don't think I will.",
+                "comment_index": 16,
+                "quote_cn": "用AI构建。不，我想我不会。"
               }
             ],
             "stance_distribution": {
-              "支持": 0.4,
-              "质疑": 0.35,
-              "担忧": 0.25
+              "担忧": 0.4,
+              "质疑": 0.3,
+              "调侃": 0.2,
+              "中立": 0.1
             },
-            "story_title": "Programming Still Sucks",
-            "title_cn": "",
-            "score": 609,
+            "display_index": 2,
+            "story_count": 10,
+            "story_title": "AI slop is killing online communities",
+            "title_cn": "AI垃圾内容正在摧毁在线社区",
+            "score": 764,
+            "comment_count": 656
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 72.716,
+          "end_time": 97.795,
+          "props": {
+            "story_index": 3,
+            "event_summary": "新发现的Dirty Frag漏洞可让攻击者在所有主流Linux发行版上获得root权限，且暂无官方补丁。",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "责怪维护者默认开启罕见模块",
+                "quote": "I just continue to be amazed by how irresponsible the maintainers are.",
+                "comment_index": 3,
+                "quote_cn": "我依然对维护者的不负责任感到惊讶。"
+              },
+              {
+                "stance": "担忧",
+                "summary": "担心以后要频繁更新内核",
+                "quote": "How many times a week am I going to be updating my kernel from now on?",
+                "comment_index": 5,
+                "quote_cn": "从今往后我每周得更新多少次内核？"
+              },
+              {
+                "stance": "调侃",
+                "summary": "调侃漏洞比软件更易移植",
+                "quote": "if only all Linux software could be this portable.",
+                "comment_index": 38,
+                "quote_cn": "要是所有Linux软件都能如此可移植就好了。"
+              }
+            ],
+            "stance_distribution": {
+              "质疑": 0.3,
+              "担忧": 0.3,
+              "调侃": 0.4
+            },
+            "display_index": 3,
+            "story_count": 10,
+            "story_title": "Dirtyfrag: Universal Linux LPE",
+            "title_cn": "Dirtyfrag：通用Linux本地提权漏洞",
+            "score": 732,
             "comment_count": 304
           }
         },
         {
           "element_type": "story_scan_card",
-          "start_time": 0.0,
-          "end_time": 169.416,
+          "start_time": 97.795,
+          "end_time": 121.5,
           "props": {
             "story_index": 4,
-            "event_summary": "Chrome移除“设备端AI不向Google服务器发送数据”声明，引发隐私担忧",
+            "event_summary": "Linux内核漏洞集中披露，作者呼吁暂停安装新软件一周以防供应链攻击。",
             "viewpoints": [
               {
-                "stance": "担忧",
-                "summary": "AI可能成为数据收集后门",
-                "quote": "adding AI to desktop apps and sending the data back... is an amazing way to collect data from people... unaware it's even happening.",
-                "comment_index": 0
+                "stance": "支持",
+                "summary": "依赖泛滥迟早酿成大祸",
+                "quote": "Well, now we're reaching the 'find out' part of the process I guess.",
+                "comment_index": 0,
+                "quote_cn": "好吧，我想我们现在已经进入了‘自食其果’的阶段。"
               },
               {
-                "stance": "中立",
-                "summary": "也可能只是精简措辞",
-                "quote": "it's also quite possible that they just altered the wording to make it less verbose.",
-                "comment_index": 3
+                "stance": "质疑",
+                "summary": "不更新软件并非安全之策",
+                "quote": "Not updating your software is never good security advice.",
+                "comment_index": 2,
+                "quote_cn": "从不更新软件从来都不是好的安全建议。"
               },
               {
                 "stance": "调侃",
-                "summary": "没想到还有人用Chrome",
-                "quote": "I am surprised there is still anyone using Chrome instead of Brave.",
-                "comment_index": 4
+                "summary": "这建议听起来像是攻击者说的",
+                "quote": "'Don't update your systems for a while' is exactly what an attacker would say.",
+                "comment_index": 14,
+                "quote_cn": "“暂时不要更新系统”正是攻击者会说的话。"
               }
             ],
             "stance_distribution": {
-              "担忧": 0.3,
-              "中立": 0.2,
-              "调侃": 0.1,
-              "质疑": 0.4
+              "支持": 0.2,
+              "质疑": 0.5,
+              "调侃": 0.3
             },
-            "story_title": "Chrome removes claim of On-device Al not sending data to Google Servers",
-            "title_cn": "",
-            "score": 554,
-            "comment_count": 216
+            "display_index": 4,
+            "story_count": 10,
+            "story_title": "Maybe you shouldn't install new software for a bit",
+            "title_cn": "或许你该暂时不要安装新软件",
+            "score": 717,
+            "comment_count": 383
           }
         },
         {
           "element_type": "story_scan_card",
-          "start_time": 0.0,
-          "end_time": 169.416,
+          "start_time": 121.5,
+          "end_time": 152.739,
           "props": {
             "story_index": 5,
-            "event_summary": "Anthropic与SpaceX合作，使用Colossus 1数据中心300MW算力提升Claude速率限制。",
+            "event_summary": "AI agent需要代码控制流而非堆叠更多提示词",
             "viewpoints": [
               {
                 "stance": "支持",
-                "summary": "乐意接受更高的速率限制",
-                "quote": "I'll gladly take the higher rate limits",
-                "comment_index": 33
+                "summary": "确定性的harness比纯prompt可靠",
+                "quote": "We ended up creating a super basic deterministic harness around the model. This has made the system a billion times more reliable.",
+                "comment_index": 0,
+                "quote_cn": "我们最终为模型创建了一个超级基础的确定性测试框架。这让系统的可靠性提升了十亿倍。"
               },
               {
                 "stance": "质疑",
-                "summary": "认为Elon是在放弃xAI，出售算力",
-                "quote": "Looks like Elon's finally giving up on XAI and just selling the compute",
-                "comment_index": 4
+                "summary": "完全抛弃prompt可能太极端",
+                "quote": "As someone who went full circle prompt-enforcement > deterministic flow > prompt-enforcement, I disagree.",
+                "comment_index": 4,
+                "quote_cn": "作为一个从提示强制执行→确定性流程→提示强制执行走完整个循环的人，我不同意。"
               },
               {
                 "stance": "调侃",
-                "summary": "提及轨道算力只是交易筹码",
-                "quote": "posting this sentence was part of the deal to get the compute",
-                "comment_index": 2
+                "summary": "Agent像在低效重造微服务",
+                "quote": "Sometimes it feels like Agents are just reinventing microservices. Except they are doing it in the most inefficient way possible.",
+                "comment_index": 50,
+                "quote_cn": "有时感觉Agent只是在重新发明微服务。只不过它们用的是最 inefficient 的方式。"
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.3,
+              "调侃": 0.3
+            },
+            "display_index": 5,
+            "story_count": 10,
+            "story_title": "Agents need control flow, not more prompts",
+            "title_cn": "智能体需要控制流，而非更多提示",
+            "score": 546,
+            "comment_count": 266
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 152.739,
+          "end_time": 182.545,
+          "props": {
+            "story_index": 6,
+            "event_summary": "波兰跻身全球前20大经济体，靠的是明智政策、人才回流和欧盟资金的高效利用。",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "正确决策是关键",
+                "quote": "Poland made a lot of the right decisions along the way. Poland should be a role model.",
+                "comment_index": 2,
+                "quote_cn": "波兰一路上做出了很多正确决策。波兰应该成为榜样。"
+              },
+              {
+                "stance": "质疑",
+                "summary": "EU资金功劳不小",
+                "quote": "Poland is the largest beneficiary of EU funds 2014-2020, with one in four euro going to Poland.",
+                "comment_index": 0,
+                "quote_cn": "波兰是2014-2020年欧盟基金的最大受益国，每四欧元中就有一欧元流向了波兰。"
+              },
+              {
+                "stance": "中立",
+                "summary": "用钱方式比钱本身重要",
+                "quote": "the EU funds argument works both ways. the interesting question is what Poland did with it that others didn't.",
+                "comment_index": 5,
+                "quote_cn": "欧盟基金的论点是双向的。有趣的问题是波兰用这些钱做了别人没做的事。"
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.3,
+              "中立": 0.3
+            },
+            "display_index": 6,
+            "story_count": 10,
+            "story_title": "Poland is now among the 20 largest economies. How it happened",
+            "title_cn": "波兰跻身全球前20大经济体，如何做到的？",
+            "score": 526,
+            "comment_count": 446
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 182.545,
+          "end_time": 210.386,
+          "props": {
+            "story_index": 7,
+            "event_summary": "Anthropic 发布 NLA 技术，可将 AI 内部激活转为自然语言描述，用于解读模型“想法”。",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "可解释性的重要一步",
+                "quote": "NLAs seem to be in the ballpark of a safety and interpretability standard that is both enforceable and plausibly effective.",
+                "comment_index": 1,
+                "quote_cn": "NLA似乎大致处于一个既可执行又可能有效的安全与可解释性标准范围内。"
+              },
+              {
+                "stance": "质疑",
+                "summary": "如何验证文本反映真实思考？",
+                "quote": "But is the plausible text actually reflective of what the model is “thinking”? How to tell?",
+                "comment_index": 3,
+                "quote_cn": "但那些看似合理的文本是否真的反映了模型的“思考”？如何判断？"
+              },
+              {
+                "stance": "调侃",
+                "summary": "矩阵代数怎么会有信念？",
+                "quote": "What does it mean for a pile of matrix algebra to 'believe' something?",
+                "comment_index": 32,
+                "quote_cn": "一堆矩阵代数“相信”某件事意味着什么？"
               }
             ],
             "stance_distribution": {
               "支持": 0.3,
-              "质疑": 0.5,
-              "调侃": 0.2
+              "质疑": 0.4,
+              "调侃": 0.3
             },
-            "story_title": "Higher usage limits for Claude and a compute deal with SpaceX",
-            "title_cn": "",
-            "score": 503,
-            "comment_count": 472
+            "display_index": 7,
+            "story_count": 10,
+            "story_title": "Natural Language Autoencoders: Turning Claude's Thoughts into Text",
+            "title_cn": "自然语言自编码器：将Claude的思考转化为文本",
+            "score": 345,
+            "comment_count": 108
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 210.386,
+          "end_time": 235.375,
+          "props": {
+            "story_index": 8,
+            "event_summary": "巴西央行Pix支付系统因低成本威胁Visa/Mastercard，遭美国施压",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "Pix解决转账难、费用高问题",
+                "quote": "People underestimate how difficult it was to transfer money before Pix… Pix solved all these problems.",
+                "comment_index": 2,
+                "quote_cn": "人们低估了在Pix出现之前转账的难度……Pix解决了所有这些问题。"
+              },
+              {
+                "stance": "担忧",
+                "summary": "央行运行Pix带来隐私监控风险",
+                "quote": "Pix discussions (almost?) never address issues of privacy: the whole system is run by the central bank.",
+                "comment_index": 5,
+                "quote_cn": "关于Pix的讨论（几乎？）从未涉及隐私问题：整个系统由央行运行。"
+              },
+              {
+                "stance": "质疑",
+                "summary": "Pix依赖AWS等美国基础设施，主权存疑",
+                "quote": "Brazil would not be able to operate Pix at that scale without heavily relying on American hyperscalers.",
+                "comment_index": 6,
+                "quote_cn": "巴西如果不严重依赖美国超大规模服务商，就无法以这种规模运营Pix。"
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.4,
+              "担忧": 0.3,
+              "质疑": 0.3
+            },
+            "display_index": 8,
+            "story_count": 10,
+            "story_title": "Brazil's Pix payment system faces pressure from Visa and Mastercard",
+            "title_cn": "巴西Pix支付系统面临Visa和Mastercard的压力",
+            "score": 333,
+            "comment_count": 279
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 235.375,
+          "end_time": 260.818,
+          "props": {
+            "story_index": 9,
+            "event_summary": "Mozilla 用 AI 模型 Mythos 在 Firefox 中发现并修复 271 个安全漏洞。",
+            "viewpoints": [
+              {
+                "stance": "质疑",
+                "summary": "Bug 不等于漏洞",
+                "quote": "Mythos found 271 valid bugs.",
+                "comment_index": 0,
+                "quote_cn": "Mythos发现了271个有效bug。"
+              },
+              {
+                "stance": "支持",
+                "summary": "Mythos 为每个崩溃 bug 写了 PoC",
+                "quote": "Mythos wrote PoCs for memory-unsafe crashes.",
+                "comment_index": 26,
+                "quote_cn": "Mythos为内存不安全的崩溃编写了PoC。"
+              },
+              {
+                "stance": "担忧",
+                "summary": "Mozilla 应减少无用新功能",
+                "quote": "focus more on writing secure and bug-free code",
+                "comment_index": 24,
+                "quote_cn": "更专注于编写安全且无bug的代码"
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.3,
+              "担忧": 0.3
+            },
+            "display_index": 9,
+            "story_count": 10,
+            "story_title": "Hardening Firefox with Claude Mythos Preview",
+            "title_cn": "使用Claude Mythos预览版加固Firefox",
+            "score": 296,
+            "comment_count": 130
           }
         }
       ],
@@ -471,27 +849,27 @@
     },
     {
       "segment_type": "closing",
-      "audio_text": "好，今天的速览就到这里，下期再见，多喝热水。",
+      "audio_text": "好，今天的速览就到这里，周末继续愉快，多喝热水。",
       "cues": [
         {
-          "text": "好，今天的速览就到这里，下期再见，多喝热水。",
+          "text": "好，今天的速览就到这里，周末继续愉快，多喝热水。",
           "start_time": 0.0,
-          "end_time": 4.728
+          "end_time": 4.968
         }
       ],
-      "duration": 4.728,
-      "start_time": 179.04,
-      "end_time": 183.768,
+      "duration": 4.968,
+      "start_time": 274.416,
+      "end_time": 279.384,
       "scene_elements": [
         {
           "element_type": "closing_card",
           "start_time": 0.0,
-          "end_time": 4.728,
+          "end_time": 4.968,
           "props": {}
         }
       ],
       "audio_path": "audio/segment_03.mp3"
     }
   ],
-  "audioDir": "D:\\code\\HNTechPulse\\data\\2026-05-08\\audio"
+  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-05-09\\audio"
 }
