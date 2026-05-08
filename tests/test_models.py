@@ -25,22 +25,15 @@ class TestStoryAnalysis:
 class TestSelectionResult:
     def test_creation(self):
         sr = SelectionResult(
-            deep_dive_decision={"story_index": 0},
-            quick_selections=[{"story_index": 1}],
-            patterns=[{"name": "pattern1"}],
-            raw_json='{"deep_dive_decision": {"story_index": 0}}',
+            brief_items=[{"story_index": 0}],
+            raw_json='{"brief_items": [{"story_index": 0}]}',
         )
-        assert sr.deep_dive_decision["story_index"] == 0
-        assert len(sr.quick_selections) == 1
+        assert sr.brief_items[0]["story_index"] == 0
 
     def test_defaults(self):
-        sr = SelectionResult(
-            deep_dive_decision={},
-            quick_selections=[],
-            patterns=[],
-        )
+        sr = SelectionResult()
+        assert sr.brief_items == []
         assert sr.raw_json == ""
-        assert sr.medium_selections == []
 
 
 class TestContentModels:

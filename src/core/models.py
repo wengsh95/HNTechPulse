@@ -62,10 +62,6 @@ class StoryAnalysis:
 
 @dataclass
 class SelectionResult:
-    deep_dive_decision: Dict[str, Any]
-    quick_selections: List[Dict[str, Any]]
-    patterns: List[Dict[str, Any]]
-    medium_selections: List[Dict[str, Any]] = field(default_factory=list)
     brief_items: List[Dict[str, Any]] = field(default_factory=list)
     raw_json: str = ""
 
@@ -79,6 +75,7 @@ class SceneElement:
     start_time: float
     end_time: float
     props: Dict[str, Any]
+    sub_segment_index: Optional[int] = None
 
 
 @dataclass
@@ -117,13 +114,8 @@ class SegmentMeta(TypedDict, total=False):
     """Known keys stored on ScriptSegment.meta.
 
     All keys are optional (total=False) — not every segment populates every key.
-    At runtime this is a plain dict; the TypedDict only gives IDE/type-checker
-    awareness of which keys exist so typos can be caught.
 
     Keys:
-        deep_dive:       Deep-dive segment payload: story_index, title, comments, perspectives, ...
-        medium_item:     Medium-length story payload: story_index, title, featured_comment, ...
-        quick_items:     List of quick-news entries for this segment.
         brief_items:     List of brief items surfaced in a story-scan segment.
         dashboard:       Dashboard element payload (overall summary card).
         story_title:     Human-readable story title, cached for display.
@@ -131,9 +123,6 @@ class SegmentMeta(TypedDict, total=False):
         timing_level:    "word" | "segment" — granularity of timing data.
         duration_ratio:  actual_duration / estimated_duration, computed post-TTS.
     """
-    deep_dive: Dict[str, Any]
-    medium_item: Dict[str, Any]
-    quick_items: List[Dict[str, Any]]
     brief_items: List[Dict[str, Any]]
     dashboard: Any
     story_title: str

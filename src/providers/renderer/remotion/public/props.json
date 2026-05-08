@@ -4,7 +4,7 @@
   "fps": 24,
   "bgColor": "#0d1117",
   "title": "HN TechPulse 每日快讯",
-  "totalDuration": 183.696,
+  "totalDuration": 183.768,
   "segments": [
     {
       "segment_type": "opening",
@@ -63,26 +63,26 @@
                 "story_index": 0,
                 "original_title": "Appearing productive in the workplace",
                 "title_translation": null,
-                "score": 1438,
-                "comment_count": 579,
+                "score": 1558,
+                "comment_count": 634,
                 "title_cn": ""
               },
               {
                 "rank": 2,
                 "story_index": 1,
-                "original_title": "SQLite Is a Library of Congress Recommended Storage Format",
+                "original_title": "The map that keeps Burning Man honest",
                 "title_translation": null,
-                "score": 491,
-                "comment_count": 153,
+                "score": 639,
+                "comment_count": 313,
                 "title_cn": ""
               },
               {
                 "rank": 3,
                 "story_index": 2,
-                "original_title": "Higher usage limits for Claude and a compute deal with SpaceX",
+                "original_title": "SQLite Is a Library of Congress Recommended Storage Format",
                 "title_translation": null,
-                "score": 487,
-                "comment_count": 458,
+                "score": 625,
+                "comment_count": 184,
                 "title_cn": ""
               },
               {
@@ -90,26 +90,26 @@
                 "story_index": 3,
                 "original_title": "Programming Still Sucks",
                 "title_translation": null,
-                "score": 451,
-                "comment_count": 257,
+                "score": 609,
+                "comment_count": 304,
                 "title_cn": ""
               },
               {
                 "rank": 5,
                 "story_index": 4,
-                "original_title": "Google Cloud fraud defense, the next evolution of reCAPTCHA",
+                "original_title": "Chrome removes claim of On-device Al not sending data to Google Servers",
                 "title_translation": null,
-                "score": 371,
-                "comment_count": 378,
+                "score": 554,
+                "comment_count": 216,
                 "title_cn": ""
               },
               {
                 "rank": 6,
                 "story_index": 5,
-                "original_title": "Grand Theft Oil Futures: Insider traders keep making a killing at our expense",
+                "original_title": "Higher usage limits for Claude and a compute deal with SpaceX",
                 "title_translation": null,
-                "score": 362,
-                "comment_count": 233,
+                "score": 503,
+                "comment_count": 472,
                 "title_cn": ""
               }
             ]
@@ -120,379 +120,350 @@
     },
     {
       "segment_type": "story_scan",
-      "audio_text": "HN 热帖揭露 AI 催生的“虚假生产力”：新手产出看似专业，却与能力脱钩；文档膨胀、真正信号被淹没。评论区有专家担忧，过度依赖 AI 正在稀释判断力与品味；但也有人指出，善用 AI 作智能辅助仍能提升团队效能；更有读者质疑文章援引的研究自相矛盾。效率革命还是能力隐患？争议还在继续。 美国国会图书馆将SQLite列为数据集推荐存储格式，与XML和JSON并列。看重格式开放性和独立于厂商的特性，这对长期保存至关重要。支持者坦言，曾视SQLite为玩具如今几乎全面采用。但也有人质疑馆方同样推荐专有电子表格格式，标准存疑。也有网友调侃SQLite注定成为未来考古学家的必备工具。这条八年前的旧闻如今再度引发热烈讨论。 Anthropic 宣布与 SpaceX 达成算力合作，租用其 Colossus 1 数据中心全部 22 万张 GPU，同时翻倍 Claude Code 的五小时用量限制。但网友质疑这不过是营销把戏，因为每周总额没变，只是加快消耗。支持者认为这确实是双赢，Anthropic 获得了急需的算力，SpaceX 也能为 IPO 添彩。还有人担忧该数据中心涉嫌非法用电、污染环境，批评 Anthropic 为了利润放弃了安全承诺。 HN热帖《编程依然糟糕》讽刺了科技业用AI替代初级工程师，破坏人才成长的学徒制。评论中，有人赞叹'一篇真正出色的文章'，也有声音批评这不过是愤世嫉俗。一位19岁读者痛心留言：'他们在我入行前就扼杀了学徒制，没有Ben就没有Sara。' Google Cloud推出reCAPTCHA新反欺诈方案，用扫描QR码来对抗AI机器人。不少人担忧，这等于强制绑定特定品牌手机，进一步侵蚀网络匿名性。也有安全专家指出，QR码容易被恶意利用，成为钓鱼攻击的新入口。不过，一些网站已转投 Cloudflare Turnstile，认为体验更友好，不必牺牲隐私。这场网关争夺战，才刚刚开始。 保罗·克鲁格曼揭露石油期货市场内幕交易丑闻。一些人利用美国对伊朗政策的变动，提前交易原油期货，牟取暴利。有评论直言，幕后黑手可能就是特朗普本人。更令人担忧的是，总统豁免权让追责极为困难。还有网友调侃说，内幕交易者当然不会自己查自己。这暴露出权力寻租的深层问题。",
+      "audio_text": "随着大模型工具普及，职场出现了一种新现象：不懂编码的人做出软件，不懂数据架构的人设计数据系统，产出看似专业但缺乏真实判断。有评论忧心，连专家也被AI带偏，作品失却品味；也有人调侃，我们期待的是GLaDOS，得到的却是只会添乱的Wheatley。还有观点认为，这只是作者的嫉妒。这种现象正在改变我们对生产力的定义。 每年火人节结束后，150名志愿者会留在黑石城，用数周时间地毯式清理3800英亩的干湖床，寻找每一颗螺丝、每一片亮片，甚至用像素计数确保残留物不超过标准。这种对不留痕迹的极致追求让很多人心生敬意，但也有人调侃，一个标榜激进自力更生的活动，最后竟需要一张公开的羞耻地图来维持诚实。还有人担忧，逐年上涨的票价正在把参与者变成顾客，减弱了共担清理的责任感。 美国国会图书馆将SQLite列为数据集推荐存储格式，与XML、JSON、CSV并列，看重其公开规范和长期可读性，以最大化数字内容的可访问性。支持者认为这非常适合公共部门数据保存，质疑者则担心它太容易变成缺乏管理的‘影子数据库’。不过很多人也是刚知道这份2018年的旧闻。SQLite是否值得依赖，看你怎么用。 一篇博客《Programming Still Sucks》惹起热议，文章痛斥软件行业被贪婪驱动，用AI取代初级岗位并摧毁知识传承。有人赞赏文笔“尖锐、准确、恰如其分的愤世嫉俗”，也有人称这只是无谓牢骚，初级岗位仍在大量招聘。另有开发者担心 AI 让编程更糟糕，被迫调试看不懂的代码，工作变得更加焦虑。 Chrome悄悄撤下了关于设备端AI不向谷歌服务器发送数据的声明，用户普遍担忧这可能是变相的数据收集手段。有评论认为AI功能更像是在用户不知情下回传信息的后门，也有人指出或许只是优化措辞。调侃者则惊讶为何至今仍有人坚持使用这款浏览器。这场争议再次引发对谷歌隐私承诺的质疑。 Anthropic宣布与SpaceX合作，使用其Colossus 1数据中心300兆瓦计算力，为Claude用户提升速率限制。有用户对此表示欢迎，乐于享受更高的使用额度。但也有声音质疑，认为这更像是Elon放弃xAI、直接出售算力的信号。更有调侃称，声明中提及轨道算力不过是达成交易的筹码而已。",
       "cues": [
         {
-          "text": "HN 热帖揭露 AI 催生的“虚假生产力”：新手产出看似专业，却与能力脱钩；文档膨胀、真正信号被淹没。",
+          "text": "随着大模型工具普及，职场出现了一种新现象：不懂编码的人做出软件，不懂数据架构的人设计数据系统，产出看似专业但缺乏真实判断。",
           "start_time": 0.0,
-          "end_time": 9.318
+          "end_time": 11.852
         },
         {
-          "text": "评论区有专家担忧，过度依赖 AI 正在稀释判断力与品味；但也有人指出，善用 AI 作智能辅助仍能提升团队效能；更有读者质疑文章援引的研究自相矛盾。",
-          "start_time": 9.318,
-          "end_time": 23.182
+          "text": "有评论忧心，连专家也被AI带偏，作品失却品味；也有人调侃，我们期待的是GLaDOS，得到的却是只会添乱的Wheatley。",
+          "start_time": 11.852,
+          "end_time": 22.534
         },
         {
-          "text": "效率革命还是能力隐患？",
-          "start_time": 23.182,
-          "end_time": 25.648
+          "text": "还有观点认为，这只是作者的嫉妒。",
+          "start_time": 22.534,
+          "end_time": 25.977
         },
         {
-          "text": "争议还在继续。",
-          "start_time": 25.648,
-          "end_time": 27.33
+          "text": "这种现象正在改变我们对生产力的定义。",
+          "start_time": 25.977,
+          "end_time": 29.5
         },
         {
-          "text": "美国国会图书馆将SQLite列为数据集推荐存储格式，与XML和JSON并列。",
-          "start_time": 27.33,
-          "end_time": 35.148
+          "text": "每年火人节结束后，150名志愿者会留在黑石城，用数周时间地毯式清理3800英亩的干湖床，寻找每一颗螺丝、每一片亮片，甚至用像素计数确保残留物不超过标准。",
+          "start_time": 29.5,
+          "end_time": 44.25
         },
         {
-          "text": "看重格式开放性和独立于厂商的特性，这对长期保存至关重要。",
-          "start_time": 35.148,
-          "end_time": 40.875
+          "text": "这种对不留痕迹的极致追求让很多人心生敬意，但也有人调侃，一个标榜激进自力更生的活动，最后竟需要一张公开的羞耻地图来维持诚实。",
+          "start_time": 44.25,
+          "end_time": 55.955
         },
         {
-          "text": "支持者坦言，曾视SQLite为玩具如今几乎全面采用。",
-          "start_time": 40.875,
-          "end_time": 46.034
+          "text": "还有人担忧，逐年上涨的票价正在把参与者变成顾客，减弱了共担清理的责任感。",
+          "start_time": 55.955,
+          "end_time": 62.864
         },
         {
-          "text": "但也有人质疑馆方同样推荐专有电子表格格式，标准存疑。",
-          "start_time": 46.034,
-          "end_time": 51.5
+          "text": "美国国会图书馆将SQLite列为数据集推荐存储格式，与XML、JSON、CSV并列，看重其公开规范和长期可读性，以最大化数字内容的可访问性。",
+          "start_time": 62.864,
+          "end_time": 76.818
         },
         {
-          "text": "也有网友调侃SQLite注定成为未来考古学家的必备工具。",
-          "start_time": 51.5,
-          "end_time": 56.636
+          "text": "支持者认为这非常适合公共部门数据保存，质疑者则担心它太容易变成缺乏管理的‘影子数据库’。",
+          "start_time": 76.818,
+          "end_time": 84.773
         },
         {
-          "text": "这条八年前的旧闻如今再度引发热烈讨论。",
-          "start_time": 56.636,
-          "end_time": 60.386
+          "text": "不过很多人也是刚知道这份2018年的旧闻。",
+          "start_time": 84.773,
+          "end_time": 88.682
         },
         {
-          "text": "Anthropic 宣布与 SpaceX 达成算力合作，租用其 Colossus 1 数据中心全部 22 万张 GPU，同时翻倍 Claude Code 的五小时用量限制。",
-          "start_time": 60.386,
-          "end_time": 71.75
+          "text": "SQLite是否值得依赖，看你怎么用。",
+          "start_time": 88.682,
+          "end_time": 91.977
         },
         {
-          "text": "但网友质疑这不过是营销把戏，因为每周总额没变，只是加快消耗。",
-          "start_time": 71.75,
-          "end_time": 77.557
+          "text": "一篇博客《Programming Still Sucks》惹起热议，文章痛斥软件行业被贪婪驱动，用AI取代初级岗位并摧毁知识传承。",
+          "start_time": 91.977,
+          "end_time": 101.761
         },
         {
-          "text": "支持者认为这确实是双赢，Anthropic 获得了急需的算力，SpaceX 也能为 IPO 添彩。",
-          "start_time": 77.557,
-          "end_time": 85.0
+          "text": "有人赞赏文笔“尖锐、准确、恰如其分的愤世嫉俗”，也有人称这只是无谓牢骚，初级岗位仍在大量招聘。",
+          "start_time": 101.761,
+          "end_time": 110.682
         },
         {
-          "text": "还有人担忧该数据中心涉嫌非法用电、污染环境，批评 Anthropic 为了利润放弃了安全承诺。",
-          "start_time": 85.0,
-          "end_time": 93.239
+          "text": "另有开发者担心 AI 让编程更糟糕，被迫调试看不懂的代码，工作变得更加焦虑。",
+          "start_time": 110.682,
+          "end_time": 117.784
         },
         {
-          "text": "HN热帖《编程依然糟糕》讽刺了科技业用AI替代初级工程师，破坏人才成长的学徒制。",
-          "start_time": 93.239,
-          "end_time": 100.977
+          "text": "Chrome悄悄撤下了关于设备端AI不向谷歌服务器发送数据的声明，用户普遍担忧这可能是变相的数据收集手段。",
+          "start_time": 117.784,
+          "end_time": 127.057
         },
         {
-          "text": "评论中，有人赞叹'一篇真正出色的文章'，也有声音批评这不过是愤世嫉俗。",
-          "start_time": 100.977,
-          "end_time": 107.42
+          "text": "有评论认为AI功能更像是在用户不知情下回传信息的后门，也有人指出或许只是优化措辞。",
+          "start_time": 127.057,
+          "end_time": 135.159
         },
         {
-          "text": "一位19岁读者痛心留言：'他们在我入行前就扼杀了学徒制，没有Ben就没有Sara。",
-          "start_time": 107.42,
-          "end_time": 114.477
+          "text": "调侃者则惊讶为何至今仍有人坚持使用这款浏览器。",
+          "start_time": 135.159,
+          "end_time": 139.898
         },
         {
-          "text": "Google Cloud推出reCAPTCHA新反欺诈方案，用扫描QR码来对抗AI机器人。",
-          "start_time": 114.477,
-          "end_time": 122.068
+          "text": "这场争议再次引发对谷歌隐私承诺的质疑。",
+          "start_time": 139.898,
+          "end_time": 143.807
         },
         {
-          "text": "不少人担忧，这等于强制绑定特定品牌手机，进一步侵蚀网络匿名性。",
-          "start_time": 122.068,
-          "end_time": 128.08
+          "text": "Anthropic宣布与SpaceX合作，使用其Colossus 1数据中心300兆瓦计算力，为Claude用户提升速率限制。",
+          "start_time": 143.807,
+          "end_time": 152.977
         },
         {
-          "text": "也有安全专家指出，QR码容易被恶意利用，成为钓鱼攻击的新入口。",
-          "start_time": 128.08,
-          "end_time": 133.864
+          "text": "有用户对此表示欢迎，乐于享受更高的使用额度。",
+          "start_time": 152.977,
+          "end_time": 157.545
         },
         {
-          "text": "不过，一些网站已转投 Cloudflare Turnstile，认为体验更友好，不必牺牲隐私。",
-          "start_time": 133.864,
-          "end_time": 140.227
+          "text": "但也有声音质疑，认为这更像是Elon放弃xAI、直接出售算力的信号。",
+          "start_time": 157.545,
+          "end_time": 163.852
         },
         {
-          "text": "这场网关争夺战，才刚刚开始。",
-          "start_time": 140.227,
-          "end_time": 143.239
-        },
-        {
-          "text": "保罗·克鲁格曼揭露石油期货市场内幕交易丑闻。",
-          "start_time": 143.239,
-          "end_time": 147.818
-        },
-        {
-          "text": "一些人利用美国对伊朗政策的变动，提前交易原油期货，牟取暴利。",
-          "start_time": 147.818,
-          "end_time": 153.557
-        },
-        {
-          "text": "有评论直言，幕后黑手可能就是特朗普本人。",
-          "start_time": 153.557,
-          "end_time": 157.682
-        },
-        {
-          "text": "更令人担忧的是，总统豁免权让追责极为困难。",
-          "start_time": 157.682,
-          "end_time": 162.091
-        },
-        {
-          "text": "还有网友调侃说，内幕交易者当然不会自己查自己。",
-          "start_time": 162.091,
-          "end_time": 166.5
-        },
-        {
-          "text": "这暴露出权力寻租的深层问题。",
-          "start_time": 166.5,
-          "end_time": 169.344
+          "text": "更有调侃称，声明中提及轨道算力不过是达成交易的筹码而已。",
+          "start_time": 163.852,
+          "end_time": 169.416
         }
       ],
-      "duration": 169.344,
+      "duration": 169.416,
       "start_time": 9.624,
-      "end_time": 178.968,
+      "end_time": 179.04,
       "scene_elements": [
         {
           "element_type": "story_scan_card",
           "start_time": 0.0,
-          "end_time": 40.875,
+          "end_time": 169.416,
           "props": {
             "story_index": 0,
-            "event_summary": "生成式AI催生工作场所“虚假生产力”，能力与输出严重脱钩，管理层被假象迷惑。",
+            "event_summary": "AI生成工具让非专业人员大量产出看似规范的文档代码，但缺乏真正专业判断，催生职场虚假繁荣。",
             "viewpoints": [
               {
                 "stance": "担忧",
-                "summary": "AI让专家也丢失判断力与品味",
-                "quote": "Experts who have become so reliant / accustomed to AI that it dilutes their previously sharp judgment and, importantly, taste.",
-                "comment_index": 0
-              },
-              {
-                "stance": "支持",
-                "summary": "聪明使用AI可加速开发且不牺牲质量",
-                "quote": "the most productive software teams that leverage llms to build quality software will use it for intelligent autocomplete, brainstorming, troubleshooting, code review, POCs",
-                "comment_index": 9
-              },
-              {
-                "stance": "质疑",
-                "summary": "文章引用的研究结论与原文相悖",
-                "quote": "The second HBS research study literally finds the opposite of what's claimed … top-half-skill performers also received a significant boost.",
-                "comment_index": 30
-              }
-            ],
-            "stance_distribution": {
-              "担忧": 0.5,
-              "质疑": 0.3,
-              "支持": 0.2
-            },
-            "story_title": "Appearing productive in the workplace",
-            "title_cn": "",
-            "score": 1438,
-            "comment_count": 579
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 27.33,
-          "end_time": 60.386,
-          "props": {
-            "story_index": 1,
-            "event_summary": "美国国会图书馆推荐SQLite为数据集存储格式，与XML、JSON等并列。",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "从玩具到几乎全用SQLite",
-                "quote": "lets use SQLite for almost everything",
-                "comment_index": 3
-              },
-              {
-                "stance": "质疑",
-                "summary": "质疑‘知名’是否等同于‘开放’",
-                "quote": "is 'well-known' as good as 'open'?",
-                "comment_index": 14
-              },
-              {
-                "stance": "调侃",
-                "summary": "调侃SQLite将成未来考古工具",
-                "quote": "It certainly will be in the toolkits of data archeologists.",
-                "comment_index": 15
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.6,
-              "质疑": 0.3,
-              "调侃": 0.1
-            },
-            "story_title": "SQLite Is a Library of Congress Recommended Storage Format",
-            "title_cn": "",
-            "score": 491,
-            "comment_count": 153
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 60.386,
-          "end_time": 85.0,
-          "props": {
-            "story_index": 2,
-            "event_summary": "Anthropic 与 SpaceX 合作租用 Colossus 1 数据中心，并提升 Claude 用量限制",
-            "viewpoints": [
-              {
-                "stance": "质疑",
-                "summary": "五小时限制翻倍但周限额未变，营销噱头",
-                "quote": "Doubling the five-hour rate limits is merely a marketing stunt if the weekly rates are not also doubled.",
-                "comment_index": 3
-              },
-              {
-                "stance": "支持",
-                "summary": "双赢交易：Anthropic 得算力，SpaceX 消化闲置推 IPO",
-                "quote": "Plot twist but makes perfect sense for both companies. Anthropic gets the compute they so desperately need...",
-                "comment_index": 77
-              },
-              {
-                "stance": "担忧",
-                "summary": "数据中心非法用电污染环境，Anthropic 言行不一",
-                "quote": "Colossus 1 datacenter is the one using illegal power, is poisoning the air for poor communities near Memphis...",
-                "comment_index": 0
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.35,
-              "质疑": 0.35,
-              "担忧": 0.3
-            },
-            "story_title": "Higher usage limits for Claude and a compute deal with SpaceX",
-            "title_cn": "",
-            "score": 487,
-            "comment_count": 458
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 77.557,
-          "end_time": 114.477,
-          "props": {
-            "story_index": 3,
-            "event_summary": "《编程依然糟糕》讽刺科技业以AI取代初级工程师、破坏学徒制，导致人才断层和代码质量下降。",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "文笔出色",
-                "quote": "Damn. Phenomenal read. Just a really excellent piece of prose",
+                "summary": "专家品位被AI稀释，作品怪异无灵性",
+                "quote": "I am seeing more and more work produced by experts which seems strangely out of character... it simply lacks taste.",
                 "comment_index": 1
               },
               {
-                "stance": "质疑",
-                "summary": "毫无新意，纯抱怨",
-                "quote": "This is just a cynical post that adds no new value.",
-                "comment_index": 16
-              },
-              {
-                "stance": "担忧",
-                "summary": "扼杀学徒制，入行无门",
-                "quote": "they killed the apprenticeship before I could get in. how do you become Sara if there's no Ben left to learn from.",
-                "comment_index": 15
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.6,
-              "质疑": 0.2,
-              "担忧": 0.2
-            },
-            "story_title": "Programming Still Sucks",
-            "title_cn": "",
-            "score": 451,
-            "comment_count": 257
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 114.477,
-          "end_time": 153.557,
-          "props": {
-            "story_index": 4,
-            "event_summary": "Google Cloud发布reCAPTCHA反欺诈新方案，引入QR码扫描防御AI，引发隐私与安全争议。",
-            "viewpoints": [
-              {
-                "stance": "担忧",
-                "summary": "强制绑定手机品牌，削弱匿名性",
-                "quote": "you will need a modern Android device with Google Play Services… or a modern iPhone/iPad to be allowed to browse the web",
-                "comment_index": 0
+                "stance": "调侃",
+                "summary": "AI助手不是GLaDOS而是Wheatley，只会添乱",
+                "quote": "We were promised GlaDOS, and were given Wheatley.",
+                "comment_index": 49
               },
               {
                 "stance": "质疑",
-                "summary": "QR码易被用于钓鱼攻击，不安全",
-                "quote": "Having non-human readable data input is dangerous if somehow the QR code is comprised with a zero-day URL, it's game-over.",
-                "comment_index": 3
-              },
-              {
-                "stance": "中立",
-                "summary": "改用Cloudflare Turnstile更简单有效",
-                "quote": "I ditched reCaptcha and switched to Cloudflare Turnstile recently. It’s been a lot more effective.",
-                "comment_index": 42
+                "summary": "作者因嫉妒而批评非专家使用AI",
+                "quote": "The author appears jealous",
+                "comment_index": 74
               }
             ],
             "stance_distribution": {
               "担忧": 0.5,
-              "质疑": 0.35,
-              "中立": 0.15
+              "调侃": 0.2,
+              "质疑": 0.3
             },
-            "story_title": "Google Cloud fraud defense, the next evolution of reCAPTCHA",
+            "story_title": "Appearing productive in the workplace",
             "title_cn": "",
-            "score": 371,
-            "comment_count": 378
+            "score": 1558,
+            "comment_count": 634
           }
         },
         {
           "element_type": "story_scan_card",
-          "start_time": 147.818,
-          "end_time": 169.344,
+          "start_time": 0.0,
+          "end_time": 169.416,
           "props": {
-            "story_index": 5,
-            "event_summary": "揭露石油期货市场内幕交易：有人利用美国对伊政策变动提前交易获利，特朗普政府未予制止。",
+            "story_index": 1,
+            "event_summary": "火人节用“异物地图”追踪清理，150人地毯式检查3800英亩场地，细节至像素计数。",
             "viewpoints": [
               {
+                "stance": "支持",
+                "summary": "尊重火人节认真清理的态度",
+                "quote": "My respect for Burning Man just went up a lot. These big events usually leave a giant mess behind.",
+                "comment_index": 4
+              },
+              {
                 "stance": "质疑",
-                "summary": "特朗普本人就是内幕交易者",
-                "quote": "Yeah that's because IT's HIM. Jesus how much more proof do you people need that the Trumps themselves are looting the country.",
-                "comment_index": 7
+                "summary": "自力更生的活动最终仍需公开羞耻地图",
+                "quote": "An event built on radical self-reliance now needs a public shame map to keep people honest.",
+                "comment_index": 38
               },
               {
                 "stance": "担忧",
-                "summary": "总统豁免权让追责无望",
-                "quote": "All credit for this wanton insider trading goes back to the Supreme Court inventing presidential immunity out of thin air.",
-                "comment_index": 19
-              },
-              {
-                "stance": "调侃",
-                "summary": "内幕交易者当然不会查自己",
-                "quote": "The inside trader made no real effort to crack down on themselves",
-                "comment_index": 49
+                "summary": "高票价滋生顾客心态，清理意愿下降",
+                "quote": "I bet you there would be far less MOOP if a spot at Burning Man didn't cost so much money. When people pay hundreds of dollars, entitlement tends to creep in.",
+                "comment_index": 5
               }
             ],
             "stance_distribution": {
-              "质疑": 0.45,
-              "担忧": 0.35,
+              "支持": 0.5,
+              "质疑": 0.3,
+              "担忧": 0.2
+            },
+            "story_title": "The map that keeps Burning Man honest",
+            "title_cn": "",
+            "score": 639,
+            "comment_count": 313
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 169.416,
+          "props": {
+            "story_index": 2,
+            "event_summary": "美国国会图书馆推荐SQLite为数据集存储格式，与XML/JSON/CSV并列，以最大化长期可访问性。",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "长期保存最佳选择之一",
+                "quote": "For public-sector data preservation, it may be one of the best options... widely adopted, likely to remain readable, low patent risk.",
+                "comment_index": 6
+              },
+              {
+                "stance": "质疑",
+                "summary": "易变成不受控的影子数据库",
+                "quote": "some firms ban its use... it makes it SO easy to set up a database... a file that can have any extension... can be copied around.",
+                "comment_index": 1
+              },
+              {
+                "stance": "调侃",
+                "summary": "八年前的旧闻仍让人惊喜",
+                "quote": "this news is nearly EIGHT years old. But I didn't happen to know about it until now... a thank-you for posting it.",
+                "comment_index": 4
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.5,
+              "质疑": 0.3,
               "调侃": 0.2
             },
-            "story_title": "Grand Theft Oil Futures: Insider traders keep making a killing at our expense",
+            "story_title": "SQLite Is a Library of Congress Recommended Storage Format",
             "title_cn": "",
-            "score": 362,
-            "comment_count": 233
+            "score": 625,
+            "comment_count": 184
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 169.416,
+          "props": {
+            "story_index": 3,
+            "event_summary": "博客《Programming Still Sucks》讽刺行业生态，称AI与贪婪正毁掉软件学徒制，引发HN热议。",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "文章精辟，准确表达行业愤世嫉俗",
+                "quote": "Poignant, accurate, appropriately cynical.",
+                "comment_index": 13
+              },
+              {
+                "stance": "质疑",
+                "summary": "只是空洞的愤世嫉俗，初级岗位仍在大量招聘",
+                "quote": "This is just a cynical post that adds no new value.",
+                "comment_index": 20
+              },
+              {
+                "stance": "担忧",
+                "summary": "AI 让编程更糟，我们得调试看不懂的代码",
+                "quote": "now we have to debug code we didn't write, can't fully understand, and definitely can't explain in a code review.",
+                "comment_index": 7
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.35,
+              "担忧": 0.25
+            },
+            "story_title": "Programming Still Sucks",
+            "title_cn": "",
+            "score": 609,
+            "comment_count": 304
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 169.416,
+          "props": {
+            "story_index": 4,
+            "event_summary": "Chrome移除“设备端AI不向Google服务器发送数据”声明，引发隐私担忧",
+            "viewpoints": [
+              {
+                "stance": "担忧",
+                "summary": "AI可能成为数据收集后门",
+                "quote": "adding AI to desktop apps and sending the data back... is an amazing way to collect data from people... unaware it's even happening.",
+                "comment_index": 0
+              },
+              {
+                "stance": "中立",
+                "summary": "也可能只是精简措辞",
+                "quote": "it's also quite possible that they just altered the wording to make it less verbose.",
+                "comment_index": 3
+              },
+              {
+                "stance": "调侃",
+                "summary": "没想到还有人用Chrome",
+                "quote": "I am surprised there is still anyone using Chrome instead of Brave.",
+                "comment_index": 4
+              }
+            ],
+            "stance_distribution": {
+              "担忧": 0.3,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "质疑": 0.4
+            },
+            "story_title": "Chrome removes claim of On-device Al not sending data to Google Servers",
+            "title_cn": "",
+            "score": 554,
+            "comment_count": 216
+          }
+        },
+        {
+          "element_type": "story_scan_card",
+          "start_time": 0.0,
+          "end_time": 169.416,
+          "props": {
+            "story_index": 5,
+            "event_summary": "Anthropic与SpaceX合作，使用Colossus 1数据中心300MW算力提升Claude速率限制。",
+            "viewpoints": [
+              {
+                "stance": "支持",
+                "summary": "乐意接受更高的速率限制",
+                "quote": "I'll gladly take the higher rate limits",
+                "comment_index": 33
+              },
+              {
+                "stance": "质疑",
+                "summary": "认为Elon是在放弃xAI，出售算力",
+                "quote": "Looks like Elon's finally giving up on XAI and just selling the compute",
+                "comment_index": 4
+              },
+              {
+                "stance": "调侃",
+                "summary": "提及轨道算力只是交易筹码",
+                "quote": "posting this sentence was part of the deal to get the compute",
+                "comment_index": 2
+              }
+            ],
+            "stance_distribution": {
+              "支持": 0.3,
+              "质疑": 0.5,
+              "调侃": 0.2
+            },
+            "story_title": "Higher usage limits for Claude and a compute deal with SpaceX",
+            "title_cn": "",
+            "score": 503,
+            "comment_count": 472
           }
         }
       ],
@@ -509,8 +480,8 @@
         }
       ],
       "duration": 4.728,
-      "start_time": 178.968,
-      "end_time": 183.696,
+      "start_time": 179.04,
+      "end_time": 183.768,
       "scene_elements": [
         {
           "element_type": "closing_card",
@@ -522,5 +493,5 @@
       "audio_path": "audio/segment_03.mp3"
     }
   ],
-  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-05-08\\audio"
+  "audioDir": "D:\\code\\HNTechPulse\\data\\2026-05-08\\audio"
 }

@@ -19,20 +19,6 @@ def get_default_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def load_prompt_template() -> str:
-    """Load the R2 prompt template.
-
-    The {{ persona }} placeholder is left intact — ScriptWriter injects it
-    so persona handling lives in one place.
-    """
-    template_name = "daily_brief.md"
-    template_path = Path(f"prompts/{template_name}")
-    if not template_path.exists():
-        raise FileNotFoundError(f"Prompt template not found: {template_path}")
-    with open(template_path, "r", encoding="utf-8") as f:
-        return f.read()
-
-
 def main():
     parser = argparse.ArgumentParser(description="HN TechPulse: Generate tech video from Hacker News")
     parser.add_argument("--date", type=str, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
@@ -94,12 +80,9 @@ def main():
             dry_run=args.dry_run
         )
 
-        prompt_template = load_prompt_template()
-
         orchestrator.run(
             date=args.date,
             steps=steps,
-            prompt_template=prompt_template
         )
 
         logger.info("Pipeline completed successfully")

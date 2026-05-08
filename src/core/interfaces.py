@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
-    from .models import Script, ContentPackage, SelectionResult, WordTiming, ScriptSegment
+    from .models import Script, ContentPackage, WordTiming, ScriptSegment
 
 
 class ContentFetcher(ABC):
@@ -30,24 +30,8 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    def generate_script(
-        self,
-        selection: "SelectionResult",
-        comments_json: str,
-        script_prompt_template: str,
-        date: str,
-    ) -> "Script":
-        """Round 2: 基于选题结果 + 精选评论 → 完整脚本（旧 product 类型兼容）"""
-        pass
-
-    @abstractmethod
-    def build_comments_json(self, content: "ContentPackage", selection: "SelectionResult") -> str:
-        """根据选题结果提取精选评论原文，构建 Round 2 输入"""
-        pass
-
-    @abstractmethod
-    def translate_selection(self, content: "ContentPackage", selection: "SelectionResult", prompt_template: str) -> "ContentPackage":
-        """翻译选中内容的标题和评论，回填到 ContentPackage 中"""
+    def translate_titles(self, content: "ContentPackage", prompt_template: str) -> "ContentPackage":
+        """翻译所有故事标题"""
         pass
 
 

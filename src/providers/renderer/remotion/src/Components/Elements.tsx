@@ -114,13 +114,21 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
   let displayText = fallbackText;
   let opacity = 1;
   if (cues.length > 0) {
+    // Find the cue whose time range contains currentTime (with small tolerance)
     let activeCue = cues.find(
       (c) => currentTime >= c.start_time - 0.05 && currentTime <= c.end_time + 0.05
     );
     if (!activeCue) {
-      const startedCues = cues.filter((c) => currentTime >= c.start_time);
-      if (startedCues.length > 0) {
-        activeCue = startedCues[startedCues.length - 1];
+      // Between cues: find the nearest cue by distance to its boundaries
+      let minDist = Infinity;
+      for (const c of cues) {
+        const distToStart = Math.abs(currentTime - c.start_time);
+        const distToEnd = Math.abs(currentTime - c.end_time);
+        const dist = Math.min(distToStart, distToEnd);
+        if (dist < minDist) {
+          minDist = dist;
+          activeCue = c;
+        }
       }
     }
     if (activeCue) {
@@ -337,9 +345,7 @@ const StancePie: React.FC<{ distribution: Record<string, number>; size: number }
     const innerX2 = cx + innerR * Math.cos(endAngle - Math.PI / 2);
     const innerY2 = cy + innerR * Math.sin(endAngle - Math.PI / 2);
 
-    const path = value >= 1
-      ? `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`
-      : `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`;
+    const path = `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`;
     const color = STANCE_COLORS[label] || COLORS.dim;
     return { label, value, path, color };
   });

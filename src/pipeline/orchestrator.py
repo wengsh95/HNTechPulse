@@ -39,7 +39,7 @@ class Orchestrator:
         self.content_preparer = ContentPreparer(config, debug=debug)
         self.script_writer = ScriptWriter(config, llm_provider, self.content_preparer, debug=debug)
 
-    def run(self, date: str, steps: Optional[List[str]] = None, prompt_template: str = "") -> None:
+    def run(self, date: str, steps: Optional[List[str]] = None) -> None:
         if steps is None:
             steps = ["fetch", "enrich", "translate", "script", "tts", "render"]
 
@@ -64,13 +64,13 @@ class Orchestrator:
             content = self._step_translate(content, date)
 
         if "script" in steps:
-            script = self._step_script(content, prompt_template, date)
+            script = self._step_script(content, date)
         else:
             try:
                 script = self.script_writer.load_script(date)
             except FileNotFoundError:
                 self.logger.info("Script not found, generating anyway...")
-                script = self._step_script(content, prompt_template, date)
+                script = self._step_script(content, date)
 
         if "tts" in steps:
             script = self._step_tts(script, date, content)
@@ -155,7 +155,7 @@ class Orchestrator:
 
         return content
 
-    def _step_script(self, content, prompt_template: str, date: str):
+    def _step_script(self, content, date: str):
         self.logger.info("=" * 50)
         self.logger.info("Step: Generate script (daily_brief)")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
@@ -180,7 +180,7 @@ class Orchestrator:
                 ]
             )
 
-        script = self.script_writer.write(content, prompt_template)
+        script = self.script_writer.write(content)
         self.script_writer.save_script(script, date)
         return script
 
@@ -244,6 +244,7 @@ class Orchestrator:
                 segment.meta["timing_level"] = result.timing_level
 
         self._compute_timeline(script)
+        self._set_scene_element_times(script)
         self._validate_segment_duration(script)
         self.script_writer.save_script(script, date)
         return script
@@ -332,6 +333,158 @@ class Orchestrator:
 
         script.total_duration = current_time
         return script
+
+    def _set_scene_element_times(self, script: Script) -> None:
+        """Set scene_element start_time/end_time based on actual audio duration.
+
+        For combined segments (story_scan) with word_timings and
+        sub_segment_char_ranges, each element's times are derived from the
+        actual TTS word timings that fall within its sub-segment's char range.
+        Falls back to proportional layout when word_timings are unavailable.
+        """
+        for seg in script.segments:
+            duration = seg.actual_duration or seg.estimated_duration
+            if duration <= 0:
+                continue
+
+            char_ranges = seg.meta.get("sub_segment_char_ranges")
+            word_timings_raw = seg.meta.get("word_timings", [])
+
+            if char_ranges and word_timings_raw and seg.scene_elements:
+                # Index-based: map each sub-segment's char range to its
+                # actual time span in word_timings.
+                sub_times = self._map_char_ranges_to_times(
+                    seg.audio_text, char_ranges, word_timings_raw, duration
+                )
+                for elem in seg.scene_elements:
+                    idx = elem.sub_segment_index
+                    if idx is not None and idx < len(sub_times):
+                        elem.start_time = sub_times[idx][0]
+                        elem.end_time = sub_times[idx][1]
+                    else:
+                        elem.start_time = 0.0
+                        elem.end_time = duration
+            elif word_timings_raw and seg.scene_elements:
+                # char_ranges missing (e.g. loaded from cache) but we have
+                # word_timings — synthesize char_ranges from audio_text length
+                # and sub_segment_estimated_durations so we can still map to
+                # real TTS times instead of doing a naive proportional split.
+                sub_est = seg.meta.get("sub_segment_estimated_durations")
+                n = len(seg.scene_elements)
+                if sub_est and n > 0 and seg.audio_text:
+                    total_est = sum(sub_est)
+                    text_len = len(seg.audio_text)
+                    synthetic_ranges = []
+                    char_offset = 0
+                    for est in sub_est[:n]:
+                        share = est / total_est if total_est > 0 else 1.0 / n
+                        char_end = min(text_len, char_offset + int(round(share * text_len)))
+                        if char_end <= char_offset:
+                            char_end = char_offset + 1
+                        synthetic_ranges.append((char_offset, char_end))
+                        char_offset = char_end
+                    # Pin last range to end of text
+                    if synthetic_ranges:
+                        synthetic_ranges[-1] = (synthetic_ranges[-1][0], text_len)
+                    sub_times = self._map_char_ranges_to_times(
+                        seg.audio_text, synthetic_ranges, word_timings_raw, duration
+                    )
+                    for elem in seg.scene_elements:
+                        idx = elem.sub_segment_index
+                        if idx is not None and idx < len(sub_times):
+                            elem.start_time = sub_times[idx][0]
+                            elem.end_time = sub_times[idx][1]
+                        else:
+                            elem.start_time = 0.0
+                            elem.end_time = duration
+                else:
+                    # No estimated durations either — even split
+                    for i, elem in enumerate(seg.scene_elements):
+                        per = duration / n if n > 0 else duration
+                        elem.start_time = i * per
+                        elem.end_time = (i + 1) * per
+            else:
+                # No word_timings at all — proportional layout by estimated durations
+                sub_est = seg.meta.get("sub_segment_estimated_durations")
+                if sub_est and len(seg.scene_elements) > 0:
+                    total_est = sum(sub_est)
+                    if total_est <= 0:
+                        n = len(seg.scene_elements)
+                        per = duration / n if n > 0 else duration
+                        for i, elem in enumerate(seg.scene_elements):
+                            elem.start_time = i * per
+                            elem.end_time = (i + 1) * per
+                    else:
+                        offset = 0.0
+                        for est, elem in zip(sub_est, seg.scene_elements):
+                            actual = est * duration / total_est
+                            elem.start_time = offset
+                            elem.end_time = offset + actual
+                            offset += actual
+                        for i in range(len(sub_est), len(seg.scene_elements)):
+                            seg.scene_elements[i].start_time = offset
+                            seg.scene_elements[i].end_time = duration
+                else:
+                    for elem in seg.scene_elements:
+                        elem.start_time = 0.0
+                        elem.end_time = duration
+
+    @staticmethod
+    def _map_char_ranges_to_times(
+        audio_text: str,
+        char_ranges: list,
+        word_timings_raw: list,
+        duration: float,
+    ) -> list:
+        """Map sub-segment char ranges to (start_time, end_time) from word_timings.
+
+        Each word_timing has a cumulative char offset derived from its text
+        position in audio_text. We assign each word to the sub-segment whose
+        char range contains it, then derive per-sub-segment time spans.
+        """
+        # Build a list of (char_offset, start_time, end_time) for each word
+        word_entries = []
+        char_cursor = 0
+        for wt in word_timings_raw:
+            text = wt.get("text", "")
+            word_entries.append((char_cursor, wt["start_time"], wt["end_time"]))
+            char_cursor += len(text)
+
+        if not word_entries:
+            # No timings: fall back to even split
+            n = len(char_ranges)
+            per = duration / n if n > 0 else duration
+            return [(i * per, (i + 1) * per) for i in range(n)]
+
+        # For each sub-segment, find the first and last word that falls
+        # within its char range.
+        sub_times = []
+        for cs, ce in char_ranges:
+            first_time = None
+            last_time = None
+            for char_off, st, et in word_entries:
+                if cs <= char_off < ce:
+                    if first_time is None:
+                        first_time = st
+                    last_time = et
+            if first_time is None:
+                # No words in this range — use boundary estimates
+                sub_times.append((0.0, 0.0))
+            else:
+                sub_times.append((first_time, last_time))
+
+        # Ensure no gaps: each sub-segment starts where the previous ended
+        for i in range(1, len(sub_times)):
+            if sub_times[i][0] > sub_times[i - 1][1]:
+                # Overlap or gap — snap start to previous end
+                sub_times[i] = (sub_times[i - 1][1], sub_times[i][1])
+
+        # Pin first/last to segment boundaries
+        if sub_times:
+            sub_times[0] = (0.0, sub_times[0][1])
+            sub_times[-1] = (sub_times[-1][0], duration)
+
+        return sub_times
 
     # ── Post-TTS validation ──
 

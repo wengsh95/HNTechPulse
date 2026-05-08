@@ -38,6 +38,10 @@ build/
 # Project-specific
 .workbuddy/
 
+# Remotion runtime assets
+**/remotion/public/audio/
+**/remotion/public/images/
+
 # Claude Code
 .claude/
 skills-lock.json

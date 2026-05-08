@@ -6,26 +6,9 @@ from typing import Optional
 
 from src.core.models import Script, ScriptSegment, ContentPackage, ContentItem, SelectionResult
 from src.core.interfaces import LLMProvider
-from src.core.prompts import render_prompt
 from src.pipeline.content_preparer import ContentPreparer
 from src.utils.logger import setup_logger
 from src.core.models import SceneElement, Cue
-
-SEGMENT_TYPE_LABELS = {
-    "opening": "开场",
-    "deep_dive": "深度解读",
-    "medium_dive": "焦点关注",
-    "quick_news": "快讯速览",
-    "quick_briefs": "今日快讯",
-    "dashboard": "仪表盘",
-    "story_scan": "逐条速览",
-    "context": "背景",
-    "viewpoint_a": "阵营一",
-    "viewpoint_b": "阵营二",
-    "comment_deep": "评论深挖",
-    "synthesis": "洞察",
-    "closing": "结尾",
-}
 
 
 class ScriptWriter:
@@ -43,18 +26,13 @@ class ScriptWriter:
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
-    def _inject_persona(self, template_text: str, prompts_dir: Path) -> str:
-        persona_path = prompts_dir / "persona.md"
-        persona = persona_path.read_text(encoding="utf-8") if persona_path.exists() else ""
-        return render_prompt(template_text, persona=persona)
-
     def _generate_fixed_opening(self, date: str) -> ScriptSegment:
         """生成每日快讯开场"""
         from datetime import datetime
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             date_display = date_obj.strftime("%Y年%m月%d日")
-        except:
+        except (ValueError, TypeError):
             date_display = date
 
         audio_text = f"大家好，我是小P，今天是{date_display}。来看看今天的Hacker News热门。"
@@ -144,7 +122,6 @@ class ScriptWriter:
 
     def _generate_script_split(self, content: ContentPackage, selection: SelectionResult, date: str) -> Script:
         """生成每日快讯脚本（拆分模式）"""
-        from src.core.models import ScriptSegment, SceneElement, Cue
 
         segments = []
 
@@ -183,32 +160,20 @@ class ScriptWriter:
                 f"content items. Video will have no news content in the middle."
             )
         else:
-            combined_audio = " ".join([s.audio_text for s in story_scan_segs])
+            combined_audio = ""
             combined_scene_elements = []
-            time_offset = 0.0
-            for s in story_scan_segs:
+            sub_segment_char_ranges = []  # [(start, end), ...] char offsets in combined_audio
+            for i, s in enumerate(story_scan_segs):
+                char_start = len(combined_audio)
+                if combined_audio:
+                    combined_audio += " "
+                combined_audio += s.audio_text
+                char_end = len(combined_audio)
+                sub_segment_char_ranges.append((char_start, char_end))
                 for elem in s.scene_elements:
-                    new_elem = SceneElement(
-                        element_type=elem.element_type,
-                        start_time=elem.start_time + time_offset,
-                        end_time=elem.end_time + time_offset,
-                        props=elem.props
-                    )
-                    combined_scene_elements.append(new_elem)
-                time_offset += s.estimated_duration
-            total_duration = time_offset
-
-            combined_cues = []
-            cue_offset = 0.0
-            for s in story_scan_segs:
-                for c in s.cues:
-                    new_cue = Cue(
-                        text=c.text,
-                        start_time=c.start_time + cue_offset,
-                        end_time=c.end_time + cue_offset
-                    )
-                    combined_cues.append(new_cue)
-                cue_offset += s.estimated_duration
+                    elem.sub_segment_index = i
+                    combined_scene_elements.append(elem)
+            total_duration = sum(s.estimated_duration for s in story_scan_segs)
 
             story_scan_seg = ScriptSegment(
                 segment_type="story_scan",
@@ -216,8 +181,11 @@ class ScriptWriter:
                 estimated_duration=total_duration,
                 emotion="upbeat",
                 scene_elements=combined_scene_elements,
-                meta={"brief_items": all_brief_items_data},
-                cues=combined_cues
+                meta={
+                    "brief_items": all_brief_items_data,
+                    "sub_segment_estimated_durations": [s.estimated_duration for s in story_scan_segs],
+                    "sub_segment_char_ranges": sub_segment_char_ranges,
+                },
             )
             segments.append(story_scan_seg)
 
@@ -230,18 +198,8 @@ class ScriptWriter:
             tags=[],
             segments=segments)
 
-    def write(self, content: ContentPackage, prompt_template: str) -> Script:
+    def write(self, content: ContentPackage) -> Script:
         t_total = time.monotonic()
-
-        _prompt_path = Path(prompt_template)
-        if _prompt_path.exists() and _prompt_path.suffix == ".md":
-            prompts_dir = _prompt_path.parent
-            script_prompt_text = _prompt_path.read_text(encoding="utf-8")
-        else:
-            prompts_dir = Path("prompts")
-            script_prompt_text = prompt_template
-
-        script_prompt_text = self._inject_persona(script_prompt_text, prompts_dir)
 
         # Script checkpoint: if script.json already exists, skip all LLM work.
         script_path = Path(f"data/{content.date}/script.json")
@@ -274,9 +232,6 @@ class ScriptWriter:
             {"story_index": i} for i in range(min(num_brief, len(content.items)))
         ]
         selection = SelectionResult(
-            deep_dive_decision={},
-            quick_selections=[],
-            patterns=[],
             brief_items=brief_items,
             raw_json=json.dumps({"brief_items": brief_items}, ensure_ascii=False),
         )
@@ -441,82 +396,43 @@ class ScriptWriter:
         except json.JSONDecodeError as e:
             raise ValueError(f"Script file {path} contains invalid JSON: {e}") from e
 
-        from src.core.models import ScriptSegment, SceneElement, Cue
-
         try:
-            segments = []
-            for seg_dict in script_dict["segments"]:
-                scene_elements = [
-                    SceneElement(
-                        element_type=e["element_type"],
-                        start_time=e["start_time"],
-                        end_time=e["end_time"],
-                        props=e["props"]
-                    )
-                    for e in seg_dict.get("scene_elements", [])
-                ]
-                cues = [
-                    Cue(
-                        text=c["text"],
-                        start_time=c["start_time"],
-                        end_time=c["end_time"],
-                    )
-                    for c in seg_dict.get("cues", [])
-                ]
-                segments.append(ScriptSegment(
-                    segment_type=seg_dict["segment_type"],
-                    audio_text=seg_dict["audio_text"],
-                    estimated_duration=seg_dict["estimated_duration"],
-                    actual_duration=seg_dict.get("actual_duration"),
-                    emotion=seg_dict.get("emotion", "neutral"),
-                    scene_elements=scene_elements,
-                    meta=seg_dict.get("meta", {}),
-                    start_time=seg_dict.get("start_time"),
-                    end_time=seg_dict.get("end_time"),
-                    audio_path=seg_dict.get("audio_path"),
-                    cues=cues,
-                ))
-
             return Script(
                 title=script_dict["title"],
                 description=script_dict["description"],
                 tags=script_dict["tags"],
-                segments=segments,
-                total_duration=script_dict.get("total_duration")
+                segments=[
+                    ScriptSegment(
+                        segment_type=s["segment_type"],
+                        audio_text=s["audio_text"],
+                        estimated_duration=s["estimated_duration"],
+                        actual_duration=s.get("actual_duration"),
+                        emotion=s.get("emotion", "neutral"),
+                        scene_elements=[
+                            SceneElement(
+                                element_type=e["element_type"],
+                                start_time=e["start_time"],
+                                end_time=e["end_time"],
+                                props=e["props"],
+                            )
+                            for e in s.get("scene_elements", [])
+                        ],
+                        meta=s.get("meta", {}),
+                        start_time=s.get("start_time"),
+                        end_time=s.get("end_time"),
+                        audio_path=s.get("audio_path"),
+                        cues=[
+                            Cue(
+                                text=c["text"],
+                                start_time=c["start_time"],
+                                end_time=c["end_time"],
+                            )
+                            for c in s.get("cues", [])
+                        ],
+                    )
+                    for s in script_dict["segments"]
+                ],
+                total_duration=script_dict.get("total_duration"),
             )
         except (KeyError, TypeError) as e:
             raise ValueError(f"Script file {path} has unexpected structure: {e}") from e
-
-    def write_from_selection(
-        self,
-        content: ContentPackage,
-        selection_raw: str,
-        script_prompt_template: str,
-    ) -> Script:
-        if selection_raw.endswith(".json"):
-            with open(selection_raw, "r", encoding="utf-8") as f:
-                raw = f.read()
-        else:
-            raw = selection_raw
-
-        sd = json.loads(raw) if isinstance(raw, str) else raw
-        selection = SelectionResult(
-            deep_dive_decision=sd.get("deep_dive_decision", {}),
-            quick_selections=sd.get("quick_selections", []),
-            medium_selections=sd.get("medium_selections", []),
-            patterns=sd.get("patterns", []),
-            raw_json=json.dumps(sd, ensure_ascii=False, indent=2)
-        )
-
-        comments_json = self.llm_provider.build_comments_json(content, selection)
-
-        script_prompt_template = self._inject_persona(script_prompt_template, Path("prompts"))
-
-        self.logger.info("Debug mode: Skipping R1, using provided selection")
-        script = self.llm_provider.generate_script(
-            selection=selection,
-            comments_json=comments_json,
-            script_prompt_template=script_prompt_template,
-            date=content.date,
-        )
-        return script
