@@ -19,8 +19,14 @@ class TestProviderFactory:
             "logging": {"level": "WARNING"},
             "llm": {"model": "test"},
         }
-        with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-            create_llm_provider("openai", config)
+        import os
+        key = os.environ.pop("OPENAI_API_KEY", None)
+        try:
+            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+                create_llm_provider("openai", config)
+        finally:
+            if key is not None:
+                os.environ["OPENAI_API_KEY"] = key
 
     def test_create_llm_provider_unknown_raises(self):
         config = {"logging": {"level": "WARNING"}}

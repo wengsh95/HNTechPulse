@@ -145,6 +145,36 @@ class ScriptWriter:
             meta={"dashboard": {"entries": entries}}
         )
 
+    def _insert_image_cards(self, scene_elements, content):
+        """Insert image_card elements before their corresponding story_scan_card elements."""
+        new_elements = []
+        for elem in scene_elements:
+            if elem.element_type == "story_scan_card":
+                story_idx = elem.props.get("story_index")
+                if story_idx is not None and 0 <= story_idx < len(content.items):
+                    item = content.items[story_idx]
+                    has_image = (
+                        (item.article_images and len(item.article_images) > 0)
+                        or item.screenshot_image
+                        or item.logo_image
+                    )
+                    if has_image:
+                        caption = item.title_cn or item.title or ""
+                        image_card_elem = SceneElement(
+                            element_type="image_card",
+                            start_time=0.0,
+                            end_time=0.0,
+                            props={
+                                "story_index": story_idx,
+                                "image_index": 0,
+                                "caption": caption,
+                            },
+                            sub_segment_index=elem.sub_segment_index,
+                        )
+                        new_elements.append(image_card_elem)
+            new_elements.append(elem)
+        return new_elements
+
     def _generate_script_split(self, content: ContentPackage, selection: SelectionResult, date: str) -> Script:
         """生成每日快讯脚本（拆分模式）"""
 
@@ -172,10 +202,14 @@ class ScriptWriter:
                 comments_data=None
             )
             story_scan_segs.append(seg)
+            # event_summary/viewpoints live in scene_element props, not meta
+            elem_props = {}
+            if seg.scene_elements and seg.scene_elements[0].props:
+                elem_props = seg.scene_elements[0].props
             bi_data = {
                 "story_index": story_idx,
-                "event_summary": seg.meta.get("event_summary", ""),
-                "viewpoints": seg.meta.get("viewpoints", []),
+                "event_summary": seg.meta.get("event_summary", "") or elem_props.get("event_summary", ""),
+                "viewpoints": seg.meta.get("viewpoints", []) or elem_props.get("viewpoints", []),
             }
             all_brief_items_data.append(bi_data)
 
@@ -202,6 +236,9 @@ class ScriptWriter:
                         elem.props["story_count"] = len(story_scan_segs)
                     combined_scene_elements.append(elem)
             total_duration = sum(s.estimated_duration for s in story_scan_segs)
+
+            # Insert image_cards before story_scan_cards
+            combined_scene_elements = self._insert_image_cards(combined_scene_elements, content)
 
             story_scan_seg = ScriptSegment(
                 segment_type="story_scan",
@@ -301,7 +338,11 @@ class ScriptWriter:
         lines = [f"# HN TechPulse 每日快讯 | {date}", ""]
         if script.description:
             lines.append(f"> {script.description}")
-            lines.append("")
+        if script.total_duration:
+            mins = int(script.total_duration) // 60
+            secs = int(script.total_duration) % 60
+            lines.append(f"> 视频时长 {mins}:{secs:02d}")
+        lines.append("")
 
         opening_segment = None
         dashboard_segment = None
@@ -348,18 +389,18 @@ class ScriptWriter:
                     score = entry.get("score", "")
                     comments = entry.get("comment_count", "")
                     score_str = f" ▲ {score}" if score else ""
-                    comments_str = f" · {comments} comments" if comments else ""
+                    comments_str = f" · 💬 {comments}" if comments else ""
                     if title_cn:
-                        lines.append(f"{rank}. **{title}** / {title_cn}{score_str}{comments_str}")
+                        lines.append(f"{rank}. **{title_cn}** / {title}{score_str}{comments_str}")
                     else:
                         lines.append(f"{rank}. **{title}**{score_str}{comments_str}")
             elif content:
                 for i, item in enumerate(content.items[:10], 1):
                     score_str = f" ▲ {item.score}" if item.score else ""
-                    comments_str = f" · {item.comment_count} comments" if item.comment_count else ""
+                    comments_str = f" · 💬 {item.comment_count}" if item.comment_count else ""
                     title_cn = item.title_cn
                     if title_cn:
-                        lines.append(f"{i}. **{item.title}** / {title_cn}{score_str}{comments_str}")
+                        lines.append(f"{i}. **{title_cn}** / {item.title}{score_str}{comments_str}")
                     else:
                         lines.append(f"{i}. **{item.title}**{score_str}{comments_str}")
             lines.append("")
@@ -379,26 +420,124 @@ class ScriptWriter:
                     reverse=True,
                 )
 
+            # Fallback: fill missing event_summary/viewpoints from scene_elements
+            if brief_items:
+                for bi, elem in zip(
+                    brief_items,
+                    (e for e in scan_segment.scene_elements if e.element_type == "story_scan_card"),
+                ):
+                    if not bi.get("event_summary") and elem.props:
+                        bi["event_summary"] = elem.props.get("event_summary", "")
+                    if not bi.get("viewpoints") and elem.props:
+                        bi["viewpoints"] = elem.props.get("viewpoints", [])
+            else:
+                for elem in scan_segment.scene_elements:
+                    if elem.element_type == "story_scan_card" and elem.props:
+                        brief_items.append({
+                            "story_index": elem.props.get("story_index", 0),
+                            "event_summary": elem.props.get("event_summary", ""),
+                            "viewpoints": elem.props.get("viewpoints", []),
+                        })
+
             lines.append("---")
             lines.append("")
             lines.append("## 逐条速览")
             lines.append("")
-            lines.append(scan_segment.audio_text)
-            lines.append("")
+
+            # Split audio_text per story using sub_segment_char_ranges
+            char_ranges = scan_segment.meta.get("sub_segment_char_ranges", []) if scan_segment.meta else []
+            story_texts = []
+            if char_ranges and scan_segment.audio_text:
+                for start, end in char_ranges:
+                    story_texts.append(scan_segment.audio_text[start:end].strip())
+
+            # Collect scene_elements keyed by sub_segment_index for time/stance data
+            scene_by_idx = {}
+            for elem in scan_segment.scene_elements:
+                if elem.element_type == "story_scan_card":
+                    idx = elem.sub_segment_index if elem.sub_segment_index is not None else len(scene_by_idx)
+                    scene_by_idx[idx] = elem
+
+            def _fmt_time(seconds):
+                if seconds is None:
+                    return ""
+                m = int(seconds) // 60
+                s = int(seconds) % 60
+                return f"{m}:{s:02d}"
 
             if brief_items:
                 for i, bi in enumerate(brief_items, 1):
                     event_summary = bi.get("event_summary", "") or bi.get("one_liner", "")
                     viewpoints = bi.get("viewpoints", [])
+                    story_idx = bi.get("story_index")
 
                     lines.append(f"### {i}. {event_summary}")
+                    lines.append("")
+
+                    # Narration
+                    if i - 1 < len(story_texts):
+                        lines.append(story_texts[i - 1])
+                        lines.append("")
+
+                    # Meta info line
+                    meta_parts = []
+                    image_parts = []
+                    if content and story_idx is not None and 0 <= story_idx < len(content.items):
+                        item = content.items[story_idx]
+                        if item.score:
+                            meta_parts.append(f"▲ {item.score}")
+                        if item.comment_count:
+                            meta_parts.append(f"💬 {item.comment_count}")
+                        if item.url:
+                            meta_parts.append(f"[原文]({item.url})")
+                        # Image sources for transcript
+                        if item.article_images:
+                            for img in item.article_images:
+                                image_parts.append(f"🖼 {img}")
+                        if item.screenshot_image:
+                            image_parts.append(f"📸 {item.screenshot_image}")
+                        if item.logo_image:
+                            image_parts.append(f"🏷 {item.logo_image}")
+                    elem = scene_by_idx.get(i - 1)
+                    if elem:
+                        ts_start = _fmt_time(elem.start_time)
+                        ts_end = _fmt_time(elem.end_time)
+                        if ts_start and ts_end:
+                            meta_parts.append(f"⏱ {ts_start}–{ts_end}")
+                    if meta_parts:
+                        lines.append(" · ".join(meta_parts))
+                        lines.append("")
+                    if image_parts:
+                        lines.append(" · ".join(image_parts))
+                        lines.append("")
+
+                    # Stance distribution
+                    if elem and elem.props:
+                        dist = elem.props.get("stance_distribution", {})
+                        if dist:
+                            sorted_dist = sorted(dist.items(), key=lambda x: x[1], reverse=True)
+                            dist_str = " · ".join(f"{k} {int(v * 100)}%" for k, v in sorted_dist if v > 0)
+                            if dist_str:
+                                lines.append(f"**社区观点**  {dist_str}")
+                                lines.append("")
+
+                    # Viewpoints: Chinese primary, English as detail line
                     if viewpoints:
                         for vp in viewpoints:
                             stance = vp.get("stance", "")
                             summary = vp.get("summary", "")
-                            stance_str = f"[{stance}] " if stance else ""
+                            stance_str = f"**[{stance}]** " if stance else ""
                             lines.append(f"- {stance_str}{summary}")
-                    lines.append("")
+                            quote_cn = vp.get("quote_cn", "")
+                            quote = vp.get("quote", "")
+                            if quote_cn:
+                                lines.append(f"    「{quote_cn}」")
+                            if quote and quote != quote_cn:
+                                lines.append(f"    \"{quote}\"")
+                        lines.append("")
+            elif scan_segment.audio_text:
+                lines.append(scan_segment.audio_text)
+                lines.append("")
 
         # Closing
         if closing_segment:

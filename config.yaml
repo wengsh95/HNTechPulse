@@ -56,11 +56,6 @@ hn:
   max_concurrent_requests: 20     # 并发请求数（控制对 HN API 的压力，建议 10-30）
   max_retries: 3                  # 单个请求最大重试次数（指数退避：1s → 2s → 4s）
   granular_cache: true            # 评论级细粒度缓存（支持断点续传，中断重跑跳过已缓存故事）
-  # proxy: "http://127.0.0.1:7890" # 取消注释以启用代理（字符串格式：http/https 共用）
-  # 或使用字典格式分别配置：
-  # proxy:
-  #   http: "http://127.0.0.1:7890"
-  #   https: "http://127.0.0.1:7890"
 
 # ── 文章内容增强 ──
 enrich:
@@ -73,12 +68,15 @@ enrich:
   retry_count: 3                   # 失败重试次数（指数退避：1s → 2s → 4s）
   request_delay: 0.5               # 请求间隔（秒），避免触发速率限制
   headless: true                   # 启用 Playwright 无头 Chrome 兜底（aiohttp 失败后），自动检测本地 Chrome
-  # proxy: "http://127.0.0.1:7890" # 代理配置
+  headed: true                     # 启用 Playwright 有头 Chrome（headless=False）作为第3策略（JS重/反爬站）
+  bing_image_search: true          # 启用 Bing 图片搜索作为图片兜底
+  bing_max_results: 3              # Bing 搜索最多下载图片数
   skip_domains:                    # 直接跳过这些域名的 enrich（反爬太重或抓不到正文）
     - twitter.com
     - x.com
     - mobile.twitter.com
   image_target_size: [1280, 720]   # 图片目标尺寸（超过则等比缩放）
+  screenshot_enabled: true         # 启用 headless Chrome 截图（Logo 之前的降级）
   summary_max_tokens: 8192         # LLM 摘要最大 token 数
   llm:                             # 独立 LLM 配置（可用更便宜的模型做摘要）
     model: "deepseek-v4-flash"

@@ -36,7 +36,6 @@ def _auto_register():
         ("fetcher", "hn", "src.providers.fetcher.hn_fetcher", "HNFetcher", register_fetcher),
         ("llm", "openai", "src.providers.llm.openai", "OpenAILLMProvider", register_llm),
         ("tts", "edge-tts", "src.providers.tts.edge_tts", "EdgeTTSProvider", register_tts),
-        ("tts", "openai", "src.providers.tts.openai_tts", "OpenAITTSProvider", register_tts),
         ("renderer", "remotion", "src.providers.renderer.remotion_renderer", "RemotionRenderer", register_renderer),
     ]
     import importlib

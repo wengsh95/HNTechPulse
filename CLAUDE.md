@@ -12,9 +12,9 @@ python main.py                                   # Run pipeline
 python main.py --date 2026-04-26 --debug         # With options
 python main.py --steps fetch,script              # Run specific steps
 python main.py --dry-run                         # Skip API calls
-uv run pytest                                    # Run tests
-uv run pytest tests/test_pipeline.py             # Specific test
-uv run pytest -v                                 # Verbose
+python -m pytest                                # Run tests
+python -m pytest tests/test_pipeline.py         # Specific test
+python -m pytest -v                             # Verbose
 ```
 
 Remotion dev server:
@@ -49,7 +49,16 @@ All steps cache to `data/{date}/` and resume from disk. Config: [config.yaml](co
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-### 1. Think Before Coding
+### 1. Confirm Before Coding
+
+**Before writing implementation code, present your plan and confirm with the user.**
+
+- For non-trivial tasks, state what you intend to do and wait for approval.
+- List key decisions and assumptions — let the user correct them before code is written.
+- If the task is ambiguous, ask clarifying questions first. Do not guess and proceed.
+- Trivial, single-line fixes are exempt from this rule.
+
+### 2. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
@@ -60,7 +69,7 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
-### 2. Simplicity First
+### 3. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
@@ -72,7 +81,7 @@ Before implementing:
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-### 3. Surgical Changes
+### 4. Surgical Changes
 
 **Touch only what you must. Clean up only your own mess.**
 
@@ -90,7 +99,7 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
-### 4. Goal-Driven Execution
+### 5. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 

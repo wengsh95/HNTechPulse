@@ -16,6 +16,7 @@ import {
   StoryScanCard,
   ImageCard,
 } from "./Elements";
+import { ProgressBar } from "./ProgressBar";
 
 const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #ececf2 0%, #f5f5f7 50%, #e8e8ed 100%)";
 
@@ -134,6 +135,15 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   segments,
   audioDir,
 }) => {
+  const totalDuration =
+    segments.length > 0
+      ? segments[segments.length - 1].end_time
+      : 0;
+
+  const storyBoundaries = segments
+    .filter((seg) => seg.segment_type === "story_scan")
+    .map((seg) => seg.start_time);
+
   return (
     <AbsoluteFill style={{ background: bgColor || C_BG }}>
       {/* 遍历所有 segments，按时间线排列视觉内容 */}
@@ -162,6 +172,12 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
             <Audio src={staticFile(segment.audio_path!)} />
           </Sequence>
         ))}
+
+      {/* 底部进度条 */}
+      <ProgressBar
+        totalDuration={totalDuration}
+        storyBoundaries={storyBoundaries}
+      />
     </AbsoluteFill>
   );
 };

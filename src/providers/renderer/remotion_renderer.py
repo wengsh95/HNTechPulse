@@ -387,6 +387,24 @@ class RemotionRenderer(Renderer):
                     if not dest.exists():
                         shutil.copy2(src, dest)
                         copied += 1
+            if item.logo_image:
+                src = Path(item.logo_image)
+                if not src.is_absolute():
+                    src = Path(f"data/{date}") / src
+                if src.exists():
+                    dest = image_subdir / src.name
+                    if not dest.exists():
+                        shutil.copy2(src, dest)
+                        copied += 1
+            if item.screenshot_image:
+                src = Path(item.screenshot_image)
+                if not src.is_absolute():
+                    src = Path(f"data/{date}") / src
+                if src.exists():
+                    dest = image_subdir / src.name
+                    if not dest.exists():
+                        shutil.copy2(src, dest)
+                        copied += 1
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
 

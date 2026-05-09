@@ -43,7 +43,10 @@ class ContentPreparer:
                     ],
                     "article_text": item.article_text,
                     "article_images": item.article_images,
+                    "image_candidates": item.image_candidates,
                     "article_summary": item.article_summary,
+                    "logo_image": item.logo_image,
+                    "screenshot_image": item.screenshot_image,
                 }
                 for item in content.items
             ],
@@ -93,7 +96,10 @@ class ContentPreparer:
                     comments=comments,
                     article_text=item_dict.get("article_text"),
                     article_images=item_dict.get("article_images", []),
+                    image_candidates=item_dict.get("image_candidates", []),
                     article_summary=item_dict.get("article_summary"),
+                    logo_image=item_dict.get("logo_image"),
+                    screenshot_image=item_dict.get("screenshot_image"),
                 ))
 
             return ContentPackage(

@@ -174,16 +174,42 @@ def _expand_image_card(props, content):
     if props.get("story_index") is None:
         return None
     item = _safe_get_item(content, props.get("story_index"))
-    image_index = props.get("image_index", 0)
+    if item is None:
+        return {"image_src": "", "caption": "", "image_index": 0, "image_type": "article"}
+
     caption = props.get("caption", "")
-    if item is not None and image_index < len(item.article_images):
+    image_index = props.get("image_index", 0)
+
+    # Priority 1: Article images
+    if item.article_images and image_index < len(item.article_images):
         image_path = item.article_images[image_index]
         return {
             "image_src": f"images/{Path(image_path).name}",
             "caption": caption,
             "image_index": image_index,
+            "image_type": "article",
         }
-    return {"image_src": "", "caption": "", "image_index": 0}
+
+    # Priority 2: Webpage screenshot
+    if item.screenshot_image:
+        return {
+            "image_src": f"images/{Path(item.screenshot_image).name}",
+            "caption": caption,
+            "image_index": 0,
+            "image_type": "screenshot",
+        }
+
+    # Priority 3: Company logo
+    if item.logo_image:
+        return {
+            "image_src": f"images/{Path(item.logo_image).name}",
+            "caption": caption,
+            "image_index": 0,
+            "image_type": "logo",
+        }
+
+    # No image available
+    return {"image_src": "", "caption": "", "image_index": 0, "image_type": "article"}
 
 
 # Dispatch table: element_type -> expander function.

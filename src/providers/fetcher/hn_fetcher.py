@@ -46,28 +46,7 @@ class HNFetcher(ContentFetcher):
         self.max_retries = config.get("hn", {}).get("max_retries", 3)
         self.granular_cache = config.get("hn", {}).get("granular_cache", True)
 
-        _proxy_cfg = config.get("hn", {}).get("proxy", None)
-        if _proxy_cfg:
-            if isinstance(_proxy_cfg, str):
-                proxies = {"http": _proxy_cfg, "https": _proxy_cfg}
-            elif isinstance(_proxy_cfg, dict):
-                proxies = {k: v for k, v in _proxy_cfg.items() if k in ("http", "https")}
-            else:
-                proxies = None
-
-            if proxies:
-                self.logger.info(f"Proxy configured: {proxies}")
-            else:
-                self.logger.info("Proxy config invalid, ignored")
-                proxies = None
-        else:
-            proxies = None
-
-        self._proxies = proxies
-
         self._session = requests.Session()
-        if proxies:
-            self._session.proxies.update(proxies)
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=10,
             pool_maxsize=20,

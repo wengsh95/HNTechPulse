@@ -33,8 +33,11 @@ class ContentItem:
     raw: Optional[Any] = None
     article_text: Optional[str] = None
     article_images: List[str] = field(default_factory=list)
+    image_candidates: List[Dict[str, Any]] = field(default_factory=list)
+    logo_image: Optional[str] = None
+    screenshot_image: Optional[str] = None
     article_summary: Optional[str] = None
-    # Where article_text came from: "aiohttp" | "headless" | "none" | "skipped" | "error" | "legacy".
+    # Where article_text came from: "aiohttp" | "headless" | "headed" | "manual_override" | "none" | "skipped" | "error" | "legacy".
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.
     enrichment_source: Optional[str] = None

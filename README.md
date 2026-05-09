@@ -6,7 +6,7 @@
 
 - 自动获取 Hacker News 热门故事和评论
 - 使用 LLM 多轮对话生成视频脚本（R1a 分析 → R1b 决策 → R2 撰写）
-- TTS 语音合成（支持 Edge TTS 和 OpenAI TTS）
+- TTS 语音合成（Edge TTS）
 - Remotion 视频渲染
 - 细粒度缓存支持断点续传
 

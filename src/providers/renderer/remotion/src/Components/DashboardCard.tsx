@@ -21,32 +21,38 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
   const cardW = width - 160;
   const rowH = 64;
   const headerH = 30;
-  const numRows = Math.min(entries.length, 10);
+  const perPage = 5;
+
+  // Split entries into pages
+  const allEntries = entries.slice(0, 10);
+  const pages: typeof allEntries[] = [];
+  for (let i = 0; i < allEntries.length; i += perPage) {
+    pages.push(allEntries.slice(i, i + perPage));
+  }
+  const totalPages = pages.length;
+
+  // Page switching: use first half of duration for page 1, second half for page 2
+  const halfFrame = Math.floor((duration / 2) * fps);
+  const transitionFrames = 12; // fade transition duration
+  const currentPage = frame < halfFrame ? 0 : 1;
+  const pageEntries = pages[currentPage] ?? pages[0];
+
+  // Page fade transition
+  const pageFadeProgress = currentPage === 0
+    ? interpolate(frame, [halfFrame - transitionFrames, halfFrame], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+    : interpolate(frame, [halfFrame, halfFrame + transitionFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  const numRows = pageEntries.length;
   const totalRowsH = numRows * rowH;
 
-  // Card layout: fixed position, clip rows that overflow
+  // Card layout: fixed position
   const cardTop = 60;
   const cardPadTop = 44;
   const cardPadBottom = 40;
-  const titleAreaH = 74;   // 32px title + 32px marginBottom + line-height
+  const titleAreaH = 74;
   const cardChrome = cardPadTop + titleAreaH + headerH + cardPadBottom;
-  const maxVisibleH = height - cardTop - 20;  // 20px bottom margin
+  const maxVisibleH = height - cardTop - 20;
   const visibleRowsH = maxVisibleH - cardChrome;
-  const overflowAmount = Math.max(0, totalRowsH - visibleRowsH);
-
-  // Scroll: pause 3s at top, then smooth scroll to reveal remaining rows
-  const pauseSec = 3;
-  const scrollSec = Math.max(0.5, duration - pauseSec - 1);
-  let scrollOffset = 0;
-  if (overflowAmount > 0) {
-    const progress = interpolate(
-      frame,
-      [pauseSec * fps, (pauseSec + scrollSec) * fps],
-      [0, 1],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1) },
-    );
-    scrollOffset = overflowAmount * progress;
-  }
 
   const topY = cardTop;
 
@@ -133,16 +139,17 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
         <span style={{ width: 76, textAlign: "right" }}>评论</span>
       </div>
 
-      {/* Rows — clipped container, inner translates for scroll */}
-      <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 4 }}>
-        <div style={{ transform: `translateY(-${scrollOffset}px)` }}>
-          {entries.slice(0, 10).map((entry, i) => {
+      {/* Rows */}
+      <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 4, opacity: pageFadeProgress }}>
+        <div>
+          {pageEntries.map((entry, i) => {
             const title = entry.original_title || entry.title || "";
             const titleCn = entry.title_translation || entry.title_cn || "";
-            const rank = entry.rank || i + 1;
+            const rank = entry.rank || (currentPage * perPage + i + 1);
 
             // Staggered row entrance: each row arrives 4 frames after the previous
-            const rowStart = 10 + i * 4;
+            const pageStartFrame = currentPage === 0 ? 0 : halfFrame;
+            const rowStart = pageStartFrame + 10 + i * 4;
             const rowProgress = interpolate(frame, [rowStart, rowStart + 20], [0, 1], {
               extrapolateLeft: "clamp",
               extrapolateRight: "clamp",
@@ -277,6 +284,24 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
         );
       })}
       </div>
+
+      {/* Page indicator */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
+          {pages.map((_, pi) => (
+            <div
+              key={pi}
+              style={{
+                width: pi === currentPage ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: pi === currentPage ? COLORS.accent : COLORS.border,
+                transition: "all 0.3s",
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
     </div>
   );
