@@ -20,3 +20,5 @@ class HNComment:
     author: str
     text: str
     time: int
+    score: Optional[int] = None
+    depth: Optional[int] = None

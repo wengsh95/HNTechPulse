@@ -9,7 +9,8 @@ from src.providers.renderer.remotion_props import (
     _safe_get_item, _safe_get_comment,
     _expand_story_header, _expand_comment_card, _expand_comment_bubble,
     _expand_news_carousel_card, _expand_dashboard_card,
-    _expand_story_scan_card, _expand_perspective_compare, _expand_image_card,
+    _expand_perspective_compare,
+    _expand_event_card, _expand_atmosphere_card, _expand_quote_card,
     expand_element_props, ELEMENT_EXPANDERS,
     build_cues, _build_cues_from_word_timings, _build_cues_from_sentence_timings,
     _split_into_cues, sanitize_props, script_to_props,
@@ -227,110 +228,82 @@ class TestExpandDashboardCard:
         assert result["entries"][0]["original_title"] == "keep"
 
 
-# ── _expand_story_scan_card ────────────────────────────────────────────
+# ── _expand_event_card ───────────────────────────────────────────────
 
-class TestExpandStoryScanCard:
+class TestExpandEventCard:
     def test_overwrites_story_meta(self):
         content = _make_content_package()
-        props = {"story_index": 0, "viewpoints": []}
-        result = _expand_story_scan_card(props, content)
+        result = _expand_event_card({"story_index": 0}, content)
         assert result["story_title"] == "Story 0"
         assert result["score"] == 100
 
-    def test_expands_viewpoints_with_quote(self):
+    def test_includes_controversy_score(self):
         content = _make_content_package()
-        props = {"story_index": 0, "viewpoints": [{"comment_index": 0}]}
-        result = _expand_story_scan_card(props, content)
-        assert result["viewpoints"][0]["quote"] == "comment 0"
+        result = _expand_event_card({"story_index": 0}, content)
+        assert "controversy_score" in result
+        assert isinstance(result["controversy_score"], (int, float))
 
-    def test_expands_viewpoints_with_quote_cn(self):
+    def test_image_injection(self):
         content = _make_content_package()
-        props = {"story_index": 0, "viewpoints": [{"comment_index": 0}]}
-        result = _expand_story_scan_card(props, content)
-        assert result["viewpoints"][0]["quote_cn"] == "评论 0"
-
-    def test_stance_distribution_calculation(self):
-        content = _make_content_package()
-        props = {
-            "story_index": 0,
-            "viewpoints": [
-                {"stance": "positive", "comment_index": 0},
-                {"stance": "positive", "comment_index": 1},
-                {"stance": "negative", "comment_index": 0},
-            ],
-        }
-        result = _expand_story_scan_card(props, content)
-        assert result["stance_distribution"]["positive"] == pytest.approx(0.67)
-        assert result["stance_distribution"]["negative"] == pytest.approx(0.33)
-
-    def test_stance_distribution_already_present(self):
-        content = _make_content_package()
-        props = {
-            "story_index": 0,
-            "stance_distribution": {"positive": 1.0},
-            "viewpoints": [{"stance": "negative"}],
-        }
-        result = _expand_story_scan_card(props, content)
-        assert result["stance_distribution"] == {"positive": 1.0}
-
-    def test_none_story_index(self):
-        content = _make_content_package()
-        result = _expand_story_scan_card({"story_index": None}, content)
-        assert result is None
-
-
-# ── _expand_perspective_compare ────────────────────────────────────────
-
-class TestExpandPerspectiveCompare:
-    def test_both_sides_valid(self):
-        content = _make_content_package()
-        props = {
-            "perspective_a": {"story_index": 0, "comment_index": 0, "label": "A"},
-            "perspective_b": {"story_index": 0, "comment_index": 1, "label": "B"},
-        }
-        result = _expand_perspective_compare(props, content)
-        assert result["perspective_a"]["text"] == "comment 0"
-        assert result["perspective_b"]["text"] == "comment 1"
-
-    def test_missing_side_keys(self):
-        content = _make_content_package()
-        props = {"perspective_a": {"label": "A"}, "perspective_b": {"label": "B"}}
-        result = _expand_perspective_compare(props, content)
-        assert result["perspective_a"] == {"label": "A"}
-
-    def test_invalid_story_index(self):
-        content = _make_content_package()
-        props = {
-            "perspective_a": {"story_index": 99, "comment_index": 0, "label": "A"},
-            "perspective_b": {"story_index": 0, "comment_index": 0, "label": "B"},
-        }
-        result = _expand_perspective_compare(props, content)
-        assert result["perspective_a"]["story_index"] == 99
-
-
-# ── _expand_image_card ─────────────────────────────────────────────────
-
-class TestExpandImageCard:
-    def test_valid_image(self):
-        content = _make_content_package()
-        result = _expand_image_card({"story_index": 0, "image_index": 0, "caption": "cap"}, content)
+        result = _expand_event_card({"story_index": 0}, content)
         assert result["image_src"] == "images/img1.png"
-        assert result["caption"] == "cap"
+        assert result["image_type"] == "article"
 
-    def test_image_index_out_of_range(self):
+    def test_no_image(self):
         content = _make_content_package()
-        result = _expand_image_card({"story_index": 0, "image_index": 99}, content)
+        result = _expand_event_card({"story_index": 1}, content)
         assert result["image_src"] == ""
 
-    def test_none_story_index(self):
+    def test_passes_through_keywords(self):
         content = _make_content_package()
-        result = _expand_image_card({"story_index": None}, content)
-        assert result is None
+        result = _expand_event_card({"story_index": 0, "keywords": ["AI", "开源"]}, content)
+        assert result["keywords"] == ["AI", "开源"]
 
-    def test_no_article_images(self):
+    def test_default_keywords(self):
         content = _make_content_package()
-        result = _expand_image_card({"story_index": 1, "image_index": 0}, content)
-        assert result["image_src"] == ""
+        result = _expand_event_card({"story_index": 0}, content)
+        assert result["keywords"] == []
+
+
+# ── _expand_atmosphere_card ────────────────────────────────────────────
+
+class TestExpandAtmosphereCard:
+    def test_injects_stance_distribution(self):
+        content = _make_content_package()
+        props = {"story_index": 0, "stance_distribution": {"支持": 0.5, "质疑": 0.5}}
+        result = _expand_atmosphere_card(props, content)
+        assert result["stance_distribution"] == {"支持": 0.5, "质疑": 0.5}
+
+    def test_default_stance_distribution(self):
+        content = _make_content_package()
+        result = _expand_atmosphere_card({"story_index": 0}, content)
+        assert result["stance_distribution"] == {}
+
+    def test_keyword_tags_empty_when_no_word_freq(self):
+        content = _make_content_package()
+        result = _expand_atmosphere_card({"story_index": 0}, content)
+        assert result["keyword_tags"] == []
+
+
+# ── _expand_quote_card ─────────────────────────────────────────────────
+
+class TestExpandQuoteCard:
+    def test_injects_quotes(self):
+        content = _make_content_package()
+        result = _expand_quote_card({"story_index": 0}, content)
+        assert "quotes" in result
+        assert isinstance(result["quotes"], list)
+
+    def test_derives_stance_from_sentiment(self):
+        content = _make_content_package()
+        content.items[0].comments[0].sentiment = 0.8
+        content.items[0].comments[0].quality_score = 0.9
+        content.items[0].comments[1].sentiment = -0.7
+        content.items[0].comments[1].quality_score = 0.8
+        result = _expand_quote_card({"story_index": 0}, content)
+        assert len(result["quotes"]) == 2
+        assert result["quotes"][0]["stance"] == "支持"
+        assert result["quotes"][1]["stance"] == "质疑"
 
 
 # ── expand_element_props ───────────────────────────────────────────────

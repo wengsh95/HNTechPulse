@@ -3,13 +3,13 @@ logging:
 
 llm:
   provider: "openai"
-  model: "deepseek-v4-flash"
+  model: "inclusionai/ring-2.6-1t:free"
   max_tokens: 16384
   temperature: 0.7
-  base_url: "https://api.deepseek.com"
+  base_url: "https://openrouter.ai/api/v1"
   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
   fast:                                # 低成本模型，用于翻译等轻量任务
-    model: "deepseek-v4-flash"
+    model: "inclusionai/ring-2.6-1t:free"
     max_tokens: 4096
     temperature: 0.3
 
@@ -57,6 +57,100 @@ hn:
   max_retries: 3                  # 单个请求最大重试次数（指数退避：1s → 2s → 4s）
   granular_cache: true            # 评论级细粒度缓存（支持断点续传，中断重跑跳过已缓存故事）
 
+# ── 评论分析 ──
+analyze:
+  enabled: true                      # 总开关：是否对评论做情感分析+质量评分+关键词提取
+  min_quality_score: 0.1            # 低于此分的评论不送入 LLM（过滤噪音）
+  max_keywords_per_comment: 5       # 每条评论最多提取 TF-IDF 关键词数
+  max_comments_for_llm: 10          # 每个 story 送入 LLM 的高质量评论数（按 quality_score 排序取 top-N）
+  stopwords:                        # 额外停用词（在 scikit-learn 内置停用词基础上追加）
+    # HTML entity fragments
+    - "quot"
+    - "amp"
+    - "lt"
+    - "gt"
+    - "nbsp"
+    - "apos"
+    - "x27"
+    - "x2f"
+    - "x3c"
+    - "x3e"
+    - "x26"
+    # Common English function words
+    - "the"
+    - "and"
+    - "for"
+    - "that"
+    - "you"
+    - "with"
+    - "this"
+    - "have"
+    - "from"
+    - "your"
+    - "will"
+    - "what"
+    - "when"
+    - "which"
+    - "about"
+    - "they"
+    - "their"
+    - "there"
+    - "would"
+    - "could"
+    - "should"
+    - "been"
+    - "like"
+    - "just"
+    - "very"
+    - "also"
+    - "only"
+    - "some"
+    - "more"
+    - "such"
+    - "than"
+    - "then"
+    - "them"
+    - "into"
+    - "other"
+    - "after"
+    - "over"
+    - "don"
+    - "because"
+    - "really"
+    - "still"
+    - "even"
+    - "much"
+    - "said"
+    - "know"
+    - "think"
+    - "right"
+    - "going"
+    # URLs
+    - "http"
+    - "https"
+    - "www"
+    - "com"
+    - "org"
+    - "like"
+    - "just"
+    - "don"
+    - "doesn"
+    - "didn"
+    - "isn"
+    - "aren"
+    - "would"
+    - "could"
+    - "should"
+    - "really"
+    - "still"
+    - "also"
+    - "get"
+    - "one"
+    - "will"
+    - "can"
+    - "make"
+    - "even"
+
 # ── 文章内容增强 ──
 enrich:
   enabled: true                     # 总开关：是否访问文章 URL 获取内容
@@ -77,6 +171,8 @@ enrich:
     - mobile.twitter.com
   image_target_size: [1280, 720]   # 图片目标尺寸（超过则等比缩放）
   screenshot_enabled: true         # 启用 headless Chrome 截图（Logo 之前的降级）
+  save_fetched_html: true          # Phase 1 抓到的 HTML 是否落盘到 downloaded_pages/（默认 true）
+  headless_batch: true             # 单 browser 实例复用来处理多条 headless 抓取（默认 true）
   summary_max_tokens: 8192         # LLM 摘要最大 token 数
   llm:                             # 独立 LLM 配置（可用更便宜的模型做摘要）
     model: "deepseek-v4-flash"

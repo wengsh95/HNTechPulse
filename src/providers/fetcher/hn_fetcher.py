@@ -333,7 +333,9 @@ class HNFetcher(ContentFetcher):
                         id=result.get("id", 0),
                         author=result.get("by", ""),
                         text=result.get("text", ""),
-                        time=result.get("time", 0)
+                        time=result.get("time", 0),
+                        score=result.get("score"),
+                        depth=depth,
                     )
                     comments.append(comment)
                     fetched_count += 1
@@ -492,7 +494,8 @@ class HNFetcher(ContentFetcher):
             for hn_comment in comments.get(story.id, []):
                 item.comments.append(ContentComment(
                     author=hn_comment.author,
-                    content=hn_comment.text
+                    content=hn_comment.text,
+                    upvotes=hn_comment.score,
                 ))
 
             items.append(item)
@@ -542,17 +545,24 @@ class HNFetcher(ContentFetcher):
         )
 
     def _comment_to_dict(self, comment: HNComment) -> dict:
-        return {
+        d = {
             "id": comment.id,
             "author": comment.author,
             "text": comment.text,
             "time": comment.time
         }
+        if comment.score is not None:
+            d["score"] = comment.score
+        if comment.depth is not None:
+            d["depth"] = comment.depth
+        return d
 
     def _dict_to_comment(self, d: dict) -> HNComment:
         return HNComment(
             id=d["id"],
             author=d["author"],
             text=d["text"],
-            time=d["time"]
+            time=d["time"],
+            score=d.get("score"),
+            depth=d.get("depth"),
         )

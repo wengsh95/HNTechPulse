@@ -291,13 +291,20 @@ class OpenAILLMProvider(LLMProvider):
             )
             for e in seg_dict.get("scene_elements", [])
         ]
+        meta = seg_dict.get("meta", {})
+        # Pass through structured narration and keywords from LLM output
+        if "card_narrations" in seg_dict:
+            meta["card_narrations"] = seg_dict["card_narrations"]
+        if "keywords" in seg_dict:
+            meta["keywords"] = seg_dict["keywords"]
+
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),
             audio_text=seg_dict.get("audio_text", ""),
             estimated_duration=seg_dict.get("estimated_duration", 30.0),
             emotion=seg_dict.get("emotion", "neutral"),
             scene_elements=scene_elements,
-            meta=seg_dict.get("meta", {}),
+            meta=meta,
         )
 
         self._save_segment_cache(date, segment_type, story_index, segment)
@@ -429,8 +436,37 @@ class OpenAILLMProvider(LLMProvider):
             thread.join(timeout=2.0)
 
     def _single_story_to_json(self, item, index: int) -> str:
+        analyze_cfg = self.config.get("analyze", {})
         pipeline_cfg = self.config.get("pipeline", {})
-        max_comments = pipeline_cfg.get("max_comments_for_r1_analyze", 80)
+
+        # If comments have been analyzed, use quality-filtered top-N.
+        # Otherwise fall back to raw truncation (backward compatible).
+        has_analysis = any(
+            c.quality_score is not None for c in item.comments
+        )
+        if has_analysis:
+            max_comments = analyze_cfg.get("max_comments_for_llm", 10)
+            sorted_comments = sorted(
+                item.comments,
+                key=lambda c: c.quality_score or 0,
+                reverse=True,
+            )[:max_comments]
+            comments_json = [
+                {
+                    "author": c.author,
+                    "text": c.content,
+                    "sentiment": c.sentiment,
+                    "quality_score": c.quality_score,
+                    "keywords": c.keywords,
+                }
+                for c in sorted_comments
+            ]
+        else:
+            max_comments = pipeline_cfg.get("max_comments_for_r1_analyze", 80)
+            comments_json = [
+                {"author": c.author, "text": c.content}
+                for c in item.comments[:max_comments]
+            ]
 
         story_dict = {
             "index": index,
@@ -440,12 +476,11 @@ class OpenAILLMProvider(LLMProvider):
             "score": item.score,
             "comment_count": item.comment_count,
             "total_comments_available": len(item.comments),
-            "truncated_to": min(len(item.comments), max_comments),
-            "comments": [
-                {"author": c.author, "text": c.content}
-                for c in item.comments[:max_comments]
-            ]
+            "truncated_to": len(comments_json),
+            "comments": comments_json,
         }
+        if item.comment_word_freq:
+            story_dict["comment_word_freq"] = item.comment_word_freq
         if item.article_summary:
             story_dict["article_summary"] = item.article_summary
         if item.article_text:

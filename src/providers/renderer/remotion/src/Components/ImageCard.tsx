@@ -1,15 +1,17 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
 
 import { ElementProps, p, truncate } from "./utils";
-import { COLORS, FONTS, SHADOWS, S } from "./design";
+import { COLORS, FONTS, glassCard, glassCardShadow, S } from "./design";
 
 export const ImageCard: React.FC<ElementProps> = ({ elementProps, width, height, duration }) => {
   const imageSrc = p(elementProps, "image_src", "");
   const caption = p(elementProps, "caption", "");
-  const imageType = p(elementProps, "image_type", "article");
+  const imageType = p<string>(elementProps, "image_type", "article");
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const resolvedSrc = imageSrc ? staticFile(imageSrc) : "";
 
   if (!imageSrc) return null;
 
@@ -18,7 +20,6 @@ export const ImageCard: React.FC<ElementProps> = ({ elementProps, width, height,
   const cardH = Math.floor(height * 0.55);
   const topY = Math.floor(height * 0.15);
 
-  // Fade-out: start fading at 70% of duration, fully transparent at 95%
   const totalFrames = Math.max(1, Math.round((duration || 2.5) * fps));
   const fadeOut = interpolate(
     frame,
@@ -33,18 +34,18 @@ export const ImageCard: React.FC<ElementProps> = ({ elementProps, width, height,
     <div style={{
       ...S, left: pad, top: topY, width: cardW, height: cardH,
       borderRadius: 24, overflow: "hidden",
-      border: `1px solid ${COLORS.border}`,
-      boxShadow: SHADOWS.card,
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: glassCardShadow,
       opacity: fadeOut,
     }}>
       {isLogo ? (
         <div style={{
           width: "100%", height: "100%",
-          background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+          background: "rgba(255,255,255,0.03)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <img
-            src={imageSrc}
+            src={resolvedSrc}
             alt={caption}
             style={{
               width: "40%", height: "40%",
@@ -55,7 +56,7 @@ export const ImageCard: React.FC<ElementProps> = ({ elementProps, width, height,
         </div>
       ) : (
         <img
-          src={imageSrc}
+          src={resolvedSrc}
           alt={caption}
           style={{
             width: "100%", height: "100%",
@@ -66,7 +67,7 @@ export const ImageCard: React.FC<ElementProps> = ({ elementProps, width, height,
       {caption && (
         <div style={{
           position: "absolute" as const, bottom: 0, left: 0, right: 0,
-          background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 60%, transparent 100%)",
+          background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)",
           padding: "40px 28px 20px",
           fontFamily: FONTS.sans, fontSize: 24, color: "#ffffff",
           lineHeight: 1.4,

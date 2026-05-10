@@ -144,6 +144,8 @@ class ArticleEnricher:
         self.bing_image_search = enrich_cfg.get("bing_image_search", True)
         self.bing_max_results = enrich_cfg.get("bing_max_results", 3)
         self.screenshot_enabled = enrich_cfg.get("screenshot_enabled", True)
+        self.save_fetched_html = enrich_cfg.get("save_fetched_html", True)
+        self.headless_batch = enrich_cfg.get("headless_batch", True)
         self.browser_executable = enrich_cfg.get("browser_executable") or _find_chrome()
         if self.browser_executable:
             self.logger.debug(f"Using browser: {self.browser_executable}")
@@ -189,6 +191,9 @@ class ArticleEnricher:
             return p.read_text(encoding="utf-8")
         return ""
 
+    def _pages_dir(self, date: str) -> Path:
+        return Path(f"data/{date}/downloaded_pages")
+
     def enrich(self, content: ContentPackage, date: str) -> ContentPackage:
         if not self.enabled:
             self.logger.info("Article enrichment disabled, skipping")
@@ -196,265 +201,406 @@ class ArticleEnricher:
 
         self.logger.info(f"Enriching {len(content.items)} items...")
 
-        # Load manual overrides first (user-filled content for failed items)
-        overridden_ids = self._load_manual_overrides(content, date)
+        # Load image selections (user-chosen images from previous runs)
+        self._load_image_selection(content, date)
 
-        # Load image selections second (user-chosen images)
-        image_selected_ids = self._load_image_selection(content, date)
-
-        # Load checkpoint
+        # Load checkpoint (enrichment.json)
         cache_path = Path(f"data/{date}/enrichment.json")
         if cache_path.exists():
             self._load_from_cache(content, cache_path)
 
-        # Check if all items already enriched
-        pending = [
-            item for item in content.items
-            if item.url and item.article_text is None and item.article_summary is None
-            and str(item.source_id) not in overridden_ids
-        ]
-        if not pending:
-            self.logger.info("All items already enriched, skipping text enrichment")
+        # Ensure downloaded_pages directory exists
+        pages_dir = self._pages_dir(date)
+        pages_dir.mkdir(parents=True, exist_ok=True)
 
-        # Backfill missing images (screenshot/logo) even for cached items
-        image_pending = [
-            item for item in content.items
-            if item.url and self._needs_image_backfill(item, date)
-            and str(item.source_id) not in image_selected_ids
-        ]
-        if image_pending:
-            self.logger.info(f"Image backfill needed: {len(image_pending)}/{len(content.items)} items")
-            try:
-                loop = asyncio.get_running_loop()
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(asyncio.run, self._backfill_images(image_pending, date))
-                    future.result()
-            except RuntimeError:
-                asyncio.run(self._backfill_images(image_pending, date))
-            # Persist backfilled image paths to cache
-            self._save_to_cache(content, cache_path)
+        # Classify items
+        classified = self._classify_items(content, date)
+        done = len(classified["done"]) + len(classified["skipped"])
+        to_fetch = len(classified["full"])
+        to_extract = len(classified["phase2_only"])
+        self.logger.info(
+            f"Classified: {done} done/skipped, {to_fetch} need fetch, "
+            f"{to_extract} have HTML (phase2 only)"
+        )
 
-        if not pending and not image_pending:
-            # Still generate selection/override files even if no fetching needed
+        if not classified["full"] and not classified["phase2_only"]:
             self._generate_image_selection(content, date)
-            self._generate_manual_override(content, date)
+            self._save_to_cache(content, cache_path)
+            self.logger.info("All items already enriched, skipping")
             return content
-
-        self.logger.info(f"Pending text enrichment: {len(pending)}/{len(content.items)} items")
 
         # Run async enrichment
         try:
             loop = asyncio.get_running_loop()
-            # Already inside an async context — run in a background thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, self._enrich_items(content, date))
+                future = pool.submit(asyncio.run, self._enrich_items(content, date, classified))
                 future.result()
         except RuntimeError:
-            # No running loop — this is the normal CLI path
-            asyncio.run(self._enrich_items(content, date))
+            asyncio.run(self._enrich_items(content, date, classified))
 
         # Generate image selection file for user review
         self._generate_image_selection(content, date)
-
-        # Generate manual override template for failed items
-        self._generate_manual_override(content, date)
 
         # Save checkpoint
         self._save_to_cache(content, cache_path)
         self.logger.info("Enrichment complete")
         return content
 
-    async def _enrich_items(self, content: ContentPackage, date: str):
-        semaphore = asyncio.Semaphore(self.max_concurrent)
-        tasks = [self._enrich_one(item, date, semaphore) for item in content.items]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                self.logger.info(f"Enrichment failed for item {i}: {r}")
+    async def _enrich_items(self, content: ContentPackage, date: str, classified: dict):
+        # Phase 1: Fetch HTML for 'full' items
+        if classified["full"]:
+            await self._phase1_fetch_all(content, date, classified["full"])
 
-    def _needs_image_backfill(self, item, date: str) -> bool:
-        """Check if an item is missing screenshot on disk."""
-        image_dir = Path(f"data/{date}/images")
-        if self.screenshot_enabled and not item.screenshot_image:
-            if not (image_dir / f"{item.source_id}_screenshot.jpg").exists():
-                return True
-        return False
+        # Determine which items need Phase 2 extraction
+        # (Phase 1 successes + pre-existing phase2_only items)
+        phase2_items = list(classified["phase2_only"])
+        for item in classified["full"]:
+            if item.enrichment_source not in ("fetch_failed", "skipped", "error"):
+                phase2_items.append(item)
 
-    async def _backfill_images(self, items: list, date: str):
-        """Download missing screenshots and logos for already-enriched items."""
-        semaphore = asyncio.Semaphore(self.max_concurrent)
-        tasks = [self._backfill_one(item, date, semaphore) for item in items]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                self.logger.info(f"Image backfill failed for item {i}: {r}")
+        # Phase 2: Extract from on-disk HTML
+        if phase2_items:
+            await self._phase2_extract_all(phase2_items, date)
 
-    async def _backfill_one(self, item, date: str, semaphore: asyncio.Semaphore):
-        image_dir = Path(f"data/{date}/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-        async with semaphore:
-            try:
-                if self.request_delay > 0:
-                    await asyncio.sleep(self.request_delay)
+    # ── Item Classification ────────────────────────────────────
 
-                # Screenshot
-                if self.screenshot_enabled and not item.screenshot_image:
-                    screenshot_filename = f"{item.source_id}_screenshot.jpg"
-                    if not (image_dir / screenshot_filename).exists():
-                        ss = await self._capture_screenshot(item.url, image_dir, str(item.source_id))
-                        if ss:
-                            item.screenshot_image = ss
+    def _classify_items(self, content: ContentPackage, date: str) -> dict:
+        """Classify items into done/phase2_only/full/skipped buckets.
 
-            except Exception as e:
-                self.logger.debug(f"Image backfill failed for {item.url}: {e}")
+        Returns:
+            dict with keys 'done', 'phase2_only', 'full', 'skipped' —
+            each maps to a list of ContentItem.
+        """
+        pages_dir = self._pages_dir(date)
+        result = {"done": [], "phase2_only": [], "full": [], "skipped": []}
 
-    async def _enrich_one(self, item, date: str, semaphore: asyncio.Semaphore):
-        if not item.url:
-            return
-        if item.article_text is not None or item.article_summary is not None:
-            return
+        for item in content.items:
+            # Already enriched (from cache or previous run)
+            if item.article_text is not None or item.article_summary is not None:
+                result["done"].append(item)
+                continue
 
-        # Bypass domains that are known to be un-scrapable (Twitter/X, etc.).
-        # Matches bare domain AND subdomains (twitter.com ⇒ mobile.twitter.com).
-        if self.skip_domains:
-            host = (urlparse(item.url).hostname or "").lower().lstrip(".")
-            if any(host == d or host.endswith("." + d) for d in self.skip_domains):
-                self.logger.debug(
-                    f"[skip] {item.title[:50]} — domain {host} in skip_domains"
-                )
-                item.article_text = None
-                item.article_images = []
-                item.article_summary = None
+            # No URL to fetch
+            if not item.url:
                 item.enrichment_source = "skipped"
-                item.screenshot_image = None
-                return
+                result["skipped"].append(item)
+                continue
 
-        async with semaphore:
-            try:
-                if self.request_delay > 0:
-                    await asyncio.sleep(self.request_delay)
-
-                article_text = None
-                image_urls = []
-                strategy = "none"
-                short_title = item.title[:50]
-
-                # Strategy 1: aiohttp (fast, non-blocking)
-                html = await self._fetch_page(item.url)
-                if html:
-                    article_text = self._extract_text(html, item.url)
-                    image_urls = self._extract_images(html, item.url)
-                    if article_text:
-                        strategy = "aiohttp"
-                    else:
-                        # HTML came back but trafilatura found <100 chars —
-                        # usually a JS-only shell, paywall, or CF challenge page.
-                        self.logger.debug(
-                            f"aiohttp got HTML but extraction empty "
-                            f"({len(html)} bytes): {item.url}"
-                        )
-
-                # Strategy 2: Headless Chrome (real browser fingerprint)
-                if not article_text and self.use_headless:
-                    self.logger.debug(
-                        f"[1/3] aiohttp miss → headless Chrome: {short_title}"
-                    )
-                    image_dir = Path(f"data/{date}/images")
-                    image_dir.mkdir(parents=True, exist_ok=True)
-                    screenshot_filename = f"{item.source_id}_screenshot.jpg"
-                    screenshot_dest = str(image_dir / screenshot_filename) if self.screenshot_enabled else None
-                    html = await self._fetch_with_headless(item.url, screenshot_path=screenshot_dest)
-                    if html:
-                        article_text = self._extract_text(html, item.url)
-                        image_urls = self._extract_images(html, item.url)
-                        if article_text:
-                            strategy = "headless"
-
-                # Strategy 3: Headed Chrome (visible browser window, for JS-heavy/anti-bot sites)
-                if not article_text and self.use_headed:
-                    self.logger.debug(
-                        f"[2/3] headless miss → headed Chrome: {short_title}"
-                    )
-                    html = await self._fetch_with_headed(item.url)
-                    if html:
-                        article_text = self._extract_text(html, item.url)
-                        image_urls = self._extract_images(html, item.url)
-                        if article_text:
-                            strategy = "headed"
-
-                # Strategy 4: Give up
-                if not article_text:
-                    self.logger.info(
-                        f"[3/3] All strategies exhausted: {short_title} ({item.url})"
-                    )
+            # Domain skip list
+            if self.skip_domains:
+                host = (urlparse(item.url).hostname or "").lower().lstrip(".")
+                if any(host == d or host.endswith("." + d) for d in self.skip_domains):
+                    item.enrichment_source = "skipped"
                     item.article_text = None
                     item.article_images = []
                     item.article_summary = None
-                    item.enrichment_source = "none"
-                    item.logo_image = None
                     item.screenshot_image = None
+                    result["skipped"].append(item)
+                    continue
+
+            # HTML file exists on disk → validate it has extractable content
+            html_path = pages_dir / f"{item.source_id}.html"
+            if html_path.exists():
+                try:
+                    html = html_path.read_text(encoding="utf-8", errors="replace")
+                    if self._extract_text(html, item.url or ""):
+                        result["phase2_only"].append(item)
+                    else:
+                        self.logger.info(
+                            f"[stale_html] {item.title[:50]} — "
+                            f"cached HTML has no extractable content, will re-fetch"
+                        )
+                        result["full"].append(item)
+                except Exception:
+                    result["full"].append(item)
+            else:
+                result["full"].append(item)
+
+        return result
+
+    # ── Phase 1: Fetch HTML to disk ────────────────────────────
+
+    async def _phase1_fetch_all(self, content: ContentPackage, date: str, items: list):
+        """Fetch HTML for 'full' items using aiohttp → headless → headed fallback."""
+        pages_dir = self._pages_dir(date)
+        remaining = items
+        total = len(items)
+
+        # Strategy 1: aiohttp (fast, non-blocking)
+        aiohttp_failed = []
+        for item in remaining:
+            strategy = await self._phase1_fetch_one_aiohttp(item, pages_dir)
+            if strategy:
+                item.enrichment_source = strategy
+                self.logger.debug(f"[aiohttp] {item.title[:50]}")
+            else:
+                aiohttp_failed.append(item)
+
+        if aiohttp_failed:
+            self.logger.info(
+                f"Phase 1 aiohttp: {total - len(aiohttp_failed)}/{total} ok, "
+                f"{len(aiohttp_failed)} → headless"
+            )
+
+        # Strategy 2: Headless Chrome (batch, single browser)
+        if aiohttp_failed and self.use_headless:
+            headless_failed = await self._phase1_fetch_browser_batch(
+                aiohttp_failed, pages_dir, headless=True, date=date
+            )
+        else:
+            headless_failed = aiohttp_failed
+
+        # Strategy 3: Headed Chrome (batch, single browser)
+        if headless_failed and self.use_headed:
+            headed_failed = await self._phase1_fetch_browser_batch(
+                headless_failed, pages_dir, headless=False, date=date
+            )
+        else:
+            headed_failed = headless_failed
+
+        # Remaining failures
+        for item in headed_failed:
+            item.enrichment_source = "fetch_failed"
+            item.article_text = None
+            item.article_images = []
+            item.article_summary = None
+            item.screenshot_image = None
+            self.logger.info(f"[fetch_failed] {item.title[:50]} ({item.url})")
+
+    async def _phase1_fetch_one_aiohttp(self, item, pages_dir: Path) -> Optional[str]:
+        """Try aiohttp fetch. On success save HTML to disk, return strategy name.
+        Returns None if fetch fails OR if the HTML has no extractable content,
+        so the item falls through to headless/headed."""
+        try:
+            html = await self._fetch_page(item.url)
+            if html:
+                html_path = pages_dir / f"{item.source_id}.html"
+                if self.save_fetched_html:
+                    html_path.write_text(html, encoding="utf-8", errors="replace")
+                    self.logger.debug(f"HTML saved: {html_path} ({len(html)} bytes)")
+                # Verify the HTML actually contains extractable content.
+                # If not, return None so headless/headed gets a chance.
+                if self._extract_text(html, item.url or ""):
+                    return "aiohttp"
+                self.logger.debug(
+                    f"[aiohttp] HTML has no extractable content, will try browser: "
+                    f"{item.title[:50]}"
+                )
+                return None
+        except Exception:
+            pass
+        return None
+
+    async def _phase1_fetch_browser_batch(
+        self, items: list, pages_dir: Path, headless: bool, date: str
+    ) -> list:
+        """Fetch multiple URLs with a single Playwright browser instance.
+
+        Returns list of items that still failed (for next fallback).
+        """
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            self.logger.info("playwright not installed, skipping browser batch")
+            return items
+
+        launch_kwargs = {"headless": headless, "args": _CHROME_LAUNCH_ARGS}
+        if self.browser_executable:
+            launch_kwargs["executable_path"] = self.browser_executable
+
+        strategy_name = "headless" if headless else "headed"
+        failed = []
+        image_dir = Path(f"data/{date}/images")
+        image_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch(**launch_kwargs)
+                try:
+                    for item in items:
+                        try:
+                            context = await browser.new_context(
+                                user_agent=random.choice(_USER_AGENTS),
+                                viewport={"width": 1280, "height": 720},
+                                locale="en-US",
+                            )
+                            page = await context.new_page()
+                            try:
+                                from playwright_stealth import stealth_async
+                                await stealth_async(page)
+                            except ImportError:
+                                pass
+
+                            if self.request_delay > 0:
+                                await asyncio.sleep(self.request_delay)
+
+                            await page.goto(
+                                item.url,
+                                wait_until="domcontentloaded",
+                                timeout=self.request_timeout * 1000,
+                            )
+                            await asyncio.sleep(1.5)
+
+                            # Check for anti-bot blocks
+                            block_reason = await self._check_anti_bot(page, item.url, self.logger)
+                            if block_reason:
+                                self.logger.debug(
+                                    f"[{strategy_name}] anti-bot: {block_reason} — {item.url}"
+                                )
+                                await context.close()
+                                continue
+
+                            # Save HTML
+                            html = await page.content()
+                            if html and len(html) > 500:
+                                html_path = pages_dir / f"{item.source_id}.html"
+                                if self.save_fetched_html:
+                                    html_path.write_text(html, encoding="utf-8", errors="replace")
+                                item.enrichment_source = strategy_name
+                                self.logger.debug(
+                                    f"[{strategy_name}] {item.title[:50]} ({len(html)} bytes)"
+                                )
+
+                                # Capture screenshot
+                                if self.screenshot_enabled:
+                                    screenshot_dest = image_dir / f"{item.source_id}_screenshot.jpg"
+                                    try:
+                                        await page.screenshot(
+                                            path=str(screenshot_dest),
+                                            type="jpeg", quality=85,
+                                        )
+                                        item.screenshot_image = f"images/{item.source_id}_screenshot.jpg"
+                                    except Exception:
+                                        pass
+                            else:
+                                self.logger.debug(
+                                    f"[{strategy_name}] empty/short HTML for {item.url}"
+                                )
+                            await context.close()
+                        except Exception as e:
+                            self.logger.debug(
+                                f"[{strategy_name}] failed for {item.url}: {e}"
+                            )
+                            try:
+                                await context.close()
+                            except Exception:
+                                pass
+                finally:
+                    await browser.close()
+        except Exception as e:
+            self.logger.debug(f"Browser batch failed: {e}")
+            # If the entire browser launch failed, all items fail
+            for item in items:
+                if item.enrichment_source is None:
+                    failed.append(item)
+            return failed
+
+        # Collect items that still have no strategy (failed in the loop)
+        for item in items:
+            if item.enrichment_source != strategy_name and item not in failed:
+                failed.append(item)
+        return failed
+
+    # ── Phase 2: Extract from on-disk HTML ─────────────────────
+
+    async def _phase2_extract_all(self, items: list, date: str):
+        """Run Phase 2 extraction for all items that have HTML on disk."""
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+        tasks = [self._phase2_extract_one(item, date, semaphore) for item in items]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                self.logger.info(f"Phase 2 extraction failed for item {items[i].source_id}: {r}")
+
+    async def _phase2_extract_one(self, item, date: str, semaphore: asyncio.Semaphore):
+        """Read HTML from disk and run full extraction pipeline."""
+        async with semaphore:
+            try:
+                pages_dir = self._pages_dir(date)
+                html_path = pages_dir / f"{item.source_id}.html"
+
+                if not html_path.exists():
+                    item.enrichment_source = "fetch_failed"
                     return
 
-                # Download images
+                html = html_path.read_text(encoding="utf-8", errors="replace")
                 image_dir = Path(f"data/{date}/images")
                 image_dir.mkdir(parents=True, exist_ok=True)
-                local_images = []
+
+                # Extract text
+                article_text = self._extract_text(html, item.url or "")
+                if not article_text:
+                    item.article_text = None
+                    item.article_images = []
+                    item.article_summary = None
+                    item.enrichment_source = "extraction_failed"
+                    self.logger.debug(
+                        f"Phase 2 extraction empty: {item.title[:50]}"
+                    )
+                    return
+
+                # Extract images from HTML
+                image_urls = self._extract_images(html, item.url or "")
+
+                # Download page images
+                page_images = []
                 if image_urls:
-                    local_images = await self._download_images(
+                    page_images = await self._download_images(
                         image_urls, image_dir, str(item.source_id)
                     )
 
-                # Bing image search fallback if no page images found
+                # Bing image search
                 bing_images = []
-                if not local_images and self.bing_image_search and item.title:
-                    self.logger.debug(f"No page images, trying Bing search: {short_title}")
+                if self.bing_image_search and item.title:
                     bing_images = await self._search_bing_images(
-                        item.title, item.url, image_dir, str(item.source_id)
+                        item.title, item.url or "", image_dir, str(item.source_id)
                     )
-                    if bing_images:
-                        local_images = bing_images
-                        self.logger.info(f"Bing search found {len(bing_images)} images for {short_title}")
 
-                # Screenshot: check if headless captured one
-                screenshot_image = None
-                if self.screenshot_enabled:
+                # Combine images
+                all_images = page_images + bing_images
+
+                # Screenshot: reuse from Phase 1 if exists, otherwise capture now
+                screenshot_image = item.screenshot_image  # may have been set in Phase 1
+                if not screenshot_image and self.screenshot_enabled:
                     screenshot_filename = f"{item.source_id}_screenshot.jpg"
                     if (image_dir / screenshot_filename).exists():
                         screenshot_image = f"images/{screenshot_filename}"
-                        self.logger.debug(f"Screenshot found: {screenshot_image}")
-                    else:
-                        # No screenshot on disk — capture one with headless Chrome
+                    elif item.url:
                         screenshot_image = await self._capture_screenshot(
                             item.url, image_dir, str(item.source_id)
                         )
+                    item.screenshot_image = screenshot_image
 
-                # LLM summarize
+                # LLM summary
                 article_summary = self._summarize(article_text, item.title)
 
+                # Populate item
                 item.article_text = article_text[:self.max_text_length]
-                item.article_images = local_images
-                item.screenshot_image = screenshot_image
+                item.article_images = all_images
                 item.article_summary = article_summary
-                item.enrichment_source = strategy
+                # Keep enrichment_source from Phase 1 if set; otherwise mark as downloaded_page
+                if not item.enrichment_source or item.enrichment_source == "fetch_failed":
+                    item.enrichment_source = "downloaded_page"
 
-                # Build image_candidates list
+                # Build image_candidates
                 item.image_candidates = []
-                for img_path in local_images:
-                    source = "bing" if img_path in bing_images else "page"
-                    item.image_candidates.append({"path": img_path, "source": source})
+                for img_path in page_images:
+                    item.image_candidates.append({"path": img_path, "source": "page"})
+                for img_path in bing_images:
+                    item.image_candidates.append({"path": img_path, "source": "bing"})
                 if screenshot_image:
                     item.image_candidates.append({"path": screenshot_image, "source": "screenshot"})
 
                 self.logger.info(
-                    f"[{strategy}] {short_title} — "
-                    f"{len(item.article_text)} chars, {len(local_images)} imgs"
-                    f", ss={'Y' if screenshot_image else 'N'}"
+                    f"[{item.enrichment_source}] {item.title[:50]} — "
+                    f"{len(article_text)} chars, "
+                    f"page={len(page_images)} bing={len(bing_images)} "
+                    f"ss={'Y' if screenshot_image else 'N'}"
                 )
 
-            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
-                self.logger.info(f"Failed to enrich {item.url}: {e}", exc_info=True)
+            except Exception as e:
+                self.logger.info(f"Phase 2 failed for {item.url}: {e}", exc_info=True)
                 item.article_text = None
                 item.article_images = []
                 item.article_summary = None
@@ -719,7 +865,11 @@ class ArticleEnricher:
         search_url = f"https://www.bing.com/images/search?q={query}&first=1"
 
         try:
-            html = await self._fetch_page(search_url)
+            # Use headless Chrome — Bing blocks plain aiohttp with an empty page.
+            html = await self._fetch_with_headless(search_url)
+            if not html:
+                # Fallback to aiohttp if headless unavailable
+                html = await self._fetch_page(search_url)
             if not html:
                 return []
 
@@ -731,7 +881,7 @@ class ArticleEnricher:
             local_paths = await self._download_images(image_urls, image_dir, f"{source_id}_bing")
             return local_paths
         except Exception as e:
-            self.logger.debug(f"Bing image search failed for '{title}': {e}")
+            self.logger.info(f"Bing image search failed for '{title}': {e}")
             return []
 
     def _extract_bing_image_urls(self, html: str) -> List[str]:
@@ -901,29 +1051,6 @@ class ArticleEnricher:
 
         return local_paths
 
-    def _load_manual_overrides(self, content: ContentPackage, date: str) -> set:
-        """Load manual_override.json if it exists. Returns set of source_ids that were overridden."""
-        override_path = Path(f"data/{date}/manual_override.json")
-        if not override_path.exists():
-            return set()
-        try:
-            with open(override_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            overridden = set()
-            for item in content.items:
-                entry = data.get("items", {}).get(str(item.source_id))
-                if entry and entry.get("article_text"):
-                    item.article_text = entry["article_text"]
-                    item.article_images = entry.get("article_images", [])
-                    item.article_summary = entry.get("article_summary")
-                    item.enrichment_source = "manual_override"
-                    overridden.add(str(item.source_id))
-                    self.logger.info(f"Manual override loaded for {item.source_id}")
-            return overridden
-        except Exception as e:
-            self.logger.info(f"Failed to load manual overrides: {e}")
-            return set()
-
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
         """Load image_selection.json if it exists. Returns set of source_ids with user selections."""
         sel_path = Path(f"data/{date}/image_selection.json")
@@ -969,57 +1096,6 @@ class ArticleEnricher:
         with open(sel_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         self.logger.info(f"Generated image selection file: {sel_path}")
-
-    def _generate_manual_override(self, content: ContentPackage, date: str):
-        """Generate manual_override.json template for items that failed enrichment."""
-        override_path = Path(f"data/{date}/manual_override.json")
-
-        # Load existing overrides to preserve user edits
-        existing = {}
-        if override_path.exists():
-            try:
-                with open(override_path, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-            except Exception:
-                pass
-
-        failed_items = {
-            str(item.source_id): item
-            for item in content.items
-            if item.enrichment_source in ("none", "error")
-        }
-        if not failed_items and not existing:
-            return
-
-        data = {"date": date, "items": {}}
-        all_ids = set(failed_items.keys()) | set(existing.get("items", {}).keys())
-
-        for sid in all_ids:
-            # Preserve existing user edits
-            if sid in existing.get("items", {}):
-                existing_entry = existing["items"][sid]
-                if existing_entry.get("article_text"):
-                    data["items"][sid] = existing_entry
-                    continue
-
-            # Generate template for failed item
-            item = failed_items.get(sid)
-            if item:
-                data["items"][sid] = {
-                    "title": item.title,
-                    "url": item.url,
-                    "article_text": "",
-                    "article_images": [],
-                    "article_summary": "",
-                }
-
-        if not data["items"]:
-            return
-
-        override_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(override_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        self.logger.info(f"Generated manual override template: {override_path} ({len(data['items'])} items)")
 
     def _summarize(self, article_text: str, title: str) -> Optional[str]:
         if not self._summarize_prompt:
@@ -1094,9 +1170,12 @@ class ArticleEnricher:
                     item.article_text = cached.get("article_text")
                     item.article_images = cached.get("article_images", [])
                     item.article_summary = cached.get("article_summary")
-                    # Pre-tagging caches have no source field — mark as "legacy"
-                    # so it's distinguishable from genuinely missing data.
-                    item.enrichment_source = cached.get("enrichment_source") or "legacy"
+                    source = cached.get("enrichment_source") or "legacy"
+                    if source == "manual_override":
+                        source = "downloaded_page"
+                    elif source == "none" and not cached.get("article_text"):
+                        source = None  # let _classify_items re-evaluate
+                    item.enrichment_source = source
                     item.enrichment_error = cached.get("enrichment_error")
                     item.logo_image = cached.get("logo_image")
                     item.screenshot_image = cached.get("screenshot_image")

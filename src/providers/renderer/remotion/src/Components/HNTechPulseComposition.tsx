@@ -13,12 +13,14 @@ import {
   Subtitle,
   ClosingCard,
   DashboardCard,
-  StoryScanCard,
   ImageCard,
+  EventCard,
+  AtmosphereCard,
+  QuoteCard,
 } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 
-const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #ececf2 0%, #f5f5f7 50%, #e8e8ed 100%)";
+const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #1c1c3a 0%, #0d0d24 50%, #070712 100%)";
 
 /** 元素类型 → React 组件映射 */
 const ELEMENT_RENDERERS: Record<
@@ -29,7 +31,9 @@ const ELEMENT_RENDERERS: Record<
   closing_card: (props) => <ClosingCard {...props} />,
   image_card: (props) => <ImageCard {...props} />,
   dashboard_card: (props) => <DashboardCard {...props} />,
-  story_scan_card: (props) => <StoryScanCard {...props} />,
+  event_card: (props) => <EventCard {...props} />,
+  atmosphere_card: (props) => <AtmosphereCard {...props} />,
+  quote_card: (props) => <QuoteCard {...props} />,
 };
 
 /** 渲染单个元素

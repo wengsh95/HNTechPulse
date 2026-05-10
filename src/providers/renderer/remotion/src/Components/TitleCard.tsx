@@ -7,14 +7,12 @@ import { COLORS, FONTS, S } from "./design";
 export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
 
-  // Title: fade in + subtle slide up
   const titleProgress = interpolate(frame, [0, 20], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
 
-  // Subtitle: delayed entrance
   const subProgress = interpolate(frame, [10, 32], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -35,9 +33,22 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: COLORS.background,
+        background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,122,255,0.08) 0%, transparent 100%)",
       }}
     >
+      {/* Subtle glow behind title */}
+      <div
+        style={{
+          ...S,
+          top: "50%",
+          left: "50%",
+          width: 600,
+          height: 120,
+          transform: "translate(-50%, -65%)",
+          background: "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(0,122,255,0.12) 0%, transparent 70%)",
+          opacity: titleProgress,
+        }}
+      />
       <div
         style={{
           fontFamily: FONTS.bold,
@@ -48,6 +59,7 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
           letterSpacing: -1.8,
           opacity: titleProgress,
           transform: `translateY(${interpolate(titleProgress, [0, 1], [20, 0])}px)`,
+          textShadow: "0 0 80px rgba(0,122,255,0.2)",
         }}
       >
         {p(elementProps, "title", "HN TechPulse")}
@@ -57,7 +69,7 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
           style={{
             fontFamily: FONTS.sans,
             fontSize: 32,
-            color: COLORS.dim,
+            color: COLORS.textSecondary,
             marginTop: 28,
             fontWeight: 400,
             letterSpacing: 0.2,

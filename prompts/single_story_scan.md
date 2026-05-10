@@ -5,11 +5,7 @@
 
 ## 任务
 
-为一条 HN 帖子生成 **story_scan** 中的单条内容。语言风格流畅，口语化，有逻辑，事件捕抓精准。
-
-每条新闻快速扫过，8-12秒，包含事件简述 + 2-3个观点摘要 + 一句话（理性内核 + 幽默表达，不要反问）收尾。
-
-如果事件涉及非大众熟悉的专业/文化背景（如技术格式、活动原则、行业惯例等），用一句话补充解释，帮助观众理解"为什么这事重要"。
+为一条 HN 帖子生成 **三段递进式** 短视频脚本（事件 → 氛围 → 社区原声）。语言口语化、有信息密度。
 
 ---
 
@@ -20,40 +16,43 @@
 ```json
 {
   "story_index": 0,
-  "event_summary": "事件简述——这条新闻说的是什么事（≤40字，一句话说清）",
-  "viewpoints": [
+  "keywords": ["关键词1", "关键词2", "关键词3"],
+  "card_narrations": [
     {
-      "stance": "支持|质疑|中立|调侃|担忧",
-      "summary": "观点摘要（≤20字，极简）",
-      "quote": "评论原文片段（≤50字，保留原汁原味）",
-      "comment_index": 5
+      "card_type": "event_card",
+      "audio_text": "事件简述旁白（40-60字）"
     },
     {
-      "stance": "支持|质疑|中立|调侃|担忧",
-      "summary": "观点摘要（≤20字，极简）",
-      "quote": "评论原文片段（≤50字，保留原汁原味）",
-      "comment_index": 3
+      "card_type": "atmosphere_card",
+      "audio_text": "社区氛围旁白（40-60字）"
+    },
+    {
+      "card_type": "quote_card",
+      "audio_text": "评论观点旁白（60-100字）"
     }
   ],
-  "audio_text": "完整配音文案——将事件简述和观点自然串起来，约80-120字",
-  "estimated_duration": 10,
+  "estimated_duration": 20,
   "emotion": "upbeat",
-  "stance_distribution": {"支持": 0.4, "质疑": 0.3, "中立": 0.2, "担忧": 0.1},
   "scene_elements": [
     {
-      "element_type": "story_scan_card",
+      "element_type": "event_card",
       "props": {
         "story_index": 0,
-        "event_summary": "事件简述",
-        "viewpoints": [
-          {
-            "stance": "支持",
-            "summary": "观点摘要",
-            "quote": "评论原文片段",
-            "comment_index": 5
-          }
-        ],
-        "stance_distribution": {"支持": 0.4, "质疑": 0.3, "中立": 0.2, "担忧": 0.1}
+        "event_summary": "事件简述（≤40字，一句话说清发生了什么事）",
+        "keywords": ["关键词1", "关键词2", "关键词3"]
+      }
+    },
+    {
+      "element_type": "atmosphere_card",
+      "props": {
+        "story_index": 0,
+        "stance_distribution": {"支持": 0.3, "质疑": 0.4, "中立": 0.2, "担忧": 0.1}
+      }
+    },
+    {
+      "element_type": "quote_card",
+      "props": {
+        "story_index": 0
       }
     }
   ]
@@ -62,25 +61,25 @@
 
 ### 字段说明
 
-- `event_summary`: 必须讲清楚"发生了什么事"，不是复述标题
-- `viewpoints`: 2-3个，覆盖不同 stance（不要只支持和质疑）
-- `viewpoint.summary`: ≤20字，观众扫一眼就懂
-- `viewpoint.quote`: ≤50字，从真实评论摘取原文片段
-- `audio_text`: 80-120字，自然流畅，适合口语播报。不要用概括性语句重复 event_summary 已说过的结论（如"这说明了XX"），直接推进到观点和收尾
-- `stance_distribution`: 你对整条帖子下所有评论的态度分布估计，key 为 stance（支持|质疑|中立|调侃|担忧），value 为该态度的占比（0-1，总和为1）。仅统计你在 viewpoints 中引用了的 stance 即可。
-- `scene_elements`: 只需 story_scan_card，无需指定 start_time/end_time（由 TTS 音频时长决定）。props 包含 story_index, event_summary, viewpoints, stance_distribution
+- `keywords`：3-5 个中文主题关键词，概括这条新闻的核心议题（如 "AI推理"、"开源争议"、"硅谷裁员"）
+- `card_narrations`：三段旁白文案，按 event_card → atmosphere_card → quote_card 顺序。video 中会按此顺序展示对应卡片，每张卡片的展示时长 = 对应 audio_text 的 TTS 时长
+  - **event_card**（事件）：讲清楚"发生了什么事"，40-60字
+  - **atmosphere_card**（氛围）：社区整体反应、观点分化情况，40-60字
+  - **quote_card**（原声）：引用具体评论观点，60-100字
+- `event_summary`：≤40字，一句话事件摘要，在 event_card 上展示
+- `stance_distribution`：社区态度分布估计，5 个 stance（支持|质疑|中立|调侃|担忧），value 为占比（0-1，总和为1）
+- `scene_elements`：3 个元素，按上述顺序排列。quote_card 只需 story_index 即可（评论数据由后端自动注入）
 
 ### constraints
 
 - 只输出 JSON
 - 翻译准确自然，技术术语保留英文或给标准译名
+- card_narrations 中的 audio_text 拼接后应自然流畅，适合口语播报
 
 ### 合规性
 
 - 如果评论或文章内容涉及政治敏感、暴力、色情、仇恨言论、个人隐私泄露等不合规内容，**忽略该内容**，不要引用、转述或摘要
 - 不要对不合规内容做任何形式的传播，包括反讽、调侃或"打码"引用
-- 如果某条评论不合规，跳过它，从其他合规评论中选取 viewpoints
-- 如果所有评论均不合规，viewpoints 留空，audio_text 仅做事件简述
 - audio_text 中不得出现任何可能触发内容审核的表述，保持中性客观
 
 ---

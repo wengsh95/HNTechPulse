@@ -17,6 +17,11 @@ python -m pytest tests/test_pipeline.py         # Specific test
 python -m pytest -v                             # Verbose
 ```
 
+Script editor:
+```bash
+uv run streamlit run src/editor/app.py --server.port 8501
+```
+
 Remotion dev server:
 ```bash
 cd src/providers/renderer/remotion && npm install && npx remotion studio --port 3000

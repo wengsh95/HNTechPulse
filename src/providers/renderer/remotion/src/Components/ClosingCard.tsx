@@ -10,21 +10,18 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
   const question = p(elementProps, "question", "");
   const visualMood = p(elementProps, "visual_mood", "");
 
-  // Question: fade in + slide up
   const questionProgress = interpolate(frame, [0, 24], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
 
-  // Mood tag: delayed entrance
   const moodProgress = interpolate(frame, [14, 36], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
 
-  // Brand: last to appear
   const brandProgress = interpolate(frame, [28, 54], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -43,7 +40,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: COLORS.background,
+        background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,122,255,0.06) 0%, transparent 100%)",
       }}
     >
       {question && (
@@ -59,6 +56,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
             letterSpacing: -0.4,
             opacity: questionProgress,
             transform: `translateY(${interpolate(questionProgress, [0, 1], [22, 0])}px)`,
+            textShadow: "0 0 60px rgba(0,122,255,0.15)",
           }}
         >
           {question}
@@ -69,7 +67,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
           style={{
             fontFamily: FONTS.mono,
             fontSize: 16,
-            color: COLORS.dim,
+            color: COLORS.textSecondary,
             marginTop: 32,
             fontWeight: 500,
             letterSpacing: 0.4,

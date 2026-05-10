@@ -70,6 +70,6 @@ class Renderer(ABC):
     def render(self, script: "Script", audio_dir: str, output_path: str, content: Optional["ContentPackage"] = None, date: str = "") -> None:
         pass
 
-    def preview(self, script: "Script", audio_dir: str, content: Optional["ContentPackage"] = None) -> None:
+    def preview(self, script: "Script", audio_dir: str, content: Optional["ContentPackage"] = None, date: str = "") -> None:
         """启动预览模式（可选实现）。"""
         pass

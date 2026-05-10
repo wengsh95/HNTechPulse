@@ -9,9 +9,21 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 from src.core.models import Script, ScriptSegment, WordTiming
 from src.utils.logger import setup_logger
+
+
+def _is_remote_url(path: str) -> bool:
+    return path.startswith(("http://", "https://"))
+
+
+def _to_filename(path: str) -> str:
+    """Extract bare filename from a local path or remote URL."""
+    if _is_remote_url(path):
+        return Path(urlparse(path).path).name
+    return Path(path).name
 
 
 def _safe_get_item(content, idx):
@@ -110,44 +122,6 @@ def _expand_dashboard_card(props, content):
     return {"entries": expanded_entries}
 
 
-def _expand_story_scan_card(props, content):
-    """Overwrite story meta and viewpoint quotes from content; derive stance distribution."""
-    if props.get("story_index") is None:
-        return None
-    result = dict(props)
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return result
-    result["story_title"] = item.title
-    result["title_cn"] = item.title_cn or ""
-    result["score"] = item.score or 0
-    result["comment_count"] = item.comment_count or 0
-    viewpoints = result.get("viewpoints", [])
-    expanded_vps = []
-    for vp in viewpoints:
-        evp = dict(vp)
-        comment = _safe_get_comment(item, vp.get("comment_index"))
-        if comment is not None:
-            if not evp.get("quote"):
-                evp["quote"] = (comment.content or "")[:50]
-            if not evp.get("quote_cn") and comment.content_cn:
-                evp["quote_cn"] = comment.content_cn
-        expanded_vps.append(evp)
-    result["viewpoints"] = expanded_vps
-    if viewpoints and "stance_distribution" not in result:
-        stance_counts: Dict[str, int] = {}
-        for vp in viewpoints:
-            stance = vp.get("stance", "")
-            if stance:
-                stance_counts[stance] = stance_counts.get(stance, 0) + 1
-        if stance_counts:
-            total = sum(stance_counts.values())
-            result["stance_distribution"] = {
-                k: round(v / total, 2) for k, v in stance_counts.items()
-            }
-    return result
-
-
 def _expand_perspective_compare(props, content):
     def build_side(side):
         if not isinstance(side, dict) or "story_index" not in side or "comment_index" not in side:
@@ -170,46 +144,124 @@ def _expand_perspective_compare(props, content):
     }
 
 
-def _expand_image_card(props, content):
-    if props.get("story_index") is None:
-        return None
+def _expand_event_card(props, content):
+    """Expand event_card element: inject story metadata, controversy score, image, and keywords."""
+    import math
+
     item = _safe_get_item(content, props.get("story_index"))
     if item is None:
-        return {"image_src": "", "caption": "", "image_index": 0, "image_type": "article"}
+        return props
+    result = dict(props)
+    result["story_title"] = item.title
+    result["title_cn"] = item.title_cn or ""
+    result["score"] = item.score or 0
+    result["comment_count"] = item.comment_count or 0
 
-    caption = props.get("caption", "")
+    score = item.score or 0
+    descendants = item.comment_count or 0
+    if score > 0 and descendants >= 0:
+        ratio = descendants / score
+        capped = min(ratio, 5.0)
+        if capped <= 0:
+            controversy = 0.0
+        else:
+            controversy = min(10.0, math.log10(capped * 9 + 1) / math.log10(46) * 10)
+        result["controversy_score"] = round(controversy, 1)
+    else:
+        result["controversy_score"] = 0.0
+
+    # Image: support manual image_index; fall back to first local image
     image_index = props.get("image_index", 0)
+    local_images = [p for p in item.article_images if not _is_remote_url(p)]
+    if local_images:
+        idx = max(0, min(image_index, len(local_images) - 1)) if isinstance(image_index, int) else 0
+        result["image_src"] = f"images/{_to_filename(local_images[idx])}"
+        result["image_type"] = "article"
+    elif item.screenshot_image and not _is_remote_url(item.screenshot_image):
+        result["image_src"] = f"images/{_to_filename(item.screenshot_image)}"
+        result["image_type"] = "screenshot"
+    elif item.logo_image and not _is_remote_url(item.logo_image):
+        result["image_src"] = f"images/{_to_filename(item.logo_image)}"
+        result["image_type"] = "logo"
+    else:
+        result["image_src"] = ""
+        result["image_type"] = "article"
 
-    # Priority 1: Article images
-    if item.article_images and image_index < len(item.article_images):
-        image_path = item.article_images[image_index]
-        return {
-            "image_src": f"images/{Path(image_path).name}",
-            "caption": caption,
-            "image_index": image_index,
-            "image_type": "article",
-        }
+    # Pass through LLM keywords (set in prompt)
+    if "keywords" not in result:
+        result["keywords"] = []
 
-    # Priority 2: Webpage screenshot
-    if item.screenshot_image:
-        return {
-            "image_src": f"images/{Path(item.screenshot_image).name}",
-            "caption": caption,
-            "image_index": 0,
-            "image_type": "screenshot",
-        }
+    return result
 
-    # Priority 3: Company logo
-    if item.logo_image:
-        return {
-            "image_src": f"images/{Path(item.logo_image).name}",
-            "caption": caption,
-            "image_index": 0,
-            "image_type": "logo",
-        }
 
-    # No image available
-    return {"image_src": "", "caption": "", "image_index": 0, "image_type": "article"}
+def _expand_atmosphere_card(props, content):
+    """Expand atmosphere_card: inject stance_distribution and keyword_tags from comment_word_freq."""
+    item = _safe_get_item(content, props.get("story_index"))
+    if item is None:
+        return props
+    result = dict(props)
+
+    # keyword_tags from comment_word_freq (Phase 2 data)
+    word_freq = item.comment_word_freq or {}
+    if word_freq:
+        sorted_tags = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10]
+        result["keyword_tags"] = [{"word": w, "weight": f} for w, f in sorted_tags]
+    else:
+        result["keyword_tags"] = []
+
+    # stance_distribution already set by LLM in props, just ensure it exists
+    if "stance_distribution" not in result:
+        result["stance_distribution"] = {}
+
+    return result
+
+
+def _expand_quote_card(props, content):
+    """Expand quote_card: inject top-2 high-quality comments with stance derived from VADER sentiment."""
+    import html
+    import re
+
+    item = _safe_get_item(content, props.get("story_index"))
+    if item is None:
+        return props
+    result = dict(props)
+
+    # Preserve text_cn from original LLM props (set by translation_manager)
+    orig_text_cn = {}
+    for q in props.get("quotes", []):
+        cn = q.get("text_cn", "")
+        if cn:
+            orig_text_cn[q.get("text", "")] = cn
+
+    # Top-2 comments by quality_score
+    scored = [c for c in item.comments if (c.quality_score or 0) > 0]
+    scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
+    top2 = scored[:2]
+
+    def _clean(text: str) -> str:
+        text = re.sub(r"<[^>]*>", " ", text)
+        return html.unescape(text).strip()
+
+    quotes = []
+    for c in top2:
+        sentiment = c.sentiment or 0.0
+        if sentiment > 0.3:
+            stance = "支持"
+        elif sentiment < -0.3:
+            stance = "质疑"
+        else:
+            stance = "中立"
+        text = _clean(c.content or "")[:300]
+        text_cn = c.content_cn or orig_text_cn.get(text, "")
+        quotes.append({
+            "author": c.author,
+            "text": text,
+            "text_cn": text_cn,
+            "stance": stance,
+        })
+    result["quotes"] = quotes
+
+    return result
 
 
 # Dispatch table: element_type -> expander function.
@@ -220,9 +272,10 @@ ELEMENT_EXPANDERS = {
     "comment_bubble": _expand_comment_bubble,
     "news_carousel_card": _expand_news_carousel_card,
     "dashboard_card": _expand_dashboard_card,
-    "story_scan_card": _expand_story_scan_card,
     "perspective_compare": _expand_perspective_compare,
-    "image_card": _expand_image_card,
+    "event_card": _expand_event_card,
+    "atmosphere_card": _expand_atmosphere_card,
+    "quote_card": _expand_quote_card,
 }
 
 

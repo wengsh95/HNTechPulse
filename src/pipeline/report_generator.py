@@ -55,7 +55,7 @@ class ReportGenerator:
             lines.append("")
             lines.append("| 策略 | 数量 | 占比 |")
             lines.append("|------|------|------|")
-            for strategy in ["aiohttp", "headless", "headed", "manual_override", "none", "skipped", "error", "legacy", "未富化"]:
+            for strategy in ["aiohttp", "headless", "headed", "downloaded_page", "fetch_failed", "extraction_failed", "skipped", "error", "manual_override", "none", "legacy", "未富化"]:
                 cnt = source_counts.get(strategy, 0)
                 if cnt > 0:
                     pct = cnt / total * 100 if total > 0 else 0
@@ -93,7 +93,7 @@ class ReportGenerator:
         manual_override_items = []
         if content:
             for i, item in enumerate(content.items, 1):
-                if item.enrichment_source in ("none", "error"):
+                if item.enrichment_source in ("fetch_failed", "extraction_failed", "error"):
                     title = (item.title or "")[:40]
                     url = (item.url or "")[:60]
                     reason = item.enrichment_source
@@ -124,12 +124,12 @@ class ReportGenerator:
             lines.append("")
             lines.append("## 需要手动处理")
             lines.append("")
-            lines.append("以下条目所有自动策略均失败，请手动填入内容：")
+            lines.append("以下条目所有自动抓取策略均失败，请手动下载网页：")
             lines.append("")
             lines.extend(manual_override_items)
             lines.append("")
-            lines.append(f"编辑 `data/{date}/manual_override.json`，为每项填入 `article_text` 和 `article_summary`。")
-            lines.append("完成后重新运行 pipeline 即可。")
+            lines.append(f"用浏览器打开对应 URL，保存网页为 HTML 文件到 `data/{date}/downloaded_pages/{{source_id}}.html`。")
+            lines.append("完成后重新运行 pipeline，将从断点继续。")
 
         report_path = Path(f"data/{date}/report.md")
         report_path.parent.mkdir(parents=True, exist_ok=True)

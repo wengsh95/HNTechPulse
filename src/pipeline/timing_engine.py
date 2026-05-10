@@ -1,4 +1,3 @@
-from collections import defaultdict
 from typing import List
 
 from src.core.models import Script
@@ -6,7 +5,6 @@ from src.utils.logger import setup_logger
 
 
 class TimingEngine:
-    IMAGE_CARD_DURATION = 2.5
 
     def __init__(self, debug: bool = False, level=None):
         self.logger = setup_logger(__name__, debug=debug, level=level)
@@ -136,34 +134,6 @@ class TimingEngine:
                     for elem in seg.scene_elements:
                         elem.start_time = 0.0
                         elem.end_time = duration
-
-        self.adjust_image_card_timing(script)
-
-    def adjust_image_card_timing(self, script: Script) -> None:
-        """For sub-segments with both image_card and story_scan_card,
-        give the image_card the first IMAGE_CARD_DURATION seconds
-        and delay the story_scan_card start."""
-        for seg in script.segments:
-            by_sub = defaultdict(list)
-            for elem in seg.scene_elements:
-                idx = elem.sub_segment_index if elem.sub_segment_index is not None else -1
-                by_sub[idx].append(elem)
-
-            for idx, elems in by_sub.items():
-                image_cards = [e for e in elems if e.element_type == "image_card"]
-                scan_cards = [e for e in elems if e.element_type == "story_scan_card"]
-
-                if not image_cards or not scan_cards:
-                    continue
-
-                for ic in image_cards:
-                    for sc in scan_cards:
-                        if ic.start_time == sc.start_time and ic.end_time == sc.end_time:
-                            sub_duration = sc.end_time - sc.start_time
-                            if sub_duration <= self.IMAGE_CARD_DURATION + 1.0:
-                                continue
-                            ic.end_time = ic.start_time + self.IMAGE_CARD_DURATION
-                            sc.start_time = sc.start_time + self.IMAGE_CARD_DURATION
 
     @staticmethod
     def map_char_ranges_to_times(

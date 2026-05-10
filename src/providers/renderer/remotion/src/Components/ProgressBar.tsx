@@ -23,10 +23,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     extrapolateLeft: "clamp",
   });
 
-  const BAR_HEIGHT = 2;
-  const TICK_HEIGHT = 6;
-  const TRACK_COLOR = "rgba(255, 255, 255, 0.15)";
-  const FILL_COLOR = COLORS.accent;
+  const BAR_HEIGHT = 3;
+  const TICK_HEIGHT = 7;
+  const PAD = 24;
 
   return (
     <div
@@ -35,54 +34,66 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        height: TICK_HEIGHT,
+        height: TICK_HEIGHT + 8,
         opacity: fadeIn,
       }}
     >
-      {/* Track */}
+      {/* Track container */}
       <div
         style={{
           position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
+          left: PAD,
+          right: PAD,
+          bottom: 6,
           height: BAR_HEIGHT,
-          background: TRACK_COLOR,
-          borderRadius: BAR_HEIGHT / 2,
         }}
-      />
+      >
+        {/* Track background */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(255, 255, 255, 0.08)",
+            borderRadius: BAR_HEIGHT / 2,
+          }}
+        />
 
-      {/* Fill */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          bottom: 0,
-          height: BAR_HEIGHT,
-          width: `${progress * 100}%`,
-          background: FILL_COLOR,
-          borderRadius: BAR_HEIGHT / 2,
-        }}
-      />
+        {/* Fill */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            height: BAR_HEIGHT,
+            width: `${progress * 100}%`,
+            background: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
+            borderRadius: BAR_HEIGHT / 2,
+            boxShadow: `0 0 6px ${COLORS.accent}60`,
+          }}
+        />
 
-      {/* Story boundary ticks */}
-      {storyBoundaries.map((t, i) => {
-        const pos = t / totalDuration;
-        return (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: `${pos * 100}%`,
-              bottom: 0,
-              width: 1,
-              height: TICK_HEIGHT,
-              background:
-                progress >= pos ? FILL_COLOR : "rgba(255, 255, 255, 0.25)",
-            }}
-          />
-        );
-      })}
+        {/* Story boundary ticks */}
+        {storyBoundaries.map((t, i) => {
+          const pos = t / totalDuration;
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: `${pos * 100}%`,
+                top: -(TICK_HEIGHT - BAR_HEIGHT) / 2,
+                width: 1.5,
+                height: TICK_HEIGHT,
+                borderRadius: 1,
+                background:
+                  progress >= pos
+                    ? COLORS.accentLight
+                    : "rgba(255, 255, 255, 0.15)",
+              }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 };

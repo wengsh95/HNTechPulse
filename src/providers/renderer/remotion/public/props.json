@@ -4,14 +4,14 @@
   "fps": 24,
   "bgColor": "#0d1117",
   "title": "HN TechPulse 每日快讯",
-  "totalDuration": 285.92800000000005,
+  "totalDuration": 520.6479999999999,
   "segments": [
     {
       "segment_type": "opening",
-      "audio_text": "大家好，我是小P，今天是2026年05月09日，周六。周末还在刷科技新闻，你一定是真爱。来看看今天的Hacker News热门。",
+      "audio_text": "大家好，我是小P，今天是2026年05月10日，周日。周末还在刷科技新闻，你一定是真爱。来看看今天的Hacker News热门。",
       "cues": [
         {
-          "text": "大家好，我是小P，今天是2026年05月09日，周六。",
+          "text": "大家好，我是小P，今天是2026年05月10日，周日。",
           "start_time": 0.0,
           "end_time": 5.118
         },
@@ -36,7 +36,7 @@
           "end_time": 11.184,
           "props": {
             "title": "HN TechPulse",
-            "subtitle": "2026年05月09日",
+            "subtitle": "2026年05月10日",
             "stats": ""
           }
         }
@@ -66,92 +66,92 @@
               {
                 "rank": 1,
                 "story_index": 0,
-                "original_title": "Cloudflare to cut about 20% of its workforce",
-                "title_translation": "Cloudflare 将裁员约 20%",
-                "score": 1281,
-                "comment_count": 923,
-                "title_cn": "Cloudflare 将裁员约 20%"
+                "original_title": "Google broke reCAPTCHA for de-googled Android users",
+                "title_translation": "Google 使 reCAPTCHA 对已去谷歌化的 Android 用户失效",
+                "score": 1452,
+                "comment_count": 542,
+                "title_cn": "Google 使 reCAPTCHA 对已去谷歌化的 Android 用户失效"
               },
               {
                 "rank": 2,
                 "story_index": 1,
-                "original_title": "Poland is now among the 20 largest economies",
-                "title_translation": "波兰跻身全球前 20 大经济体",
-                "score": 923,
-                "comment_count": 738,
-                "title_cn": "波兰跻身全球前 20 大经济体"
+                "original_title": "A recent experience with ChatGPT 5.5 Pro",
+                "title_translation": "近期使用 ChatGPT 5.5 Pro 的体验",
+                "score": 616,
+                "comment_count": 446,
+                "title_cn": "近期使用 ChatGPT 5.5 Pro 的体验"
               },
               {
                 "rank": 3,
                 "story_index": 2,
-                "original_title": "Canvas online again as ShinyHunters threatens to leak schools’ data",
-                "title_translation": "Canvas 恢复在线，ShinyHunters 威胁泄露学校数据",
-                "score": 899,
-                "comment_count": 609,
-                "title_cn": "Canvas 恢复在线，ShinyHunters 威胁泄露学校数据"
+                "original_title": "Internet Archive Switzerland",
+                "title_translation": "互联网档案馆 Switzerland",
+                "score": 574,
+                "comment_count": 87,
+                "title_cn": "互联网档案馆 Switzerland"
               },
               {
                 "rank": 4,
                 "story_index": 3,
-                "original_title": "Maybe you shouldn't install new software for a bit",
-                "title_translation": "或许你暂时不该安装新软件",
-                "score": 821,
-                "comment_count": 437,
-                "title_cn": "或许你暂时不该安装新软件"
+                "original_title": "Bun's experimental Rust rewrite hits 99.8% test compatibility on Linux x64 glibc",
+                "title_translation": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 的测试兼容性",
+                "score": 476,
+                "comment_count": 451,
+                "title_cn": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 的测试兼容性"
               },
               {
                 "rank": 5,
                 "story_index": 4,
-                "original_title": "AI slop is killing online communities",
-                "title_translation": "AI 垃圾正在扼杀在线社区",
-                "score": 806,
-                "comment_count": 699,
-                "title_cn": "AI 垃圾正在扼杀在线社区"
+                "original_title": "EU Parliamentary Research Service calls VPNs \"a loophole that needs closing\"",
+                "title_translation": "欧盟议会研究服务将 VPN 称为“需要封堵的漏洞”",
+                "score": 453,
+                "comment_count": 303,
+                "title_cn": "欧盟议会研究服务将 VPN 称为“需要封堵的漏洞”"
               },
               {
                 "rank": 6,
                 "story_index": 5,
-                "original_title": "Dirty Frag: Universal Linux LPE",
-                "title_translation": "Dirty Frag：通用 Linux LPE",
-                "score": 802,
-                "comment_count": 313,
-                "title_cn": "Dirty Frag：通用 Linux LPE"
+                "original_title": "Using Claude Code: The unreasonable effectiveness of HTML",
+                "title_translation": "使用 Claude Code：HTML 的非凡有效性",
+                "score": 435,
+                "comment_count": 248,
+                "title_cn": "使用 Claude Code：HTML 的非凡有效性"
               },
               {
                 "rank": 7,
                 "story_index": 6,
-                "original_title": "Google Cloud Fraud Defence is just WEI repackaged",
-                "title_translation": "Google Cloud Fraud Defence 不过是换个包装的 WEI",
-                "score": 654,
-                "comment_count": 333,
-                "title_cn": "Google Cloud Fraud Defence 不过是换个包装的 WEI"
+                "original_title": "AI is breaking two vulnerability cultures",
+                "title_translation": "AI 正在打破两种漏洞文化",
+                "score": 415,
+                "comment_count": 166,
+                "title_cn": "AI 正在打破两种漏洞文化"
               },
               {
                 "rank": 8,
                 "story_index": 7,
-                "original_title": "Agents need control flow, not more prompts",
-                "title_translation": "代理需要控制流，而非更多提示",
-                "score": 573,
-                "comment_count": 285,
-                "title_cn": "代理需要控制流，而非更多提示"
+                "original_title": "Cartoon Network Flash Games",
+                "title_translation": "Cartoon Network Flash 游戏",
+                "score": 405,
+                "comment_count": 127,
+                "title_cn": "Cartoon Network Flash 游戏"
               },
               {
                 "rank": 9,
                 "story_index": 8,
-                "original_title": "A web page that shows you everything the browser told it without asking",
-                "title_translation": "一个无需请求即可展示浏览器所知一切的网页",
-                "score": 537,
-                "comment_count": 275,
-                "title_cn": "一个无需请求即可展示浏览器所知一切的网页"
+                "original_title": "LLMs corrupt your documents when you delegate",
+                "title_translation": "LLM 在你委托处理时会损坏你的文档",
+                "score": 380,
+                "comment_count": 146,
+                "title_cn": "LLM 在你委托处理时会损坏你的文档"
               },
               {
                 "rank": 10,
                 "story_index": 9,
-                "original_title": "David Attenborough's 100th Birthday",
-                "title_translation": "大卫·爱登堡 100 岁生日",
-                "score": 489,
-                "comment_count": 97,
-                "title_cn": "大卫·爱登堡 100 岁生日"
+                "original_title": "Meta Shuts Down End-to-End Encryption for Instagram Messaging",
+                "title_translation": "Meta 关闭 Instagram 消息的端到端加密",
+                "score": 319,
+                "comment_count": 216,
+                "title_cn": "Meta 关闭 Instagram 消息的端到端加密"
               }
             ]
           }
@@ -161,667 +161,1362 @@
     },
     {
       "segment_type": "story_scan",
-      "audio_text": "Cloudflare 裁员1100人，号称AI时代重整。但评论区不买账——有人直指利润下滑才是真凶，有人嘲讽'Building for the Future'的标题像段子。一位被裁经理更爆：团队忙到飞起，产品利润95%！裁员理由再动听，数字不会撒谎——也许未来就是靠裁掉20%的人来建设的吧。 波兰挤进全球前20大经济体，一片欢呼。有人说是自由市场和欧盟基金的功劳，也有人吐槽这只是跨国公司的分店。还有当地人担忧医疗和城乡差距。但说到底，能用35年从牛棚跑进G20，这剧本连好莱坞都不敢写。 Canvas 被黑，期末考试季大翻车。有教授说这就像整栋楼烧了，成绩和试卷全完蛋。有学生却乐开花——考试全取消，人生赢家。还有人在吐槽云服务一锅端的风险。看来下次交作业还是用纸笔吧，黑客总不会来偷你的铅笔盒。 一篇博文在copy.fail之后，提醒大家新内核漏洞加上npm供应链风险，建议暂停安装新软件一周。有人马上质疑：等一周根本没用，黑客只会等两周。也有人觉得这是迟早要爆的雷，太方便了。还有网友担忧漏洞发现只会越来越快。安全建议总是难两全，但别指望靠暂停躲过所有攻击——除非你比黑客还沉得住气。 AI slop正在杀死网络社区，这已经是老生常谈但很现实。有些社区靠禁止AI内容活得好好的，比如Stackoverflow。但也有用户抱怨，连朋友都开始发AI生成的东西，互动欲望直接归零。还有人调侃，你喊破喉咙也没用，因为朋友已经被AI slot machine附体了。说到底，AI本身不是问题，问题是我们还没学会怎么和它共处——但至少，别让它替你的朋友发帖了。 Dirty Frag 漏洞曝光，攻击者本地就能拿到 root 权限，几乎所有 Linux 发行版都中招。有评论调侃这漏洞“便携性”不输 Copy Fail。也有人担忧更新频率要爆炸。还有观点指出 AI 挖洞太快，反而容易忽略旁边的 bug。安全攻防就是这样，你永远不知道下一个坑在哪——但肯定有。 Google 新推出的 Fraud Defense 被指是 WEI 的借尸还魂：用手机扫个码，背后的设备认证就绑定了你的硬件。支持者说这是对抗 AI 爬虫的必要手段，反对者怒斥谷歌从‘不作恶’滑向监控帝国，还有人吐槽文章八成是 AI 写的。防 bot 是刚需，但把互联网大门交给一家公司把守，这钥匙迟早得换锁。 AI代理的提示工程已经撞上天花板了——文章认为核心是要用确定性控制流，而不是加更多'必须'和'别跳过'。有开发者实践表明，给模型套个确定执行框架，可靠性暴增。但也有人质疑，认为应该用多个专用代理分工协作。更有旁观者调侃：早晚大家会发现，为了用LLM还得学一门新语言。说到底，语言模型是概率输出的，与其磕头写提示，不如写几行正经代码来得实在。 这个网站把你浏览器偷偷暴露的信息全抖出来了：IP、屏幕、字体、甚至显卡型号。评论里有人觉得这提醒了我们隐私问题，有人说城市都定位错了，还冒出NaN%的电池数据。也有人调侃这网站的语气像汉尼拔在跟你聊天。一句话：别怕，关掉JavaScript，世界还是很美好的。 老爷子今天100岁了，HN上全是他的消息。有人说他靠声音启蒙了整整几代自然爱好者，也有人说光凭声音凭什么封神？更尖锐的评论是，他警告了一辈子环境破坏，结果没人在听。不过老头自己看得开——别人问他环游世界后最想住哪，他说：我就住这儿。这份通透，真·天花板。",
+      "audio_text": "Google 把新版 reCAPTCHA 强制绑定 Google Play Services，使用去谷歌化 Android 系统的用户会被自动判定为机器人，扫码验证也因缺少 Play 服务而无法完成。 社区反应强烈，质疑声占主流。开发者普遍认为这属于垄断行为，有人担心华为、小米、亚马逊等不带谷歌服务的十多亿台设备都将受影响，也有人开始寻找第三方验证码替代方案。 高赞评论一针见血：互联网正在变成证明你用的是被批准的电脑，而不是证明你是人类。也有开发者呼吁以反垄断法起诉 Google，认为其利用 reCAPTCHA 的市场地位打压非谷歌设备。 数学家Tim Gowers用ChatGPT 5.5 Pro在一小时内产出了博士级别的数学成果，几乎零人类输入。LLM现已能攻克研究级难题，甚至解决了部分Erdős公开问题。 社区反应明显两极分化：部分研究者感叹学术生涯的价值被动摇，也有人冷静指出AI只是工具，关键洞察和验证仍然依赖人类专家。 一位数学博士生留言说'AI让我感觉自己没那么有价值了'，引发大量共鸣。用户jacktu犀利指出，开放问题的价值标准变了——以前是没人解出来就行，现在得连AI都解不出来才行。也有人类比编程领域：灵感来自AI但能独立复现和验证的结果，为什么就不能算数？ 互联网档案馆在瑞士圣加仑成立新基金会，致力于将全球知识保存使命扩展到欧洲，初期聚焦数字存档与AI模型保护。 社区反应积极，有人赞赏这是欧洲急需的基础设施，也有人质疑官网设计过于商业化，并呼吁采用去中心化方案防止历史被篡改。 一位用户自豪提到母校城市成为档案基地，认为这为欧洲提供了关键设施；另一人批评网站充斥AI宣传和冗余板块，建议转向P2P解决方案以确保信息长久可用。 Bun 作者用 AI 辅助，仅用 6 天时间，将 JavaScript 运行时从 Zig 重写为 Rust，并在 Linux x64 glibc 上跑出了 99.8% 的测试兼容性。这意味着什么？相当于一个复杂系统几乎无损地换了一套底层语言。 社区反应明显两极分化。一派认为 Rust 替换 Zig 能大幅提升内存安全性，Bun 之前大量崩溃和内存 bug 正是 Zig 的锅；另一派则对 AI 生成的代码能否真正可靠表示怀疑，尤其是代码中仍存在不少 unsafe 块，维护性存疑。 有开发者说，AI 六天能完成代码迁移确实惊人，但这也意味着算力更强的团队会碾压其他人。还有人指出，Bun 之所以能这么快，离不开之前花大力气构建的完善测试套件，工具再好也离不开基础。最扎心的评论是：这场迁移最大的输家可能是 Zig——这门语言可能只因 Bun 才被大众所知。 欧盟议会研究服务处近日将VPN称为年龄验证体系中亟待封堵的漏洞。随着欧洲多国推行在线儿童安全法规、强制平台验证用户年龄，VPN的隐私保护功能正与监管目标发生直接冲突。 社区质疑声占主流。多数人认为真正想封VPN的是商业流媒体平台的利益诉求，而非单纯的儿童保护。同时担忧年龄验证与身份验证一旦绑定，将为政府全面监控公民网络行为打开大门。 有评论者反问：为什么税收漏洞从未受到同等力度的审查？还有用户指出，VPN需要付费，未成年人反而不太可能是绕过验证的主要使用者。更有人警告，将年龄限制、VPN禁令、加密限制层层叠加，等于快速滑向数字威权——这已经远远超出了保护儿童的范畴。 一位开发者分享了他的 Claude Code 使用心得：用 HTML 作为协作媒介比 Markdown 体验更好。单个 HTML 文件无需任何依赖，浏览器直接打开就能分享，团队协作变得极其轻便。 社区观点明显分裂：不少人认可 HTML 分享零门槛的优势，也有人指出其 token 效率更低，还有调侃者评论说，用截图展示 HTML 本身就颇具讽刺意味。 用户 ryandsilva 敏锐指出，HTML 虽 token 效率更低，但可能正中 Anthropic 策略——通过 HTML 工具链加深生态锁定。而用户 momojo 分享了自己的黄金工作流：一个 index.html 邮件发给朋友，需要改动直接扔给 LLM 就行了。 一篇技术长文指出，AI正在瓦解安全社区的两种主流漏洞披露文化——协调披露与完全公开。AI既加速了攻击方挖掘漏洞，也帮防御方快速审查代码，传统安全窗口期正在失效。 社区反应明显分裂。有人认为这只是老问题被AI换了个说法，质疑缩短披露期是否治标不治本；也有人警告，开源项目很快将没有安全的漏洞披露方式，中央化SaaS反而会获得安全优势。 高赞评论指出，AI大幅提升代码审查的信号噪声比，没人会注意到的传统假设已经失效。另一位评论者犀利指出，安全正变成谁花更多token的军备竞赛。还有人半开玩笑说，90天披露期太长，但Linux社区就是有人坚持原则胜过实用。 Cartoon Network 经典 Flash 游戏被网络设计博物馆收录上线，涵盖飞天小女警、德克斯特实验室、杰克武士等系列，童年记忆终于能在线重温了。 评论区一片怀旧浪潮，有人激动找回童年记忆，也有人发现部分游戏缺失、加载失败，惋惜官网早已转向 YouTube，那些童年角落正在慢慢消失。 有人说，Cartoon Network 官网早已消失只剩 YouTube 跳转，非常可惜；也有人发现龙珠 Z 回合制游戏和飞天小女警篮球游戏并未收录，令人遗憾；还有网友回忆起九年级在电脑课上玩 Gorillaz 游戏、用 netsend 骚扰老师的快乐时光。 一篇新论文发现，当你把文档丢给大模型处理时，它可能悄悄篡改你的内容，而且错误会随着每次AI传递不断累积。研究者为此建立了DELEGATE-52基准测试。 社区反应很热烈。有人用'语义消融'来形容这种AI污染现象，也有人质疑大厂发布这类论文的动机。还有开发者已经在做对抗工具了。 一位高赞评论说：'我一直说，AI润色文本就是在降质，每次传递都在累积错误。这跟人类的传话游戏一模一样——信息经过越多环节，失真越严重。'还有人指出：'关键是要给AI委托设定边界，让它明确标注改了什么、保留了什么。' Meta 宣布，自五月八日起，Instagram 私信将不再支持端到端加密。这意味着平台今后可以读取用户私信内容。Meta 给出的理由是使用人数太少，且为了打击诈骗和骚扰需要内容可见。 社区反应几乎一边倒地质疑。不少人拿 TikTok 类似的说辞来讽刺 Meta，认为以保护未成年人为名削弱隐私是惯用套路。也有人承认端到端加密确实影响举报和审核效率，社区观点明显两极分化。 高赞评论指出，只有开源软件才能提供真正可验证的端到端加密，封闭平台的所谓加密本质上是安全表演。还有人反问：为什么方向是反着的？各大平台应该加强加密才对，而不是以安全为名拿走用户最后的隐私防线。",
       "cues": [
         {
-          "text": "Cloudflare 裁员1100人，号称AI时代重整。",
+          "text": "Google 把新版 reCAPTCHA 强制绑定 Google Play Services，使用去谷歌化 Android 系统的用户会被自动判定为机器人，扫码验证也因缺少 Play 服务而无法完成。",
           "start_time": 0.0,
-          "end_time": 4.505
+          "end_time": 13.375
         },
         {
-          "text": "但评论区不买账——有人直指利润下滑才是真凶，有人嘲讽'Building for the Future'的标题像段子。",
-          "start_time": 4.455,
-          "end_time": 11.898
+          "text": "社区反应强烈，质疑声占主流。",
+          "start_time": 13.375,
+          "end_time": 16.523
         },
         {
-          "text": "一位被裁经理更爆：团队忙到飞起，产品利润95%！",
-          "start_time": 11.898,
-          "end_time": 17.33
+          "text": "开发者普遍认为这属于垄断行为，有人担心华为、小米、亚马逊等不带谷歌服务的十多亿台设备都将受影响，也有人开始寻找第三方验证码替代方案。",
+          "start_time": 16.523,
+          "end_time": 29.25
         },
         {
-          "text": "裁员理由再动听，数字不会撒谎——也许未来就是靠裁掉20%的人来建设的吧。",
-          "start_time": 17.33,
-          "end_time": 24.398
+          "text": "高赞评论一针见血：互联网正在变成证明你用的是被批准的电脑，而不是证明你是人类。",
+          "start_time": 29.25,
+          "end_time": 37.182
         },
         {
-          "text": "波兰挤进全球前20大经济体，一片欢呼。",
-          "start_time": 24.398,
-          "end_time": 28.25
+          "text": "也有开发者呼吁以反垄断法起诉 Google，认为其利用 reCAPTCHA 的市场地位打压非谷歌设备。",
+          "start_time": 37.182,
+          "end_time": 45.489
         },
         {
-          "text": "有人说是自由市场和欧盟基金的功劳，也有人吐槽这只是跨国公司的分店。",
-          "start_time": 28.25,
-          "end_time": 34.466
+          "text": "数学家Tim Gowers用ChatGPT 5.5 Pro在一小时内产出了博士级别的数学成果，几乎零人类输入。",
+          "start_time": 45.489,
+          "end_time": 53.864
         },
         {
-          "text": "还有当地人担忧医疗和城乡差距。",
-          "start_time": 34.466,
-          "end_time": 37.614
+          "text": "LLM现已能攻克研究级难题，甚至解决了部分Erdős公开问题。",
+          "start_time": 53.864,
+          "end_time": 59.636
         },
         {
-          "text": "但说到底，能用35年从牛棚跑进G20，这剧本连好莱坞都不敢写。",
-          "start_time": 37.614,
-          "end_time": 44.0
+          "text": "社区反应明显两极分化：部分研究者感叹学术生涯的价值被动摇，也有人冷静指出AI只是工具，关键洞察和验证仍然依赖人类专家。",
+          "start_time": 59.636,
+          "end_time": 71.273
         },
         {
-          "text": "Canvas 被黑，期末考试季大翻车。",
-          "start_time": 44.0,
-          "end_time": 47.216
+          "text": "一位数学博士生留言说'AI让我感觉自己没那么有价值了'，引发大量共鸣。",
+          "start_time": 71.273,
+          "end_time": 77.466
         },
         {
-          "text": "有教授说这就像整栋楼烧了，成绩和试卷全完蛋。",
-          "start_time": 47.216,
-          "end_time": 51.727
+          "text": "用户jacktu犀利指出，开放问题的价值标准变了——以前是没人解出来就行，现在得连AI都解不出来才行。",
+          "start_time": 77.466,
+          "end_time": 86.261
         },
         {
-          "text": "有学生却乐开花——考试全取消，人生赢家。",
-          "start_time": 51.727,
-          "end_time": 55.739
+          "text": "也有人类比编程领域：灵感来自AI但能独立复现和验证的结果，为什么就不能算数？",
+          "start_time": 86.261,
+          "end_time": 93.67
         },
         {
-          "text": "还有人在吐槽云服务一锅端的风险。",
-          "start_time": 55.739,
-          "end_time": 58.977
+          "text": "互联网档案馆在瑞士圣加仑成立新基金会，致力于将全球知识保存使命扩展到欧洲，初期聚焦数字存档与AI模型保护。",
+          "start_time": 93.67,
+          "end_time": 104.341
         },
         {
-          "text": "看来下次交作业还是用纸笔吧，黑客总不会来偷你的铅笔盒。",
-          "start_time": 58.977,
-          "end_time": 64.17
+          "text": "社区反应积极，有人赞赏这是欧洲急需的基础设施，也有人质疑官网设计过于商业化，并呼吁采用去中心化方案防止历史被篡改。",
+          "start_time": 104.341,
+          "end_time": 115.545
         },
         {
-          "text": "一篇博文在copy.fail之后，提醒大家新内核漏洞加上npm供应链风险，建议暂停安装新软件一周。",
-          "start_time": 64.17,
-          "end_time": 73.17
+          "text": "一位用户自豪提到母校城市成为档案基地，认为这为欧洲提供了关键设施；另一人批评网站充斥AI宣传和冗余板块，建议转向P2P解决方案以确保信息长久可用。",
+          "start_time": 115.545,
+          "end_time": 129.807
         },
         {
-          "text": "有人马上质疑：等一周根本没用，黑客只会等两周。",
-          "start_time": 73.17,
-          "end_time": 77.761
+          "text": "Bun 作者用 AI 辅助，仅用 6 天时间，将 JavaScript 运行时从 Zig 重写为 Rust，并在 Linux x64 glibc 上跑出了 99.8% 的测试兼容性。",
+          "start_time": 129.807,
+          "end_time": 142.182
         },
         {
-          "text": "也有人觉得这是迟早要爆的雷，太方便了。",
-          "start_time": 77.761,
-          "end_time": 81.523
+          "text": "这意味着什么？",
+          "start_time": 142.182,
+          "end_time": 143.648
         },
         {
-          "text": "还有网友担忧漏洞发现只会越来越快。",
-          "start_time": 81.523,
-          "end_time": 85.045
+          "text": "相当于一个复杂系统几乎无损地换了一套底层语言。",
+          "start_time": 143.648,
+          "end_time": 147.92
         },
         {
-          "text": "安全建议总是难两全，但别指望靠暂停躲过所有攻击——除非你比黑客还沉得住气。",
-          "start_time": 85.045,
-          "end_time": 92.386
+          "text": "社区反应明显两极分化。",
+          "start_time": 147.92,
+          "end_time": 150.42
         },
         {
-          "text": "AI slop正在杀死网络社区，这已经是老生常谈但很现实。",
-          "start_time": 92.386,
-          "end_time": 97.955
+          "text": "一派认为 Rust 替换 Zig 能大幅提升内存安全性，Bun 之前大量崩溃和内存 bug 正是 Zig 的锅；另一派则对 AI 生成的代码能否真正可靠表示怀疑，尤其是代码中仍存在不少 unsafe 块，维护性存疑。",
+          "start_time": 150.42,
+          "end_time": 167.386
         },
         {
-          "text": "有些社区靠禁止AI内容活得好好的，比如Stackoverflow。",
-          "start_time": 97.955,
-          "end_time": 103.25
+          "text": "有开发者说，AI 六天能完成代码迁移确实惊人，但这也意味着算力更强的团队会碾压其他人。",
+          "start_time": 167.386,
+          "end_time": 175.727
         },
         {
-          "text": "但也有用户抱怨，连朋友都开始发AI生成的东西，互动欲望直接归零。",
-          "start_time": 103.25,
-          "end_time": 109.545
+          "text": "还有人指出，Bun 之所以能这么快，离不开之前花大力气构建的完善测试套件，工具再好也离不开基础。",
+          "start_time": 175.727,
+          "end_time": 184.455
         },
         {
-          "text": "还有人调侃，你喊破喉咙也没用，因为朋友已经被AI slot machine附体了。",
-          "start_time": 109.545,
-          "end_time": 115.795
+          "text": "最扎心的评论是：这场迁移最大的输家可能是 Zig——这门语言可能只因 Bun 才被大众所知。",
+          "start_time": 184.455,
+          "end_time": 192.091
         },
         {
-          "text": "说到底，AI本身不是问题，问题是我们还没学会怎么和它共处——但至少，别让它替你的朋友发帖了。",
-          "start_time": 115.795,
-          "end_time": 124.5
+          "text": "欧盟议会研究服务处近日将VPN称为年龄验证体系中亟待封堵的漏洞。",
+          "start_time": 192.091,
+          "end_time": 198.432
         },
         {
-          "text": "Dirty Frag 漏洞曝光，攻击者本地就能拿到 root 权限，几乎所有 Linux 发行版都中招。",
-          "start_time": 124.5,
-          "end_time": 131.682
+          "text": "随着欧洲多国推行在线儿童安全法规、强制平台验证用户年龄，VPN的隐私保护功能正与监管目标发生直接冲突。",
+          "start_time": 198.432,
+          "end_time": 208.807
         },
         {
-          "text": "有评论调侃这漏洞“便携性”不输 Copy Fail。",
-          "start_time": 131.682,
-          "end_time": 135.784
+          "text": "社区质疑声占主流。",
+          "start_time": 208.807,
+          "end_time": 211.034
         },
         {
-          "text": "也有人担忧更新频率要爆炸。",
-          "start_time": 135.784,
-          "end_time": 138.511
+          "text": "多数人认为真正想封VPN的是商业流媒体平台的利益诉求，而非单纯的儿童保护。",
+          "start_time": 211.034,
+          "end_time": 218.159
         },
         {
-          "text": "还有观点指出 AI 挖洞太快，反而容易忽略旁边的 bug。",
-          "start_time": 138.511,
-          "end_time": 143.261
+          "text": "同时担忧年龄验证与身份验证一旦绑定，将为政府全面监控公民网络行为打开大门。",
+          "start_time": 218.159,
+          "end_time": 225.693
         },
         {
-          "text": "安全攻防就是这样，你永远不知道下一个坑在哪——但肯定有。",
-          "start_time": 143.261,
-          "end_time": 148.455
+          "text": "有评论者反问：为什么税收漏洞从未受到同等力度的审查？",
+          "start_time": 225.693,
+          "end_time": 230.875
         },
         {
-          "text": "Google 新推出的 Fraud Defense 被指是 WEI 的借尸还魂：用手机扫个码，背后的设备认证就绑定了你的硬件。",
-          "start_time": 148.455,
-          "end_time": 157.045
+          "text": "还有用户指出，VPN需要付费，未成年人反而不太可能是绕过验证的主要使用者。",
+          "start_time": 230.875,
+          "end_time": 237.693
         },
         {
-          "text": "支持者说这是对抗 AI 爬虫的必要手段，反对者怒斥谷歌从‘不作恶’滑向监控帝国，还有人吐槽文章八成是 AI 写的。",
-          "start_time": 157.045,
-          "end_time": 167.352
+          "text": "更有人警告，将年龄限制、VPN禁令、加密限制层层叠加，等于快速滑向数字威权——这已经远远超出了保护儿童的范畴。",
+          "start_time": 237.693,
+          "end_time": 248.0
         },
         {
-          "text": "防 bot 是刚需，但把互联网大门交给一家公司把守，这钥匙迟早得换锁。",
-          "start_time": 167.352,
-          "end_time": 173.648
+          "text": "一位开发者分享了他的 Claude Code 使用心得：用 HTML 作为协作媒介比 Markdown 体验更好。",
+          "start_time": 248.0,
+          "end_time": 255.773
         },
         {
-          "text": "AI代理的提示工程已经撞上天花板了——文章认为核心是要用确定性控制流，而不是加更多'必须'和'别跳过'。",
-          "start_time": 173.648,
-          "end_time": 182.932
+          "text": "单个 HTML 文件无需任何依赖，浏览器直接打开就能分享，团队协作变得极其轻便。",
+          "start_time": 255.773,
+          "end_time": 263.466
         },
         {
-          "text": "有开发者实践表明，给模型套个确定执行框架，可靠性暴增。",
-          "start_time": 182.932,
-          "end_time": 188.386
+          "text": "社区观点明显分裂：不少人认可 HTML 分享零门槛的优势，也有人指出其 token 效率更低，还有调侃者评论说，用截图展示 HTML 本身就颇具讽刺意味。",
+          "start_time": 263.466,
+          "end_time": 277.205
         },
         {
-          "text": "但也有人质疑，认为应该用多个专用代理分工协作。",
-          "start_time": 188.386,
-          "end_time": 193.114
+          "text": "用户 ryandsilva",
+          "start_time": 277.205,
+          "end_time": 278.92
         },
         {
-          "text": "更有旁观者调侃：早晚大家会发现，为了用LLM还得学一门新语言。",
-          "start_time": 193.114,
-          "end_time": 199.443
+          "text": "敏锐指出，HTML 虽 token 效率更低，但可能正中 Anthropic 策略——通过 HTML 工具链加深生态锁定。",
+          "start_time": 278.98,
+          "end_time": 288.278
         },
         {
-          "text": "说到底，语言模型是概率输出的，与其磕头写提示，不如写几行正经代码来得实在。",
-          "start_time": 199.443,
-          "end_time": 206.932
+          "text": "而用户 momojo 分享了自己的黄金工作流：一个 index.html 邮件发给朋友，需要改动直接扔给 LLM 就行了。",
+          "start_time": 288.278,
+          "end_time": 298.005
         },
         {
-          "text": "这个网站把你浏览器偷偷暴露的信息全抖出来了：IP、屏幕、字体、甚至显卡型号。",
-          "start_time": 206.932,
-          "end_time": 214.636
+          "text": "一篇技术长文指出，AI正在瓦解安全社区的两种主流漏洞披露文化——协调披露与完全公开。",
+          "start_time": 298.005,
+          "end_time": 306.039
         },
         {
-          "text": "评论里有人觉得这提醒了我们隐私问题，有人说城市都定位错了，还冒出NaN%的电池数据。",
-          "start_time": 214.636,
-          "end_time": 222.67
+          "text": "AI既加速了攻击方挖掘漏洞，也帮防御方快速审查代码，传统安全窗口期正在失效。",
+          "start_time": 306.039,
+          "end_time": 313.562
         },
         {
-          "text": "也有人调侃这网站的语气像汉尼拔在跟你聊天。",
-          "start_time": 222.67,
-          "end_time": 227.034
+          "text": "社区反应明显分裂。",
+          "start_time": 313.562,
+          "end_time": 315.698
         },
         {
-          "text": "一句话：别怕，关掉JavaScript，世界还是很美好的。",
-          "start_time": 227.034,
-          "end_time": 231.864
+          "text": "有人认为这只是老问题被AI换了个说法，质疑缩短披露期是否治标不治本；也有人警告，开源项目很快将没有安全的漏洞披露方式，中央化SaaS反而会获得安全优势。",
+          "start_time": 315.698,
+          "end_time": 329.823
         },
         {
-          "text": "老爷子今天100岁了，HN上全是他的消息。",
-          "start_time": 231.864,
-          "end_time": 235.943
+          "text": "高赞评论指出，AI大幅提升代码审查的信号噪声比，没人会注意到的传统假设已经失效。",
+          "start_time": 329.823,
+          "end_time": 337.494
         },
         {
-          "text": "有人说他靠声音启蒙了整整几代自然爱好者，也有人说光凭声音凭什么封神？",
-          "start_time": 235.943,
-          "end_time": 242.716
+          "text": "另一位评论者犀利指出，安全正变成谁花更多token的军备竞赛。",
+          "start_time": 337.494,
+          "end_time": 343.039
         },
         {
-          "text": "更尖锐的评论是，他警告了一辈子环境破坏，结果没人在听。",
-          "start_time": 242.716,
-          "end_time": 247.932
+          "text": "还有人半开玩笑说，90天披露期太长，但Linux社区就是有人坚持原则胜过实用。",
+          "start_time": 343.039,
+          "end_time": 350.437
         },
         {
-          "text": "不过老头自己看得开——别人问他环游世界后最想住哪，他说：我就住这儿。",
-          "start_time": 247.932,
-          "end_time": 254.318
+          "text": "Cartoon Network 经典 Flash 游戏被网络设计博物馆收录上线，涵盖飞天小女警、德克斯特实验室、杰克武士等系列，童年记忆终于能在线重温了。",
+          "start_time": 350.437,
+          "end_time": 362.619
         },
         {
-          "text": "这份通透，真·天花板。",
-          "start_time": 254.318,
-          "end_time": 256.776
+          "text": "评论区一片怀旧浪潮，有人激动找回童年记忆，也有人发现部分游戏缺失、加载失败，惋惜官网早已转向 YouTube，那些童年角落正在慢慢消失。",
+          "start_time": 362.619,
+          "end_time": 375.016
+        },
+        {
+          "text": "有人说，Cartoon Network 官网早已消失只剩 YouTube 跳转，非常可惜；也有人发现龙珠 Z 回合制游戏和飞天小女警篮球游戏并未收录，令人遗憾；还有网友回忆起九年级在电脑课上玩 Gorillaz 游戏、用 netsend 骚扰老师的快乐时光。",
+          "start_time": 375.016,
+          "end_time": 393.971
+        },
+        {
+          "text": "一篇新论文发现，当你把文档丢给大模型处理时，它可能悄悄篡改你的内容，而且错误会随着每次AI传递不断累积。",
+          "start_time": 393.971,
+          "end_time": 404.028
+        },
+        {
+          "text": "研究者为此建立了DELEGATE-52基准测试。",
+          "start_time": 404.028,
+          "end_time": 407.994
+        },
+        {
+          "text": "社区反应很热烈。",
+          "start_time": 407.994,
+          "end_time": 409.937
+        },
+        {
+          "text": "有人用'语义消融'来形容这种AI污染现象，也有人质疑大厂发布这类论文的动机。",
+          "start_time": 409.937,
+          "end_time": 416.8
+        },
+        {
+          "text": "还有开发者已经在做对抗工具了。",
+          "start_time": 416.8,
+          "end_time": 419.8
+        },
+        {
+          "text": "一位高赞评论说：'我一直说，AI润色文本就是在降质，每次传递都在累积错误。",
+          "start_time": 419.8,
+          "end_time": 427.005
+        },
+        {
+          "text": "这跟人类的传话游戏一模一样——信息经过越多环节，失真越严重。'还有人指出：'关键是要给AI委托设定边界，让它明确标注改了什么、保留了什么。",
+          "start_time": 427.005,
+          "end_time": 439.335
+        },
+        {
+          "text": "Meta 宣布，自五月八日起，Instagram 私信将不再支持端到端加密。",
+          "start_time": 439.335,
+          "end_time": 445.198
+        },
+        {
+          "text": "这意味着平台今后可以读取用户私信内容。",
+          "start_time": 445.198,
+          "end_time": 448.948
+        },
+        {
+          "text": "Meta 给出的理由是使用人数太少，且为了打击诈骗和骚扰需要内容可见。",
+          "start_time": 448.948,
+          "end_time": 455.198
+        },
+        {
+          "text": "社区反应几乎一边倒地质疑。",
+          "start_time": 455.198,
+          "end_time": 458.073
+        },
+        {
+          "text": "不少人拿 TikTok 类似的说辞来讽刺 Meta，认为以保护未成年人为名削弱隐私是惯用套路。",
+          "start_time": 458.073,
+          "end_time": 465.994
+        },
+        {
+          "text": "也有人承认端到端加密确实影响举报和审核效率，社区观点明显两极分化。",
+          "start_time": 465.994,
+          "end_time": 472.823
+        },
+        {
+          "text": "高赞评论指出，只有开源软件才能提供真正可验证的端到端加密，封闭平台的所谓加密本质上是安全表演。",
+          "start_time": 472.823,
+          "end_time": 481.982
+        },
+        {
+          "text": "还有人反问：为什么方向是反着的？",
+          "start_time": 481.982,
+          "end_time": 485.062
+        },
+        {
+          "text": "各大平台应该加强加密才对，而不是以安全为名拿走用户最后的隐私防线。",
+          "start_time": 485.062,
+          "end_time": 491.568
         }
       ],
-      "duration": 256.776,
+      "duration": 491.568,
       "start_time": 24.183999999999997,
-      "end_time": 280.96000000000004,
+      "end_time": 515.752,
       "scene_elements": [
         {
-          "element_type": "story_scan_card",
+          "element_type": "event_card",
           "start_time": 0.0,
-          "end_time": 24.398,
+          "end_time": 13.375,
           "props": {
             "story_index": 0,
-            "event_summary": "Cloudflare 宣布裁员1100人，约占员工总数20%，理由为AI效率提升。",
-            "viewpoints": [
-              {
-                "stance": "质疑",
-                "summary": "AI只是借口，实际利润下滑",
-                "quote": "We are reorganizing for the agentic AI era reads better than our gross margin is compressing.",
-                "comment_index": 25,
-                "quote_cn": "我们正在为代理式AI时代进行重组，这听起来比我们的毛利率在压缩要好。"
-              },
-              {
-                "stance": "调侃",
-                "summary": "标题'Building for the Future'讽刺裁员",
-                "quote": "AI: \"Building for the Future\".",
-                "comment_index": 19,
-                "quote_cn": "AI：'为未来而建'。"
-              },
-              {
-                "stance": "担忧",
-                "summary": "被裁员工表示团队很忙且盈利",
-                "quote": "My teams products are something like 95% profit.",
-                "comment_index": 3,
-                "quote_cn": "我的团队产品利润大约95%。"
-              }
+            "event_summary": "Google reCAPTCHA 强制绑定 Play Services，去谷歌化 Android 用户无法通过验证",
+            "keywords": [
+              "reCAPTCHA",
+              "去谷歌化",
+              "Google Play Services",
+              "垄断争议",
+              "隐私安全"
             ],
-            "stance_distribution": {
-              "支持": 0.0,
-              "质疑": 0.4,
-              "调侃": 0.3,
-              "担忧": 0.3
-            },
             "display_index": 0,
             "story_count": 10,
-            "story_title": "Cloudflare to cut about 20% of its workforce",
-            "title_cn": "Cloudflare 将裁员约 20%",
-            "score": 1281,
-            "comment_count": 923
+            "story_title": "Google broke reCAPTCHA for de-googled Android users",
+            "title_cn": "Google 使 reCAPTCHA 对已去谷歌化的 Android 用户失效",
+            "score": 1452,
+            "comment_count": 542,
+            "controversy_score": 3.8,
+            "image_src": "images/48067119_0.jpg",
+            "image_type": "article"
           }
         },
         {
-          "element_type": "story_scan_card",
-          "start_time": 24.398,
-          "end_time": 44.0,
+          "element_type": "atmosphere_card",
+          "start_time": 13.375,
+          "end_time": 29.25,
+          "props": {
+            "story_index": 0,
+            "stance_distribution": {
+              "支持": 0.05,
+              "质疑": 0.55,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "担忧": 0.1
+            },
+            "keyword_tags": [
+              {
+                "word": "google",
+                "weight": 0.1237
+              },
+              {
+                "word": "android",
+                "weight": 0.0598
+              },
+              {
+                "word": "recaptcha",
+                "weight": 0.0571
+              },
+              {
+                "word": "people",
+                "weight": 0.0546
+              },
+              {
+                "word": "apple",
+                "weight": 0.0524
+              },
+              {
+                "word": "need",
+                "weight": 0.0516
+              },
+              {
+                "word": "use",
+                "weight": 0.0507
+              },
+              {
+                "word": "to be",
+                "weight": 0.0487
+              },
+              {
+                "word": "want",
+                "weight": 0.046
+              },
+              {
+                "word": "cloudflare",
+                "weight": 0.0459
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 29.25,
+          "end_time": 45.489,
+          "props": {
+            "story_index": 0,
+            "quotes": [
+              {
+                "author": "cornholio",
+                "text": "It's a move to block competitor AI agents while securing access for your own, classic ladder kick. The market for autonomous agents providing services and doing online work will be gigantic so, unless you want your own bots locked out from ie properties guarded by Amazon, CloudFlare, Microsoft etc.,",
+                "text_cn": "这是为了封锁竞争对手的 AI 代理，同时确保自己的代理能够接入，典型的“踢梯子”策略。自主代理提供服务和在线工作的市场将非常庞大，所以除非你想让自己的机器人被亚马逊、CloudFlare、微软等平台挡在门外，否则你就需要一张谈判筹码。",
+                "stance": "中立"
+              },
+              {
+                "author": "amluto",
+                "text": "I would love to see someone challenge this as an anti-trust violation. Google is using its market power (as the provider of reCAPTCHA) to actively prevent devices that don’t use Google Play Services from competing effectively.",
+                "text_cn": "我很想看到有人以此提起反垄断诉讼。Google 正利用其市场地位（作为 reCAPTCHA 的提供方），积极阻止未安装 Google Play Services 的设备参与有效竞争。",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 45.489,
+          "end_time": 59.636,
           "props": {
             "story_index": 1,
-            "event_summary": "波兰经济排名升至全球第20，GDP超1万亿美元",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "波兰转型典范",
-                "quote": "Poland was the first country to make a remarkable peaceful transition from a bankrupt, failed Soviet satellite state.",
-                "comment_index": 0,
-                "quote_cn": "波兰是第一个从破产、失败的苏联卫星国实现显著和平过渡的国家。"
-              },
-              {
-                "stance": "质疑",
-                "summary": "外资驱动增长",
-                "quote": "Western Europe and the US built their economy in Poland, because the labor is educated and cheap.",
-                "comment_index": 1,
-                "quote_cn": "西欧和美国在波兰建设了他们的经济，因为当地劳动力受过教育且廉价。"
-              },
-              {
-                "stance": "担忧",
-                "summary": "医疗城乡问题",
-                "quote": "Worst healthcare among developed countries... Polish miracle is over, deservedly.",
-                "comment_index": 57,
-                "quote_cn": "发达国家中最差的医疗保健……波兰奇迹结束了，活该。"
-              }
+            "event_summary": "数学家Tim Gowers用ChatGPT 5.5 Pro一小时产出博士级数学论文，几乎零人类输入。",
+            "keywords": [
+              "ChatGPT 5.5 Pro",
+              "AI数学研究",
+              "LLM攻克难题",
+              "Erdős问题",
+              "学术价值焦虑"
             ],
-            "stance_distribution": {
-              "支持": 0.4,
-              "质疑": 0.3,
-              "担忧": 0.3
-            },
             "display_index": 1,
             "story_count": 10,
-            "story_title": "Poland is now among the 20 largest economies",
-            "title_cn": "波兰跻身全球前 20 大经济体",
-            "score": 923,
-            "comment_count": 738
+            "image_index": 3,
+            "story_title": "A recent experience with ChatGPT 5.5 Pro",
+            "title_cn": "近期使用 ChatGPT 5.5 Pro 的体验",
+            "score": 616,
+            "comment_count": 446,
+            "controversy_score": 5.3,
+            "image_src": "images/48071262_bing_0.jpg",
+            "image_type": "article"
           }
         },
         {
-          "element_type": "story_scan_card",
-          "start_time": 44.0,
-          "end_time": 64.17,
+          "element_type": "atmosphere_card",
+          "start_time": 59.636,
+          "end_time": 71.273,
+          "props": {
+            "story_index": 1,
+            "stance_distribution": {
+              "支持": 0.25,
+              "质疑": 0.3,
+              "中立": 0.15,
+              "调侃": 0.05,
+              "担忧": 0.25
+            },
+            "keyword_tags": [
+              {
+                "word": "math",
+                "weight": 0.0683
+              },
+              {
+                "word": "where",
+                "weight": 0.0543
+              },
+              {
+                "word": "these",
+                "weight": 0.0534
+              },
+              {
+                "word": "ai",
+                "weight": 0.0524
+              },
+              {
+                "word": "pro",
+                "weight": 0.0501
+              },
+              {
+                "word": "gemini",
+                "weight": 0.0492
+              },
+              {
+                "word": "work",
+                "weight": 0.0487
+              },
+              {
+                "word": "level",
+                "weight": 0.0458
+              },
+              {
+                "word": "every",
+                "weight": 0.0455
+              },
+              {
+                "word": "problems",
+                "weight": 0.0444
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 71.273,
+          "end_time": 93.67,
+          "props": {
+            "story_index": 1,
+            "quotes": [
+              {
+                "author": "few",
+                "text": ">So if your aim in doing mathematics is to achieve some kind of immortality, so to speak, then you should understand that that won’t necessarily be possible for much longer — not just for you, but for anybody. This made me a little sad",
+                "text_cn": "所以如果你做数学的目的是追求某种意义上的不朽，那么你应该明白，这在未来未必还能实现——不仅对你如此，对任何人都一样。这让我有点难过。",
+                "stance": "质疑"
+              },
+              {
+                "author": "MinimalAction",
+                "text": "As a graduate student, this piece made me sad. I always believed that my work speaks for itself and transcends beyond my limited time on this cosmic experience. This notion of immortality was just a small intangible bonus I hoped for when I jumped into grad school. AI is making me feel less worthy.",
+                "text_cn": "作为一名研究生，这篇文章让我感到难过。我一直相信自己的工作会说话，能够超越我在宇宙中有限的时间。这种不朽的观念只是我进入研究生院时所期望的一点无形额外收获。AI 让我感到自己不再那么有价值。",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 93.67,
+          "end_time": 104.341,
           "props": {
             "story_index": 2,
-            "event_summary": "Canvas遭黑客攻击致数据泄露和宕机，已恢复但威胁仍在。",
-            "viewpoints": [
-              {
-                "stance": "担忧",
-                "summary": "教师：成绩全毁，如同大楼烧毁",
-                "quote": "catastrophic at a level of 'the whole building burnt down with all my exams and gradebooks in it'",
-                "comment_index": 0,
-                "quote_cn": "灾难级别相当于'整栋楼烧毁了，里面有我所有的考试和成绩册'"
-              },
-              {
-                "stance": "调侃",
-                "summary": "学生：考试全取消，人生赢家",
-                "quote": "all their finals are now cancelled... 'Yes. Everything coming up Milhouse.'",
-                "comment_index": 18,
-                "quote_cn": "他们所有的期末考试都取消了……'是的。一切都在向米尔豪斯发展。'"
-              },
-              {
-                "stance": "质疑",
-                "summary": "云集中风险：一锅端",
-                "quote": "This is the downside of consolidating in the cloud.",
-                "comment_index": 8,
-                "quote_cn": "这是整合到云端的缺点。"
-              }
+            "event_summary": "互联网档案馆在瑞士圣加仑成立新基金会，扩展全球知识保存使命。",
+            "keywords": [
+              "互联网档案馆",
+              "瑞士基金会",
+              "知识保存",
+              "数字遗产",
+              "AI模型归档"
             ],
-            "stance_distribution": {
-              "担忧": 0.4,
-              "调侃": 0.3,
-              "质疑": 0.3
-            },
             "display_index": 2,
             "story_count": 10,
-            "story_title": "Canvas online again as ShinyHunters threatens to leak schools’ data",
-            "title_cn": "Canvas 恢复在线，ShinyHunters 威胁泄露学校数据",
-            "score": 899,
-            "comment_count": 609
+            "image_index": 0,
+            "story_title": "Internet Archive Switzerland",
+            "title_cn": "互联网档案馆 Switzerland",
+            "score": 574,
+            "comment_count": 87,
+            "controversy_score": 2.2,
+            "image_src": "images/48074265_upload_20260510_134841.png",
+            "image_type": "article"
           }
         },
         {
-          "element_type": "story_scan_card",
-          "start_time": 64.17,
-          "end_time": 92.386,
+          "element_type": "atmosphere_card",
+          "start_time": 104.341,
+          "end_time": 115.545,
           "props": {
-            "story_index": 3,
-            "event_summary": "博文因新内核漏洞建议暂停安装软件一周，引发社区争议。",
-            "viewpoints": [
-              {
-                "stance": "质疑",
-                "summary": "等待一周没用",
-                "quote": "Wait a week to install software does not work.",
-                "comment_index": 2,
-                "quote_cn": "等一周安装软件是行不通的。"
-              },
-              {
-                "stance": "支持",
-                "summary": "供应链攻击迟早爆发",
-                "quote": "This was always a nightmare waiting to happen.",
-                "comment_index": 0,
-                "quote_cn": "这始终是一场即将发生的噩梦。"
-              },
-              {
-                "stance": "担忧",
-                "summary": "漏洞发现只会加速",
-                "quote": "there is no coming back on the pace of breach discoveries.",
-                "comment_index": 50,
-                "quote_cn": "漏洞发现的步伐已经无法回头。"
-              }
-            ],
-            "stance_distribution": {
-              "质疑": 0.5,
-              "支持": 0.3,
-              "担忧": 0.2
-            },
-            "display_index": 3,
-            "story_count": 10,
-            "story_title": "Maybe you shouldn't install new software for a bit",
-            "title_cn": "或许你暂时不该安装新软件",
-            "score": 821,
-            "comment_count": 437
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 92.386,
-          "end_time": 124.5,
-          "props": {
-            "story_index": 4,
-            "event_summary": "AI生成垃圾内容正在毁灭在线社区",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "禁止AI内容保社区活力",
-                "quote": "Stackoverflow still has activity because the community choose to ban AI content",
-                "comment_index": 1,
-                "quote_cn": "Stackoverflow 仍然活跃，因为社区选择禁止AI内容"
-              },
-              {
-                "stance": "担忧",
-                "summary": "朋友变AI生成者令人疏远",
-                "quote": "people i used to consider my friends now make AI generated posts which makes me not want to interact",
-                "comment_index": 5,
-                "quote_cn": "我以前认为是朋友的人现在发AI生成的帖子，让我不想互动"
-              },
-              {
-                "stance": "调侃",
-                "summary": "呼吁无用，AI已占领朋友圈",
-                "quote": "what if your friend got possessed by some AI slot machine?",
-                "comment_index": 7,
-                "quote_cn": "如果你的朋友被某种AI老虎机附身了呢？"
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.4,
-              "担忧": 0.4,
-              "调侃": 0.2
-            },
-            "display_index": 4,
-            "story_count": 10,
-            "story_title": "AI slop is killing online communities",
-            "title_cn": "AI 垃圾正在扼杀在线社区",
-            "score": 806,
-            "comment_count": 699
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 124.5,
-          "end_time": 148.455,
-          "props": {
-            "story_index": 5,
-            "event_summary": "新发现 Dirty Frag 漏洞可让所有主流 Linux 发行版本地提权到 root，暂无补丁",
-            "viewpoints": [
-              {
-                "stance": "质疑",
-                "summary": "AI 辅助挖洞可能错过附近 bug",
-                "quote": "When your workflow consists of asking questions and getting answers immediately, you don't get to see what's nearby.",
-                "comment_index": 0,
-                "quote_cn": "当你的工作流程是提问并立即得到答案时，你就看不到附近有什么了。"
-              },
-              {
-                "stance": "调侃",
-                "summary": "漏洞便携性拉满",
-                "quote": "Two distro independent LPEs in such a short time, if only all Linux software could be this portable.",
-                "comment_index": 32,
-                "quote_cn": "在这么短的时间内出现了两个发行版无关的LPE（本地权限提升），要是所有Linux软件都这么可移植就好了。"
-              },
-              {
-                "stance": "担忧",
-                "summary": "内核更新变成日常",
-                "quote": "After all these years, we finally have enough eyeballs that all bugs are shallow, and it kinda sucks. How many times a week am I going to be updating my kernel from now on?",
-                "comment_index": 5,
-                "quote_cn": "这么多年过去，我们终于有了足够多的关注者，所有bug都变浅了，但这有点糟糕。从现在开始我每周要更新多少次内核？"
-              }
-            ],
-            "stance_distribution": {
-              "质疑": 0.3,
-              "调侃": 0.2,
-              "担忧": 0.5
-            },
-            "display_index": 5,
-            "story_count": 10,
-            "story_title": "Dirty Frag: Universal Linux LPE",
-            "title_cn": "Dirty Frag：通用 Linux LPE",
-            "score": 802,
-            "comment_count": 313
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 148.455,
-          "end_time": 173.648,
-          "props": {
-            "story_index": 6,
-            "event_summary": "Google 新 Fraud Defense 被指是 WEI 重装，设备认证控制网络访问",
-            "viewpoints": [
-              {
-                "stance": "担忧",
-                "summary": "Google 背离不作恶原则",
-                "quote": "From 'Don't be evil' to building the largest, most invasive, surveillance operation the world has ever seen.",
-                "comment_index": 1,
-                "quote_cn": "从'不作恶'到建立世界上最大、最具侵入性的监控行动。"
-              },
-              {
-                "stance": "支持",
-                "summary": "认为方案是必要的",
-                "quote": "I appreciate that Google's made a real proposal to avoid the web becoming bottomless AI slop.",
-                "comment_index": 8,
-                "quote_cn": "我很欣赏谷歌提出了一个真正的提案，以避免网络成为无底的AI垃圾。"
-              },
-              {
-                "stance": "调侃",
-                "summary": "文章疑为 AI 生成",
-                "quote": "I think this is the third HN link I've clicked on in a row that leads to an LLM-generated article.",
-                "comment_index": 2,
-                "quote_cn": "我觉得这是我连续点击的第三个指向LLM生成文章的HN链接。"
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.3,
-              "担忧": 0.4,
-              "调侃": 0.3
-            },
-            "display_index": 6,
-            "story_count": 10,
-            "story_title": "Google Cloud Fraud Defence is just WEI repackaged",
-            "title_cn": "Google Cloud Fraud Defence 不过是换个包装的 WEI",
-            "score": 654,
-            "comment_count": 333
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 173.648,
-          "end_time": 206.932,
-          "props": {
-            "story_index": 7,
-            "event_summary": "文章主张用确定性控制流替代复杂提示链，当出现'MANDATORY'时已触及天花板",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "确定性架构更可靠",
-                "quote": "We ended up creating a super basic deterministic harness around the model. This has made the system a billion times more reliable.",
-                "comment_index": 0,
-                "quote_cn": "我们最终在模型周围创建了一个超级基础的决定性封装。这使得系统可靠性提升了十亿倍。"
-              },
-              {
-                "stance": "质疑",
-                "summary": "需要多代理分工而非纯控制流",
-                "quote": "You essentially need 3 base agents: Supervisor, Orchestrator, Workers",
-                "comment_index": 4,
-                "quote_cn": "你基本上需要三个基础代理：Supervisor（监督者）、Orchestrator（协调者）、Workers（工作者）"
-              },
-              {
-                "stance": "调侃",
-                "summary": "最终还得学新语法",
-                "quote": "It's going to be hilarious in a few years when people are still using LLMs but only via a controlled vocabulary and syntax that you have to learn.",
-                "comment_index": 13,
-                "quote_cn": "几年后，当人们仍然使用LLM，但只能通过你必须学习的受控词汇和语法来使用时，那将会很滑稽。"
-              }
-            ],
-            "stance_distribution": {
-              "支持": 0.5,
-              "质疑": 0.3,
-              "调侃": 0.2
-            },
-            "display_index": 7,
-            "story_count": 10,
-            "story_title": "Agents need control flow, not more prompts",
-            "title_cn": "代理需要控制流，而非更多提示",
-            "score": 573,
-            "comment_count": 285
-          }
-        },
-        {
-          "element_type": "story_scan_card",
-          "start_time": 206.932,
-          "end_time": 231.864,
-          "props": {
-            "story_index": 8,
-            "event_summary": "一个网站展示浏览器在访问时自动泄露的所有信息，强调指纹追踪风险",
-            "viewpoints": [
-              {
-                "stance": "支持",
-                "summary": "提醒人们关注隐私问题",
-                "quote": "Would be nice if more people were focus on fixing these issues instead of just a bunch of 'we already know'",
-                "comment_index": 21,
-                "quote_cn": "如果更多人专注于修复这些问题，而不是只说一堆'我们已经知道了'，那就太好了。"
-              },
-              {
-                "stance": "质疑",
-                "summary": "地理位置和电池数据显示错误",
-                "quote": "It got the city wrong but close to where I live. My battery is at NaN%",
-                "comment_index": 18,
-                "quote_cn": "它把城市搞错了，但离我住的地方很近。我的电池电量是NaN%。"
-              },
-              {
-                "stance": "调侃",
-                "summary": "网站语气像汉尼拔在讲话",
-                "quote": "my brain started reading it in a bit of a 'Hello Clarice' Hannibal Lecter style",
-                "comment_index": 29,
-                "quote_cn": "我的大脑开始以一点'你好，克拉丽丝'的汉尼拔·莱克特风格来阅读它。"
-              }
-            ],
+            "story_index": 2,
             "stance_distribution": {
               "支持": 0.3,
               "质疑": 0.4,
-              "调侃": 0.3
+              "中立": 0.2,
+              "调侃": 0.05,
+              "担忧": 0.05
             },
-            "display_index": 8,
-            "story_count": 10,
-            "story_title": "A web page that shows you everything the browser told it without asking",
-            "title_cn": "一个无需请求即可展示浏览器所知一切的网页",
-            "score": 537,
-            "comment_count": 275
+            "keyword_tags": [
+              {
+                "word": "archive",
+                "weight": 0.1478
+              },
+              {
+                "word": "to be",
+                "weight": 0.1413
+              },
+              {
+                "word": "eu",
+                "weight": 0.1413
+              },
+              {
+                "word": "internet",
+                "weight": 0.1024
+              },
+              {
+                "word": "ai",
+                "weight": 0.0942
+              },
+              {
+                "word": "years",
+                "weight": 0.0942
+              },
+              {
+                "word": "news",
+                "weight": 0.0942
+              },
+              {
+                "word": "use",
+                "weight": 0.0942
+              },
+              {
+                "word": "slack",
+                "weight": 0.0942
+              },
+              {
+                "word": "internet archive",
+                "weight": 0.0915
+              }
+            ]
           }
         },
         {
-          "element_type": "story_scan_card",
-          "start_time": 231.864,
-          "end_time": 256.784,
+          "element_type": "quote_card",
+          "start_time": 115.545,
+          "end_time": 129.807,
           "props": {
-            "story_index": 9,
-            "event_summary": "大卫·爱登堡爵士百岁诞辰，HN网友热议其传奇人生",
-            "viewpoints": [
+            "story_index": 2,
+            "quotes": [
               {
-                "stance": "支持",
-                "summary": "教育了几代人，无出其右",
-                "quote": "educated more people in natural history than anyone else ever...",
-                "comment_index": 9,
-                "quote_cn": "在自然史方面教育了比任何其他人更多的人……"
+                "author": "red_admiral",
+                "text": "Sankt Gallen's more physical archive is worth a visit too:  https://www.stiftsbezirk.ch/de/stiftsbibliothek/",
+                "text_cn": "圣加仑（St. Gallen）的实体档案馆也值得一游：<a href=\"https://www.stiftsbezirk.ch/de/stiftsbibliothek/\" rel=\"nofollow\">https://www.stiftsbezirk.ch/de/stiftsbibliothek/</a>",
+                "stance": "中立"
               },
               {
-                "stance": "质疑",
-                "summary": "光凭声音就让人崇拜？",
-                "quote": "I don't understand why people are so fascinated with a man simply because of his voice",
-                "comment_index": 15,
-                "quote_cn": "我不明白为什么人们仅仅因为一个人的声音就对他如此着迷。"
-              },
-              {
-                "stance": "担忧",
-                "summary": "警告一生，却无人听取",
-                "quote": "His constant warnings have gone mostly unheard",
-                "comment_index": 16,
-                "quote_cn": "他一贯的警告大多未被理会。"
+                "author": "consumer451",
+                "text": "Stop complaining about availability. Instead, create a solution. If tpb dot org can still exist ... At least these people tried. We need a p2p archive solution ASAP. Before our history is entirely re-written.",
+                "text_cn": "别再抱怨可访问性了，不如动手创造解决方案。如果海盗湾（tpb.org）还能存活……至少这些人尝试过。我们迫切需要一个点对点（P2P）存档方案，赶在历史被彻底改写之前。",
+                "stance": "中立"
               }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 129.807,
+          "end_time": 147.92,
+          "props": {
+            "story_index": 3,
+            "event_summary": "Bun 用 AI 辅助 6 天完成从 Zig 到 Rust 的重写，Linux x64 上测试兼容率达 99.8%。",
+            "keywords": [
+              "Bun",
+              "Rust重写",
+              "AI编程",
+              "Zig",
+              "测试兼容"
             ],
+            "display_index": 3,
+            "story_count": 10,
+            "image_index": 0,
+            "story_title": "Bun's experimental Rust rewrite hits 99.8% test compatibility on Linux x64 glibc",
+            "title_cn": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 的测试兼容性",
+            "score": 476,
+            "comment_count": 451,
+            "controversy_score": 5.9,
+            "image_src": "",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 147.92,
+          "end_time": 167.386,
+          "props": {
+            "story_index": 3,
             "stance_distribution": {
-              "支持": 0.5,
-              "质疑": 0.3,
+              "支持": 0.25,
+              "质疑": 0.35,
+              "中立": 0.25,
+              "调侃": 0.1,
+              "担忧": 0.05
+            },
+            "keyword_tags": [
+              {
+                "word": "zig",
+                "weight": 0.0913
+              },
+              {
+                "word": "rust",
+                "weight": 0.0839
+              },
+              {
+                "word": "bun",
+                "weight": 0.0816
+              },
+              {
+                "word": "code",
+                "weight": 0.0683
+              },
+              {
+                "word": "llm",
+                "weight": 0.0637
+              },
+              {
+                "word": "anthropic",
+                "weight": 0.0607
+              },
+              {
+                "word": "rewrite",
+                "weight": 0.0558
+              },
+              {
+                "word": "issues",
+                "weight": 0.0518
+              },
+              {
+                "word": "it not",
+                "weight": 0.0512
+              },
+              {
+                "word": "work",
+                "weight": 0.0507
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 167.386,
+          "end_time": 192.091,
+          "props": {
+            "story_index": 3,
+            "quotes": [
+              {
+                "author": "Tiberium",
+                "text": "I just want to comment that I think it's a good change if we look past the AI involvement. Bun has had an extremely high amount of crashes/memory bugs due to them using Zig, unlike Deno which is Rust. Of course, if Bun's Rust port has tons of `unsafe`, it won't magically solve them all, but it'll st",
+                "text_cn": "只想评论一下，如果抛开 AI 因素来看，我认为这是个好的改动。Bun 因为使用 Zig 而出现了大量崩溃和内存 bug，而 Deno 使用的是 Rust。当然，如果 Bun 的 Rust 移植版本中充斥大量 `unsafe`，并不能神奇地解决所有问题，但情况仍会有所改善。",
+                "stance": "支持"
+              },
+              {
+                "author": "chris_st",
+                "text": "And they're clearly marked as `unsafe`, so easy to find, which gives them a nice list of issues to address.",
+                "text_cn": "而且它们被明确标记为 `unsafe`，便于查找，这给出了一份需要处理的问题清单。",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 192.091,
+          "end_time": 208.807,
+          "props": {
+            "story_index": 4,
+            "event_summary": "欧盟议会研究服务处将VPN称为年龄验证体系中的漏洞，呼吁封堵",
+            "keywords": [
+              "VPN禁令",
+              "年龄验证",
+              "隐私保护",
+              "欧盟监管",
+              "数字监控"
+            ],
+            "display_index": 4,
+            "story_count": 10,
+            "story_title": "EU Parliamentary Research Service calls VPNs \"a loophole that needs closing\"",
+            "title_cn": "欧盟议会研究服务将 VPN 称为“需要封堵的漏洞”",
+            "score": 453,
+            "comment_count": 303,
+            "controversy_score": 5.1,
+            "image_src": "images/48072190_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 208.807,
+          "end_time": 225.693,
+          "props": {
+            "story_index": 4,
+            "stance_distribution": {
+              "支持": 0.1,
+              "质疑": 0.5,
+              "中立": 0.15,
+              "调侃": 0.05,
               "担忧": 0.2
             },
+            "keyword_tags": [
+              {
+                "word": "porn",
+                "weight": 0.1084
+              },
+              {
+                "word": "eu",
+                "weight": 0.0992
+              },
+              {
+                "word": "children",
+                "weight": 0.0852
+              },
+              {
+                "word": "kids",
+                "weight": 0.0754
+              },
+              {
+                "word": "people",
+                "weight": 0.0739
+              },
+              {
+                "word": "governments",
+                "weight": 0.0686
+              },
+              {
+                "word": "companies",
+                "weight": 0.0609
+              },
+              {
+                "word": "government",
+                "weight": 0.0593
+              },
+              {
+                "word": "age verification",
+                "weight": 0.0588
+              },
+              {
+                "word": "id",
+                "weight": 0.0524
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 225.693,
+          "end_time": 248.0,
+          "props": {
+            "story_index": 4,
+            "quotes": [
+              {
+                "author": "donmcronald",
+                "text": "I think all the identity verification schemes should start with the beneficial owners of companies.  Governments have been lobbied to allow complete anonymity for the wealthy that own businesses doing questionable things while regular people are going to have to show id to buy food.",
+                "text_cn": "我认为所有身份验证方案都应从公司的实际受益所有人开始。政客们一直在游说允许富人完全匿名——这些富人经营着可疑的企业，而普通人买个食物却必须出示身份证。",
+                "stance": "支持"
+              },
+              {
+                "author": "shark1",
+                "text": "It's very easy to fall in this trap of \"surveillance for the greater good\". It reminds me the Mullvad pub campaign:  https://mullvad.net/en/and-then/uk",
+                "text_cn": "很容易陷入“为更大的利益而监控”的陷阱。这让我想到 Mullvad 的广告活动：<a href=\"https://mullvad.net/en/and-then/uk\" rel=\"nofollow\">https://mullvad.net/en/and-then/uk</a>",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 248.0,
+          "end_time": 263.466,
+          "props": {
+            "story_index": 5,
+            "event_summary": "开发者发现Claude Code搭配HTML协作比Markdown更高效，单文件零依赖即可分享",
+            "keywords": [
+              "Claude Code",
+              "HTML协作",
+              "Markdown对比",
+              "AI工作流",
+              "工具锁定"
+            ],
+            "display_index": 5,
+            "story_count": 10,
+            "image_index": 0,
+            "story_title": "Using Claude Code: The unreasonable effectiveness of HTML",
+            "title_cn": "使用 Claude Code：HTML 的非凡有效性",
+            "score": 435,
+            "comment_count": 248,
+            "controversy_score": 4.7,
+            "image_src": "",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 263.466,
+          "end_time": 277.205,
+          "props": {
+            "story_index": 5,
+            "stance_distribution": {
+              "支持": 0.35,
+              "质疑": 0.3,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "担忧": 0.05
+            },
+            "keyword_tags": [
+              {
+                "word": "html",
+                "weight": 0.1498
+              },
+              {
+                "word": "markdown",
+                "weight": 0.1468
+              },
+              {
+                "word": "md",
+                "weight": 0.0702
+              },
+              {
+                "word": "use",
+                "weight": 0.0685
+              },
+              {
+                "word": "never",
+                "weight": 0.0605
+              },
+              {
+                "word": "llm",
+                "weight": 0.0514
+              },
+              {
+                "word": "llms",
+                "weight": 0.0506
+              },
+              {
+                "word": "always",
+                "weight": 0.0506
+              },
+              {
+                "word": "tool",
+                "weight": 0.0503
+              },
+              {
+                "word": "simple",
+                "weight": 0.0473
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 277.205,
+          "end_time": 298.005,
+          "props": {
+            "story_index": 5,
+            "quotes": [
+              {
+                "author": "momojo",
+                "text": "When exploring a new idea or tool, my go to prompt is ```\nIn a single index.html, no dependencies, sparse styling, create an app that <idea>\n``` Even before AI, it's how I built small tools, and there's something lovely about being able to email my friends the tool, and tell them \"If you want to mak",
+                "text_cn": "探索新想法或工具时，我常用的提示是：\n```\nIn a single index.html, no dependencies, sparse styling, create an app that <idea>\n```\n即使在 AI 出现之前，我也是这样构建小工具的，能够把工具通过邮件发给朋友并告诉他们“如果想修改，扔给你的 LLM！”是一件很美好的事。",
+                "stance": "支持"
+              },
+              {
+                "author": "rattray",
+                "text": "It's possible that use of `contenteditable` and ability to save the file could help but that has a lot of limitations/gotchas, so I'm inclined to agree.",
+                "text_cn": "或许使用 `contenteditable` 并允许保存文件会有帮助，但这存在很多限制和陷阱，所以我倾向于同意这一观点。",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 298.005,
+          "end_time": 313.562,
+          "props": {
+            "story_index": 6,
+            "event_summary": "AI加速瓦解安全社区的漏洞披露文化，协调披露与完全公开两种方式均面临冲击",
+            "keywords": [
+              "AI安全",
+              "漏洞披露",
+              "开源安全",
+              "协调披露",
+              "安全文化"
+            ],
+            "display_index": 6,
+            "story_count": 10,
+            "image_index": 2,
+            "story_title": "AI is breaking two vulnerability cultures",
+            "title_cn": "AI 正在打破两种漏洞文化",
+            "score": 415,
+            "comment_count": 166,
+            "controversy_score": 4.0,
+            "image_src": "images/48066524_bing_2.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 313.562,
+          "end_time": 329.823,
+          "props": {
+            "story_index": 6,
+            "stance_distribution": {
+              "支持": 0.3,
+              "质疑": 0.4,
+              "中立": 0.15,
+              "调侃": 0.05,
+              "担忧": 0.1
+            },
+            "keyword_tags": [
+              {
+                "word": "code",
+                "weight": 0.0988
+              },
+              {
+                "word": "linux",
+                "weight": 0.0857
+              },
+              {
+                "word": "ai",
+                "weight": 0.0847
+              },
+              {
+                "word": "vulnerabilities",
+                "weight": 0.0802
+              },
+              {
+                "word": "something",
+                "weight": 0.0766
+              },
+              {
+                "word": "vulnerability",
+                "weight": 0.0723
+              },
+              {
+                "word": "patch",
+                "weight": 0.07
+              },
+              {
+                "word": "why",
+                "weight": 0.0656
+              },
+              {
+                "word": "lot",
+                "weight": 0.0656
+              },
+              {
+                "word": "kernel",
+                "weight": 0.0653
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 329.823,
+          "end_time": 350.437,
+          "props": {
+            "story_index": 6,
+            "quotes": [
+              {
+                "author": "rikafurude21",
+                "text": "This feels more like an old problem getting reframed as an AI problem. people were already diffing kernel commits and figuring out which ones were security fixes long before llms. if a patch lands publicly, the race has basically already started. also not sure shorter embargoes really help. the orgs",
+                "text_cn": "这更像是老问题被重新包装成 AI 问题。人们早在大语言模型出现之前就在比对内核提交、识别安全修复补丁了。一旦补丁公开，竞赛基本上已经开始了。而且我不确定缩短保密期真的有帮助——那些能在数小时内完成修补的组织本来就已经没问题了，其他人仍然需要数天甚至数周。如果有什么变化的话，更廉价的漏洞生成可能让协调披露变得更加重要，而不是相反。",
+                "stance": "支持"
+              },
+              {
+                "author": "noashavit",
+                "text": "Perimeter defense is outdated. AI changes the attack surface from network edges to the data pipeline itself. We need to securing the prompt, the model, and the data.",
+                "text_cn": "边界防御已经过时。AI 将攻击面从网络边缘转移到了数据管道本身。我们需要保护提示词、模型和数据的安全。",
+                "stance": "中立"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 350.437,
+          "end_time": 362.619,
+          "props": {
+            "story_index": 7,
+            "event_summary": "Cartoon Network 经典 Flash 游戏被网络设计博物馆收录上线，涵盖飞天小女警等系列。",
+            "keywords": [
+              "Flash 游戏",
+              "Cartoon Network",
+              "童年怀旧",
+              "网页游戏存档"
+            ],
+            "display_index": 7,
+            "story_count": 10,
+            "story_title": "Cartoon Network Flash Games",
+            "title_cn": "Cartoon Network Flash 游戏",
+            "score": 405,
+            "comment_count": 127,
+            "controversy_score": 3.5,
+            "image_src": "images/48065360_bing_2.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 362.619,
+          "end_time": 375.016,
+          "props": {
+            "story_index": 7,
+            "stance_distribution": {
+              "支持": 0.35,
+              "质疑": 0.3,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "担忧": 0.05
+            },
+            "keyword_tags": [
+              {
+                "word": "games",
+                "weight": 0.1312
+              },
+              {
+                "word": "game",
+                "weight": 0.1172
+              },
+              {
+                "word": "flash",
+                "weight": 0.0873
+              },
+              {
+                "word": "remember",
+                "weight": 0.0854
+              },
+              {
+                "word": "back",
+                "weight": 0.0719
+              },
+              {
+                "word": "to be",
+                "weight": 0.0641
+              },
+              {
+                "word": "nostalgia",
+                "weight": 0.0631
+              },
+              {
+                "word": "to see",
+                "weight": 0.0588
+              },
+              {
+                "word": "summer resort",
+                "weight": 0.0555
+              },
+              {
+                "word": "resort",
+                "weight": 0.0555
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 375.016,
+          "end_time": 393.971,
+          "props": {
+            "story_index": 7,
+            "quotes": [
+              {
+                "author": "Throwthrowbob",
+                "text": "Neat, but Ruffle failed to load the first game I tried, with reasoning that there is possibly no file to load. And then I was blocked by Cloudflare, even though there were no Cloudflare scripts to enable (checking in an alternate browser). edit: It looks like uBlock origin sees the cloudflare script",
+                "text_cn": "有意思，但我尝试的第一个游戏 Ruffle 加载失败，提示可能没有可加载的文件。然后我被 Cloudflare 拦截了，即使我没有启用任何 Cloudflare 脚本（在另一个浏览器中检查过）。编辑：看起来 uBlock Origin 能检测到 Cloudflare 脚本，但 NoScript 最初并未显示（也没有列出 3 个脚本）。我稍后再试。",
+                "stance": "质疑"
+              },
+              {
+                "author": "darkmarmot",
+                "text": "Doh, I did some work on some CN games back in the day -- but don't see any of those here. Hopefully they keeping adding to it!",
+                "text_cn": "唉，我以前做过一些 CN 游戏的工作——但这里没看到。希望他们继续添加！",
+                "stance": "支持"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 393.971,
+          "end_time": 407.994,
+          "props": {
+            "story_index": 8,
+            "event_summary": "LLM委托处理会悄悄篡改文档内容，错误随传递累积",
+            "keywords": [
+              "AI文档处理",
+              "语义消融",
+              "委托污染"
+            ],
+            "display_index": 8,
+            "story_count": 10,
+            "image_index": 3,
+            "story_title": "LLMs corrupt your documents when you delegate",
+            "title_cn": "LLM 在你委托处理时会损坏你的文档",
+            "score": 380,
+            "comment_count": 146,
+            "controversy_score": 3.9,
+            "image_src": "images/48073246_bing_2.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 407.994,
+          "end_time": 419.8,
+          "props": {
+            "story_index": 8,
+            "stance_distribution": {
+              "支持": 0.35,
+              "质疑": 0.3,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "担忧": 0.05
+            },
+            "keyword_tags": [
+              {
+                "word": "llm",
+                "weight": 0.1171
+              },
+              {
+                "word": "code",
+                "weight": 0.0808
+              },
+              {
+                "word": "sense",
+                "weight": 0.0804
+              },
+              {
+                "word": "harness",
+                "weight": 0.0619
+              },
+              {
+                "word": "prompt",
+                "weight": 0.0615
+              },
+              {
+                "word": "pass",
+                "weight": 0.0595
+              },
+              {
+                "word": "llms",
+                "weight": 0.0572
+              },
+              {
+                "word": "every",
+                "weight": 0.0556
+              },
+              {
+                "word": "human",
+                "weight": 0.0546
+              },
+              {
+                "word": "things",
+                "weight": 0.054
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 419.8,
+          "end_time": 439.335,
+          "props": {
+            "story_index": 8,
+            "quotes": [
+              {
+                "author": "causal",
+                "text": "Yeah I've been saying this for a while: AI-washing any text will degrade it, compounding with each pass. \"Semantic ablation\" is my favorite term for it:  https://www.theregister.com/software/2026/02/16/semantic-abl...",
+                "text_cn": "这话我早就说过：用 AI 清洗任何文本都会使其退化，且每轮处理都会累积恶化。我最喜欢的描述这个词是“语义消融”：<a href=\"https://www.theregister.com/software/2026/02/16/semantic-ablation-why-ai-writing-is-boring-and-dangerous/4414930\" rel=\"nofollow\">https://www.theregister.com/software/2026/02/16/semantic-ablation-why-ai-writing-is-boring-and-dangerous/4414930</a>",
+                "stance": "支持"
+              },
+              {
+                "author": "enrique_mendez",
+                "text": "I'm making tools for fighting this kind of degradation:  https://github.com/JigSpec/JigSpec",
+                "text_cn": "我正在开发对抗此类退化的工具：<a href=\"https://github.com/JigSpec/JigSpec\" rel=\"nofollow\">https://github.com/JigSpec/JigSpec</a>",
+                "stance": "质疑"
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 439.335,
+          "end_time": 455.198,
+          "props": {
+            "story_index": 9,
+            "event_summary": "Meta宣布5月8日起关闭Instagram私信端到端加密功能",
+            "keywords": [
+              "Instagram私信加密",
+              "Meta隐私政策",
+              "端到端加密"
+            ],
             "display_index": 9,
             "story_count": 10,
-            "story_title": "David Attenborough's 100th Birthday",
-            "title_cn": "大卫·爱登堡 100 岁生日",
-            "score": 489,
-            "comment_count": 97
+            "story_title": "Meta Shuts Down End-to-End Encryption for Instagram Messaging",
+            "title_cn": "Meta 关闭 Instagram 消息的端到端加密",
+            "score": 319,
+            "comment_count": 216,
+            "controversy_score": 5.1,
+            "image_src": "images/48069192_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 455.198,
+          "end_time": 472.823,
+          "props": {
+            "story_index": 9,
+            "stance_distribution": {
+              "支持": 0.1,
+              "质疑": 0.4,
+              "中立": 0.15,
+              "调侃": 0.15,
+              "担忧": 0.2
+            },
+            "keyword_tags": [
+              {
+                "word": "people",
+                "weight": 0.0862
+              },
+              {
+                "word": "apple",
+                "weight": 0.0813
+              },
+              {
+                "word": "end",
+                "weight": 0.0695
+              },
+              {
+                "word": "siri",
+                "weight": 0.0612
+              },
+              {
+                "word": "meta",
+                "weight": 0.0554
+              },
+              {
+                "word": "users",
+                "weight": 0.0516
+              },
+              {
+                "word": "something",
+                "weight": 0.0516
+              },
+              {
+                "word": "e2e",
+                "weight": 0.0513
+              },
+              {
+                "word": "e2ee",
+                "weight": 0.0501
+              },
+              {
+                "word": "key",
+                "weight": 0.0476
+              }
+            ]
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 472.823,
+          "end_time": 491.568,
+          "props": {
+            "story_index": 9,
+            "quotes": [
+              {
+                "author": "lrvick",
+                "text": "Centralized proprietary software on on proprietary platforms can always be opted into a special update that makes all the private keys deterministic making end to end encryption useless for anyone with knowledge of that targeted backdoor. Only FOSS can deliver verifiable E2EE, and all centralized an",
+                "text_cn": "中心化专有软件运行在专有平台上，总可以通过一次特殊更新让所有私钥变得确定性，从而使端到端加密对任何知晓该后门的人都失效。只有自由开源软件（FOSS）才能提供可验证的端到端加密（E2EE），所有中心化、专有的解决方案——如 Zoom、WhatsApp、Instagram 等——都应该停止安全表演。我赞赏 Meta 至少对其一款产品保持了诚实。",
+                "stance": "支持"
+              },
+              {
+                "author": "mandeepj",
+                "text": "> 'Very few people were opting in to end-to-end encrypted messaging in DMs,' Meta says. Then why didn't you make the opt-in default like Signal and WhatsApp? :-)",
+                "text_cn": "“Very few people were opting in to end-to-end encrypted messaging in DMs,” Meta says.<p>那你们为什么不把 opt-in 设为默认，像 Signal 和 WhatsApp 那样呢？:-)",
+                "stance": "支持"
+              }
+            ]
           }
         }
       ],
@@ -829,27 +1524,27 @@
     },
     {
       "segment_type": "closing",
-      "audio_text": "好，今天的速览就到这里，周末继续愉快，多喝热水。",
+      "audio_text": "好，今天的速览就到这里，新的一周加油，多喝热水。",
       "cues": [
         {
-          "text": "好，今天的速览就到这里，周末继续愉快，多喝热水。",
+          "text": "好，今天的速览就到这里，新的一周加油，多喝热水。",
           "start_time": 0.0,
-          "end_time": 4.968
+          "end_time": 4.896
         }
       ],
-      "duration": 4.968,
-      "start_time": 280.96000000000004,
-      "end_time": 285.92800000000005,
+      "duration": 4.896,
+      "start_time": 515.752,
+      "end_time": 520.6479999999999,
       "scene_elements": [
         {
           "element_type": "closing_card",
           "start_time": 0.0,
-          "end_time": 4.968,
+          "end_time": 4.896,
           "props": {}
         }
       ],
       "audio_path": "audio/segment_03.mp3"
     }
   ],
-  "audioDir": "D:\\code\\HNTechPulse\\data\\2026-05-09\\audio"
+  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-05-10\\audio"
 }

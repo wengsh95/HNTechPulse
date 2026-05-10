@@ -161,14 +161,14 @@ class RemotionRenderer(Renderer):
 
         return props_file, props_json
 
-    def preview(self, script: Script, audio_dir: str, content=None) -> None:
+    def preview(self, script: Script, audio_dir: str, content=None, date: str = "") -> None:
         self.logger.info("Starting Remotion Studio for preview...")
         self.logger.info("Press Ctrl+C to stop the preview server.")
 
         if not self._node_path:
             raise RuntimeError("Node.js not found!")
 
-        _, props_json = self._prepare_render_data(script, audio_dir, content, date="")
+        _, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
         self._ensure_dependencies_installed()
 
         props_file = self._write_props_file(props_json)
@@ -368,6 +368,10 @@ class RemotionRenderer(Renderer):
 
         self.logger.info(f"Prepared {len(copied_files)} audio files in public/")
 
+    @staticmethod
+    def _is_remote_url(path: str) -> bool:
+        return path.startswith(("http://", "https://"))
+
     def _prepare_image_assets(self, content, date: str):
         """Copy enriched images to Remotion public/images/ for serving."""
         if content is None:
@@ -376,35 +380,36 @@ class RemotionRenderer(Renderer):
         image_subdir = public_dir / "images"
         image_subdir.mkdir(parents=True, exist_ok=True)
 
+        def _resolve_local(path: str) -> Path | None:
+            """Resolve a path to an existing local file, skipping remote URLs."""
+            if self._is_remote_url(path):
+                return None
+            src = Path(path)
+            if not src.is_absolute():
+                src = Path(f"data/{date}") / path
+            return src if src.exists() else None
+
+        def _copy(src: Path) -> bool:
+            dest = image_subdir / src.name
+            if not dest.exists():
+                shutil.copy2(src, dest)
+                return True
+            return False
+
         copied = 0
         for item in content.items:
             for img_path in item.article_images:
-                src = Path(img_path)
-                if not src.is_absolute():
-                    src = Path(f"data/{date}") / img_path
-                if src.exists():
-                    dest = image_subdir / src.name
-                    if not dest.exists():
-                        shutil.copy2(src, dest)
-                        copied += 1
+                src = _resolve_local(img_path)
+                if src and _copy(src):
+                    copied += 1
             if item.logo_image:
-                src = Path(item.logo_image)
-                if not src.is_absolute():
-                    src = Path(f"data/{date}") / src
-                if src.exists():
-                    dest = image_subdir / src.name
-                    if not dest.exists():
-                        shutil.copy2(src, dest)
-                        copied += 1
+                src = _resolve_local(item.logo_image)
+                if src and _copy(src):
+                    copied += 1
             if item.screenshot_image:
-                src = Path(item.screenshot_image)
-                if not src.is_absolute():
-                    src = Path(f"data/{date}") / src
-                if src.exists():
-                    dest = image_subdir / src.name
-                    if not dest.exists():
-                        shutil.copy2(src, dest)
-                        copied += 1
+                src = _resolve_local(item.screenshot_image)
+                if src and _copy(src):
+                    copied += 1
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
 
