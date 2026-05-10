@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
-import { ElementProps } from "./utils";
+import { ElementProps, stripHtml, truncate } from "./utils";
 import { STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
@@ -12,6 +12,17 @@ interface Quote {
   stance: string;
 }
 
+function cleanQuote(text: string): string {
+  return stripHtml(text)
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -19,7 +30,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const quotes = (elementProps.quotes as Quote[]) ?? [];
 
   const cardW = width - LAYOUT.pageInset * 2;
-  const topY = Math.round(height * 0.14);
+  const topY = Math.round(height * 0.11);
 
   const cardProgress = spring({
     frame,
@@ -39,8 +50,9 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "34px 44px 36px",
+        padding: "38px 46px 40px",
         boxShadow: glassCardShadow,
+        boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
@@ -51,7 +63,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
           fontSize: 11,
           fontWeight: 600,
           color: COLORS.textTertiary,
-          marginBottom: 20,
+          marginBottom: 18,
           textTransform: "uppercase",
           letterSpacing: 0.8,
         }}
@@ -59,7 +71,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
         Key Voices
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {quotes.map((quote, i) => {
           const quoteProgress = spring({
             frame,
@@ -69,6 +81,13 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
           });
 
           const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
+          const primaryText = quote.text_cn?.trim()
+            ? quote.text_cn.trim()
+            : truncate(cleanQuote(quote.text), i === 0 ? 150 : 96);
+          const originalText = quote.text_cn?.trim()
+            ? truncate(cleanQuote(quote.text), 120)
+            : "";
+          const isFeatured = i === 0;
 
           return (
             <div
@@ -76,10 +95,10 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
               style={{
                 opacity: quoteProgress,
                 transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
-                backgroundColor: "rgba(255,255,255,0.04)",
-                borderRadius: 16,
-                padding: "18px 22px 20px",
-                borderLeft: `4px solid ${stanceColor}`,
+                backgroundColor: isFeatured ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.035)",
+                borderRadius: 18,
+                padding: isFeatured ? "22px 26px 24px" : "15px 20px 16px",
+                borderLeft: `5px solid ${stanceColor}`,
               }}
             >
               <div
@@ -87,7 +106,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  marginBottom: 10,
+                  marginBottom: isFeatured ? 14 : 8,
                   flexWrap: "wrap",
                 }}
               >
@@ -120,30 +139,30 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
               <div
                 style={{
                   fontFamily: FONTS.sans,
-                  fontSize: 21,
+                  fontSize: isFeatured ? 27 : 18,
                   color: COLORS.text,
-                  lineHeight: 1.5,
-                  fontWeight: 500,
+                  lineHeight: isFeatured ? 1.38 : 1.42,
+                  fontWeight: isFeatured ? 700 : 500,
                   letterSpacing: 0.1,
-                  marginBottom: quote.text_cn ? 8 : 0,
-                  maxWidth: LAYOUT.contentMaxWidth,
+                  marginBottom: originalText ? 10 : 0,
+                  maxWidth: "100%",
                 }}
               >
-                "{quote.text_cn || quote.text}"
+                "{primaryText}"
               </div>
 
-              {quote.text_cn && (
+              {originalText && (
                 <div
                   style={{
                     fontFamily: FONTS.sans,
                     fontSize: 13,
                     color: COLORS.textSecondary,
-                    lineHeight: 1.5,
+                    lineHeight: 1.45,
                     fontStyle: "italic",
-                    maxWidth: LAYOUT.contentMaxWidth,
+                    maxWidth: "100%",
                   }}
                 >
-                  "{quote.text}"
+                  Original: "{originalText}"
                 </div>
               )}
             </div>

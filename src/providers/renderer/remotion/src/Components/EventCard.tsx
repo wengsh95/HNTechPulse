@@ -42,7 +42,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
   const cardW = width - LAYOUT.pageInset * 2;
-  const topY = Math.round(height * 0.11);
+  const topY = Math.round(height * 0.13);
 
   const cardProgress = spring({
     frame,
@@ -57,9 +57,10 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
     delay: 8,
   });
 
-  const mediaW = isLogo ? 260 : 320;
+  const mediaW = hasImage ? (isLogo ? 340 : Math.round(cardW * 0.47)) : 0;
+  const mediaH = isLogo ? 280 : 336;
   const textColW = hasImage
-    ? cardW - mediaW - 32 - 88
+    ? cardW - mediaW - 28 - 72
     : Math.min(cardW - 96, LAYOUT.contentMaxWidth);
 
   return (
@@ -70,21 +71,71 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: hasImage ? "30px 36px 32px" : "36px 44px 38px",
+        padding: hasImage ? "28px 36px 30px" : "36px 44px 38px",
         boxShadow: glassCardShadow,
+        boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
         display: "flex",
-        gap: 32,
-        alignItems: "flex-start",
+        gap: 28,
+        alignItems: "stretch",
+        overflow: "hidden",
       }}
     >
+      <div
+        style={{
+          ...S,
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: 5,
+          background: `linear-gradient(90deg, ${controversyColor}, ${controversyColor}22)`,
+        }}
+      />
+      <div
+        style={{
+          ...S,
+          right: 36,
+          top: 18,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          backgroundColor: "rgba(7, 7, 18, 0.62)",
+          border: `1px solid ${controversyColor}55`,
+          borderRadius: 14,
+          padding: "8px 14px",
+          opacity: badgeProgress,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: 10,
+            fontWeight: 700,
+            color: controversyColor,
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+          }}
+        >
+          {controversyLabel}
+        </span>
+        <span
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: 20,
+            fontWeight: 800,
+            color: controversyColor,
+          }}
+        >
+          {scoreNum.toFixed(1)}
+        </span>
+      </div>
       <div style={{ flex: hasImage ? `0 0 ${textColW}px` : 1, maxWidth: textColW, minWidth: 0 }}>
         <div
           style={{
             fontFamily: FONTS.bold,
             fontWeight: 700,
-            fontSize: 36,
+            fontSize: hasImage ? 32 : 36,
             color: COLORS.text,
             lineHeight: 1.16,
             letterSpacing: -0.7,
@@ -116,7 +167,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               fontFamily: FONTS.sans,
               fontSize: 22,
               color: COLORS.textSecondary,
-              lineHeight: 1.6,
+              lineHeight: 1.5,
               fontWeight: 400,
               marginBottom: 20,
               maxWidth: LAYOUT.contentMaxWidth,
@@ -169,7 +220,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
 
         <div
           style={{
-            display: "inline-flex",
+            display: hasImage ? "none" : "inline-flex",
             alignItems: "center",
             gap: 8,
             flexWrap: "wrap",
@@ -219,7 +270,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         <div
           style={{
             flex: `0 0 ${mediaW}px`,
-            height: isLogo ? 240 : 320,
+            height: mediaH,
             borderRadius: 18,
             overflow: "hidden",
             display: "flex",
@@ -249,8 +300,8 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 src={staticFile(imageSrc)}
                 alt=""
                 style={{
-                  maxWidth: "70%",
-                  maxHeight: "70%",
+                  maxWidth: "78%",
+                  maxHeight: "78%",
                   objectFit: "contain",
                 }}
               />
@@ -262,7 +313,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: "cover",
+                objectFit: "contain",
               }}
             />
           )}

@@ -5,6 +5,35 @@ import { ElementProps } from "./utils";
 import { StancePie } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
+function getMoodSummary(distribution: Record<string, number>, keywords: Array<{ word: string; weight: number }>) {
+  const entries = Object.entries(distribution)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (entries.length === 0) {
+    return {
+      title: "社区反应仍在形成",
+      detail: keywords.length > 0
+        ? `讨论集中在 ${keywords.slice(0, 3).map((tag) => tag.word).join(" / ")}。`
+        : "评论区还没有形成清晰的观点分布。",
+      dominant: "",
+      percent: 0,
+    };
+  }
+
+  const [dominant, value] = entries[0];
+  const topKeywords = keywords.slice(0, 3).map((tag) => tag.word).join(" / ");
+
+  return {
+    title: `${dominant} 是当前主调`,
+    detail: topKeywords
+      ? `争论主要围绕 ${topKeywords} 展开。`
+      : "评论区观点已经出现明显倾向。",
+    dominant,
+    percent: Math.round(value * 100),
+  };
+}
+
 export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -16,7 +45,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   const hasTags = keywordTags.length > 0;
 
   const cardW = width - LAYOUT.pageInset * 2;
-  const topY = Math.round(height * 0.18);
+  const topY = Math.round(height * 0.13);
 
   const cardProgress = spring({
     frame,
@@ -25,6 +54,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   });
 
   const maxWeight = hasTags ? Math.max(...keywordTags.map((t) => t.weight)) : 1;
+  const mood = getMoodSummary(stanceDistribution, keywordTags);
 
   return (
     <div
@@ -34,31 +64,76 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "34px 44px 36px",
+        padding: "38px 46px 40px",
         boxShadow: glassCardShadow,
+        boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: 11,
-          fontWeight: 600,
-          color: COLORS.textTertiary,
-          marginBottom: 20,
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
-        }}
-      >
-        Discussion Mood
-      </div>
+      <div style={{ display: "flex", gap: 46, alignItems: "center" }}>
+        <div style={{ flex: "0 0 350px", minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 11,
+              fontWeight: 700,
+              color: COLORS.textTertiary,
+              marginBottom: 16,
+              textTransform: "uppercase",
+              letterSpacing: 0.9,
+            }}
+          >
+            Discussion Mood
+          </div>
+          <div
+            style={{
+              fontFamily: FONTS.bold,
+              fontSize: 36,
+              lineHeight: 1.16,
+              fontWeight: 800,
+              color: COLORS.text,
+              marginBottom: 14,
+            }}
+          >
+            {mood.title}
+          </div>
+          <div
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 19,
+              lineHeight: 1.48,
+              color: COLORS.textSecondary,
+              marginBottom: mood.percent > 0 ? 18 : 0,
+            }}
+          >
+            {mood.detail}
+          </div>
+          {mood.percent > 0 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "baseline",
+                gap: 8,
+                padding: "8px 14px",
+                borderRadius: 14,
+                backgroundColor: "rgba(255,255,255,0.06)",
+              }}
+            >
+              <span style={{ fontFamily: FONTS.mono, fontSize: 26, fontWeight: 800, color: COLORS.text }}>
+                {mood.percent}%
+              </span>
+              <span style={{ fontFamily: FONTS.sans, fontSize: 12, color: COLORS.textSecondary }}>
+                {mood.dominant}
+              </span>
+            </div>
+          )}
+        </div>
 
-      <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
-        {hasPie && <StancePie distribution={stanceDistribution} size={172} />}
+        {hasPie && <StancePie distribution={stanceDistribution} size={198} />}
 
         {hasTags && (
-          <div style={{ flex: 1, minWidth: 0, maxWidth: LAYOUT.contentMaxWidth }}>
+          <div style={{ flex: 1, minWidth: 0, maxWidth: 430 }}>
             <div
               style={{
                 fontFamily: FONTS.sans,
