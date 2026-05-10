@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
-import { ElementProps, limitList, p, truncate } from "./utils";
+import { ElementProps, p } from "./utils";
 import { COLORS, FONTS, S } from "./design";
 
 export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
@@ -20,8 +20,8 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
   });
 
   const subtitle = p(elementProps, "subtitle", "");
-  const headline = truncate(p(elementProps, "headline", ""), 18);
-  const topics = limitList((elementProps.topics as string[]) ?? [], 3, 24);
+  const headline = p(elementProps, "headline", "");
+  const topics = (elementProps.topics as string[]) ?? [];
 
   return (
     <div

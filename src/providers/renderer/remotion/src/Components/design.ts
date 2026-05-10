@@ -64,4 +64,14 @@ export const LAYOUT = {
   subtitleMaxWidth: 1040,
 };
 
+export const sectionLabel: React.CSSProperties = {
+  fontFamily: FONTS.sans,
+  fontSize: 20,
+  fontWeight: 700,
+  color: COLORS.textTertiary,
+  marginBottom: 16,
+  textTransform: "uppercase",
+  letterSpacing: 0.9,
+};
+
 export const S: React.CSSProperties = { position: "absolute" as const };

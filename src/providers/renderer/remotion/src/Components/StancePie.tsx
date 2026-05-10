@@ -11,10 +11,11 @@ export const STANCE_COLORS: Record<string, string> = {
   "担忧": "#7d7aff",
 };
 
-export const StancePie: React.FC<{ distribution: Record<string, number>; size: number }> = ({
-  distribution,
-  size,
-}) => {
+export const StancePie: React.FC<{
+  distribution: Record<string, number>;
+  size: number;
+  centerLabel?: string;
+}> = ({ distribution, size, centerLabel }) => {
   const frame = useCurrentFrame();
   const cx = size / 2;
   const cy = size / 2;
@@ -59,17 +60,38 @@ export const StancePie: React.FC<{ distribution: Record<string, number>; size: n
         opacity: pieProgress,
       }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {arcs.map((arc, i) => (
-          <path
-            key={i}
-            d={arc.path}
-            fill={arc.color}
-            stroke="rgba(0,0,0,0.3)"
-            strokeWidth={2}
-          />
-        ))}
-      </svg>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          {arcs.map((arc, i) => (
+            <path
+              key={i}
+              d={arc.path}
+              fill={arc.color}
+              stroke="rgba(0,0,0,0.3)"
+              strokeWidth={2}
+            />
+          ))}
+        </svg>
+        {centerLabel && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              fontFamily: FONTS.mono,
+              fontSize: 18,
+              fontWeight: 700,
+              color: COLORS.text,
+              textAlign: "center",
+              lineHeight: 1.25,
+              pointerEvents: "none",
+            }}
+          >
+            {centerLabel}
+          </div>
+        )}
+      </div>
       <div
         style={{
           display: "flex",

@@ -32,9 +32,12 @@ export const UI_TEXT = {
   keyVoices: "代表观点",
   original: "原文",
   discussionMood: "讨论气氛",
+  eventDetail: "事件详情",
   keywords: "关键词",
+  debateFocus: "争议焦点",
   controversy: "争议指数",
   scoreSuffix: "/ 10",
+  whyItMatters: "为何关注",
 };
 
 const STANCE_LABELS: Record<string, string> = {

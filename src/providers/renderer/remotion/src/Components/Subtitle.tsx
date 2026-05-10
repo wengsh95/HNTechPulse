@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 
 import { CueData } from "../types";
-import { ElementProps, p, truncate, stripHtml } from "./utils";
+import { ElementProps, p, stripHtml } from "./utils";
 import { COLORS, FONTS, LAYOUT, S } from "./design";
 
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }) => {
@@ -10,7 +10,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
   const { fps } = useVideoConfig();
   const cues = (elementProps.cues as CueData[]) ?? [];
   const mode = p<"standard" | "minimal" | "hidden">(elementProps, "mode", "standard");
-  const fallbackText = truncate(stripHtml(p(elementProps, "text", "")), mode === "minimal" ? 56 : 84);
+  const fallbackText = stripHtml(p(elementProps, "text", ""));
 
   const currentTime = frame / fps;
 
@@ -33,19 +33,19 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
       }
     }
     if (activeCue) {
-      displayText = truncate(activeCue.text, mode === "minimal" ? 56 : 84);
+      displayText = activeCue.text;
     } else if (currentTime >= cues[cues.length - 1].end_time) {
       const fadeOutDuration = 0.5;
       const timeSinceEnd = currentTime - cues[cues.length - 1].end_time;
       if (timeSinceEnd < fadeOutDuration) {
-        displayText = truncate(cues[cues.length - 1].text, mode === "minimal" ? 56 : 84);
+        displayText = cues[cues.length - 1].text;
         opacity = 1 - timeSinceEnd / fadeOutDuration;
       } else {
         displayText = "";
         opacity = 0;
       }
     } else if (currentTime < cues[0].start_time) {
-      displayText = truncate(cues[0].text, mode === "minimal" ? 56 : 84);
+      displayText = cues[0].text;
     }
   }
 
@@ -74,7 +74,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
     }}>
       <span style={{
         fontFamily: FONTS.sans,
-        fontSize: isMinimal ? 17 : 19,
+        fontSize: 19,
         color: COLORS.text,
         textAlign: "center",
         lineHeight: 1.36,

@@ -17,7 +17,6 @@ class ContentComment:
     upvotes: Optional[int] = None
     sentiment: Optional[float] = None
     quality_score: Optional[float] = None
-    keywords: Optional[List[str]] = None
 
 
 @dataclass
@@ -46,7 +45,6 @@ class ContentItem:
     enrichment_source: Optional[str] = None
     # Populated only when enrichment_source == "error". Short human-readable reason.
     enrichment_error: Optional[str] = None
-    comment_word_freq: Optional[Dict[str, float]] = None
 
 
 @dataclass

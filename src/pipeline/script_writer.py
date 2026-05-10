@@ -190,13 +190,9 @@ class ScriptWriter:
                     "comment_count": item.comment_count,
                 })
 
-        dashboard_duration = 11.0
+        dashboard_duration = 8.0
         focus_count = min(3, len(entries))
-        guide_line = "、".join(
-            (entry.get("editor_angle") or entry.get("title_translation") or entry.get("original_title") or "")
-            for entry in entries[:focus_count]
-        )
-        audio_text = f"今天先重点看这 {focus_count} 条：{guide_line}。" if guide_line else "今天先看最值得关注的几条技术信号。"
+        audio_text = "来看今天的热度排行。"
 
         return ScriptSegment(
             segment_type="dashboard",
@@ -561,11 +557,11 @@ class ScriptWriter:
                             lines.append(f"**社区观点**  {dist_str}")
                             lines.append("")
 
-                # Keywords from event_card
-                if event_elem and event_elem.props:
-                    keywords = event_elem.props.get("keywords", [])
-                    if keywords:
-                        lines.append(f"**关键词**  {' · '.join(keywords)}")
+                # Debate focus from atmosphere_card
+                if atmosphere_elem and atmosphere_elem.props:
+                    debate_focus = atmosphere_elem.props.get("debate_focus", [])
+                    if debate_focus:
+                        lines.append(f"**争议焦点**  {' · '.join(debate_focus)}")
                         lines.append("")
 
                 # Quotes from quote_card
@@ -676,9 +672,7 @@ class ScriptWriter:
             if elem.element_type == "event_card":
                 if not (elem.props.get("editor_angle") or story_scan.meta.get("editor_angle")):
                     return False
-                if not (elem.props.get("why_it_matters") or story_scan.meta.get("why_it_matters")):
-                    return False
-                if not (elem.props.get("next_watch") or story_scan.meta.get("next_watch")):
+                if not (elem.props.get("event_summary") or story_scan.meta.get("event_summary")):
                     return False
 
         # Scene elements must know their sub-segment index

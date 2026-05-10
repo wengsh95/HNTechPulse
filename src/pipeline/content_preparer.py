@@ -41,7 +41,6 @@ class ContentPreparer:
                             "upvotes": c.upvotes,
                             "sentiment": c.sentiment,
                             "quality_score": c.quality_score,
-                            "keywords": c.keywords,
                         }
                         for c in item.comments
                     ],
@@ -53,7 +52,6 @@ class ContentPreparer:
                     "screenshot_image": item.screenshot_image,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
-                    "comment_word_freq": item.comment_word_freq,
                 }
                 for item in content.items
             ],
@@ -91,7 +89,6 @@ class ContentPreparer:
                         upvotes=c.get("upvotes"),
                         sentiment=c.get("sentiment"),
                         quality_score=c.get("quality_score"),
-                        keywords=c.get("keywords"),
                     )
                     for c in item_dict.get("comments", [])
                 ]
@@ -113,7 +110,6 @@ class ContentPreparer:
                     screenshot_image=item_dict.get("screenshot_image"),
                     enrichment_source=item_dict.get("enrichment_source"),
                     enrichment_error=item_dict.get("enrichment_error"),
-                    comment_word_freq=item_dict.get("comment_word_freq"),
                 ))
 
             return ContentPackage(

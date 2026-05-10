@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
-import { ElementProps, limitList, truncate, UI_TEXT } from "./utils";
+import { ElementProps, UI_TEXT } from "./utils";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
 export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, height, duration }) => {
@@ -134,13 +134,10 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
               easing: Easing.bezier(0.16, 1, 0.3, 1),
             });
             const rank = entry.rank || i + 1;
-            const angle = truncate(
-              entry.editor_angle || entry.title_translation || entry.title_cn || entry.original_title || entry.title || "",
-              34,
-            );
-            const why = truncate(entry.why_it_matters || entry.next_watch || entry.original_title || "", 44);
-            const keywords = limitList(entry.keywords ?? [], 3, 10);
-            const category = truncate(entry.category || "", 12);
+            const angle = entry.editor_angle || entry.title_translation || entry.title_cn || entry.original_title || entry.title || "";
+            const why = entry.why_it_matters || entry.next_watch || entry.original_title || "";
+            const keywords = entry.keywords ?? [];
+            const category = entry.category || "";
             const medal = rank <= 3 ? medalSets[rank - 1] : null;
 
             return (
@@ -338,8 +335,8 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
       <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 8, opacity: pageFadeProgress }}>
         <div>
           {pageEntries.map((entry, i) => {
-            const title = truncate(entry.original_title || entry.title || "", 96);
-            const titleCn = truncate(entry.title_translation || entry.title_cn || "", 48);
+            const title = entry.original_title || entry.title || "";
+            const titleCn = entry.title_translation || entry.title_cn || "";
             const rank = entry.rank || (currentPage * perPage + i + 1);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;

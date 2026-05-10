@@ -224,7 +224,7 @@ class OpenAILLMProvider(LLMProvider):
             None,
         )
         props = event_elem.props if event_elem else {}
-        required = ("editor_angle", "why_it_matters", "next_watch")
+        required = ("editor_angle", "why_it_matters")
         return all(props.get(key) or segment.meta.get(key) for key in required)
 
     def _save_segment_cache(self, date: str, segment_type: str, story_index: int, segment: ScriptSegment) -> None:
@@ -307,12 +307,22 @@ class OpenAILLMProvider(LLMProvider):
             )
             for e in seg_dict.get("scene_elements", [])
         ]
+        # Inject top-level fields into event_card props as fallback
+        for elem in scene_elements:
+            if elem.element_type == "event_card":
+                if "keywords" in seg_dict and "keywords" not in elem.props:
+                    elem.props["keywords"] = seg_dict["keywords"]
+                break
         meta = seg_dict.get("meta", {})
         # Pass through structured narration and keywords from LLM output
         if "card_narrations" in seg_dict:
             meta["card_narrations"] = seg_dict["card_narrations"]
         if "keywords" in seg_dict:
             meta["keywords"] = seg_dict["keywords"]
+        if "debate_focus" in seg_dict:
+            meta["debate_focus"] = seg_dict["debate_focus"]
+        if "community_sentiment" in seg_dict:
+            meta["community_sentiment"] = seg_dict["community_sentiment"]
         for key in ("editor_angle", "why_it_matters", "next_watch", "category"):
             if key in seg_dict:
                 meta[key] = seg_dict[key]
@@ -476,7 +486,6 @@ class OpenAILLMProvider(LLMProvider):
                     "text": c.content,
                     "sentiment": c.sentiment,
                     "quality_score": c.quality_score,
-                    "keywords": c.keywords,
                 }
                 for c in sorted_comments
             ]
@@ -498,8 +507,6 @@ class OpenAILLMProvider(LLMProvider):
             "truncated_to": len(comments_json),
             "comments": comments_json,
         }
-        if item.comment_word_freq:
-            story_dict["comment_word_freq"] = item.comment_word_freq
         if item.article_summary:
             story_dict["article_summary"] = item.article_summary
         if item.article_text:

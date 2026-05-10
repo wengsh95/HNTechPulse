@@ -235,13 +235,6 @@ class TestExpandEventCard:
         content = _make_content_package()
         result = _expand_event_card({"story_index": 0}, content)
         assert result["story_title"] == "Story 0"
-        assert result["score"] == 100
-
-    def test_includes_controversy_score(self):
-        content = _make_content_package()
-        result = _expand_event_card({"story_index": 0}, content)
-        assert "controversy_score" in result
-        assert isinstance(result["controversy_score"], (int, float))
 
     def test_image_injection(self):
         content = _make_content_package()
@@ -279,10 +272,19 @@ class TestExpandAtmosphereCard:
         result = _expand_atmosphere_card({"story_index": 0}, content)
         assert result["stance_distribution"] == {}
 
-    def test_keyword_tags_empty_when_no_word_freq(self):
+    def test_debate_focus_default_when_not_set(self):
         content = _make_content_package()
         result = _expand_atmosphere_card({"story_index": 0}, content)
-        assert result["keyword_tags"] == []
+        assert result["debate_focus"] == []
+        assert result["community_sentiment"] == ""
+
+    def test_includes_controversy_score(self):
+        content = _make_content_package()
+        result = _expand_atmosphere_card({"story_index": 0}, content)
+        assert "controversy_score" in result
+        assert isinstance(result["controversy_score"], (int, float))
+        assert result["score"] == 100
+        assert result["comment_count"] == 2
 
 
 # ── _expand_quote_card ─────────────────────────────────────────────────

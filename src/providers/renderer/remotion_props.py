@@ -145,8 +145,7 @@ def _expand_perspective_compare(props, content):
 
 
 def _expand_event_card(props, content):
-    """Expand event_card element: inject story metadata, controversy score, image, and keywords."""
-    import math
+    """Expand event_card element: inject story metadata, image, and keywords."""
 
     item = _safe_get_item(content, props.get("story_index"))
     if item is None:
@@ -154,26 +153,11 @@ def _expand_event_card(props, content):
     result = dict(props)
     result["story_title"] = item.title
     result["title_cn"] = item.title_cn or ""
-    result["score"] = item.score or 0
-    result["comment_count"] = item.comment_count or 0
     result["editor_angle"] = result.get("editor_angle") or item.title_cn or item.title
     result["event_summary"] = result.get("event_summary") or item.article_summary or item.summary or item.title_cn or item.title
     result["why_it_matters"] = result.get("why_it_matters") or ""
     result["next_watch"] = result.get("next_watch") or ""
-    result["category"] = result.get("category") or ""
 
-    score = item.score or 0
-    descendants = item.comment_count or 0
-    if score > 0 and descendants >= 0:
-        ratio = descendants / score
-        capped = min(ratio, 5.0)
-        if capped <= 0:
-            controversy = 0.0
-        else:
-            controversy = min(10.0, math.log10(capped * 9 + 1) / math.log10(46) * 10)
-        result["controversy_score"] = round(controversy, 1)
-    else:
-        result["controversy_score"] = 0.0
 
     # Image: support manual image_index; fall back to first local image
     image_index = props.get("image_index", 0)
@@ -200,23 +184,39 @@ def _expand_event_card(props, content):
 
 
 def _expand_atmosphere_card(props, content):
-    """Expand atmosphere_card: inject stance_distribution and keyword_tags from comment_word_freq."""
+    """Expand atmosphere_card: inject controversy score, ensure stance/distribution fields exist."""
+    import math
+
     item = _safe_get_item(content, props.get("story_index"))
     if item is None:
         return props
     result = dict(props)
 
-    # keyword_tags from comment_word_freq (Phase 2 data)
-    word_freq = item.comment_word_freq or {}
-    if word_freq:
-        sorted_tags = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10]
-        result["keyword_tags"] = [{"word": w, "weight": f} for w, f in sorted_tags]
-    else:
-        result["keyword_tags"] = []
+    # debate_focus and community_sentiment are set by LLM in props, ensure defaults
+    if "debate_focus" not in result:
+        result["debate_focus"] = []
+    if "community_sentiment" not in result:
+        result["community_sentiment"] = ""
 
     # stance_distribution already set by LLM in props, just ensure it exists
     if "stance_distribution" not in result:
         result["stance_distribution"] = {}
+
+    # Controversy score from heat/comment ratio
+    score = item.score or 0
+    descendants = item.comment_count or 0
+    result["score"] = score
+    result["comment_count"] = descendants
+    if score > 0 and descendants >= 0:
+        ratio = descendants / score
+        capped = min(ratio, 5.0)
+        if capped <= 0:
+            controversy = 0.0
+        else:
+            controversy = min(10.0, math.log10(capped * 9 + 1) / math.log10(46) * 10)
+        result["controversy_score"] = round(controversy, 1)
+    else:
+        result["controversy_score"] = 0.0
 
     return result
 

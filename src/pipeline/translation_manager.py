@@ -18,12 +18,49 @@ class TranslationManager:
         self.config = config
         self.logger = setup_logger(__name__, debug=debug, level=level)
 
+    @staticmethod
+    def _classify_stance(comment) -> str:
+        """Classify comment stance from VADER sentiment, matching _expand_quote_card."""
+        sentiment = comment.sentiment or 0.0
+        if sentiment > 0.3:
+            return "支持"
+        if sentiment < -0.3:
+            return "质疑"
+        return "中立"
+
+    @staticmethod
+    def _pick_stance_diverse(comments: list, max_n: int = 3) -> list:
+        """Pick one top-quality comment per stance, then fill with remaining top comments."""
+        scored = [c for c in comments if (c.quality_score or 0) > 0]
+        scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
+
+        selected = []
+        seen_stances = set()
+        for c in scored:
+            stance = TranslationManager._classify_stance(c)
+            if stance in seen_stances:
+                continue
+            selected.append(c)
+            seen_stances.add(stance)
+            if len(selected) >= max_n:
+                break
+
+        # Fill up to at least 2 if stance diversity didn't yield enough
+        if len(selected) < 2:
+            for c in scored:
+                if c not in selected:
+                    selected.append(c)
+                if len(selected) >= 2:
+                    break
+
+        return selected
+
     def translate(self, content, script, date: str):
         """Translate titles + referenced comments. Checkpointed.
 
-        Translates titles and top-2 quality-scored comments per story (the same
-        comments _expand_quote_card injects at render time). Updates content
-        (title_cn, comment.content_cn) in place.
+        Translates titles and one top-quality comment per stance per story
+        (the same comments _expand_quote_card injects at render time).
+        Updates content (title_cn, comment.content_cn) in place.
         """
         translations_path = Path(f"data/{date}/translations.json")
         translations = {}
@@ -45,7 +82,7 @@ class TranslationManager:
                 if item.title_cn:
                     translations[f"title_{idx}"] = item.title_cn
 
-        # 2. Collect and translate top-2 quality-scored comments (if not cached)
+        # 2. Collect and translate stance-diverse comments (if not cached)
         comment_refs = self.collect_comment_refs(content)
         has_comment = any(k.startswith("comment_") for k in translations)
 
@@ -73,23 +110,22 @@ class TranslationManager:
         return html.unescape(text).strip()
 
     def collect_comment_refs(self, content) -> dict:
-        """Collect top-2 quality-scored comment texts per story for translation.
+        """Collect one top-quality comment per stance per story for translation.
 
         These are the same comments _expand_quote_card injects at render time,
         so translating them ensures QuoteCard displays Chinese text.
         """
         refs = {}
         for story_idx, item in enumerate(content.items):
-            scored = [c for c in item.comments if (c.quality_score or 0) > 0]
-            scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
-            for i, c in enumerate(scored[:2]):
+            selected = self._pick_stance_diverse(item.comments)
+            for i, c in enumerate(selected):
                 if c.content:
                     key = f"comment_{story_idx}_{i}"
                     refs[key] = self._clean_html(c.content)
         return refs
 
     def _apply_comment_translations(self, content, translations: dict) -> None:
-        """Set content_cn on the top-2 quality-scored comments from translations."""
+        """Set content_cn on stance-diverse selected comments from translations."""
         for key, value in translations.items():
             if not key.startswith("comment_"):
                 continue
@@ -104,11 +140,9 @@ class TranslationManager:
             if story_idx >= len(content.items):
                 continue
             item = content.items[story_idx]
-            scored = [c for c in item.comments if (c.quality_score or 0) > 0]
-            scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
-            top2 = scored[:2]
-            if comment_idx < len(top2):
-                top2[comment_idx].content_cn = value
+            selected = self._pick_stance_diverse(item.comments)
+            if comment_idx < len(selected):
+                selected[comment_idx].content_cn = value
 
     @staticmethod
     def apply_translations_to_script(script, content, translations: dict) -> None:

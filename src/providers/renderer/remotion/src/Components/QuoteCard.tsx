@@ -1,9 +1,9 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
-import { ElementProps, stanceLabel, stripHtml, truncate, UI_TEXT } from "./utils";
+import { ElementProps, stanceLabel, stripHtml, UI_TEXT } from "./utils";
 import { STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
+import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 
 interface Quote {
   author: string;
@@ -28,8 +28,6 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const { fps } = useVideoConfig();
 
   const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
-  const nextWatch = truncate(elementProps.next_watch as string || "", 44);
-
   const cardW = width - LAYOUT.pageInset * 2;
   const topY = Math.round(height * 0.11);
 
@@ -51,28 +49,16 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "38px 46px 40px",
+        padding: "28px 36px 32px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: 11,
-          fontWeight: 600,
-          color: COLORS.textTertiary,
-          marginBottom: 18,
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
-        }}
-      >
-        {UI_TEXT.keyVoices}
-      </div>
+      <div style={sectionLabel}>{UI_TEXT.keyVoices}</div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {quotes.map((quote, i) => {
           const quoteProgress = spring({
             frame,
@@ -83,11 +69,9 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
 
           const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
           const primaryText = quote.text_cn?.trim()
-            ? truncate(quote.text_cn.trim(), i === 0 ? 104 : 76)
-            : truncate(cleanQuote(quote.text), i === 0 ? 104 : 76);
-          const originalText = quote.text_cn?.trim()
-            ? truncate(cleanQuote(quote.text), 120)
-            : "";
+            ? cleanQuote(quote.text_cn.trim())
+            : cleanQuote(quote.text);
+          const originalText = quote.text_cn?.trim() ? cleanQuote(quote.text) : "";
           const isFeatured = i === 0;
           const label = stanceLabel(quote.stance);
 
@@ -99,7 +83,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
                 backgroundColor: isFeatured ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.035)",
                 borderRadius: 18,
-                padding: isFeatured ? "22px 26px 24px" : "15px 20px 16px",
+                padding: isFeatured ? "16px 20px 18px" : "12px 16px 14px",
                 borderLeft: `5px solid ${stanceColor}`,
               }}
             >
@@ -141,13 +125,15 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
               <div
                 style={{
                   fontFamily: FONTS.sans,
-                  fontSize: isFeatured ? 27 : 18,
+                  fontSize: 15,
                   color: COLORS.text,
-                  lineHeight: isFeatured ? 1.38 : 1.42,
-                  fontWeight: isFeatured ? 700 : 500,
+                  lineHeight: 1.42,
+                  fontWeight: 600,
                   letterSpacing: 0.1,
                   marginBottom: originalText ? 10 : 0,
                   maxWidth: "100%",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
                 }}
               >
                 "{primaryText}"
@@ -157,11 +143,13 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 <div
                   style={{
                     fontFamily: FONTS.sans,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: COLORS.textSecondary,
                     lineHeight: 1.45,
                     fontStyle: "italic",
                     maxWidth: "100%",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
                   }}
                 >
                   {UI_TEXT.original}："{originalText}"
@@ -170,24 +158,6 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
             </div>
           );
         })}
-        {nextWatch && (
-          <div
-            style={{
-              marginTop: 4,
-              padding: "14px 18px",
-              borderRadius: 16,
-              backgroundColor: "rgba(0,122,255,0.08)",
-              border: "1px solid rgba(51,149,255,0.16)",
-              fontFamily: FONTS.sans,
-              fontSize: 14,
-              lineHeight: 1.45,
-              color: COLORS.textSecondary,
-            }}
-          >
-            <span style={{ color: COLORS.accentLight, fontWeight: 700 }}>接下来观察：</span>
-            {nextWatch}
-          </div>
-        )}
       </div>
     </div>
   );
