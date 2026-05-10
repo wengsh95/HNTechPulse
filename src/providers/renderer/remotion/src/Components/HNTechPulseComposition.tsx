@@ -98,6 +98,12 @@ const SegmentRenderer: React.FC<{
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
   const segmentDuration = segment.duration;
+  const hasTitleLikeCard = segment.scene_elements.some((elem) =>
+    elem.element_type === "title_card" || elem.element_type === "closing_card"
+  );
+  const subtitleMode = hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
+    ? "minimal"
+    : "standard";
 
   return (
     <Sequence
@@ -121,7 +127,7 @@ const SegmentRenderer: React.FC<{
 
       {/* 字幕（始终显示在底部，按 cues 逐句切换） */}
       <Subtitle
-        elementProps={{ text: segment.audio_text, cues: segment.cues }}
+        elementProps={{ text: segment.audio_text, cues: segment.cues, mode: subtitleMode }}
         duration={segmentDuration}
         width={width}
         height={height}

@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring, staticFile } from "remotion";
 
-import { ElementProps, p } from "./utils";
+import { ElementProps, limitList, p, truncate, UI_TEXT } from "./utils";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
 const CONTROVERSY_COLORS = {
@@ -17,19 +17,25 @@ function getControversyColor(score: number): string {
 }
 
 function getControversyLabel(score: number): string {
-  if (score <= 3) return "Consensus";
-  if (score <= 7) return "Debated";
-  return "High Tension";
+  if (score <= 3) return "共识较强";
+  if (score <= 7) return "存在分歧";
+  return "高度争议";
 }
 
 export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const storyTitle = p(elementProps, "story_title", "");
-  const titleCn = p(elementProps, "title_cn", "");
-  const eventSummary = p(elementProps, "event_summary", "");
+  const storyTitle = truncate(p(elementProps, "story_title", ""), 104);
+  const titleCn = truncate(p(elementProps, "title_cn", ""), 42);
+  const editorAngle = truncate(p(elementProps, "editor_angle", ""), 42);
+  const eventSummary = truncate(p(elementProps, "event_summary", ""), 64);
+  const whyItMatters = truncate(p(elementProps, "why_it_matters", ""), 54);
+  const nextWatch = truncate(p(elementProps, "next_watch", ""), 42);
+  const category = truncate(p(elementProps, "category", ""), 12);
   const controversyScore = p(elementProps, "controversy_score", 0);
+  const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
+  const heatScore = Number(p(elementProps, "score", 0)) || 0;
   const scoreNum =
     typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
   const controversyColor = getControversyColor(scoreNum);
@@ -37,7 +43,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
 
   const imageSrc = p(elementProps, "image_src", "");
   const imageType = p<string>(elementProps, "image_type", "");
-  const keywords = (elementProps.keywords as string[]) ?? [];
+  const keywords = limitList((elementProps.keywords as string[]) ?? [], 3, 16);
+  const mainTitle = editorAngle || titleCn || storyTitle;
+  const showOriginalTitle = Boolean(storyTitle && mainTitle !== storyTitle);
 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
@@ -92,44 +100,6 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           background: `linear-gradient(90deg, ${controversyColor}, ${controversyColor}22)`,
         }}
       />
-      <div
-        style={{
-          ...S,
-          right: 36,
-          top: 18,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          backgroundColor: "rgba(7, 7, 18, 0.62)",
-          border: `1px solid ${controversyColor}55`,
-          borderRadius: 14,
-          padding: "8px 14px",
-          opacity: badgeProgress,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: 10,
-            fontWeight: 700,
-            color: controversyColor,
-            letterSpacing: 0.6,
-            textTransform: "uppercase",
-          }}
-        >
-          {controversyLabel}
-        </span>
-        <span
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 20,
-            fontWeight: 800,
-            color: controversyColor,
-          }}
-        >
-          {scoreNum.toFixed(1)}
-        </span>
-      </div>
       <div style={{ flex: hasImage ? `0 0 ${textColW}px` : 1, maxWidth: textColW, minWidth: 0 }}>
         <div
           style={{
@@ -138,14 +108,18 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             fontSize: hasImage ? 32 : 36,
             color: COLORS.text,
             lineHeight: 1.16,
-            letterSpacing: -0.7,
+            letterSpacing: 0,
             marginBottom: 12,
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical" as const,
           }}
         >
-          {titleCn || storyTitle}
+          {mainTitle}
         </div>
 
-        {titleCn && storyTitle && (
+        {showOriginalTitle && (
           <div
             style={{
               fontFamily: FONTS.sans,
@@ -155,6 +129,10 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               marginBottom: 14,
               lineHeight: 1.4,
               maxWidth: LAYOUT.contentMaxWidth,
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical" as const,
             }}
           >
             {storyTitle}
@@ -171,9 +149,102 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               fontWeight: 400,
               marginBottom: 20,
               maxWidth: LAYOUT.contentMaxWidth,
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical" as const,
             }}
           >
             {eventSummary}
+          </div>
+        )}
+
+        {(whyItMatters || nextWatch) && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: whyItMatters && nextWatch ? "1fr 1fr" : "1fr",
+              gap: 10,
+              marginBottom: 18,
+              maxWidth: LAYOUT.contentMaxWidth,
+            }}
+          >
+            {whyItMatters && (
+              <div
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.045)",
+                  border: "1px solid rgba(255,255,255,0.055)",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: 10,
+                    fontWeight: 750,
+                    color: COLORS.textTertiary,
+                    marginBottom: 5,
+                  }}
+                >
+                  为什么重要
+                </div>
+                <div
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: 14,
+                    lineHeight: 1.35,
+                    fontWeight: 560,
+                    color: COLORS.textSecondary,
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical" as const,
+                  }}
+                >
+                  {whyItMatters}
+                </div>
+              </div>
+            )}
+            {nextWatch && (
+              <div
+                style={{
+                  backgroundColor: "rgba(0,122,255,0.08)",
+                  border: "1px solid rgba(51,149,255,0.16)",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: 10,
+                    fontWeight: 750,
+                    color: COLORS.accentLight,
+                    marginBottom: 5,
+                  }}
+                >
+                  接下来观察
+                </div>
+                <div
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: 14,
+                    lineHeight: 1.35,
+                    fontWeight: 560,
+                    color: COLORS.textSecondary,
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical" as const,
+                  }}
+                >
+                  {nextWatch}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -206,7 +277,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     backgroundColor: COLORS.accentBg,
                     borderRadius: 999,
                     padding: "5px 12px",
-                    letterSpacing: 0.3,
+                    letterSpacing: 0,
                     opacity: tagProgress,
                     transform: `scale(${interpolate(tagProgress, [0, 1], [0.8, 1])})`,
                   }}
@@ -215,12 +286,28 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 </span>
               );
             })}
+            {category && (
+              <span
+                style={{
+                  fontFamily: FONTS.sans,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: COLORS.text,
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  borderRadius: 999,
+                  padding: "5px 12px",
+                  letterSpacing: 0,
+                }}
+              >
+                {category}
+              </span>
+            )}
           </div>
         )}
 
         <div
           style={{
-            display: hasImage ? "none" : "inline-flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
             flexWrap: "wrap",
@@ -238,11 +325,10 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               fontSize: 12,
               fontWeight: 600,
               color: controversyColor,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
+              letterSpacing: 0,
             }}
           >
-            {controversyLabel}
+            {UI_TEXT.controversy}
           </span>
           <span
             style={{
@@ -261,7 +347,30 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               color: COLORS.textSecondary,
             }}
           >
-            / 10
+            {UI_TEXT.scoreSuffix}
+          </span>
+          {(commentCount > 0 || heatScore > 0) && (
+            <span
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: 12,
+                color: COLORS.textSecondary,
+                marginLeft: 4,
+              }}
+            >
+              {commentCount > 0
+                ? `${UI_TEXT.comments} ${commentCount}`
+                : `${UI_TEXT.heat} ${heatScore}`}
+            </span>
+          )}
+          <span
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 12,
+              color: COLORS.textSecondary,
+            }}
+          >
+            {controversyLabel}
           </span>
         </div>
       </div>

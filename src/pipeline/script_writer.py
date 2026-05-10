@@ -26,8 +26,31 @@ class ScriptWriter:
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
-    def _generate_fixed_opening(self, date: str) -> ScriptSegment:
-        """生成每日快讯开场"""
+    @staticmethod
+    def _story_angle_from_segment(segment: ScriptSegment) -> dict:
+        """Extract the product-facing angle fields from an LLM story segment."""
+        event_elem = next(
+            (elem for elem in segment.scene_elements if elem.element_type == "event_card"),
+            None,
+        )
+        props = event_elem.props if event_elem else {}
+        return {
+            "editor_angle": props.get("editor_angle") or segment.meta.get("editor_angle") or "",
+            "event_summary": props.get("event_summary") or "",
+            "why_it_matters": props.get("why_it_matters") or segment.meta.get("why_it_matters") or "",
+            "next_watch": props.get("next_watch") or segment.meta.get("next_watch") or "",
+            "category": props.get("category") or segment.meta.get("category") or "",
+            "keywords": props.get("keywords") or segment.meta.get("keywords") or [],
+        }
+
+    def _generate_fixed_opening(
+        self,
+        date: str,
+        selection: Optional[SelectionResult] = None,
+        content: Optional[ContentPackage] = None,
+        story_scan_segs: Optional[list[ScriptSegment]] = None,
+    ) -> ScriptSegment:
+        """Generate an opening that leads with today's concrete topics."""
         from datetime import datetime
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
@@ -38,13 +61,31 @@ class ScriptWriter:
             date_display = date
             weekday_str = None
 
+        angles = []
+        for seg in (story_scan_segs or [])[:3]:
+            angle = self._story_angle_from_segment(seg)
+            headline = angle.get("editor_angle") or angle.get("event_summary")
+            if headline:
+                angles.append(str(headline))
+
+        if not angles and selection and content:
+            for bi in selection.brief_items[:3]:
+                story_idx = bi.get("story_index")
+                if story_idx is not None and story_idx < len(content.items):
+                    item = content.items[story_idx]
+                    angles.append(item.title_cn or item.title)
+
+        topic_text = "、".join(angles[:3])
+        weekday_text = f"，{weekday_str}" if weekday_str else ""
         if weekday_str in ("周六", "周日"):
-            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}。周末还在刷科技新闻，你一定是真爱。来看看今天的Hacker News热门。"
+            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。今天 HN 值得看这几件事：{topic_text}。"
         elif weekday_str == "周五":
-            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}啦！来看看今天的Hacker News热门。"
+            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}啦。今天 HN 最热的信号是：{topic_text}。"
         else:
-            audio_text = f"大家好，我是小P，今天是{date_display}，{weekday_str}。来看看今天的Hacker News热门。"
-        duration = 7
+            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。先看今天 HN 最值得关注的几个技术信号：{topic_text}。"
+        if not topic_text:
+            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。先看今天 HN 最值得关注的几个技术信号。"
+        duration = 9
 
         return ScriptSegment(
             segment_type="opening",
@@ -59,7 +100,9 @@ class ScriptWriter:
                     props={
                         "title": "HN TechPulse",
                         "subtitle": date_display,
-                        "stats": ""
+                        "headline": "今日技术信号",
+                        "topics": angles[:3],
+                        "stats": "",
                     }
                 )
             ],
@@ -107,28 +150,57 @@ class ScriptWriter:
             meta={}
         )
 
-    def _generate_dashboard_segment(self, selection: SelectionResult, content: ContentPackage) -> ScriptSegment:
-        """生成 dashboard 片段"""
+    def _generate_dashboard_segment(
+        self,
+        selection: SelectionResult,
+        content: ContentPackage,
+        story_scan_segs: Optional[list[ScriptSegment]] = None,
+    ) -> ScriptSegment:
+        """Generate the dashboard as a video guide, not a dense ranking table."""
         entries = []
+        angle_by_story = {}
+        for idx, seg in enumerate(story_scan_segs or []):
+            angle = self._story_angle_from_segment(seg)
+            story_index = None
+            for elem in seg.scene_elements:
+                if elem.props and "story_index" in elem.props:
+                    story_index = elem.props.get("story_index")
+                    break
+            if story_index is None and idx < len(selection.brief_items):
+                story_index = selection.brief_items[idx].get("story_index")
+            if story_index is not None:
+                angle_by_story[int(story_index)] = angle
+
         for i, bi in enumerate(selection.brief_items):
             story_idx = bi.get("story_index")
             if story_idx is not None and story_idx < len(content.items):
                 item = content.items[story_idx]
+                angle = angle_by_story.get(story_idx, {})
                 entries.append({
                     "rank": i + 1,
                     "story_index": story_idx,
                     "original_title": item.title,
                     "title_translation": item.title_cn,
+                    "editor_angle": angle.get("editor_angle") or angle.get("event_summary") or item.title_cn or item.title,
+                    "why_it_matters": angle.get("why_it_matters") or "",
+                    "next_watch": angle.get("next_watch") or "",
+                    "category": angle.get("category") or "",
+                    "keywords": angle.get("keywords") or [],
                     "score": item.score,
                     "comment_count": item.comment_count,
                 })
 
-        # 13s: 3s pause at top + scroll through overflow + buffer at end
-        dashboard_duration = 13.0
+        dashboard_duration = 11.0
+        focus_count = min(3, len(entries))
+        guide_line = "、".join(
+            (entry.get("editor_angle") or entry.get("title_translation") or entry.get("original_title") or "")
+            for entry in entries[:focus_count]
+        )
+        audio_text = f"今天先重点看这 {focus_count} 条：{guide_line}。" if guide_line else "今天先看最值得关注的几条技术信号。"
 
         return ScriptSegment(
             segment_type="dashboard",
-            audio_text="来看看今天的热门榜单。",
+            audio_text=audio_text,
             estimated_duration=dashboard_duration,
             emotion="neutral",
             scene_elements=[
@@ -136,11 +208,15 @@ class ScriptWriter:
                     element_type="dashboard_card",
                     start_time=0.0,
                     end_time=dashboard_duration,
-                    props={"entries": entries}
+                    props={
+                        "entries": entries,
+                        "mode": "guide",
+                        "focus_count": focus_count,
+                    }
                 )
             ],
             cues=[
-                Cue(text="来看看今天的热门榜单。", start_time=0.0, end_time=dashboard_duration)
+                Cue(text=audio_text, start_time=0.0, end_time=dashboard_duration)
             ],
             meta={"dashboard": {"entries": entries}}
         )
@@ -150,13 +226,7 @@ class ScriptWriter:
 
         segments = []
 
-        # 固定开场
-        segments.append(self._generate_fixed_opening(date))
-
-        # Dashboard
-        segments.append(self._generate_dashboard_segment(selection, content))
-
-        # Story scan
+        # Generate story scans first so opening/dashboard can lead with concrete angles.
         story_scan_segs = []
         for bi in selection.brief_items:
             story_idx = bi.get("story_index")
@@ -172,6 +242,13 @@ class ScriptWriter:
             )
             story_scan_segs.append(seg)
 
+        # 固定开场
+        segments.append(self._generate_fixed_opening(date, selection, content, story_scan_segs))
+
+        # Dashboard
+        segments.append(self._generate_dashboard_segment(selection, content, story_scan_segs))
+
+        # Story scan
         if not story_scan_segs:
             self.logger.info(
                 f"WARNING: No story_scan segments generated for {len(content.items)} "
@@ -593,6 +670,16 @@ class ScriptWriter:
         # Must have char_ranges for TTS-based timing
         if not story_scan.meta.get("sub_segment_char_ranges"):
             return False
+
+        # Milestone 2: story cards need editable fields for productized narrative.
+        for elem in story_scan.scene_elements:
+            if elem.element_type == "event_card":
+                if not (elem.props.get("editor_angle") or story_scan.meta.get("editor_angle")):
+                    return False
+                if not (elem.props.get("why_it_matters") or story_scan.meta.get("why_it_matters")):
+                    return False
+                if not (elem.props.get("next_watch") or story_scan.meta.get("next_watch")):
+                    return False
 
         # Scene elements must know their sub-segment index
         for elem in story_scan.scene_elements:

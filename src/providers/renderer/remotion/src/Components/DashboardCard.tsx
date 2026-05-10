@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
-import { ElementProps } from "./utils";
+import { ElementProps, limitList, truncate, UI_TEXT } from "./utils";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
 export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, height, duration }) => {
@@ -16,7 +16,14 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
     title_cn?: string;
     score?: number;
     comment_count?: number;
+    editor_angle?: string;
+    why_it_matters?: string;
+    next_watch?: string;
+    category?: string;
+    keywords?: string[];
   }>) ?? [];
+  const mode = elementProps.mode === "guide" ? "guide" : "ranking";
+  const focusCount = Number(elementProps.focus_count) || 3;
 
   const cardW = width - LAYOUT.pageInset * 2;
   const rowH = 76;
@@ -65,6 +72,202 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
     { text: "#d4a574", bg: "rgba(212,165,116,0.15)", ring: "rgba(212,165,116,0.35)" },
   ];
 
+  const guideEntries = entries.slice(0, Math.max(3, Math.min(5, focusCount || 3)));
+
+  if (mode === "guide") {
+    return (
+      <div
+        style={{
+          ...S,
+          left: LAYOUT.pageInset,
+          top: cardTop,
+          width: cardW,
+          ...glassCard,
+          padding: "40px 48px 42px",
+          boxShadow: glassCardShadow,
+          opacity: cardProgress,
+          transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 14,
+            marginBottom: 26,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: FONTS.bold,
+              fontWeight: 760,
+              fontSize: 36,
+              color: COLORS.text,
+              lineHeight: 1.12,
+              letterSpacing: 0,
+            }}
+          >
+            今日 {Math.min(guideEntries.length, focusCount)} 个信号
+          </div>
+          <div
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 13,
+              fontWeight: 700,
+              color: COLORS.accentLight,
+              backgroundColor: COLORS.accentBg,
+              borderRadius: 999,
+              padding: "6px 12px",
+            }}
+          >
+            重点观察
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {guideEntries.map((entry, i) => {
+            const rowStart = 10 + i * 5;
+            const rowProgress = interpolate(frame, [rowStart, rowStart + 20], [0, 1], {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+              easing: Easing.bezier(0.16, 1, 0.3, 1),
+            });
+            const rank = entry.rank || i + 1;
+            const angle = truncate(
+              entry.editor_angle || entry.title_translation || entry.title_cn || entry.original_title || entry.title || "",
+              34,
+            );
+            const why = truncate(entry.why_it_matters || entry.next_watch || entry.original_title || "", 44);
+            const keywords = limitList(entry.keywords ?? [], 3, 10);
+            const category = truncate(entry.category || "", 12);
+            const medal = rank <= 3 ? medalSets[rank - 1] : null;
+
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "44px 1fr 128px",
+                  columnGap: 18,
+                  alignItems: "center",
+                  minHeight: 86,
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  backgroundColor: i < focusCount ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.028)",
+                  border: "1px solid rgba(255,255,255,0.055)",
+                  opacity: rowProgress,
+                  transform: `translateY(${interpolate(rowProgress, [0, 1], [16, 0])}px)`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    backgroundColor: medal?.bg ?? "rgba(255,255,255,0.07)",
+                    border: `1.5px solid ${medal?.ring ?? "rgba(255,255,255,0.12)"}`,
+                    fontFamily: FONTS.mono,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: medal?.text ?? COLORS.textSecondary,
+                  }}
+                >
+                  {rank}
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: FONTS.sans,
+                      fontSize: 22,
+                      lineHeight: 1.28,
+                      fontWeight: 750,
+                      color: COLORS.text,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: "vertical" as const,
+                    }}
+                  >
+                    {angle}
+                  </div>
+                  {why && (
+                    <div
+                      style={{
+                        fontFamily: FONTS.sans,
+                        fontSize: 14,
+                        lineHeight: 1.36,
+                        color: COLORS.textSecondary,
+                        marginTop: 6,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: "vertical" as const,
+                      }}
+                    >
+                      {why}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                  {category && (
+                    <div
+                      style={{
+                        fontFamily: FONTS.sans,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: COLORS.accentLight,
+                        backgroundColor: COLORS.accentBg,
+                        borderRadius: 999,
+                        padding: "5px 10px",
+                        maxWidth: 120,
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {category}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, color: COLORS.textTertiary, fontFamily: FONTS.mono, fontSize: 13 }}>
+                    <span>{entry.score || 0}</span>
+                    <span>·</span>
+                    <span>{entry.comment_count || 0}评</span>
+                  </div>
+                  {keywords.length > 0 && (
+                    <div style={{ display: "flex", gap: 5 }}>
+                      {keywords.slice(0, 2).map((kw) => (
+                        <span
+                          key={kw}
+                          style={{
+                            fontFamily: FONTS.sans,
+                            fontSize: 10,
+                            color: COLORS.textTertiary,
+                            maxWidth: 46,
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -93,7 +296,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           gap: 12,
         }}
       >
-        <span>Top Stories</span>
+        <span>{UI_TEXT.topStories}</span>
         <span
           style={{
             fontFamily: FONTS.mono,
@@ -107,7 +310,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
             textTransform: "uppercase",
           }}
         >
-          Top 10
+          {UI_TEXT.top10}
         </span>
       </div>
 
@@ -127,16 +330,16 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
         }}
       >
         <span style={{ width: 56 }}>#</span>
-        <span style={{ flex: 1 }}>Title</span>
-        <span style={{ width: 96, textAlign: "right" }}>Score</span>
-        <span style={{ width: 82, textAlign: "right" }}>Comments</span>
+        <span style={{ flex: 1 }}>{UI_TEXT.title}</span>
+        <span style={{ width: 96, textAlign: "right" }}>{UI_TEXT.heat}</span>
+        <span style={{ width: 82, textAlign: "right" }}>{UI_TEXT.comments}</span>
       </div>
 
       <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 8, opacity: pageFadeProgress }}>
         <div>
           {pageEntries.map((entry, i) => {
-            const title = entry.original_title || entry.title || "";
-            const titleCn = entry.title_translation || entry.title_cn || "";
+            const title = truncate(entry.original_title || entry.title || "", 96);
+            const titleCn = truncate(entry.title_translation || entry.title_cn || "", 48);
             const rank = entry.rank || (currentPage * perPage + i + 1);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;

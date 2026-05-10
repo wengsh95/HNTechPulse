@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
-import { ElementProps, stripHtml, truncate } from "./utils";
+import { ElementProps, stanceLabel, stripHtml, truncate, UI_TEXT } from "./utils";
 import { STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
@@ -27,7 +27,8 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const quotes = (elementProps.quotes as Quote[]) ?? [];
+  const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
+  const nextWatch = truncate(elementProps.next_watch as string || "", 44);
 
   const cardW = width - LAYOUT.pageInset * 2;
   const topY = Math.round(height * 0.11);
@@ -68,7 +69,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
           letterSpacing: 0.8,
         }}
       >
-        Key Voices
+        {UI_TEXT.keyVoices}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -82,12 +83,13 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
 
           const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
           const primaryText = quote.text_cn?.trim()
-            ? quote.text_cn.trim()
-            : truncate(cleanQuote(quote.text), i === 0 ? 150 : 96);
+            ? truncate(quote.text_cn.trim(), i === 0 ? 104 : 76)
+            : truncate(cleanQuote(quote.text), i === 0 ? 104 : 76);
           const originalText = quote.text_cn?.trim()
             ? truncate(cleanQuote(quote.text), 120)
             : "";
           const isFeatured = i === 0;
+          const label = stanceLabel(quote.stance);
 
           return (
             <div
@@ -122,7 +124,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     letterSpacing: 0.3,
                   }}
                 >
-                  {quote.stance}
+                  {label}
                 </span>
                 <span
                   style={{
@@ -162,12 +164,30 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     maxWidth: "100%",
                   }}
                 >
-                  Original: "{originalText}"
+                  {UI_TEXT.original}："{originalText}"
                 </div>
               )}
             </div>
           );
         })}
+        {nextWatch && (
+          <div
+            style={{
+              marginTop: 4,
+              padding: "14px 18px",
+              borderRadius: 16,
+              backgroundColor: "rgba(0,122,255,0.08)",
+              border: "1px solid rgba(51,149,255,0.16)",
+              fontFamily: FONTS.sans,
+              fontSize: 14,
+              lineHeight: 1.45,
+              color: COLORS.textSecondary,
+            }}
+          >
+            <span style={{ color: COLORS.accentLight, fontWeight: 700 }}>接下来观察：</span>
+            {nextWatch}
+          </div>
+        )}
       </div>
     </div>
   );

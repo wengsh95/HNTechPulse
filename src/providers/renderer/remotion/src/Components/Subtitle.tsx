@@ -9,7 +9,8 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const cues = (elementProps.cues as CueData[]) ?? [];
-  const fallbackText = truncate(stripHtml(p(elementProps, "text", "")), 120);
+  const mode = p<"standard" | "minimal" | "hidden">(elementProps, "mode", "standard");
+  const fallbackText = truncate(stripHtml(p(elementProps, "text", "")), mode === "minimal" ? 56 : 84);
 
   const currentTime = frame / fps;
 
@@ -32,47 +33,59 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
       }
     }
     if (activeCue) {
-      displayText = activeCue.text;
+      displayText = truncate(activeCue.text, mode === "minimal" ? 56 : 84);
     } else if (currentTime >= cues[cues.length - 1].end_time) {
       const fadeOutDuration = 0.5;
       const timeSinceEnd = currentTime - cues[cues.length - 1].end_time;
       if (timeSinceEnd < fadeOutDuration) {
-        displayText = cues[cues.length - 1].text;
+        displayText = truncate(cues[cues.length - 1].text, mode === "minimal" ? 56 : 84);
         opacity = 1 - timeSinceEnd / fadeOutDuration;
       } else {
         displayText = "";
         opacity = 0;
       }
     } else if (currentTime < cues[0].start_time) {
-      displayText = cues[0].text;
+      displayText = truncate(cues[0].text, mode === "minimal" ? 56 : 84);
     }
   }
+
+  if (mode === "hidden" || !displayText) {
+    return null;
+  }
+
+  const isMinimal = mode === "minimal";
 
   return (
     <div style={{
       ...S,
       left: "50%",
-      bottom: 34,
+      bottom: isMinimal ? 28 : 30,
       transform: "translateX(-50%)",
-      background: "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.56) 16%, rgba(7, 7, 18, 0.56) 84%, rgba(7, 7, 18, 0))",
+      background: isMinimal
+        ? "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.28) 18%, rgba(7, 7, 18, 0.28) 82%, rgba(7, 7, 18, 0))"
+        : "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.40) 16%, rgba(7, 7, 18, 0.40) 84%, rgba(7, 7, 18, 0))",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: "8px 30px",
+      padding: isMinimal ? "6px 24px" : "7px 28px",
       width: Math.min(width - LAYOUT.pageInset * 2.4, LAYOUT.subtitleMaxWidth),
-      minHeight: 54,
-      opacity,
+      minHeight: isMinimal ? 38 : 46,
+      opacity: opacity * (isMinimal ? 0.74 : 0.88),
     }}>
       <span style={{
         fontFamily: FONTS.sans,
-        fontSize: 23,
+        fontSize: isMinimal ? 17 : 19,
         color: COLORS.text,
         textAlign: "center",
-        lineHeight: 1.4,
-        fontWeight: 600,
-        letterSpacing: 0.1,
-        textShadow: "0 2px 12px rgba(0,0,0,0.78), 0 1px 2px rgba(0,0,0,0.9)",
+        lineHeight: 1.36,
+        fontWeight: 500,
+        letterSpacing: 0,
+        textShadow: "0 2px 10px rgba(0,0,0,0.62), 0 1px 2px rgba(0,0,0,0.76)",
         maxWidth: "100%",
+        overflow: "hidden",
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical" as const,
       }}>
         {displayText}
       </span>

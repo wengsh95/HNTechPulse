@@ -1,15 +1,27 @@
 logging:
   level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
+# llm:
+#   provider: "openai"
+#   model: "inclusionai/ring-2.6-1t:free"
+#   max_tokens: 16384
+#   temperature: 0.7
+#   base_url: "https://openrouter.ai/api/v1"
+#   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
+#   fast:                                # 低成本模型，用于翻译等轻量任务
+#     model: "inclusionai/ring-2.6-1t:free"
+#     max_tokens: 4096
+#     temperature: 0.3
+
 llm:
   provider: "openai"
-  model: "inclusionai/ring-2.6-1t:free"
+  model: "deepseek-v4-flash"
   max_tokens: 16384
   temperature: 0.7
-  base_url: "https://openrouter.ai/api/v1"
+  base_url: "https://api.deepseek.com"
   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
   fast:                                # 低成本模型，用于翻译等轻量任务
-    model: "inclusionai/ring-2.6-1t:free"
+    model: "deepseek-v4-flash"
     max_tokens: 4096
     temperature: 0.3
 

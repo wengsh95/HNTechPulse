@@ -156,6 +156,11 @@ def _expand_event_card(props, content):
     result["title_cn"] = item.title_cn or ""
     result["score"] = item.score or 0
     result["comment_count"] = item.comment_count or 0
+    result["editor_angle"] = result.get("editor_angle") or item.title_cn or item.title
+    result["event_summary"] = result.get("event_summary") or item.article_summary or item.summary or item.title_cn or item.title
+    result["why_it_matters"] = result.get("why_it_matters") or ""
+    result["next_watch"] = result.get("next_watch") or ""
+    result["category"] = result.get("category") or ""
 
     score = item.score or 0
     descendants = item.comment_count or 0
@@ -217,7 +222,7 @@ def _expand_atmosphere_card(props, content):
 
 
 def _expand_quote_card(props, content):
-    """Expand quote_card: inject top-2 high-quality comments with stance derived from VADER sentiment."""
+    """Expand quote_card: inject representative comments across different stances."""
     import html
     import re
 
@@ -233,24 +238,43 @@ def _expand_quote_card(props, content):
         if cn:
             orig_text_cn[q.get("text", "")] = cn
 
-    # Top-2 comments by quality_score
+    # Prefer one high-quality comment per stance, so the card reads as viewpoint contrast.
     scored = [c for c in item.comments if (c.quality_score or 0) > 0]
     scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
-    top2 = scored[:2]
 
     def _clean(text: str) -> str:
         text = re.sub(r"<[^>]*>", " ", text)
         return html.unescape(text).strip()
 
-    quotes = []
-    for c in top2:
-        sentiment = c.sentiment or 0.0
+    def _stance_for_comment(comment) -> str:
+        sentiment = comment.sentiment or 0.0
         if sentiment > 0.3:
-            stance = "支持"
-        elif sentiment < -0.3:
-            stance = "质疑"
-        else:
-            stance = "中立"
+            return "支持"
+        if sentiment < -0.3:
+            return "质疑"
+        return "中立"
+
+    selected = []
+    seen_stances = set()
+    for c in scored:
+        stance = _stance_for_comment(c)
+        if stance in seen_stances:
+            continue
+        selected.append(c)
+        seen_stances.add(stance)
+        if len(selected) >= 3:
+            break
+
+    if len(selected) < 2:
+        for c in scored:
+            if c not in selected:
+                selected.append(c)
+            if len(selected) >= 2:
+                break
+
+    quotes = []
+    for c in selected[:3]:
+        stance = _stance_for_comment(c)
         text = _clean(c.content or "")[:300]
         text_cn = c.content_cn or orig_text_cn.get(text, "")
         quotes.append({
@@ -260,6 +284,7 @@ def _expand_quote_card(props, content):
             "stance": stance,
         })
     result["quotes"] = quotes
+    result["next_watch"] = props.get("next_watch", "")
 
     return result
 

@@ -5,7 +5,14 @@
 
 ## 任务
 
-为一条 HN 帖子生成 **三段递进式** 短视频脚本（事件 → 氛围 → 社区原声）。语言口语化、有信息密度。
+为一条 HN 帖子生成 **产品化的四段叙事** 短视频脚本。每条 story 必须回答：
+
+1. 发生了什么：一句话事件摘要。
+2. 为什么重要：影响对象、趋势或产业含义。
+3. 社区怎么吵：争议点、观点分布、关键词。
+4. 接下来观察什么：一个后续值得关注的问题或判断。
+
+画面仍使用三张卡片承载：事件卡（发生了什么 + 为什么重要）→ 氛围卡（社区怎么吵）→ 观点卡（代表观点 + 接下来观察什么）。语言口语化、有信息密度。
 
 ---
 
@@ -17,18 +24,22 @@
 {
   "story_index": 0,
   "keywords": ["关键词1", "关键词2", "关键词3"],
+  "editor_angle": "中文编辑判断句（≤24字，不是标题直译）",
+  "why_it_matters": "为什么重要（≤36字）",
+  "next_watch": "接下来观察什么（≤30字）",
+  "category": "AI工具|开源生态|基础设施|安全风险|创业信号|开发者体验|硬件与系统|其他",
   "card_narrations": [
     {
       "card_type": "event_card",
-      "audio_text": "事件简述旁白（40-60字）"
+      "audio_text": "先给判断，再讲发生了什么和为什么重要（50-75字）"
     },
     {
       "card_type": "atmosphere_card",
-      "audio_text": "社区氛围旁白（40-60字）"
+      "audio_text": "社区怎么吵、分歧在哪里（45-65字）"
     },
     {
       "card_type": "quote_card",
-      "audio_text": "评论观点旁白（60-100字）"
+      "audio_text": "用代表评论呈现立场对照，并抛出接下来观察点（60-95字）"
     }
   ],
   "estimated_duration": 20,
@@ -39,6 +50,10 @@
       "props": {
         "story_index": 0,
         "event_summary": "事件简述（≤40字，一句话说清发生了什么事）",
+        "editor_angle": "中文编辑判断句（≤24字）",
+        "why_it_matters": "为什么重要（≤36字）",
+        "next_watch": "接下来观察什么（≤30字）",
+        "category": "开发者体验",
         "keywords": ["关键词1", "关键词2", "关键词3"]
       }
     },
@@ -52,7 +67,8 @@
     {
       "element_type": "quote_card",
       "props": {
-        "story_index": 0
+        "story_index": 0,
+        "next_watch": "接下来观察什么（≤30字）"
       }
     }
   ]
@@ -62,10 +78,14 @@
 ### 字段说明
 
 - `keywords`：3-5 个中文主题关键词，概括这条新闻的核心议题（如 "AI推理"、"开源争议"、"硅谷裁员"）
+- `editor_angle`：这条 story 的中文判断句，像栏目编辑给观众的第一眼结论；不要照翻英文标题
+- `why_it_matters`：回答“为什么值得关注”，说明影响对象、趋势或产业含义
+- `next_watch`：回答“接下来观察什么”，可以是开放问题，也可以是趋势判断
+- `category`：从示例枚举里选一个最贴切的分类
 - `card_narrations`：三段旁白文案，按 event_card → atmosphere_card → quote_card 顺序。video 中会按此顺序展示对应卡片，每张卡片的展示时长 = 对应 audio_text 的 TTS 时长
-  - **event_card**（事件）：讲清楚"发生了什么事"，40-60字
-  - **atmosphere_card**（氛围）：社区整体反应、观点分化情况，40-60字
-  - **quote_card**（原声）：引用具体评论观点，60-100字
+  - **event_card**（事件 + 判断）：先给编辑判断，再讲清楚发生了什么和为什么重要，50-75字
+  - **atmosphere_card**（氛围）：社区整体反应、观点分化情况，45-65字
+  - **quote_card**（观点 + 观察）：引用/概括具体评论观点，并自然带出 next_watch，60-95字
 - `event_summary`：≤40字，一句话事件摘要，在 event_card 上展示
 - `stance_distribution`：社区态度分布估计，5 个 stance（支持|质疑|中立|调侃|担忧），value 为占比（0-1，总和为1）
 - `scene_elements`：3 个元素，按上述顺序排列。quote_card 只需 story_index 即可（评论数据由后端自动注入）
@@ -75,6 +95,8 @@
 - 只输出 JSON
 - 翻译准确自然，技术术语保留英文或给标准译名
 - card_narrations 中的 audio_text 拼接后应自然流畅，适合口语播报
+- 不要只复述标题；每条 story 至少包含一个明确判断
+- 画面字段要短：editor_angle、why_it_matters、next_watch 都必须能一眼读完
 
 ### 合规性
 
@@ -96,4 +118,3 @@ Story 数据:
 ```
 
 日期: {{ date }}
-

@@ -199,7 +199,7 @@ class OpenAILLMProvider(LLMProvider):
                 )
                 for e in seg_dict.get("scene_elements", [])
             ]
-            return ScriptSegment(
+            segment = ScriptSegment(
                 segment_type=seg_dict["segment_type"],
                 audio_text=seg_dict["audio_text"],
                 estimated_duration=seg_dict["estimated_duration"],
@@ -207,9 +207,25 @@ class OpenAILLMProvider(LLMProvider):
                 scene_elements=scene_elements,
                 meta=seg_dict.get("meta", {}),
             )
+            if segment_type == "story_scan_item" and not self._has_productized_story_fields(segment):
+                self.logger.info(
+                    f"    [{segment_type}_{story_index}] Cached segment lacks Milestone 2 fields; regenerating"
+                )
+                return None
+            return segment
         except Exception as e:
             self.logger.warning(f"    Failed to load cached segment: {e}")
             return None
+
+    @staticmethod
+    def _has_productized_story_fields(segment: ScriptSegment) -> bool:
+        event_elem = next(
+            (elem for elem in segment.scene_elements if elem.element_type == "event_card"),
+            None,
+        )
+        props = event_elem.props if event_elem else {}
+        required = ("editor_angle", "why_it_matters", "next_watch")
+        return all(props.get(key) or segment.meta.get(key) for key in required)
 
     def _save_segment_cache(self, date: str, segment_type: str, story_index: int, segment: ScriptSegment) -> None:
         cache_path = self._get_segment_cache_path(date, segment_type, story_index)
@@ -297,6 +313,9 @@ class OpenAILLMProvider(LLMProvider):
             meta["card_narrations"] = seg_dict["card_narrations"]
         if "keywords" in seg_dict:
             meta["keywords"] = seg_dict["keywords"]
+        for key in ("editor_angle", "why_it_matters", "next_watch", "category"):
+            if key in seg_dict:
+                meta[key] = seg_dict[key]
 
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),

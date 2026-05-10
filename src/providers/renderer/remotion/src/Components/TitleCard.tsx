@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
-import { ElementProps, p } from "./utils";
+import { ElementProps, limitList, p, truncate } from "./utils";
 import { COLORS, FONTS, S } from "./design";
 
 export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
@@ -20,6 +20,8 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
   });
 
   const subtitle = p(elementProps, "subtitle", "");
+  const headline = truncate(p(elementProps, "headline", ""), 18);
+  const topics = limitList((elementProps.topics as string[]) ?? [], 3, 24);
 
   return (
     <div
@@ -34,6 +36,8 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
         alignItems: "center",
         justifyContent: "center",
         background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,122,255,0.08) 0%, transparent 100%)",
+        padding: "0 92px",
+        boxSizing: "border-box",
       }}
     >
       {/* Subtle glow behind title */}
@@ -53,16 +57,16 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
         style={{
           fontFamily: FONTS.bold,
           fontWeight: 700,
-          fontSize: 80,
+          fontSize: topics.length > 0 ? 54 : 80,
           color: COLORS.text,
           lineHeight: 1.08,
-          letterSpacing: -1.8,
+          letterSpacing: 0,
           opacity: titleProgress,
           transform: `translateY(${interpolate(titleProgress, [0, 1], [20, 0])}px)`,
           textShadow: "0 0 80px rgba(0,122,255,0.2)",
         }}
       >
-        {p(elementProps, "title", "HN TechPulse")}
+        {headline || p(elementProps, "title", "HN TechPulse")}
       </div>
       {subtitle && (
         <div
@@ -70,14 +74,85 @@ export const TitleCard: React.FC<ElementProps> = ({ elementProps, width, height 
             fontFamily: FONTS.sans,
             fontSize: 32,
             color: COLORS.textSecondary,
-            marginTop: 28,
+            marginTop: topics.length > 0 ? 16 : 28,
             fontWeight: 400,
-            letterSpacing: 0.2,
+            letterSpacing: 0,
             opacity: subProgress,
             transform: `translateY(${interpolate(subProgress, [0, 1], [14, 0])}px)`,
           }}
         >
           {subtitle}
+        </div>
+      )}
+      {topics.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            marginTop: 34,
+            width: "min(880px, 100%)",
+            opacity: subProgress,
+            transform: `translateY(${interpolate(subProgress, [0, 1], [14, 0])}px)`,
+          }}
+        >
+          {topics.map((topic, index) => (
+            <div
+              key={topic}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "42px 1fr",
+                columnGap: 14,
+                alignItems: "center",
+                padding: "11px 18px",
+                borderRadius: 12,
+                backgroundColor: "rgba(255,255,255,0.055)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: FONTS.mono,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: COLORS.accentLight,
+                }}
+              >
+                0{index + 1}
+              </span>
+              <span
+                style={{
+                  fontFamily: FONTS.sans,
+                  fontSize: 22,
+                  lineHeight: 1.32,
+                  fontWeight: 650,
+                  color: COLORS.text,
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: "vertical" as const,
+                }}
+              >
+                {topic}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {topics.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            left: 42,
+            top: 36,
+            fontFamily: FONTS.sans,
+            fontSize: 18,
+            fontWeight: 750,
+            color: COLORS.textSecondary,
+            opacity: subProgress,
+          }}
+        >
+          {p(elementProps, "title", "HN TechPulse")}
         </div>
       )}
     </div>

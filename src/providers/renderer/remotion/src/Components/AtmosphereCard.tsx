@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
-import { ElementProps } from "./utils";
+import { ElementProps, limitList, stanceLabel, truncate, UI_TEXT } from "./utils";
 import { StancePie } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 
@@ -14,7 +14,7 @@ function getMoodSummary(distribution: Record<string, number>, keywords: Array<{ 
     return {
       title: "社区反应仍在形成",
       detail: keywords.length > 0
-        ? `讨论集中在 ${keywords.slice(0, 3).map((tag) => tag.word).join(" / ")}。`
+        ? `讨论集中在 ${limitList(keywords.map((tag) => tag.word), 3, 14).join(" / ")}。`
         : "评论区还没有形成清晰的观点分布。",
       dominant: "",
       percent: 0,
@@ -22,14 +22,15 @@ function getMoodSummary(distribution: Record<string, number>, keywords: Array<{ 
   }
 
   const [dominant, value] = entries[0];
-  const topKeywords = keywords.slice(0, 3).map((tag) => tag.word).join(" / ");
+  const dominantLabel = stanceLabel(dominant);
+  const topKeywords = limitList(keywords.map((tag) => tag.word), 3, 14).join(" / ");
 
   return {
-    title: `${dominant} 是当前主调`,
+    title: `${dominantLabel}是当前主调`,
     detail: topKeywords
       ? `争论主要围绕 ${topKeywords} 展开。`
       : "评论区观点已经出现明显倾向。",
-    dominant,
+    dominant: dominantLabel,
     percent: Math.round(value * 100),
   };
 }
@@ -39,7 +40,10 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   const { fps } = useVideoConfig();
 
   const stanceDistribution = (elementProps.stance_distribution as Record<string, number>) ?? {};
-  const keywordTags = (elementProps.keyword_tags as Array<{ word: string; weight: number }>) ?? [];
+  const keywordTags = ((elementProps.keyword_tags as Array<{ word: string; weight: number }>) ?? [])
+    .slice(0, 8)
+    .map((tag) => ({ ...tag, word: truncate(tag.word, 14) }))
+    .filter((tag) => tag.word);
 
   const hasPie = Object.keys(stanceDistribution).length > 0;
   const hasTags = keywordTags.length > 0;
@@ -84,7 +88,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               letterSpacing: 0.9,
             }}
           >
-            Discussion Mood
+            {UI_TEXT.discussionMood}
           </div>
           <div
             style={{
@@ -145,7 +149,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                 letterSpacing: 0.8,
               }}
             >
-              Keywords
+              {UI_TEXT.keywords}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {keywordTags.map((tag, i) => {
