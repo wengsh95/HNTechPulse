@@ -495,7 +495,10 @@ class HNFetcher(ContentFetcher):
                 item.comments.append(ContentComment(
                     author=hn_comment.author,
                     content=hn_comment.text,
+                    source_id=str(hn_comment.id),
                     upvotes=hn_comment.score,
+                    depth=hn_comment.depth,
+                    published_at=hn_comment.time,
                 ))
 
             items.append(item)

@@ -59,7 +59,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
     <div style={{
       ...S,
       left: "50%",
-      bottom: isMinimal ? 28 : 30,
+      bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
       transform: "translateX(-50%)",
       background: isMinimal
         ? "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.28) 18%, rgba(7, 7, 18, 0.28) 82%, rgba(7, 7, 18, 0))"
@@ -67,10 +67,11 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: isMinimal ? "6px 24px" : "7px 28px",
+      padding: isMinimal ? "8px 24px" : "8px 32px",
       width: Math.min(width - LAYOUT.pageInset * 2.4, LAYOUT.subtitleMaxWidth),
       minHeight: isMinimal ? 38 : 46,
-      opacity: opacity * (isMinimal ? 0.74 : 0.88),
+      opacity: opacity * (isMinimal ? 0.7 : 0.84),
+      borderRadius: 12,
     }}>
       <span style={{
         fontFamily: FONTS.sans,

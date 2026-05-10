@@ -5,7 +5,7 @@
  * Remotion 的优势：浏览器原生渲染文字（GPU 加速），并行帧渲染。
  */
 import React from "react";
-import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
+import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
 import {
@@ -19,8 +19,18 @@ import {
   QuoteCard,
 } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
+import { COLORS, FONTS, LAYOUT } from "./design";
 
 const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #1c1c3a 0%, #0d0d24 50%, #070712 100%)";
+
+type StoryChapter = {
+  startTime: number;
+  endTime: number;
+  title: string;
+  category: string;
+  index: number;
+  total: number;
+};
 
 /** 元素类型 → React 组件映射 */
 const ELEMENT_RENDERERS: Record<
@@ -136,6 +146,115 @@ const SegmentRenderer: React.FC<{
   );
 };
 
+const GlobalChrome: React.FC<{
+  dateLabel: string;
+  chapters: StoryChapter[];
+  startTime: number;
+}> = ({ dateLabel, chapters, startTime }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const currentTime = frame / fps;
+
+  const activeChapter = chapters.find(
+    (chapter) => currentTime >= chapter.startTime && currentTime < chapter.endTime
+  );
+  const showChapter = Boolean(activeChapter);
+  if (currentTime < startTime) {
+    return null;
+  }
+
+  const opacity = interpolate(currentTime - startTime, [0, 0.5], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: LAYOUT.chromeInsetX,
+        right: LAYOUT.chromeInsetX,
+        top: LAYOUT.chromeTop,
+        height: LAYOUT.chromeHeight,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        opacity,
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontFamily: FONTS.sans,
+          color: "rgba(255,255,255,0.62)",
+          fontSize: 15,
+          fontWeight: 760,
+          letterSpacing: 0,
+        }}
+      >
+        <span style={{ color: COLORS.text }}>HN TechPulse</span>
+        {dateLabel && (
+          <>
+            <span style={{ color: "rgba(255,255,255,0.24)" }}>/</span>
+            <span>{dateLabel}</span>
+          </>
+        )}
+      </div>
+
+      {showChapter && activeChapter && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            height: 30,
+            padding: "0 12px",
+            borderRadius: 999,
+            background: "rgba(15, 18, 34, 0.72)",
+            border: "1px solid rgba(255,255,255,0.075)",
+            boxShadow: "0 8px 22px rgba(0,0,0,0.18)",
+            boxSizing: "border-box",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              height: 16,
+              fontFamily: FONTS.mono,
+              fontSize: 12,
+              fontWeight: 800,
+              color: COLORS.accentLight,
+              lineHeight: 1,
+            }}
+          >
+            {String(activeChapter.index + 1).padStart(2, "0")}/{String(activeChapter.total).padStart(2, "0")}
+          </span>
+          {activeChapter.category && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                height: 16,
+                fontFamily: FONTS.sans,
+                fontSize: 12,
+                fontWeight: 740,
+                color: "rgba(255,255,255,0.66)",
+                lineHeight: 1,
+              }}
+            >
+              {activeChapter.category}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /** 主 Composition 组件 */
 export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   width,
@@ -145,14 +264,47 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   segments,
   audioDir,
 }) => {
+  const frame = useCurrentFrame();
   const totalDuration =
     segments.length > 0
       ? segments[segments.length - 1].end_time
       : 0;
 
-  const storyBoundaries = segments
-    .filter((seg) => seg.segment_type === "story_scan")
-    .map((seg) => seg.start_time);
+  const storyEvents = segments.flatMap((seg) =>
+    seg.scene_elements
+      .filter((elem) => elem.element_type === "event_card")
+      .map((elem) => {
+        const props = elem.props as Record<string, unknown>;
+        return {
+          startTime: seg.start_time + elem.start_time,
+          segmentEndTime: seg.end_time,
+          props,
+        };
+      })
+  ).sort((a, b) => a.startTime - b.startTime);
+  const storyBoundaries = storyEvents.map((event) => event.startTime);
+  const storyChapters: StoryChapter[] = storyEvents.map((event, i) => {
+    const index = Number(event.props.display_index ?? event.props.story_index ?? i) || i;
+    const total = Number(event.props.story_count ?? storyEvents.length) || storyEvents.length;
+    return {
+      startTime: event.startTime,
+      endTime: storyEvents[i + 1]?.startTime ?? event.segmentEndTime,
+      title: String(event.props.editor_angle ?? event.props.title_cn ?? event.props.story_title ?? ""),
+      category: String(event.props.category ?? ""),
+      index,
+      total,
+    };
+  });
+  const firstTitleCard = segments
+    .flatMap((seg) => seg.scene_elements)
+    .find((elem) => elem.element_type === "title_card");
+  const dateLabel = firstTitleCard
+    ? String((firstTitleCard.props as Record<string, unknown>).subtitle ?? "")
+    : "";
+  const currentTime = frame / fps;
+  const activeStoryIndex = storyChapters.findIndex((chapter) => {
+    return currentTime >= chapter.startTime && currentTime < chapter.endTime;
+  });
 
   return (
     <AbsoluteFill style={{ background: bgColor || C_BG }}>
@@ -187,6 +339,12 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
       <ProgressBar
         totalDuration={totalDuration}
         storyBoundaries={storyBoundaries}
+        activeStoryIndex={activeStoryIndex}
+      />
+      <GlobalChrome
+        dateLabel={dateLabel}
+        chapters={storyChapters}
+        startTime={segments.find((seg) => seg.segment_type !== "opening")?.start_time ?? 0}
       />
     </AbsoluteFill>
   );

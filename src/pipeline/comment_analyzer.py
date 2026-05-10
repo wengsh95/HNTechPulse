@@ -5,13 +5,13 @@ Results cached to data/{date}/comment_analysis.json.
 """
 
 import json
-import re
 from pathlib import Path
 from typing import List
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
+from src.pipeline.comment_selection import clean_comment_text, compute_comment_quality
 from src.utils.logger import setup_logger
 
 
@@ -55,50 +55,15 @@ class CommentAnalyzer:
         # 1. VADER sentiment
         for comment in item.comments:
             if comment.content:
-                scores = self._vader.polarity_scores(comment.content)
+                scores = self._vader.polarity_scores(clean_comment_text(comment.content))
                 comment.sentiment = round(scores["compound"], 4)
 
         # 2. Heuristic quality scoring
         for comment in item.comments:
-            comment.quality_score = self._compute_quality_score(comment)
+            comment.quality_score = self._compute_quality_score(comment, item)
 
-    def _compute_quality_score(self, comment: ContentComment) -> float:
-        text = comment.content or ""
-        text_len = len(text)
-
-        # Signal 1: HN upvotes (0-0.4 weight)
-        upvotes = comment.upvotes or 0
-        uv_score = min(upvotes / 50.0, 1.0) * 0.4
-
-        # Signal 2: Text length bell curve (0-0.3 weight)
-        if text_len < 20:
-            len_score = 0.0
-        elif text_len < 100:
-            len_score = text_len / 100.0 * 0.3
-        elif text_len <= 500:
-            len_score = 0.3
-        elif text_len <= 1000:
-            len_score = (1000 - text_len) / 500.0 * 0.3
-        else:
-            len_score = 0.0
-
-        # Signal 3: Code/link presence (0-0.2 weight)
-        has_code = bool(re.search(r'```|`[^`]+`', text))
-        has_link = bool(re.search(r'https?://', text))
-        has_structured = bool(re.search(r'^\s*[-*>]\s', text, re.MULTILINE))
-        if has_code or has_link:
-            content_score = 0.2
-        elif has_structured:
-            content_score = 0.1
-        else:
-            content_score = 0.0
-
-        # Signal 4: Depth/no-upvotes penalty (0-0.1 deduction)
-        depth_penalty = 0.0
-        if text_len < 100 and (upvotes or 0) == 0:
-            depth_penalty = 0.1
-
-        return round(max(0.0, min(1.0, uv_score + len_score + content_score - depth_penalty)), 4)
+    def _compute_quality_score(self, comment: ContentComment, item: ContentItem = None) -> float:
+        return compute_comment_quality(comment, item)
 
     def get_top_comments(self, item: ContentItem, n: int = None) -> List[ContentComment]:
         if n is None:
@@ -118,6 +83,7 @@ class CommentAnalyzer:
                 "source_id": item.source_id,
                 "comments": [
                     {
+                        "source_id": c.source_id,
                         "sentiment": c.sentiment,
                         "quality_score": c.quality_score,
                     }
@@ -139,7 +105,18 @@ class CommentAnalyzer:
             item = items_by_id.get(item_data["source_id"])
             if item is None:
                 continue
+            comments_by_id = {
+                c.source_id: c
+                for c in item.comments
+                if c.source_id
+            }
             for i, c_data in enumerate(item_data.get("comments", [])):
-                if i < len(item.comments):
-                    item.comments[i].sentiment = c_data.get("sentiment")
-                    item.comments[i].quality_score = c_data.get("quality_score")
+                comment = None
+                source_id = c_data.get("source_id")
+                if source_id:
+                    comment = comments_by_id.get(str(source_id))
+                elif i < len(item.comments):
+                    comment = item.comments[i]
+                if comment is not None:
+                    comment.sentiment = c_data.get("sentiment")
+                    comment.quality_score = c_data.get("quality_score")

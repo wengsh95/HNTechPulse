@@ -8,7 +8,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote_plus, urljoin, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -143,6 +143,7 @@ class ArticleEnricher:
         self.use_headed = enrich_cfg.get("headed", True)
         self.bing_image_search = enrich_cfg.get("bing_image_search", True)
         self.bing_max_results = enrich_cfg.get("bing_max_results", 3)
+        self.bing_max_queries = enrich_cfg.get("bing_max_queries", 2)
         self.screenshot_enabled = enrich_cfg.get("screenshot_enabled", True)
         self.save_fetched_html = enrich_cfg.get("save_fetched_html", True)
         self.headless_batch = enrich_cfg.get("headless_batch", True)
@@ -160,6 +161,9 @@ class ArticleEnricher:
         _target = enrich_cfg.get("image_target_size", [1280, 720])
         self.image_target_width = _target[0]
         self.image_target_height = _target[1]
+        _min_size = enrich_cfg.get("image_min_size", [640, 360])
+        self.image_min_width = _min_size[0]
+        self.image_min_height = _min_size[1]
 
         # Independent LLM config for summarization
         llm_cfg = enrich_cfg.get("llm", {})
@@ -544,21 +548,22 @@ class ArticleEnricher:
                 image_urls = self._extract_images(html, item.url or "")
 
                 # Download page images
-                page_images = []
+                page_candidates = []
                 if image_urls:
-                    page_images = await self._download_images(
-                        image_urls, image_dir, str(item.source_id)
+                    page_candidates = await self._download_image_candidates(
+                        image_urls,
+                        image_dir,
+                        str(item.source_id),
+                        source="page",
+                        label="Article image",
                     )
 
                 # Bing image search
-                bing_images = []
+                bing_candidates = []
                 if self.bing_image_search and item.title:
-                    bing_images = await self._search_bing_images(
+                    bing_candidates = await self._search_bing_images(
                         item.title, item.url or "", image_dir, str(item.source_id)
                     )
-
-                # Combine images
-                all_images = page_images + bing_images
 
                 # Screenshot: reuse from Phase 1 if exists, otherwise capture now
                 screenshot_image = item.screenshot_image  # may have been set in Phase 1
@@ -575,27 +580,41 @@ class ArticleEnricher:
                 # LLM summary
                 article_summary = self._summarize(article_text, item.title)
 
+                image_candidates = []
+                image_candidates.extend(page_candidates)
+                image_candidates.extend(bing_candidates)
+                if screenshot_image:
+                    image_candidates.append({
+                        "path": screenshot_image,
+                        "source": "screenshot",
+                        "label": "Page screenshot",
+                        "rank": len(image_candidates),
+                        "width": 1280,
+                        "height": 720,
+                    })
+
+                selected_candidate = self._choose_auto_image_candidate(image_candidates)
+                selected_path = selected_candidate.get("path") if selected_candidate else None
+                if selected_path:
+                    for candidate in image_candidates:
+                        candidate["auto_selected"] = candidate.get("path") == selected_path
+                    if selected_candidate is not None:
+                        selected_candidate["selection_reason"] = self._selection_reason(selected_candidate)
+
                 # Populate item
                 item.article_text = article_text[:self.max_text_length]
-                item.article_images = all_images
+                item.article_images = self._candidate_paths(image_candidates, preferred_path=selected_path)
                 item.article_summary = article_summary
                 # Keep enrichment_source from Phase 1 if set; otherwise mark as downloaded_page
                 if not item.enrichment_source or item.enrichment_source == "fetch_failed":
                     item.enrichment_source = "downloaded_page"
 
-                # Build image_candidates
-                item.image_candidates = []
-                for img_path in page_images:
-                    item.image_candidates.append({"path": img_path, "source": "page"})
-                for img_path in bing_images:
-                    item.image_candidates.append({"path": img_path, "source": "bing"})
-                if screenshot_image:
-                    item.image_candidates.append({"path": screenshot_image, "source": "screenshot"})
+                item.image_candidates = image_candidates
 
                 self.logger.info(
                     f"[{item.enrichment_source}] {item.title[:50]} — "
                     f"{len(article_text)} chars, "
-                    f"page={len(page_images)} bing={len(bing_images)} "
+                    f"page={len(page_candidates)} bing={len(bing_candidates)} "
                     f"ss={'Y' if screenshot_image else 'N'}"
                 )
 
@@ -858,28 +877,52 @@ class ArticleEnricher:
 
     async def _search_bing_images(
         self, title: str, url: str, image_dir: Path, source_id: str
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Search Bing Images for article title, download top results."""
         domain = urlparse(url).hostname or ""
-        query = f"{title} {domain}".strip()
-        search_url = f"https://www.bing.com/images/search?q={query}&first=1"
+        queries = []
+        if domain:
+            queries.append(f"{title} {domain}".strip())
+        queries.append(title.strip())
 
         try:
             # Use headless Chrome — Bing blocks plain aiohttp with an empty page.
-            html = await self._fetch_with_headless(search_url)
-            if not html:
-                # Fallback to aiohttp if headless unavailable
-                html = await self._fetch_page(search_url)
-            if not html:
-                return []
+            image_urls = []
+            used_queries = []
+            for query in queries[: max(1, self.bing_max_queries)]:
+                if not query:
+                    continue
+                search_url = (
+                    "https://www.bing.com/images/search?"
+                    f"q={quote_plus(query)}&first=1"
+                )
+                html = await self._fetch_with_headless(search_url)
+                if not html:
+                    html = await self._fetch_page(search_url)
+                if not html:
+                    continue
 
-            image_urls = self._extract_bing_image_urls(html)
-            if not image_urls:
-                return []
+                for img_url in self._extract_bing_image_urls(html):
+                    if img_url not in image_urls:
+                        image_urls.append(img_url)
+                        used_queries.append(query)
+                    if len(image_urls) >= self.bing_max_results:
+                        break
+                if len(image_urls) >= self.bing_max_results:
+                    break
 
-            image_urls = image_urls[:self.bing_max_results]
-            local_paths = await self._download_images(image_urls, image_dir, f"{source_id}_bing")
-            return local_paths
+            candidates = await self._download_image_candidates(
+                image_urls[:self.bing_max_results],
+                image_dir,
+                f"{source_id}_bing",
+                source="bing",
+                label="Bing result",
+            )
+            for candidate in candidates:
+                idx = candidate.get("rank", 0)
+                if isinstance(idx, int) and idx < len(used_queries):
+                    candidate["query"] = used_queries[idx]
+            return candidates
         except Exception as e:
             self.logger.info(f"Bing image search failed for '{title}': {e}")
             return []
@@ -921,47 +964,108 @@ class ArticleEnricher:
             self.logger.debug(f"trafilatura failed: {e}")
             return None
 
+    @staticmethod
+    def _best_srcset_url(srcset: str) -> Optional[str]:
+        candidates = []
+        for part in srcset.split(","):
+            bits = part.strip().split()
+            if not bits:
+                continue
+            url = bits[0]
+            score = 0
+            if len(bits) > 1:
+                descriptor = bits[1].lower()
+                try:
+                    if descriptor.endswith("w"):
+                        score = int(descriptor[:-1])
+                    elif descriptor.endswith("x"):
+                        score = int(float(descriptor[:-1]) * 1000)
+                except ValueError:
+                    score = 0
+            candidates.append((score, url))
+        if not candidates:
+            return None
+        return max(candidates, key=lambda x: x[0])[1]
+
+    def _image_url_from_tag(self, tag) -> Optional[str]:
+        for attr in (
+            "src",
+            "data-src",
+            "data-original",
+            "data-lazy-src",
+            "data-image",
+            "data-url",
+            "poster",
+        ):
+            value = tag.get(attr)
+            if value:
+                return value
+        srcset = tag.get("srcset") or tag.get("data-srcset")
+        if srcset:
+            return self._best_srcset_url(srcset)
+        return None
+
     def _extract_images(self, html: str, base_url: str) -> List[str]:
         try:
             soup = BeautifulSoup(html, "lxml")
             images = []
 
-            # 1. og:image
-            og_img = soup.find("meta", property="og:image")
-            if og_img and og_img.get("content"):
-                images.append(urljoin(base_url, og_img["content"]))
-
-            # 2. twitter:image
-            tw_img = soup.find("meta", attrs={"name": "twitter:image"})
-            if tw_img and tw_img.get("content"):
-                img_url = urljoin(base_url, tw_img["content"])
+            def add_image(raw_url: Optional[str]):
+                if not raw_url:
+                    return
+                img_url = urljoin(base_url, raw_url)
                 if img_url not in images:
                     images.append(img_url)
 
-            # 3. Article body images
-            article = soup.find("article") or soup.find(class_=re.compile(r"article|post|content|entry", re.I))
-            if article:
-                for img in article.find_all("img", limit=self.max_images * 2):
-                    src = img.get("src") or img.get("data-src")
-                    if src:
-                        img_url = urljoin(base_url, src)
-                        # Skip tiny images (icons, spacers)
-                        width = img.get("width", "")
-                        height = img.get("height", "")
-                        if width and height:
-                            try:
-                                if int(width) < 100 or int(height) < 100:
-                                    continue
-                            except ValueError:
-                                pass
-                        if img_url not in images:
-                            images.append(img_url)
+            # 1. og:image
+            for og_img in soup.find_all("meta", property="og:image"):
+                add_image(og_img.get("content"))
+
+            # 2. twitter:image
+            for tw_img in soup.find_all("meta", attrs={"name": re.compile(r"twitter:image", re.I)}):
+                add_image(tw_img.get("content"))
+
+            # 3. Article/body images, including lazy-loaded and responsive images
+            containers = []
+            for selector in ("article", "main", '[role="main"]'):
+                found = soup.select_one(selector)
+                if found:
+                    containers.append(found)
+            class_container = soup.find(class_=re.compile(r"article|post|content|entry", re.I))
+            if class_container:
+                containers.append(class_container)
+            if not containers:
+                containers.append(soup.body or soup)
+
+            seen_container_ids = set()
+            for container in containers:
+                if id(container) in seen_container_ids:
+                    continue
+                seen_container_ids.add(id(container))
+                for img in container.find_all(["img", "source", "video"], limit=self.max_images * 4):
+                    raw_url = self._image_url_from_tag(img)
+                    if not raw_url:
+                        continue
+                    # Skip tiny images (icons, spacers) when dimensions are explicit.
+                    width = img.get("width", "")
+                    height = img.get("height", "")
+                    if width and height:
+                        try:
+                            if int(width) < 100 or int(height) < 100:
+                                continue
+                        except ValueError:
+                            pass
+                    add_image(raw_url)
 
             # Filter out common non-content patterns
             filtered = []
-            skip_patterns = ["avatar", "logo", "icon", "badge", "pixel", "spacer", "tracking", "analytics", "svg", "camo.githubusercontent.com"]
+            skip_patterns = ["avatar", "logo", "icon", "badge", "pixel", "spacer", "tracking", "analytics", "camo.githubusercontent.com"]
             for img_url in images:
-                if not any(p in img_url.lower() for p in skip_patterns):
+                lower = img_url.lower()
+                if lower.endswith(".svg") or ".svg?" in lower:
+                    self.logger.debug(f"Image filtered out (svg): {img_url}")
+                    continue
+                if not any(p in lower for p in skip_patterns):
                     filtered.append(img_url)
                 else:
                     self.logger.debug(f"Image filtered out (matched pattern): {img_url}")
@@ -973,8 +1077,78 @@ class ArticleEnricher:
             self.logger.debug(f"Image extraction failed: {e}")
             return []
 
+    def _candidate_has_suitable_size(self, candidate: Dict[str, Any]) -> bool:
+        width = candidate.get("width")
+        height = candidate.get("height")
+        if not isinstance(width, int) or not isinstance(height, int):
+            return False
+        return width >= self.image_min_width and height >= self.image_min_height
+
+    def _choose_auto_image_candidate(
+        self,
+        candidates: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        for candidate in candidates:
+            if candidate.get("source") == "page" and self._candidate_has_suitable_size(candidate):
+                return candidate
+        for candidate in candidates:
+            if candidate.get("source") == "screenshot" and candidate.get("path"):
+                return candidate
+        for candidate in candidates:
+            if candidate.get("source") == "bing" and self._candidate_has_suitable_size(candidate):
+                return candidate
+
+        # Last-resort fallback keeps rendering from going blank when all images
+        # are small or dimension metadata is missing.
+        for source in ("page", "bing", "screenshot"):
+            for candidate in candidates:
+                if candidate.get("source") == source and candidate.get("path"):
+                    return candidate
+        return None
+
+    def _selection_reason(self, candidate: Dict[str, Any]) -> str:
+        source = candidate.get("source")
+        if source == "page":
+            return "article_image_suitable" if self._candidate_has_suitable_size(candidate) else "article_image_fallback"
+        if source == "screenshot":
+            return "page_screenshot"
+        if source == "bing":
+            return "bing_image_suitable" if self._candidate_has_suitable_size(candidate) else "bing_image_fallback"
+        return "fallback"
+
+    @staticmethod
+    def _candidate_paths(candidates: List[Dict[str, Any]], preferred_path: Optional[str] = None) -> List[str]:
+        paths = []
+        seen = set()
+        if preferred_path:
+            paths.append(preferred_path)
+            seen.add(preferred_path)
+        for candidate in candidates:
+            path = candidate.get("path")
+            if path and path not in seen:
+                paths.append(path)
+                seen.add(path)
+        return paths
+
     async def _download_images(self, urls: List[str], image_dir: Path, source_id: str) -> List[str]:
-        local_paths = []
+        candidates = await self._download_image_candidates(
+            urls,
+            image_dir,
+            source_id,
+            source="image",
+            label="Image",
+        )
+        return self._candidate_paths(candidates)
+
+    async def _download_image_candidates(
+        self,
+        urls: List[str],
+        image_dir: Path,
+        source_id: str,
+        source: str,
+        label: str,
+    ) -> List[Dict[str, Any]]:
+        candidates: List[Dict[str, Any]] = []
         timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
 
         async def _fetch_one(session: aiohttp.ClientSession, url: str) -> Optional[bytes]:
@@ -1013,7 +1187,13 @@ class ArticleEnricher:
                     filename = f"{source_id}_{idx}.jpg"
                     dest = image_dir / filename
                     if dest.exists():
-                        local_paths.append(f"images/{filename}")
+                        candidates.append({
+                            "path": f"images/{filename}",
+                            "source": source,
+                            "label": label,
+                            "origin_url": url,
+                            "rank": idx,
+                        })
                         continue
 
                     # One retry on short-read / transient CDN flake.
@@ -1039,7 +1219,15 @@ class ArticleEnricher:
                             )
 
                         img.save(dest, "JPEG", quality=85)
-                        local_paths.append(f"images/{filename}")
+                        candidates.append({
+                            "path": f"images/{filename}",
+                            "source": source,
+                            "label": label,
+                            "origin_url": url,
+                            "rank": idx,
+                            "width": img.width,
+                            "height": img.height,
+                        })
                         self.logger.debug(
                             f"Image saved: {dest} ({img.width}x{img.height})"
                         )
@@ -1049,7 +1237,7 @@ class ArticleEnricher:
                 except Exception as e:
                     self.logger.warning(f"Image download failed for {url}: {e}")
 
-        return local_paths
+        return candidates
 
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
         """Load image_selection.json if it exists. Returns set of source_ids with user selections."""
@@ -1063,39 +1251,84 @@ class ArticleEnricher:
             for item in content.items:
                 entry = data.get("items", {}).get(str(item.source_id))
                 if entry and entry.get("selected_image"):
-                    item.article_images = [entry["selected_image"]]
+                    chosen = entry["selected_image"]
+                    existing = [p for p in item.article_images if p != chosen]
+                    item.article_images = [chosen] + existing
                     selected.add(str(item.source_id))
-                    self.logger.debug(f"Image selection loaded for {item.source_id}: {entry['selected_image']}")
+                    self.logger.debug(f"Image selection loaded for {item.source_id}: {chosen}")
             return selected
         except Exception as e:
             self.logger.info(f"Failed to load image selection: {e}")
             return set()
 
     def _generate_image_selection(self, content: ContentPackage, date: str):
-        """Generate image_selection.json for user review."""
+        """Generate or merge image_selection.json for user review."""
         sel_path = Path(f"data/{date}/image_selection.json")
-        if sel_path.exists():
-            return  # Already exists — user has edited it, don't overwrite
-
+        existed = sel_path.exists()
         data = {"date": date, "items": {}}
+        if existed:
+            try:
+                with open(sel_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data.setdefault("date", date)
+                data.setdefault("items", {})
+            except Exception as e:
+                self.logger.info(f"Failed to merge image selection, regenerating: {e}")
+                data = {"date": date, "items": {}}
+
+        changed = False
         for item in content.items:
             if not item.image_candidates:
                 continue
-            selected = item.image_candidates[0]["path"] if item.image_candidates else None
-            data["items"][str(item.source_id)] = {
+            key = str(item.source_id)
+            existing_entry = data["items"].get(key, {})
+            candidates = self._merge_image_candidates(
+                existing_entry.get("candidates", []),
+                item.image_candidates,
+            )
+            selected = existing_entry.get("selected_image")
+            if not selected:
+                selected_candidate = self._choose_auto_image_candidate(candidates)
+                selected = selected_candidate.get("path") if selected_candidate else None
+                if selected:
+                    for candidate in candidates:
+                        candidate["auto_selected"] = candidate.get("path") == selected
+                    if selected_candidate is not None:
+                        selected_candidate["selection_reason"] = self._selection_reason(selected_candidate)
+
+            new_entry = {
                 "title": item.title,
                 "url": item.url,
-                "candidates": item.image_candidates,
+                "candidates": candidates,
                 "selected_image": selected,
             }
+            if existing_entry != new_entry:
+                data["items"][key] = new_entry
+                changed = True
 
-        if not data["items"]:
+        if not data["items"] or (existed and not changed):
             return
 
         sel_path.parent.mkdir(parents=True, exist_ok=True)
         with open(sel_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        self.logger.info(f"Generated image selection file: {sel_path}")
+        action = "Updated" if existed else "Generated"
+        self.logger.info(f"{action} image selection file: {sel_path}")
+
+    @staticmethod
+    def _merge_image_candidates(
+        existing: List[Dict[str, Any]],
+        new: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        merged = []
+        seen = set()
+        for candidate in list(existing or []) + list(new or []):
+            path = candidate.get("path")
+            if not path or path in seen:
+                continue
+            merged.append(candidate)
+            seen.add(path)
+        return merged
 
     def _summarize(self, article_text: str, title: str) -> Optional[str]:
         if not self._summarize_prompt:

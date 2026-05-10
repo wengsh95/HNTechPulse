@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
 import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
-import { StancePie } from "./StancePie";
+import { StancePie, STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 
 const CONTROVERSY_COLORS = {
@@ -52,6 +52,93 @@ function getMoodSummary(distribution: Record<string, number>, debateFocus: strin
   };
 }
 
+function compactDistribution(distribution: Record<string, number>): Record<string, number> {
+  const entries = Object.entries(distribution)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const top = entries.slice(0, 3);
+  const rest = entries.slice(3).reduce((sum, [, value]) => sum + value, 0);
+  return Object.fromEntries(rest > 0 ? [...top, ["其他", rest]] : top);
+}
+
+const MetricBar: React.FC<{
+  label: string;
+  valueLabel: string;
+  helper?: string;
+  progress: number;
+  color: string;
+}> = ({ label, valueLabel, helper, progress, color }) => (
+  <div style={{ width: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 16,
+        marginBottom: 8,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: 12,
+          fontWeight: 760,
+          color: COLORS.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: 0.6,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: 26,
+            fontWeight: 820,
+            color: COLORS.text,
+          }}
+        >
+          {valueLabel}
+        </span>
+        {helper && (
+          <span
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 13,
+              fontWeight: 700,
+              color,
+            }}
+          >
+            {helper}
+          </span>
+        )}
+      </div>
+    </div>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: 8,
+        borderRadius: 4,
+        overflow: "hidden",
+        background: "rgba(255,255,255,0.07)",
+      }}
+    >
+      <div
+        style={{
+          width: `${Math.max(0, Math.min(1, progress)) * 100}%`,
+          height: "100%",
+          borderRadius: 4,
+          background: `linear-gradient(90deg, ${color}, ${color}cc)`,
+          boxShadow: `0 0 14px ${color}30`,
+        }}
+      />
+    </div>
+  </div>
+);
+
 export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -67,12 +154,15 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
   const controversyColor = getControversyColor(scoreNum);
   const controversyLabel = getControversyLabel(scoreNum);
+  const mood = getMoodSummary(stanceDistribution, debateFocus, communitySentiment);
+  const dominantColor = STANCE_COLORS[mood.dominant] || COLORS.accentLight;
+  const compactStances = compactDistribution(stanceDistribution);
 
-  const hasPie = Object.keys(stanceDistribution).length > 0;
+  const hasPie = Object.keys(compactStances).length > 0;
   const hasFocus = debateFocus.length > 0;
 
   const cardW = width - LAYOUT.pageInset * 2;
-  const topY = Math.round(height * 0.13);
+  const topY = LAYOUT.topInset;
 
   const cardProgress = spring({
     frame,
@@ -80,14 +170,12 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     config: { damping: 14, stiffness: 120 },
   });
 
-  const badgeProgress = spring({
+  const metricProgress = spring({
     frame,
     fps,
     config: { damping: 10, stiffness: 150 },
     delay: 8,
   });
-
-  const mood = getMoodSummary(stanceDistribution, debateFocus, communitySentiment);
 
   return (
     <div
@@ -97,24 +185,37 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "38px 46px 40px",
+        padding: "40px 48px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div style={{ display: "flex", gap: 46, alignItems: "center" }}>
-        <div style={{ flex: "0 0 350px", minWidth: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 328px", gap: 40, alignItems: "center" }}>
+        <div style={{ minWidth: 0 }}>
           <div style={sectionLabel}>{UI_TEXT.discussionMood}</div>
+          {mood.dominant && (
+            <div
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: 14,
+                fontWeight: 800,
+                color: COLORS.accentLight,
+                marginBottom: 8,
+              }}
+            >
+              社区主情绪：{mood.dominant}
+            </div>
+          )}
           <div
             style={{
               fontFamily: FONTS.bold,
-              fontSize: 20,
-              lineHeight: 1.16,
+              fontSize: 28,
+              lineHeight: 1.14,
               fontWeight: 800,
               color: COLORS.text,
-              marginBottom: 14,
+              marginBottom: 12,
             }}
           >
             {mood.title}
@@ -122,160 +223,131 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           <div
             style={{
               fontFamily: FONTS.sans,
-              fontSize: 19,
-              lineHeight: 1.48,
+              fontSize: 18,
+              lineHeight: 1.42,
               color: COLORS.textSecondary,
-              marginBottom: mood.percent > 0 ? 18 : 0,
+              marginBottom: mood.percent > 0 ? 16 : 0,
             }}
           >
             {mood.detail}
           </div>
-          {mood.percent > 0 && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "baseline",
-                gap: 8,
-                padding: "8px 14px",
-                borderRadius: 14,
-                backgroundColor: "rgba(255,255,255,0.06)",
-                marginBottom: 18,
-              }}
-            >
-              <span style={{ fontFamily: FONTS.mono, fontSize: 26, fontWeight: 800, color: COLORS.text }}>
-                {mood.percent}%
-              </span>
-              <span style={{ fontFamily: FONTS.sans, fontSize: 12, color: COLORS.textSecondary }}>
-                {mood.dominant}
-              </span>
-            </div>
-          )}
 
           <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-              backgroundColor: controversyColor + "15",
-              border: `1.5px solid ${controversyColor}40`,
-              borderRadius: 16,
-              padding: "10px 18px",
-              opacity: badgeProgress,
-              transform: `scale(${interpolate(badgeProgress, [0, 1], [0.6, 1])})`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 18,
+              marginTop: 24,
+              opacity: metricProgress,
+              transform: `translateY(${interpolate(metricProgress, [0, 1], [10, 0])}px)`,
             }}
           >
-            <span
+            {mood.percent > 0 && (
+              <MetricBar
+                label="主导立场"
+                valueLabel={`${mood.percent}%`}
+                helper={mood.dominant}
+                progress={mood.percent / 100}
+                color={dominantColor}
+              />
+            )}
+            <MetricBar
+              label={UI_TEXT.controversy}
+              valueLabel={`${scoreNum.toFixed(1)} / 10`}
+              helper={controversyLabel}
+              progress={scoreNum / 10}
+              color={controversyColor}
+            />
+          </div>
+
+          {hasFocus && (
+            <div
               style={{
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                fontWeight: 600,
-                color: controversyColor,
-                letterSpacing: 0,
+                marginTop: 24,
               }}
             >
-              {UI_TEXT.controversy}
-            </span>
-            <span
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: 24,
-                fontWeight: 700,
-                color: controversyColor,
-              }}
-            >
-              {scoreNum.toFixed(1)}
-            </span>
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                color: COLORS.textSecondary,
-              }}
-            >
-              {UI_TEXT.scoreSuffix}
-            </span>
-            {(commentCount > 0 || heatScore > 0) && (
-              <span
+              <div
                 style={{
                   fontFamily: FONTS.sans,
                   fontSize: 12,
-                  color: COLORS.textSecondary,
-                  marginLeft: 4,
+                  fontWeight: 760,
+                  color: COLORS.textTertiary,
+                  marginBottom: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.6,
                 }}
               >
-                {commentCount > 0
-                  ? `${UI_TEXT.comments} ${commentCount}`
-                  : `${UI_TEXT.heat} ${heatScore}`}
-              </span>
-            )}
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                color: COLORS.textSecondary,
-              }}
-            >
-              {controversyLabel}
-            </span>
-          </div>
+                {UI_TEXT.debateFocus}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {debateFocus.slice(0, 3).map((focus, i) => {
+                  const tagProgress = spring({
+                    frame,
+                    fps,
+                    config: { damping: 10, stiffness: 140 },
+                    delay: 6 + i * 4,
+                  });
+
+                  return (
+                    <div
+                      key={focus}
+                      style={{
+                        fontFamily: FONTS.sans,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: COLORS.text,
+                        opacity: tagProgress,
+                        backgroundColor: "rgba(255,255,255,0.055)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: 999,
+                        padding: "7px 12px",
+                        lineHeight: 1.25,
+                        transform: `translateY(${interpolate(tagProgress, [0, 1], [8, 0])}px)`,
+                      }}
+                    >
+                      {focus}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {hasPie && (
-          <StancePie
-            distribution={stanceDistribution}
-            size={198}
-            centerLabel={commentCount > 0 ? `${commentCount}条评论` : undefined}
-          />
-        )}
-
-        {hasFocus && (
-          <div style={{ flex: 1, minWidth: 0, maxWidth: 430 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 0,
+            gap: 16,
+          }}
+        >
+          {hasPie && (
+            <StancePie
+              distribution={compactStances}
+              size={158}
+              centerLabel={commentCount > 0 ? `${commentCount}条` : undefined}
+            />
+          )}
+          {commentCount <= 0 && heatScore > 0 && (
             <div
               style={{
                 fontFamily: FONTS.sans,
-                fontSize: 12,
-                lineHeight: 1.4,
-                color: COLORS.textTertiary,
-                marginBottom: 16,
-                textTransform: "uppercase",
-                letterSpacing: 0.8,
+                fontSize: 13,
+                fontWeight: 700,
+                color: COLORS.textSecondary,
+                padding: "7px 12px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.045)",
+                border: "1px solid rgba(255,255,255,0.055)",
               }}
             >
-              {UI_TEXT.debateFocus}
+              热度 {heatScore}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {debateFocus.map((focus, i) => {
-                const tagProgress = spring({
-                  frame,
-                  fps,
-                  config: { damping: 10, stiffness: 140 },
-                  delay: 6 + i * 4,
-                });
-
-                return (
-                  <div
-                    key={focus}
-                    style={{
-                      fontFamily: FONTS.sans,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: COLORS.text,
-                      opacity: tagProgress,
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                      borderRadius: 12,
-                      padding: "8px 14px",
-                      lineHeight: 1.3,
-                      transform: `translateY(${interpolate(tagProgress, [0, 1], [8, 0])}px)`,
-                    }}
-                  >
-                    {focus}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,17 +1,20 @@
 import json
 import re
+import hashlib
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import threading
 from contextlib import contextmanager
 
-from openai import OpenAI
+from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, InternalServerError
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from src.core.models import Script, ScriptSegment, SceneElement, ContentPackage, SelectionResult
 from src.core.interfaces import LLMProvider
 from src.core.prompts import render_prompt
+from src.pipeline.comment_selection import clean_comment_text, compute_comment_quality
 from src.utils.logger import setup_logger
 from src.utils.config import get_env
 
@@ -76,6 +79,8 @@ class OpenAILLMProvider(LLMProvider):
         self.max_tokens = llm_cfg.get("max_tokens", 8192)
         self.temperature = llm_cfg.get("temperature", 0.7)
         self.json_parse_max_retries = llm_cfg.get("json_parse_max_retries", 3)
+        self.max_completion_tokens_cap = llm_cfg.get("max_completion_tokens_cap", 32768)
+        self.cache_schema_version = llm_cfg.get("cache_schema_version", 2)
 
         fast_cfg = llm_cfg.get("fast", {})
         self.fast_model = fast_cfg.get("model", self.model)
@@ -83,6 +88,33 @@ class OpenAILLMProvider(LLMProvider):
         self.fast_temperature = fast_cfg.get("temperature", 0.3)
 
         self._total_stories = 0
+
+    @retry(
+        stop=stop_after_attempt(4),
+        wait=wait_exponential_jitter(initial=1, max=20),
+        retry=retry_if_exception_type((
+            APIConnectionError,
+            APITimeoutError,
+            RateLimitError,
+            InternalServerError,
+            httpx.TimeoutException,
+            httpx.TransportError,
+        )),
+        reraise=True,
+    )
+    def _create_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        max_tokens: int,
+        temperature: float,
+    ):
+        return self.client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=messages,
+        )
 
     def _call_llm_with_json_retry(
         self,
@@ -101,11 +133,11 @@ class OpenAILLMProvider(LLMProvider):
             t0 = time.monotonic()
 
             with self._spinner(f"[{label}] API response pending (attempt {attempt})..."):
-                response = self.client.chat.completions.create(
+                response = self._create_chat_completion(
+                    messages=current_messages,
                     model=effective_model,
                     max_tokens=effective_max_tokens,
                     temperature=effective_temperature,
-                    messages=current_messages
                 )
             elapsed = time.monotonic() - t0
 
@@ -123,30 +155,37 @@ class OpenAILLMProvider(LLMProvider):
 
             if usage is None:
                 self.logger.info(
-                    f"  [{label}] API returned None usage (attempt {attempt}), retrying..."
+                    f"  [{label}] Done in {elapsed:.1f}s (usage unavailable, attempt={attempt})"
                 )
-                continue
+            else:
+                details = getattr(usage, "prompt_tokens_details", None)
+                cached = getattr(details, "cached_tokens", 0) if details else 0
+                if not cached:
+                    cached = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
+                miss = usage.prompt_tokens - cached
+                hit_pct = (cached / usage.prompt_tokens * 100) if usage.prompt_tokens else 0
 
-            details = getattr(usage, "prompt_tokens_details", None)
-            cached = getattr(details, "cached_tokens", 0) if details else 0
-            if not cached:
-                cached = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
-            miss = usage.prompt_tokens - cached
-            hit_pct = (cached / usage.prompt_tokens * 100) if usage.prompt_tokens else 0
-
-            self.logger.info(
-                f"  [{label}] Done in {elapsed:.1f}s "
-                f"(prompt={usage.prompt_tokens} [cache hit={cached}/{hit_pct:.0f}%, miss={miss}], "
-                f"completion={usage.completion_tokens}, total={usage.total_tokens} tokens, attempt={attempt})"
-            )
+                self.logger.info(
+                    f"  [{label}] Done in {elapsed:.1f}s "
+                    f"(prompt={usage.prompt_tokens} [cache hit={cached}/{hit_pct:.0f}%, miss={miss}], "
+                    f"completion={usage.completion_tokens}, total={usage.total_tokens} tokens, attempt={attempt})"
+                )
 
             if finish_reason == "length":
+                if effective_max_tokens >= self.max_completion_tokens_cap:
+                    raise ValueError(
+                        f"[{label}] Response truncated at max token cap "
+                        f"({self.max_completion_tokens_cap})"
+                    )
                 self.logger.info(
                     f"  [{label}] Response truncated (finish_reason=length, "
-                    f"completion={usage.completion_tokens}/{effective_max_tokens} tokens). "
+                    f"max_tokens={effective_max_tokens}). "
                     f"Doubling max_tokens and retrying..."
                 )
-                effective_max_tokens = min(effective_max_tokens * 2, 32768)
+                effective_max_tokens = min(
+                    effective_max_tokens * 2,
+                    self.max_completion_tokens_cap,
+                )
                 continue
 
             try:
@@ -183,13 +222,25 @@ class OpenAILLMProvider(LLMProvider):
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{segment_type}_{story_index}.json"
 
-    def _load_cached_segment(self, date: str, segment_type: str, story_index: int) -> Optional[ScriptSegment]:
+    def _load_cached_segment(
+        self,
+        date: str,
+        segment_type: str,
+        story_index: int,
+        expected_cache_meta: Optional[Dict[str, Any]] = None,
+    ) -> Optional[ScriptSegment]:
         cache_path = self._get_segment_cache_path(date, segment_type, story_index)
         if not cache_path.exists():
             return None
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
                 seg_dict = json.load(f)
+            cache_meta = seg_dict.get("_cache")
+            if expected_cache_meta is not None and cache_meta != expected_cache_meta:
+                self.logger.info(
+                    f"    [{segment_type}_{story_index}] Cached segment metadata changed; regenerating"
+                )
+                return None
             scene_elements = [
                 SceneElement(
                     element_type=e["element_type"],
@@ -224,12 +275,20 @@ class OpenAILLMProvider(LLMProvider):
             None,
         )
         props = event_elem.props if event_elem else {}
-        required = ("editor_angle", "why_it_matters")
+        required = ("editor_angle", "dek", "key_points", "why_it_matters")
         return all(props.get(key) or segment.meta.get(key) for key in required)
 
-    def _save_segment_cache(self, date: str, segment_type: str, story_index: int, segment: ScriptSegment) -> None:
+    def _save_segment_cache(
+        self,
+        date: str,
+        segment_type: str,
+        story_index: int,
+        segment: ScriptSegment,
+        cache_meta: Optional[Dict[str, Any]] = None,
+    ) -> None:
         cache_path = self._get_segment_cache_path(date, segment_type, story_index)
         seg_dict = {
+            "_cache": cache_meta or {},
             "segment_type": segment.segment_type,
             "audio_text": segment.audio_text,
             "estimated_duration": segment.estimated_duration,
@@ -248,6 +307,23 @@ class OpenAILLMProvider(LLMProvider):
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(seg_dict, f, ensure_ascii=False, indent=2)
 
+    def _build_segment_cache_meta(
+        self,
+        *,
+        prompt: str,
+        story_id: Any,
+        model: str,
+        temperature: float,
+    ) -> Dict[str, Any]:
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        return {
+            "schema_version": self.cache_schema_version,
+            "model": model,
+            "temperature": temperature,
+            "story_id": str(story_id),
+            "prompt_hash": prompt_hash,
+        }
+
     def generate_single_story_segment(
         self,
         content: ContentPackage,
@@ -258,13 +334,6 @@ class OpenAILLMProvider(LLMProvider):
         comments_data: Optional[Dict] = None
     ) -> ScriptSegment:
         """为单个 story 生成对应的 ScriptSegment，带缓存"""
-        cached = self._load_cached_segment(date, segment_type, story_index)
-        if cached is not None:
-            self.logger.info(f"    [{segment_type}_{story_index}] Loaded from cache")
-            return cached
-
-        self.logger.info(f"    [{segment_type}_{story_index}] Generating...")
-
         item = content.items[story_index]
         story_json = self._single_story_to_json(item, story_index)
 
@@ -285,6 +354,25 @@ class OpenAILLMProvider(LLMProvider):
             comments_json=comments_json_str,
             date=date
         )
+
+        cache_meta = self._build_segment_cache_meta(
+            prompt=prompt,
+            story_id=item.source_id,
+            model=self.model,
+            temperature=self.temperature,
+        )
+
+        cached = self._load_cached_segment(
+            date,
+            segment_type,
+            story_index,
+            expected_cache_meta=cache_meta,
+        )
+        if cached is not None:
+            self.logger.info(f"    [{segment_type}_{story_index}] Loaded from cache")
+            return cached
+
+        self.logger.info(f"    [{segment_type}_{story_index}] Generating...")
 
         response_text = self._call_llm_with_json_retry(
             messages=self._split_prompt(prompt),
@@ -312,6 +400,18 @@ class OpenAILLMProvider(LLMProvider):
             if elem.element_type == "event_card":
                 if "keywords" in seg_dict and "keywords" not in elem.props:
                     elem.props["keywords"] = seg_dict["keywords"]
+                for key in (
+                    "editor_angle",
+                    "category",
+                    "source_title",
+                    "dek",
+                    "key_points",
+                    "why_it_matters",
+                    "next_watch",
+                    "visual_hint",
+                ):
+                    if key in seg_dict and key not in elem.props:
+                        elem.props[key] = seg_dict[key]
                 break
         meta = seg_dict.get("meta", {})
         # Pass through structured narration and keywords from LLM output
@@ -323,7 +423,16 @@ class OpenAILLMProvider(LLMProvider):
             meta["debate_focus"] = seg_dict["debate_focus"]
         if "community_sentiment" in seg_dict:
             meta["community_sentiment"] = seg_dict["community_sentiment"]
-        for key in ("editor_angle", "why_it_matters", "next_watch", "category"):
+        for key in (
+            "editor_angle",
+            "source_title",
+            "dek",
+            "key_points",
+            "why_it_matters",
+            "next_watch",
+            "category",
+            "visual_hint",
+        ):
             if key in seg_dict:
                 meta[key] = seg_dict[key]
 
@@ -336,7 +445,7 @@ class OpenAILLMProvider(LLMProvider):
             meta=meta,
         )
 
-        self._save_segment_cache(date, segment_type, story_index, segment)
+        self._save_segment_cache(date, segment_type, story_index, segment, cache_meta=cache_meta)
         self.logger.info(f"    [{segment_type}_{story_index}] Done")
         return segment
 
@@ -442,6 +551,10 @@ class OpenAILLMProvider(LLMProvider):
 
     @contextmanager
     def _spinner(self, label: str):
+        if threading.current_thread() is not threading.main_thread():
+            yield
+            return
+
         t0 = time.monotonic()
         stop_event = threading.Event()
 
@@ -466,35 +579,51 @@ class OpenAILLMProvider(LLMProvider):
 
     def _single_story_to_json(self, item, index: int) -> str:
         analyze_cfg = self.config.get("analyze", {})
-        pipeline_cfg = self.config.get("pipeline", {})
 
-        # If comments have been analyzed, use quality-filtered top-N.
-        # Otherwise fall back to raw truncation (backward compatible).
-        has_analysis = any(
-            c.quality_score is not None for c in item.comments
-        )
-        if has_analysis:
-            max_comments = analyze_cfg.get("max_comments_for_llm", 10)
-            sorted_comments = sorted(
-                item.comments,
-                key=lambda c: c.quality_score or 0,
-                reverse=True,
-            )[:max_comments]
-            comments_json = [
-                {
-                    "author": c.author,
-                    "text": c.content,
-                    "sentiment": c.sentiment,
-                    "quality_score": c.quality_score,
-                }
-                for c in sorted_comments
+        max_comments = analyze_cfg.get("max_comments_for_llm", 10)
+        min_quality = analyze_cfg.get("min_quality_score", 0.1)
+
+        # Prefer persisted analysis, but never send the raw 80-comment fallback to
+        # the LLM. If analysis was skipped or cache did not load, compute the same
+        # lightweight heuristic score here and still keep only top-N comments.
+        scored_comments = []
+        computed_fallback_scores = False
+        for c in item.comments:
+            text = clean_comment_text(c.content)
+            if not text:
+                continue
+            quality_score = c.quality_score
+            if quality_score is None:
+                quality_score = compute_comment_quality(c, item)
+                computed_fallback_scores = True
+            if quality_score >= min_quality:
+                scored_comments.append((quality_score, c, text))
+
+        if not scored_comments:
+            scored_comments = [
+                (compute_comment_quality(c, item), c, clean_comment_text(c.content))
+                for c in item.comments
+                if clean_comment_text(c.content)
             ]
-        else:
-            max_comments = pipeline_cfg.get("max_comments_for_r1_analyze", 80)
-            comments_json = [
-                {"author": c.author, "text": c.content}
-                for c in item.comments[:max_comments]
-            ]
+
+        scored_comments.sort(key=lambda x: x[0], reverse=True)
+        comments_json = [
+            {
+                "id": c.source_id,
+                "author": c.author,
+                "text": text,
+                "depth": c.depth,
+                "sentiment": c.sentiment,
+                "quality_score": quality_score,
+            }
+            for quality_score, c, text in scored_comments[:max_comments]
+        ]
+
+        if computed_fallback_scores:
+            self.logger.debug(
+                f"Story[{index}] comments had no analysis cache; "
+                f"computed fallback quality scores and selected top {len(comments_json)}"
+            )
 
         story_dict = {
             "index": index,

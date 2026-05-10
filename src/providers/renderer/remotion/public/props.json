@@ -4,40 +4,31 @@
   "fps": 24,
   "bgColor": "#0d1117",
   "title": "HN TechPulse 每日快讯",
-  "totalDuration": 509.384,
+  "totalDuration": 475.64,
   "segments": [
     {
       "segment_type": "opening",
-      "audio_text": "大家好，我是小P，今天是2026年05月10日，周日。今天 HN 值得看这几件事：Google用reCAPTCHA锁死去Google化用户，垄断争议升级、AI攻克博士级数学，数学家身份危机、知识保存的全球化支点，但执行细节引争议。",
+      "audio_text": "这里是 HN TechPulse，直接看今天的技术信号。",
       "cues": [
         {
-          "text": "大家好，我是小P，今天是2026年05月10日，周日。",
+          "text": "这里是 HN TechPulse，直接看今天的技术信号。",
           "start_time": 0.0,
-          "end_time": 5.118
-        },
-        {
-          "text": "今天 HN 值得看这几件事：Google用reCAPTCHA锁死去Google化用户，垄断争议升级、AI攻克博士级数学，数学家身份危机、知识保存的全球化支点，但执行细节引争议。",
-          "start_time": 5.068,
-          "end_time": 20.712
+          "end_time": 4.224
         }
       ],
-      "duration": 20.712,
+      "duration": 4.224,
       "start_time": 0.0,
-      "end_time": 20.712,
+      "end_time": 4.224,
       "scene_elements": [
         {
           "element_type": "title_card",
           "start_time": 0.0,
-          "end_time": 20.712,
+          "end_time": 4.224,
           "props": {
             "title": "HN TechPulse",
-            "subtitle": "2026年05月10日",
-            "headline": "今日技术信号",
-            "topics": [
-              "Google用reCAPTCHA锁死去Google化用户，垄断争议升级",
-              "AI攻克博士级数学，数学家身份危机",
-              "知识保存的全球化支点，但执行细节引争议"
-            ],
+            "subtitle": "2026年05月11日",
+            "headline": "HNTechPulse",
+            "topics": [],
             "stats": ""
           }
         }
@@ -55,8 +46,8 @@
         }
       ],
       "duration": 8.0,
-      "start_time": 20.712,
-      "end_time": 28.712,
+      "start_time": 4.224,
+      "end_time": 12.224,
       "scene_elements": [
         {
           "element_type": "dashboard_card",
@@ -67,202 +58,178 @@
               {
                 "rank": 1,
                 "story_index": 0,
-                "original_title": "Google broke reCAPTCHA for de-googled Android users",
-                "title_translation": "Google 破坏了去谷歌化 Android 用户的 reCAPTCHA",
-                "editor_angle": "Google用reCAPTCHA锁死去Google化用户，垄断争议升级",
-                "why_it_matters": "",
+                "original_title": "I’ve banned query strings",
+                "title_translation": "我已禁用查询字符串",
+                "editor_angle": "Debian包可重现强制化，信任链再加固",
+                "why_it_matters": "抵抗供应链攻击的关键一步，为软件物料清单提供可靠基础。",
                 "next_watch": "",
                 "category": "基础设施",
                 "keywords": [
-                  "reCAPTCHA",
-                  "去Google化",
-                  "Android垄断",
-                  "验证失败",
-                  "反竞争"
+                  "可重现构建",
+                  "Debian",
+                  "供应链安全"
                 ],
-                "score": 1452,
-                "comment_count": 542,
-                "title_cn": "Google 破坏了去谷歌化 Android 用户的 reCAPTCHA"
+                "score": 509,
+                "comment_count": 267,
+                "title_cn": "我已禁用查询字符串"
               },
               {
                 "rank": 2,
                 "story_index": 1,
-                "original_title": "A recent experience with ChatGPT 5.5 Pro",
-                "title_translation": "近期使用 ChatGPT 5.5 Pro 的体验",
-                "editor_angle": "AI攻克博士级数学，数学家身份危机",
-                "why_it_matters": "",
+                "original_title": "Meta's embrace of AI is making its employees miserable",
+                "title_translation": "Meta 拥抱 AI 让员工苦不堪言",
+                "editor_angle": "AI转型下的监控悖论：员工成为训练样本",
+                "why_it_matters": "AI巨头的数据收集边界与员工信任危机暴露，技术战略与人性冲突",
                 "next_watch": "",
-                "category": "AI工具",
+                "category": "其他",
                 "keywords": [
-                  "数学研究",
-                  "AI能力",
-                  "博士级问题",
-                  "人类价值",
-                  "ChatGPT 5.5"
+                  "员工监控",
+                  "AI训练",
+                  "隐私争议"
                 ],
-                "score": 616,
-                "comment_count": 446,
-                "title_cn": "近期使用 ChatGPT 5.5 Pro 的体验"
+                "score": 425,
+                "comment_count": 492,
+                "title_cn": "Meta 拥抱 AI 让员工苦不堪言"
               },
               {
                 "rank": 3,
                 "story_index": 2,
-                "original_title": "Internet Archive Switzerland",
-                "title_translation": "瑞士互联网档案馆",
-                "editor_angle": "知识保存的全球化支点，但执行细节引争议",
-                "why_it_matters": "",
+                "original_title": "Show HN: Building a web server in assembly to give my life (a lack of) meaning",
+                "title_translation": "Show HN：用汇编构建 Web 服务器，给我的生活（缺乏）意义",
+                "editor_angle": "汇编Web服务器，极客浪漫还是无意义？",
+                "why_it_matters": "在AI生成代码时代，手写汇编成为极少数人的技术浪漫，也引发对开发者生存意义的反思。",
                 "next_watch": "",
-                "category": "基础设施",
+                "category": "开发者体验",
                 "keywords": [
-                  "互联网档案馆",
-                  "瑞士",
-                  "知识保存",
-                  "全球化",
-                  "AI模型存档"
+                  "汇编Web服务器",
+                  "ARM64手写",
+                  "技术浪漫"
                 ],
-                "score": 574,
-                "comment_count": 87,
-                "title_cn": "瑞士互联网档案馆"
+                "score": 355,
+                "comment_count": 192,
+                "title_cn": "Show HN：用汇编构建 Web 服务器，给我的生活（缺乏）意义"
               },
               {
                 "rank": 4,
                 "story_index": 3,
-                "original_title": "Bun's experimental Rust rewrite hits 99.8% test compatibility on Linux x64 glibc",
-                "title_translation": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 测试兼容性",
-                "editor_angle": "AI加速重写，但安全与维护仍存疑",
+                "original_title": "Debian must ship reproducible packages",
+                "title_translation": "Debian 必须发布可重现的软件包",
+                "editor_angle": "Debian must ship reproducible packages",
                 "why_it_matters": "",
                 "next_watch": "",
-                "category": "开发者体验",
-                "keywords": [
-                  "Bun",
-                  "Rust重写",
-                  "AI辅助",
-                  "测试兼容性",
-                  "Zig生态"
-                ],
-                "score": 476,
-                "comment_count": 451,
-                "title_cn": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 测试兼容性"
+                "category": "",
+                "keywords": [],
+                "score": 315,
+                "comment_count": 133,
+                "title_cn": "Debian 必须发布可重现的软件包"
               },
               {
                 "rank": 5,
                 "story_index": 4,
-                "original_title": "EU Parliamentary Research Service calls VPNs \"a loophole that needs closing\"",
-                "title_translation": "欧盟议会研究服务称 VPN 为“需要堵上的漏洞”",
-                "editor_angle": "以保护儿童之名，实为监控扩权",
-                "why_it_matters": "",
+                "original_title": "Zed Editor Theme-Builder",
+                "title_translation": "Zed 编辑器主题构建器",
+                "editor_angle": "Zed默认主题被批'灰上加灰'，官方推构建器自救",
+                "why_it_matters": "主题可定制成为现代编辑器标配，Zed此举缩小了与VS Code等对手的体验差距",
                 "next_watch": "",
-                "category": "安全风险",
+                "category": "开发者体验",
                 "keywords": [
-                  "EU",
-                  "VPN",
-                  "年龄验证",
-                  "隐私",
-                  "监控"
+                  "主题构建器",
+                  "Zed编辑器",
+                  "高对比度"
                 ],
-                "score": 453,
-                "comment_count": 303,
-                "title_cn": "欧盟议会研究服务称 VPN 为“需要堵上的漏洞”"
+                "score": 263,
+                "comment_count": 77,
+                "title_cn": "Zed 编辑器主题构建器"
               },
               {
                 "rank": 6,
                 "story_index": 5,
-                "original_title": "Using Claude Code: The unreasonable effectiveness of HTML",
-                "title_translation": "使用 Claude Code：HTML 的惊人效力",
-                "editor_angle": "HTML成为AI输出新宠，但并非没有代价",
-                "why_it_matters": "",
+                "original_title": "France moves to break encrypted messaging",
+                "title_translation": "法国着手破解加密消息",
+                "editor_angle": "法国推动‘定向读取’加密，技术界指漏洞百出",
+                "why_it_matters": "若立法通过，将开创国家强制削弱加密的先例，威胁全球通信安全",
                 "next_watch": "",
-                "category": "开发者体验",
+                "category": "安全风险",
                 "keywords": [
-                  "HTML vs Markdown",
-                  "AI协作",
-                  "Claude Code",
-                  "token效率",
-                  "开发者工作流"
+                  "加密后门",
+                  "法国立法",
+                  "通信安全"
                 ],
-                "score": 435,
-                "comment_count": 248,
-                "title_cn": "使用 Claude Code：HTML 的惊人效力"
+                "score": 259,
+                "comment_count": 124,
+                "title_cn": "法国着手破解加密消息"
               },
               {
                 "rank": 7,
                 "story_index": 6,
-                "original_title": "AI is breaking two vulnerability cultures",
-                "title_translation": "AI 正在打破两种漏洞文化",
-                "editor_angle": "AI颠覆漏洞披露规则，加速安全军备竞赛",
-                "why_it_matters": "",
+                "original_title": "Space Cadet Pinball on Linux",
+                "title_translation": "Linux 上的太空军校生弹球",
+                "editor_angle": "开源社区反向移植，Space Cadet弹球重生",
+                "why_it_matters": "逆向工程让老游戏跨平台重生，开源社区延续经典生命力。",
                 "next_watch": "",
-                "category": "安全风险",
+                "category": "开源生态",
                 "keywords": [
-                  "AI安全",
-                  "漏洞披露",
-                  "开源安全",
-                  "军备竞赛",
-                  "Git提交分析"
+                  "经典弹球",
+                  "开源移植",
+                  "Linux游戏"
                 ],
-                "score": 415,
-                "comment_count": 166,
-                "title_cn": "AI 正在打破两种漏洞文化"
+                "score": 247,
+                "comment_count": 82,
+                "title_cn": "Linux 上的太空军校生弹球"
               },
               {
                 "rank": 8,
                 "story_index": 7,
-                "original_title": "Cartoon Network Flash Games",
-                "title_translation": "卡通网络 Flash 游戏",
-                "editor_angle": "Flash游戏遗珠，数字保存进行时",
-                "why_it_matters": "",
+                "original_title": "Getting arrested in Japan",
+                "title_translation": "在日本被逮捕的经历",
+                "editor_angle": "安全旅游神话下的司法硬核现实",
+                "why_it_matters": "揭示日本安全标签背后，对外籍人士可能不公平的司法实践",
                 "next_watch": "",
-                "category": "其他",
+                "category": "安全风险",
                 "keywords": [
-                  "Flash游戏",
-                  "数字保存",
-                  "Cartoon Network",
-                  "怀旧",
-                  "Ruffle"
+                  "日本拘留制度",
+                  "外国游客风险",
+                  "司法程序争议"
                 ],
-                "score": 405,
-                "comment_count": 127,
-                "title_cn": "卡通网络 Flash 游戏"
+                "score": 240,
+                "comment_count": 284,
+                "title_cn": "在日本被逮捕的经历"
               },
               {
                 "rank": 9,
                 "story_index": 8,
-                "original_title": "LLMs corrupt your documents when you delegate",
-                "title_translation": "当你委托时，LLMs 会损坏你的文档",
-                "editor_angle": "AI助手可能让文档变得更糟",
-                "why_it_matters": "",
+                "original_title": "Show HN: I made a Clojure-like language in Go, boots in 7ms",
+                "title_translation": "Show HN：我用 Go 做了一个类似 Clojure 的语言，7 毫秒启动",
+                "editor_angle": "Clojure在Go上7ms启动，抛弃JVM",
+                "why_it_matters": "Clojure可在资源受限环境或容器中高效运行，拓展Lisp应用场景。",
                 "next_watch": "",
-                "category": "安全风险",
+                "category": "开发者体验",
                 "keywords": [
-                  "LLM委托",
-                  "文档腐蚀",
-                  "AI清洗",
-                  "事实错误",
-                  "代理信任"
+                  "Clojure方言",
+                  "Go编写",
+                  "7ms冷启动"
                 ],
-                "score": 380,
-                "comment_count": 146,
-                "title_cn": "当你委托时，LLMs 会损坏你的文档"
+                "score": 239,
+                "comment_count": 68,
+                "title_cn": "Show HN：我用 Go 做了一个类似 Clojure 的语言，7 毫秒启动"
               },
               {
                 "rank": 10,
                 "story_index": 9,
-                "original_title": "Meta Shuts Down End-to-End Encryption for Instagram Messaging",
-                "title_translation": "Meta 关闭 Instagram 消息的端到端加密",
-                "editor_angle": "Meta关闭端到端加密，隐私让步监控",
-                "why_it_matters": "",
+                "original_title": "Louis Rossmann offers to pay legal fees for a threatened OrcaSlicer developer",
+                "title_translation": "Louis Rossmann 主动提出为受威胁的 OrcaSlicer 开发者支付法律费用",
+                "editor_angle": "Rossmann 怒斥 Bambu Lab，自掏腰包帮开发者打官司",
+                "why_it_matters": "此事件将决定用户对自己购买的 3D 打印机的控制权边界，影响维修权运动未来走向。",
                 "next_watch": "",
-                "category": "安全风险",
+                "category": "开发者体验",
                 "keywords": [
-                  "端到端加密",
-                  "Instagram",
-                  "隐私",
-                  "Meta",
-                  "安全"
+                  "维修权运动",
+                  "开源打印机",
+                  "法律对抗"
                 ],
-                "score": 319,
-                "comment_count": 216,
-                "title_cn": "Meta 关闭 Instagram 消息的端到端加密"
+                "score": 228,
+                "comment_count": 164,
+                "title_cn": "Louis Rossmann 主动提出为受威胁的 OrcaSlicer 开发者支付法律费用"
               }
             ]
           }
@@ -272,430 +239,627 @@
     },
     {
       "segment_type": "story_scan",
-      "audio_text": "这不是个bug，是谷歌的阳谋。新版reCAPTCHA强制要求Android设备安装Google Play服务才能通过验证，导致去谷歌化的手机、华为、小米海外版统统被拒之门外。影响范围波及数亿用户，互联网正在变成'证明你用我批准的电脑'。 社区炸了锅，多数人谴责谷歌反竞争，认为这是扼杀掉队厂商和隐私手机。也有少数人觉得网站管理员该换验证方案，但谷歌一家独大，选择有限。 有用户直言：'谷歌砍掉梯子只为自己的AI bot开路。' 也有人认为这是反垄断切入点。但一个务实问题是：没有Google服务的手机怎么办？评论区的共识是：网站开发者应主动寻找开源验证方案，别被谷歌绑架。 数学研究的下一个门槛，可能是击败AI。著名数学家Gowers用ChatGPT 5.5 Pro，一小时内自主完成博士级数学证明，几乎没他本人介入。这意味人类数学家必须证明AI无法证明的东西才有价值。 社区分裂明显：一批数学家感到悲伤，认为‘不朽’终结；另一派坚持AI只是高级工具，人类专家仍需验证和引导。讨论质量高但情绪低落。 有评论说‘这让我有点悲伤’，另一条反驳‘如果懂得提问和验证，AI就是强大协作伙伴’。编辑判断：未来数学不再是发现，而是验证与创新并存。 互联网档案馆的全球化野心迈出坚实一步。他们在瑞士圣加仑成立非营利基金会，不仅保存网页，还要存档即将被重新训练的AI模型。这意味着知识保存不再依赖单一国家，抗风险能力大增。 社区整体叫好，但分歧明显。支持者夸它是欧洲急需的基础设施，质疑者则担心组织能否延续十年以上。还有用户吐槽瑞士官网像企业宣传页，找不到实际档案入口，体验远不如主站。 有用户说：‘圣加仑已经保存知识上千年，现在轮到他们保存AI模型，选址不是巧合。’但也有人泼冷水：‘任何基于多年假设的项目都会消退，未来已经不是从前了。’编辑判断：理想宏大，但落地细节和可持续性才是真考验。 Bun的Rust重写实验版仅用6天就达到99.8%测试通过率，展示了AI辅助代码迁移的巨大潜力。但这速度背后，也引发了对长期安全性和可维护性的深层反思。 社区分化明显：一方认为Rust比Zig更安全，能减少内存崩溃；另一方质疑AI重写引入大量unsafe块，并未真正解决问题。同时，Zig生态可能失去Bun这个标志性项目。 支持者说：“Rust的unsafe块被清晰标记，更容易修复。” 质疑者则认为：“6天重写只是原型，真正挑战是消除unsafe并保持可维护。” 编辑判断：AI加速开发可期，但质量仍需人工严谨把关。 欧盟这次盯上VPN了。议会研究机构称VPN是年龄验证的‘漏洞’，必须堵上。这不仅影响隐私工具，更可能让网络监控合法化，科技圈一片哗然。 社区几乎一边倒地质疑：为什么是VPN而不是商业利益？有人指出这是‘为监控铺路’，也有人担心年龄验证会彻底绑定身份。分歧在于保护儿童还是保护隐私？ 有用户嘲讽：‘以前家长控制孩子上网，现在政治家控制所有人上网。’也有观点说：‘纳税漏洞不查，专查VPN。’编辑判断：以安全为名的扩张，往往比安全本身更危险。 AI协作的新趋势：开发者发现用HTML作为AI输出格式出奇有效。一个HTML文件无需依赖、可本地运行、能通过链接或邮件直接共享，正在成为原型和工具的默认载体。 社区兴奋但分化。点赞者称其‘免费沙箱’，担忧者指出HTML比Markdown更耗token，且可能强化对特定模型的依赖。 支持方说：‘我可以把工具邮件给朋友，让他们用LLM改代码。’反方则质疑：‘Token效率低是硬伤，这个趋势恰好让Anthropic受益。’编辑判断：HTML固然强大，但开发者必须清醒意识到其平台锁定与性价比权衡。 AI正在打破传统漏洞披露规则。攻击者能利用AI从Git提交中自动识别安全补丁，使漏洞暴露窗口从数月缩短至数小时，倒逼整个安全社区重新思考补丁发布策略。 社区争论焦点：AI是否真的改变本质？有人认为只是旧问题的新包装，也有人认为AI将彻底终结安全披露的‘安静期’，优势将向集中式平台倾斜。 支持者说‘AI使补丁识别效率指数级提升，必须缩短窗口’，质疑者则担心‘协调披露变得不可能，开源项目更脆弱’。编辑判断：安全博弈进入AI军备竞赛时代，防守方需要更快更聪明。 数字怀旧不只有情怀，更有技术挑战。Cartoon Network经典Flash游戏被Web Design Museum收录并在线展出，这个收藏不仅带我们回到童年，更提醒我们Flash已死，但靠Ruffle等工具仍可重温。 社区一片怀旧，大家分享童年最爱，但也有用户反映Ruffle加载失败、被Cloudflare拦截，技术兼容性问题让这场回忆之旅打了折扣。 有用户感慨‘过去互联网有孩子们的专属角落，现在全被引流到大平台’，另一条则指出‘还有更多游戏没被收录’。编辑判断：数字保存值得做，但执行细节决定体验。 新研究敲响警钟：把文档委托给AI处理反而可能越弄越糟。微软团队发现，让大模型润色或修改文档时，它会逐渐偏离原意、引入错误，且传递次数越多，错误累积越严重。这对依赖AI辅助写作和代码生成的人是个重要提醒。 社区讨论两极分化。一方认为这是AI固有缺陷，每次‘清洗’都会损失信息；另一方反驳说人类玩电话游戏也会出错，关键在于设计边界和单一真相来源。争论焦点在于问题出在模型本身还是使用方式。 有用户提出‘语义消融’概念，认为AI写作正让文本变得无聊而危险；另有人提出只要设置清晰边界、让AI改动可追溯就能避免。编辑判断：在完全信任AI之前，我们需要更好的审计机制，而不是盲目委托。 Meta在隐私问题上再次倒退，正式关闭Instagram私信的端到端加密。这意味着数百万用户的私密对话将面临第三方和政府监控，隐私保护形同虚设，对追求安全通信的用户是沉重打击。 社区一片哗然，大部分用户愤怒指责Meta牺牲隐私；但也有人辩解称，这样有助于打击儿童色情等违法行为。争议焦点是：Meta的真实动机到底是保护用户，还是为了商业利益放弃安全？ 有开发者尖锐指出：只有开源才能提供可信的端到端加密，Meta的集中式方案本就是安全表演。另一条评论则认为，孩子本就不该暴露在社交平台上，而Meta为了眼球宁愿牺牲儿童安全。无论如何，用户对这家公司的信任再度跌入冰点。",
+      "audio_text": "一位开发者在他的个人网站上全面封杀了所有未经授权的查询字符串。他认为utm和ref这些跟踪参数是对用户的侵犯，而Referer头部才是正确的来源识别方式。这则帖子瞬间点燃了Web社区的争论。 社区的反应热闹又分裂。有人拍手叫好，认为这是对隐私的回归；但更多人指出作者的双标——他居然允许了Instagram的跟踪参数。还有人在技术细节上争执：到底该返回400还是404？ 一位评论者建议：‘更好的方式是只删除utmx开头的参数，保留有用的查询。’另一位则警告：‘禁止查询字符串只会让跟踪转移到路径中，更难以控制。’这场讨论的实质是：Web的优雅约定能否对抗实用主义和追踪工业？ Meta的AI野心已经烧到了自家员工身上。公司宣布全面追踪员工电脑操作，包括键盘输入、鼠标移动和屏幕内容，用来训练AI学习人类行为。数千员工公开抗议，但CTO博斯沃思表示无法退出。 HN社区几乎一边倒批评Meta，有人直言这是‘反社会’监控。分歧在于：员工有没有权利拒绝成为AI训练数据？还是在垄断巨头面前别无选择？部分评论也指出这只是AI数据饥渴的缩影。 一位用户说‘我不同情Meta员工，他们终于尝到了自己公司的苦果’。另一条评论则感叹‘难以想象Meta觉得这是个好主意’。当公司把员工也变成数据源，信任的裂痕已难以弥合。 一条HN帖子火爆社区：有人用ARM64汇编手写了一个Web服务器。标题自嘲'给生活缺少的意义'，但项目非常硬核——只依赖系统调用，无libc，支持HTTP/1.0/1.1，还实现了Range请求和路径防护。 社区反应两极：老程序员称赞汇编优雅，年轻开发者质疑价值。有人调侃'找更好的生活意义'，多数人共鸣于这种纯粹的技术热情。 一方评论：'写汇编更像写宏汇编，基础没变'；另一方：'在AI时代我们还在玩汇编，有点讽刺'。编辑判断：或许这就是开发者最后的倔强——在自动生成时代，手工编码依然能带来最纯粹的成就感。 Debian迈出历史性一步：强制所有新包必须可重现。这意味着从源头到最终二进制文件，每一步都是确定性的。这不仅是技术升级，更是在EU法规压力下对软件供应链的可信承诺。 社区叫好但质疑不断：NetBSD、Stagex更早更彻底。争论焦点：如何定义完整可重现？强制是否足够？ 支持者说这是开源安全的基础设施；挑战者则以Stagex的100%全源码自举为例，认为Debian标准太低。编辑判断：Debian作为最广泛发行版，这一政策将带动整个生态建立更高的构建信任标准。 终于不用再看灰了吧唧的默认主题了。Zed官方推出主题构建器，允许开发者通过可视化的层级面板深度定制界面配色。这个工具直面社区长期抱怨的对比度问题，算是补上了编辑器体验的关键一环。 多数人表示期待，但也有用户指出构建器预览不直观，不知道当前改了哪个元素。还有人称宁愿花钱找人定制Cobalt主题，另有人发现构建器里显示了自己的GitHub头像，引发隐私担忧。 有用户说：“终于可以自己调出真正的高对比度主题了”。但另一位说：“我试过让AI帮我生成Cobalt主题，它根本搞不对”。还有用户抱怨：“居然能看见别人的头像，不太酷”。看来主题方向对了，但社区对默认主题的怨气还有很长路要消。 法国议会情报代表团正式支持打破端到端加密，建议允许法官对WhatsApp、Signal和Telegram的消息进行‘定向访问’。技术专家警告，任何后门方案都会破坏加密本质，无法只让好人使用。 社区争论焦点：文章误认为Telegram默认加密；法国用户引ANSSI报告指后门危险无用；还有评论质疑后门只针对普通人，精英可自用。整体情绪质疑立法合理性。 一位法国HN用户说：‘ANSSI在2016年就警告后门危险无用，如今我们仍在抗争。’另一评论讽刺：‘精英们总会为自己留后门。’这表明社区共识：加密后门在技术上不可行，且不公平。编辑判断：法国立法若通过，可能威胁全球加密标准。 经典终于回归！Space Cadet Pinball被成功移植到Linux，通过开源逆向工程，玩家现在可以一键安装并享受高清弹球。这是怀旧情怀的一次胜利。 社区玩家情绪复杂：有人热泪盈眶，有人说这款弹球物理引擎烂透了。但更多人讨论的是如何通过替换数据文件获得更好画质。 有用户感慨'这是最有感情的Windows自带游戏'，而另一派直言'物理效果太差，完全是靠情怀撑场'。不管怎样，能在Linux上玩到它，本身就是一个技术成就。 日本连续23天关押、不准保释、审讯睡觉姿势都被管——一篇亲身经历文章曝光了该国拘留系统的严苛细节，让不少境外游客重新评估安全光环下的司法实操。 社区里炸开了锅：有人感谢预警，有人反问\"为什么日本这么安全\"，还有程序员算账——被关23天等于失业，这是变相惩罚。 一条高赞评论说：\"即使检察官撤销指控，你已经被解雇了\"；另一条则认为游客不该抱怨法律严苛。两边反映的其实是同一焦虑：一个只有认罪才能减刑的体制，对任何人都是噩梦。 这是一个大胆的尝试：用Go重写Clojure，实现7ms启动10MB体积。开发者marcingas花了五年将它从玩票变成生产工具，兼容95%的Clojure测试套件。 社区反响热烈但理性：支持者认为Go生态终于有了轻量Clojure；质疑者担心实际性能不如JVM，且缺少STM等关键特性。 支持者感慨'这正是我一直寻找的Clojure移植'；作者坦承'大型数值计算落后于JIT方案'，但强调实用性。编辑判断：Lisp生态向Go靠拢是值得关注的新方向。 维修权斗士 Louis Rossmann 刚放出狠话：Bambu Lab 敢封杀开源开发者，我就自掏1万美金帮他打官司。起因是 OrcaSlicer 开发者因为恢复了用户对打印机的本地控制，收到了律师函。 HN 社区吵翻了。大部分人支持开发者，但也有冷静声音指出：争议点在于连接的是私有云 API 而非直接控制打印机。Bambu 称每天3000万次未授权请求，说法真假难辨。 支持者说 'Rossmann 虽然激进但切中了企业空话'；批评者翻出他之前贬低 GrapheneOS 的黑历史。不过多数人认同：如果连自己花钱买的设备都不能自由装软件，那消费者的权利就形同虚设了。",
       "cues": [
         {
-          "text": "这不是个bug，是谷歌的阳谋。",
+          "text": "一位开发者在他的个人网站上全面封杀了所有未经授权的查询字符串。",
           "start_time": 0.0,
-          "end_time": 2.8
+          "end_time": 6.005
         },
         {
-          "text": "新版reCAPTCHA强制要求Android设备安装Google Play服务才能通过验证，导致去谷歌化的手机、华为、小米海外版统统被拒之门外。",
-          "start_time": 2.75,
-          "end_time": 14.523
+          "text": "他认为utm和ref这些跟踪参数是对用户的侵犯，而Referer头部才是正确的来源识别方式。",
+          "start_time": 5.955,
+          "end_time": 13.966
         },
         {
-          "text": "影响范围波及数亿用户，互联网正在变成'证明你用我批准的电脑'。",
-          "start_time": 14.523,
-          "end_time": 20.034
+          "text": "这则帖子瞬间点燃了Web社区的争论。",
+          "start_time": 13.966,
+          "end_time": 17.489
         },
         {
-          "text": "社区炸了锅，多数人谴责谷歌反竞争，认为这是扼杀掉队厂商和隐私手机。",
-          "start_time": 20.034,
-          "end_time": 27.034
+          "text": "社区的反应热闹又分裂。",
+          "start_time": 17.489,
+          "end_time": 20.045
         },
         {
-          "text": "也有少数人觉得网站管理员该换验证方案，但谷歌一家独大，选择有限。",
-          "start_time": 27.034,
-          "end_time": 33.477
+          "text": "有人拍手叫好，认为这是对隐私的回归；但更多人指出作者的双标——他居然允许了Instagram的跟踪参数。",
+          "start_time": 20.045,
+          "end_time": 28.909
         },
         {
-          "text": "有用户直言：'谷歌砍掉梯子只为自己的AI bot开路。",
-          "start_time": 33.477,
-          "end_time": 38.398
+          "text": "还有人在技术细节上争执：到底该返回400还是404？",
+          "start_time": 28.909,
+          "end_time": 34.114
         },
         {
-          "text": "也有人认为这是反垄断切入点。",
-          "start_time": 38.398,
-          "end_time": 41.295
+          "text": "一位评论者建议：‘更好的方式是只删除utmx开头的参数，保留有用的查询。’另一位则警告：‘禁止查询字符串只会让跟踪转移到路径中，更难以控制。’这场讨论的实质是：Web的优雅约定能否对抗实用主义和追踪工业？",
+          "start_time": 34.114,
+          "end_time": 52.011
         },
         {
-          "text": "但一个务实问题是：没有Google服务的手机怎么办？",
-          "start_time": 41.295,
-          "end_time": 45.193
+          "text": "Meta的AI野心已经烧到了自家员工身上。",
+          "start_time": 52.011,
+          "end_time": 55.841
         },
         {
-          "text": "评论区的共识是：网站开发者应主动寻找开源验证方案，别被谷歌绑架。",
-          "start_time": 45.193,
-          "end_time": 51.716
+          "text": "公司宣布全面追踪员工电脑操作，包括键盘输入、鼠标移动和屏幕内容，用来训练AI学习人类行为。",
+          "start_time": 55.841,
+          "end_time": 65.057
         },
         {
-          "text": "数学研究的下一个门槛，可能是击败AI。",
-          "start_time": 51.716,
-          "end_time": 55.398
+          "text": "数千员工公开抗议，但CTO博斯沃思表示无法退出。",
+          "start_time": 65.057,
+          "end_time": 70.17
         },
         {
-          "text": "著名数学家Gowers用ChatGPT 5.5 Pro，一小时内自主完成博士级数学证明，几乎没他本人介入。",
-          "start_time": 55.398,
-          "end_time": 64.068
+          "text": "HN社区几乎一边倒批评Meta，有人直言这是‘反社会’监控。",
+          "start_time": 70.17,
+          "end_time": 75.682
         },
         {
-          "text": "这意味人类数学家必须证明AI无法证明的东西才有价值。",
-          "start_time": 64.068,
-          "end_time": 69.341
+          "text": "分歧在于：员工有没有权利拒绝成为AI训练数据？",
+          "start_time": 75.682,
+          "end_time": 80.409
         },
         {
-          "text": "社区分裂明显：一批数学家感到悲伤，认为‘不朽’终结；另一派坚持AI只是高级工具，人类专家仍需验证和引导。",
-          "start_time": 69.341,
-          "end_time": 79.511
+          "text": "还是在垄断巨头面前别无选择？",
+          "start_time": 80.409,
+          "end_time": 83.409
         },
         {
-          "text": "讨论质量高但情绪低落。",
-          "start_time": 79.511,
-          "end_time": 82.0
+          "text": "部分评论也指出这只是AI数据饥渴的缩影。",
+          "start_time": 83.409,
+          "end_time": 87.807
         },
         {
-          "text": "有评论说‘这让我有点悲伤’，另一条反驳‘如果懂得提问和验证，AI就是强大协作伙伴’。",
-          "start_time": 82.0,
-          "end_time": 89.182
+          "text": "一位用户说‘我不同情Meta员工，他们终于尝到了自己公司的苦果’。",
+          "start_time": 87.807,
+          "end_time": 93.011
         },
         {
-          "text": "编辑判断：未来数学不再是发现，而是验证与创新并存。",
-          "start_time": 89.182,
-          "end_time": 94.568
+          "text": "另一条评论则感叹‘难以想象Meta觉得这是个好主意’。",
+          "start_time": 93.011,
+          "end_time": 97.636
         },
         {
-          "text": "互联网档案馆的全球化野心迈出坚实一步。",
-          "start_time": 94.568,
-          "end_time": 98.273
+          "text": "当公司把员工也变成数据源，信任的裂痕已难以弥合。",
+          "start_time": 97.636,
+          "end_time": 102.489
         },
         {
-          "text": "他们在瑞士圣加仑成立非营利基金会，不仅保存网页，还要存档即将被重新训练的AI模型。",
-          "start_time": 98.273,
-          "end_time": 106.352
+          "text": "一条HN帖子火爆社区：有人用ARM64汇编手写了一个Web服务器。",
+          "start_time": 102.489,
+          "end_time": 108.443
         },
         {
-          "text": "这意味着知识保存不再依赖单一国家，抗风险能力大增。",
-          "start_time": 106.352,
-          "end_time": 111.477
+          "text": "标题自嘲'给生活缺少的意义'，但项目非常硬核——只依赖系统调用，无libc，支持HTTP/1.0/1.1，还实现了Range请求和路径防护。",
+          "start_time": 108.443,
+          "end_time": 120.58
         },
         {
-          "text": "社区整体叫好，但分歧明显。",
-          "start_time": 111.477,
-          "end_time": 114.466
+          "text": "社区反应两极：老程序员称赞汇编优雅，年轻开发者质疑价值。",
+          "start_time": 120.58,
+          "end_time": 126.523
         },
         {
-          "text": "支持者夸它是欧洲急需的基础设施，质疑者则担心组织能否延续十年以上。",
-          "start_time": 114.466,
-          "end_time": 121.261
+          "text": "有人调侃'找更好的生活意义'，多数人共鸣于这种纯粹的技术热情。",
+          "start_time": 126.523,
+          "end_time": 132.25
         },
         {
-          "text": "还有用户吐槽瑞士官网像企业宣传页，找不到实际档案入口，体验远不如主站。",
-          "start_time": 121.261,
-          "end_time": 128.193
+          "text": "一方评论：'写汇编更像写宏汇编，基础没变'；另一方：'在AI时代我们还在玩汇编，有点讽刺'。",
+          "start_time": 132.25,
+          "end_time": 141.159
         },
         {
-          "text": "有用户说：‘圣加仑已经保存知识上千年，现在轮到他们保存AI模型，选址不是巧合。",
-          "start_time": 128.193,
-          "end_time": 135.92
+          "text": "编辑判断：或许这就是开发者最后的倔强——在自动生成时代，手工编码依然能带来最纯粹的成就感。",
+          "start_time": 141.159,
+          "end_time": 149.659
         },
         {
-          "text": "但也有人泼冷水：‘任何基于多年假设的项目都会消退，未来已经不是从前了。’编辑判断：理想宏大，但落地细节和可持续性才是真考验。",
-          "start_time": 135.92,
-          "end_time": 147.443
+          "text": "Debian迈出历史性一步：强制所有新包必须可重现。",
+          "start_time": 149.659,
+          "end_time": 154.307
         },
         {
-          "text": "Bun的Rust重写实验版仅用6天就达到99.8%测试通过率，展示了AI辅助代码迁移的巨大潜力。",
-          "start_time": 147.443,
-          "end_time": 156.693
+          "text": "这意味着从源头到最终二进制文件，每一步都是确定性的。",
+          "start_time": 154.307,
+          "end_time": 159.33
         },
         {
-          "text": "但这速度背后，也引发了对长期安全性和可维护性的深层反思。",
-          "start_time": 156.693,
-          "end_time": 162.159
+          "text": "这不仅是技术升级，更是在EU法规压力下对软件供应链的可信承诺。",
+          "start_time": 159.33,
+          "end_time": 165.318
         },
         {
-          "text": "社区分化明显：一方认为Rust比Zig更安全，能减少内存崩溃；另一方质疑AI重写引入大量unsafe块，并未真正解决问题。",
-          "start_time": 162.159,
-          "end_time": 173.102
+          "text": "社区叫好但质疑不断：NetBSD、Stagex更早更彻底。",
+          "start_time": 165.318,
+          "end_time": 170.625
         },
         {
-          "text": "同时，Zig生态可能失去Bun这个标志性项目。",
-          "start_time": 173.102,
-          "end_time": 177.193
+          "text": "争论焦点：如何定义完整可重现？",
+          "start_time": 170.625,
+          "end_time": 173.898
         },
         {
-          "text": "支持者说：“Rust的unsafe块被清晰标记，更容易修复。",
-          "start_time": 177.193,
-          "end_time": 182.136
+          "text": "强制是否足够？",
+          "start_time": 173.898,
+          "end_time": 175.648
         },
         {
-          "text": "质疑者则认为：“6天重写只是原型，真正挑战是消除unsafe并保持可维护。",
-          "start_time": 182.136,
-          "end_time": 188.955
+          "text": "支持者说这是开源安全的基础设施；挑战者则以Stagex的100%全源码自举为例，认为Debian标准太低。",
+          "start_time": 175.648,
+          "end_time": 185.284
         },
         {
-          "text": "编辑判断：AI加速开发可期，但质量仍需人工严谨把关。",
-          "start_time": 188.955,
-          "end_time": 194.511
+          "text": "编辑判断：Debian作为最广泛发行版，这一政策将带动整个生态建立更高的构建信任标准。",
+          "start_time": 185.284,
+          "end_time": 193.33
         },
         {
-          "text": "欧盟这次盯上VPN了。",
-          "start_time": 194.511,
-          "end_time": 196.807
+          "text": "终于不用再看灰了吧唧的默认主题了。",
+          "start_time": 193.33,
+          "end_time": 196.409
         },
         {
-          "text": "议会研究机构称VPN是年龄验证的‘漏洞’，必须堵上。",
-          "start_time": 196.807,
-          "end_time": 201.591
+          "text": "Zed官方推出主题构建器，允许开发者通过可视化的层级面板深度定制界面配色。",
+          "start_time": 196.409,
+          "end_time": 203.591
         },
         {
-          "text": "这不仅影响隐私工具，更可能让网络监控合法化，科技圈一片哗然。",
-          "start_time": 201.591,
-          "end_time": 207.5
+          "text": "这个工具直面社区长期抱怨的对比度问题，算是补上了编辑器体验的关键一环。",
+          "start_time": 203.591,
+          "end_time": 210.216
         },
         {
-          "text": "社区几乎一边倒地质疑：为什么是VPN而不是商业利益？",
-          "start_time": 207.5,
-          "end_time": 212.852
+          "text": "多数人表示期待，但也有用户指出构建器预览不直观，不知道当前改了哪个元素。",
+          "start_time": 210.216,
+          "end_time": 217.182
         },
         {
-          "text": "有人指出这是‘为监控铺路’，也有人担心年龄验证会彻底绑定身份。",
-          "start_time": 212.852,
-          "end_time": 218.636
+          "text": "还有人称宁愿花钱找人定制Cobalt主题，另有人发现构建器里显示了自己的GitHub头像，引发隐私担忧。",
+          "start_time": 217.182,
+          "end_time": 226.125
         },
         {
-          "text": "分歧在于保护儿童还是保护隐私？",
-          "start_time": 218.636,
-          "end_time": 221.784
+          "text": "有用户说：“终于可以自己调出真正的高对比度主题了”。",
+          "start_time": 226.125,
+          "end_time": 230.58
         },
         {
-          "text": "有用户嘲讽：‘以前家长控制孩子上网，现在政治家控制所有人上网。’也有观点说：‘纳税漏洞不查，专查VPN。’编辑判断：以安全为名的扩张，往往比安全本身更危险。",
-          "start_time": 221.784,
-          "end_time": 235.773
+          "text": "但另一位说：“我试过让AI帮我生成Cobalt主题，它根本搞不对”。",
+          "start_time": 230.58,
+          "end_time": 236.239
         },
         {
-          "text": "AI协作的新趋势：开发者发现用HTML作为AI输出格式出奇有效。",
-          "start_time": 235.773,
-          "end_time": 242.568
+          "text": "还有用户抱怨：“居然能看见别人的头像，不太酷”。",
+          "start_time": 236.239,
+          "end_time": 240.477
         },
         {
-          "text": "一个HTML文件无需依赖、可本地运行、能通过链接或邮件直接共享，正在成为原型和工具的默认载体。",
-          "start_time": 242.568,
-          "end_time": 251.682
+          "text": "看来主题方向对了，但社区对默认主题的怨气还有很长路要消。",
+          "start_time": 240.477,
+          "end_time": 246.0
         },
         {
-          "text": "社区兴奋但分化。",
-          "start_time": 251.682,
-          "end_time": 253.705
+          "text": "法国议会情报代表团正式支持打破端到端加密，建议允许法官对WhatsApp、Signal和Telegram的消息进行‘定向访问’。",
+          "start_time": 246.0,
+          "end_time": 255.795
         },
         {
-          "text": "点赞者称其‘免费沙箱’，担忧者指出HTML比Markdown更耗token，且可能强化对特定模型的依赖。",
-          "start_time": 253.705,
-          "end_time": 262.318
+          "text": "技术专家警告，任何后门方案都会破坏加密本质，无法只让好人使用。",
+          "start_time": 255.795,
+          "end_time": 261.955
         },
         {
-          "text": "支持方说：‘我可以把工具邮件给朋友，让他们用LLM改代码。’反方则质疑：‘Token效率低是硬伤，这个趋势恰好让Anthropic受益。’编辑判断：HTML固然强大，但开发者必须清醒意识到其平台锁定与性价比权衡。",
-          "start_time": 262.396,
-          "end_time": 280.671
+          "text": "社区争论焦点：文章误认为Telegram默认加密；法国用户引ANSSI报告指后门危险无用；还有评论质疑后门只针对普通人，精英可自用。",
+          "start_time": 261.955,
+          "end_time": 273.682
         },
         {
-          "text": "AI正在打破传统漏洞披露规则。",
-          "start_time": 280.671,
-          "end_time": 284.046
+          "text": "整体情绪质疑立法合理性。",
+          "start_time": 273.682,
+          "end_time": 276.409
         },
         {
-          "text": "攻击者能利用AI从Git提交中自动识别安全补丁，使漏洞暴露窗口从数月缩短至数小时，倒逼整个安全社区重新思考补丁发布策略。",
-          "start_time": 284.046,
-          "end_time": 295.853
+          "text": "一位法国HN用户说：‘ANSSI在2016年就警告后门危险无用，如今我们仍在抗争。",
+          "start_time": 276.508,
+          "end_time": 284.083
         },
         {
-          "text": "社区争论焦点：AI是否真的改变本质？",
-          "start_time": 295.853,
-          "end_time": 299.671
+          "text": "另一评论讽刺：‘精英们总会为自己留后门。’这表明社区共识：加密后门在技术上不可行，且不公平。",
+          "start_time": 284.033,
+          "end_time": 292.851
         },
         {
-          "text": "有人认为只是旧问题的新包装，也有人认为AI将彻底终结安全披露的‘安静期’，优势将向集中式平台倾斜。",
-          "start_time": 299.671,
-          "end_time": 308.921
+          "text": "编辑判断：法国立法若通过，可能威胁全球加密标准。",
+          "start_time": 292.851,
+          "end_time": 297.863
         },
         {
-          "text": "支持者说‘AI使补丁识别效率指数级提升，必须缩短窗口’，质疑者则担心‘协调披露变得不可能，开源项目更脆弱’。",
-          "start_time": 308.921,
-          "end_time": 318.796
+          "text": "经典终于回归！",
+          "start_time": 297.863,
+          "end_time": 299.522
         },
         {
-          "text": "编辑判断：安全博弈进入AI军备竞赛时代，防守方需要更快更聪明。",
-          "start_time": 318.796,
-          "end_time": 325.296
+          "text": "Space Cadet Pinball被成功移植到Linux，通过开源逆向工程，玩家现在可以一键安装并享受高清弹球。",
+          "start_time": 299.522,
+          "end_time": 308.01
         },
         {
-          "text": "数字怀旧不只有情怀，更有技术挑战。",
-          "start_time": 325.296,
-          "end_time": 329.001
+          "text": "这是怀旧情怀的一次胜利。",
+          "start_time": 308.01,
+          "end_time": 310.385
         },
         {
-          "text": "Cartoon Network经典Flash游戏被Web Design Museum收录并在线展出，这个收藏不仅带我们回到童年，更提醒我们Flash已死，但靠Ruffle等工具仍可重温。",
-          "start_time": 329.001,
-          "end_time": 341.705
+          "text": "社区玩家情绪复杂：有人热泪盈眶，有人说这款弹球物理引擎烂透了。",
+          "start_time": 310.385,
+          "end_time": 316.726
         },
         {
-          "text": "社区一片怀旧，大家分享童年最爱，但也有用户反映Ruffle加载失败、被Cloudflare拦截，技术兼容性问题让这场回忆之旅打了折扣。",
-          "start_time": 341.705,
-          "end_time": 352.569
+          "text": "但更多人讨论的是如何通过替换数据文件获得更好画质。",
+          "start_time": 316.726,
+          "end_time": 321.692
         },
         {
-          "text": "有用户感慨‘过去互联网有孩子们的专属角落，现在全被引流到大平台’，另一条则指出‘还有更多游戏没被收录’。",
-          "start_time": 352.569,
-          "end_time": 361.785
+          "text": "有用户感慨'这是最有感情的Windows自带游戏'，而另一派直言'物理效果太差，完全是靠情怀撑场'。",
+          "start_time": 321.692,
+          "end_time": 329.681
         },
         {
-          "text": "编辑判断：数字保存值得做，但执行细节决定体验。",
-          "start_time": 361.785,
-          "end_time": 366.671
+          "text": "不管怎样，能在Linux上玩到它，本身就是一个技术成就。",
+          "start_time": 329.681,
+          "end_time": 334.613
         },
         {
-          "text": "新研究敲响警钟：把文档委托给AI处理反而可能越弄越糟。",
-          "start_time": 366.671,
-          "end_time": 372.114
+          "text": "日本连续23天关押、不准保释、审讯睡觉姿势都被管——一篇亲身经历文章曝光了该国拘留系统的严苛细节，让不少境外游客重新评估安全光环下的司法实操。",
+          "start_time": 334.613,
+          "end_time": 348.294
         },
         {
-          "text": "微软团队发现，让大模型润色或修改文档时，它会逐渐偏离原意、引入错误，且传递次数越多，错误累积越严重。",
-          "start_time": 372.114,
-          "end_time": 381.932
+          "text": "社区里炸开了锅：有人感谢预警，有人反问\"为什么日本这么安全\"，还有程序员算账——被关23天等于失业，这是变相惩罚。",
+          "start_time": 348.294,
+          "end_time": 358.522
         },
         {
-          "text": "这对依赖AI辅助写作和代码生成的人是个重要提醒。",
-          "start_time": 381.932,
-          "end_time": 386.739
+          "text": "一条高赞评论说：\"即使检察官撤销指控，你已经被解雇了\"；另一条则认为游客不该抱怨法律严苛。",
+          "start_time": 358.522,
+          "end_time": 366.783
         },
         {
-          "text": "社区讨论两极分化。",
-          "start_time": 386.739,
-          "end_time": 388.898
+          "text": "两边反映的其实是同一焦虑：一个只有认罪才能减刑的体制，对任何人都是噩梦。",
+          "start_time": 366.783,
+          "end_time": 373.658
         },
         {
-          "text": "一方认为这是AI固有缺陷，每次‘清洗’都会损失信息；另一方反驳说人类玩电话游戏也会出错，关键在于设计边界和单一真相来源。",
-          "start_time": 388.898,
-          "end_time": 400.466
+          "text": "这是一个大胆的尝试：用Go重写Clojure，实现7ms启动10MB体积。",
+          "start_time": 373.658,
+          "end_time": 379.76
         },
         {
-          "text": "争论焦点在于问题出在模型本身还是使用方式。",
-          "start_time": 400.466,
-          "end_time": 404.807
+          "text": "开发者marcingas花了五年将它从玩票变成生产工具，兼容95%的Clojure测试套件。",
+          "start_time": 379.76,
+          "end_time": 387.635
         },
         {
-          "text": "有用户提出‘语义消融’概念，认为AI写作正让文本变得无聊而危险；另有人提出只要设置清晰边界、让AI改动可追溯就能避免。",
-          "start_time": 404.807,
-          "end_time": 416.091
+          "text": "社区反响热烈但理性：支持者认为Go生态终于有了轻量Clojure；质疑者担心实际性能不如JVM，且缺少STM等关键特性。",
+          "start_time": 387.635,
+          "end_time": 398.578
         },
         {
-          "text": "编辑判断：在完全信任AI之前，我们需要更好的审计机制，而不是盲目委托。",
-          "start_time": 416.091,
-          "end_time": 422.932
+          "text": "支持者感慨'这正是我一直寻找的Clojure移植'；作者坦承'大型数值计算落后于JIT方案'，但强调实用性。",
+          "start_time": 398.578,
+          "end_time": 407.465
         },
         {
-          "text": "Meta在隐私问题上再次倒退，正式关闭Instagram私信的端到端加密。",
-          "start_time": 422.932,
-          "end_time": 428.944
+          "text": "编辑判断：Lisp生态向Go靠拢是值得关注的新方向。",
+          "start_time": 407.465,
+          "end_time": 412.306
         },
         {
-          "text": "这意味着数百万用户的私密对话将面临第三方和政府监控，隐私保护形同虚设，对追求安全通信的用户是沉重打击。",
-          "start_time": 428.944,
-          "end_time": 439.091
+          "text": "维修权斗士 Louis Rossmann 刚放出狠话：Bambu Lab 敢封杀开源开发者，我就自掏1万美金帮他打官司。",
+          "start_time": 412.306,
+          "end_time": 420.783
         },
         {
-          "text": "社区一片哗然，大部分用户愤怒指责Meta牺牲隐私；但也有人辩解称，这样有助于打击儿童色情等违法行为。",
-          "start_time": 439.091,
-          "end_time": 448.478
+          "text": "起因是 OrcaSlicer 开发者因为恢复了用户对打印机的本地控制，收到了律师函。",
+          "start_time": 420.783,
+          "end_time": 427.465
         },
         {
-          "text": "争议焦点是：Meta的真实动机到底是保护用户，还是为了商业利益放弃安全？",
-          "start_time": 448.478,
-          "end_time": 454.989
+          "text": "HN 社区吵翻了。",
+          "start_time": 427.465,
+          "end_time": 429.408
         },
         {
-          "text": "有开发者尖锐指出：只有开源才能提供可信的端到端加密，Meta的集中式方案本就是安全表演。",
-          "start_time": 454.989,
-          "end_time": 463.114
+          "text": "大部分人支持开发者，但也有冷静声音指出：争议点在于连接的是私有云 API 而非直接控制打印机。",
+          "start_time": 429.408,
+          "end_time": 438.078
         },
         {
-          "text": "另一条评论则认为，孩子本就不该暴露在社交平台上，而Meta为了眼球宁愿牺牲儿童安全。",
-          "start_time": 463.114,
-          "end_time": 471.171
+          "text": "Bambu 称每天3000万次未授权请求，说法真假难辨。",
+          "start_time": 438.078,
+          "end_time": 442.908
         },
         {
-          "text": "无论如何，用户对这家公司的信任再度跌入冰点。",
-          "start_time": 471.171,
-          "end_time": 475.776
+          "text": "支持者说 'Rossmann 虽然激进但切中了企业空话'；批评者翻出他之前贬低 GrapheneOS 的黑历史。",
+          "start_time": 442.908,
+          "end_time": 450.851
+        },
+        {
+          "text": "不过多数人认同：如果连自己花钱买的设备都不能自由装软件，那消费者的权利就形同虚设了。",
+          "start_time": 450.851,
+          "end_time": 458.688
         }
       ],
-      "duration": 475.776,
-      "start_time": 28.712,
-      "end_time": 504.488,
+      "duration": 458.688,
+      "start_time": 12.224,
+      "end_time": 470.912,
       "scene_elements": [
         {
           "element_type": "event_card",
           "start_time": 0.0,
-          "end_time": 20.034,
+          "end_time": 17.489,
           "props": {
             "story_index": 0,
-            "event_summary": "Google新版reCAPTCHA绑定Play Services，无谷歌服务的Android设备验证失败，影响数亿用户和网站可用性",
-            "editor_angle": "Google用reCAPTCHA锁死去Google化用户，垄断争议升级",
-            "category": "基础设施",
-            "keywords": [
-              "reCAPTCHA",
-              "去Google化",
-              "Android垄断",
-              "验证失败",
-              "反竞争"
+            "editor_angle": "封杀查询字符串：Web惯例与隐私自卫的硬碰硬",
+            "source_title": "I’ve banned query strings",
+            "dek": "一位开发者下令全面封杀所有未授权的URL查询字符串，包括跟踪参数utm_source和ref，引发Web社区对URL治理和隐私保护的激辩。",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "禁止所有未经授权的查询字符串，仅允许未来预定义的参数，utm和ref首当其冲。"
+              },
+              {
+                "label": "争议",
+                "text": "作者却允许了Instagram的跟踪参数?igsh，被指双标，且返回码选择模糊。"
+              }
             ],
+            "why_it_matters": "这起事件折射出开发者对URL污染和隐私侵犯的反感，挑战了Web路径可携带参数的灵活传统。",
+            "keywords": [
+              "查询字符串",
+              "跟踪参数",
+              "Web惯例"
+            ],
+            "category": "开发者体验",
+            "visual_hint": "文章配图",
             "display_index": 0,
             "story_count": 10,
-            "story_title": "Google broke reCAPTCHA for de-googled Android users",
-            "title_cn": "Google 破坏了去谷歌化 Android 用户的 reCAPTCHA",
-            "why_it_matters": "",
+            "story_title": "I’ve banned query strings",
+            "title_cn": "我已禁用查询字符串",
+            "event_summary": "作者在自己的网站（chrismorgan.info）上全面禁止了未经授权的URL查询字符串（query strings），原因是不喜欢他人（如外站引用或分享链接时）擅自附加跟踪参数（如`?ref=`、`?utm_source=`等）。作者认为，这类参数本质上是对用户隐私的滥用，正确的做法是依靠HTTP的`Referer`头部来获知来源；若`Referer`缺失，通常也有合理理由。目前作者网站自身不使用任何查询字符串，未来若需使用，也只允许预先定义的合法参数。该禁令已在Caddyfile中通过配置实现（具体配置代码未在文中展示）。作者明确指出，这是其个人网站自主控制的体现，不干预他人网站的做法。文章核心立场是：URL应保持简洁，不应被第三方追踪参数污染。",
             "next_watch": "",
-            "image_src": "images/48067119_0.jpg",
+            "image_src": "images/48076173_bing_0.jpg",
             "image_type": "article"
           }
         },
         {
           "element_type": "atmosphere_card",
-          "start_time": 20.034,
-          "end_time": 33.477,
+          "start_time": 17.489,
+          "end_time": 34.114,
           "props": {
             "story_index": 0,
             "stance_distribution": {
-              "支持": 0.05,
-              "质疑": 0.5,
-              "中立": 0.2,
-              "调侃": 0.05,
-              "担忧": 0.2
+              "支持": 0.15,
+              "质疑": 0.4,
+              "中立": 0.25,
+              "调侃": 0.15,
+              "担忧": 0.05
             },
             "debate_focus": [
-              "Google滥用市场地位",
-              "技术必要性 vs 排挤竞争"
+              "返回400还是404更合适",
+              "禁止查询字符串是否太激进",
+              "作者是否双标（允许?igsh）"
             ],
-            "community_sentiment": "社区普遍愤怒，认为谷歌垄断行为已越界",
-            "score": 1452,
-            "comment_count": 542,
-            "controversy_score": 3.8
+            "community_sentiment": "大多数评论持质疑和调侃态度，少数支持者认为是对隐私的有力反击。",
+            "score": 509,
+            "comment_count": 267,
+            "controversy_score": 4.6
           }
         },
         {
           "element_type": "quote_card",
-          "start_time": 33.477,
-          "end_time": 51.716,
+          "start_time": 34.114,
+          "end_time": 52.011,
           "props": {
             "story_index": 0,
             "quotes": [
               {
-                "author": "cornholio",
-                "text": "It's a move to block competitor AI agents while securing access for your own, classic ladder kick. The market for autonomous agents providing services and doing online work will be gigantic so, unless you want your own bots locked out from ie properties guarded by Amazon, CloudFlare, Microsoft etc.,",
-                "text_cn": "这是一种阻止竞争对手的AI代理，同时确保自己代理访问权限的策略，典型的“踢梯子”行为。提供服务和在线工作的自主代理市场将非常巨大，因此，除非你想让自己的机器人被亚马逊、CloudFlare、微软等保护的服务拒之门外，否则你需要一个谈判筹码。",
+                "author": "varenc",
+                "text": "great spot! I noticed that his server also doesn't accept URLs ending is a single `/`: https://chrismorgan.info/no-query-strings/ But instead of the banned query strings message, it just returns a very sassy not-a-404 page. Once again, this is violating a common convention, but there's nothing in th",
+                "text_cn": "好发现！我注意到他的服务器也不接受以单个斜杠结尾的URL：https://chrismorgan.info/no-query-strings/ 但它没有返回“禁止的查询字符串”消息，而是返回一个非常傲慢的非404页面。这又一次违反了常见惯例，但HTTP规范并没有要求将这两个URL视为等同。同样地，当你添加额外的斜杠时，比如 https://chrismorgan.info///no-query-strings，网站也会返回404。题外话：我喜欢在各种网站上尝试“domain.com//”。有时它会触发奇怪的错误，比如502或500。",
                 "stance": "中立"
               },
               {
-                "author": "amluto",
-                "text": "I would love to see someone challenge this as an anti-trust violation. Google is using its market power (as the provider of reCAPTCHA) to actively prevent devices that don’t use Google Play Services from competing effectively.",
-                "text_cn": "我很想看到有人以反垄断为由挑战这一点。谷歌正利用其市场支配地位（作为reCAPTCHA的提供商）积极阻止未使用Google Play服务的设备有效竞争。",
+                "author": "pgt",
+                "text": "If query strings are banned, tracking parameters will simply move to the URL, or use `?t=` & `?h=` if those are whitelisted.",
+                "text_cn": "如果查询字符串被禁止，跟踪参数就会直接移到URL中，或者如果`?t=`和`?h=`被列入白名单，那就用它们。",
+                "stance": "质疑"
+              },
+              {
+                "author": "susam",
+                "text": "This corrupts a URL like: https://example.com/?p=20&utm_source=spam to: https://example.com/ when in fact we want the following: https://example.com/?p=20 A possible improvement can be: javascript:(()=>{const u=new URL(location.href);[...u.searchParams.keys()].forEach(k=>{if(k.startsWith('utm_')){u.",
+                "text_cn": "这会破坏像 https://example.com/?p=20&utm_source=spam 这样的URL，将其变为 https://example.com/，而实际上我们想要的是 https://example.com/?p=20。一个可能的改进是：javascript:(()=>{const u=new URL(location.href);[...u.searchParams.keys()].forEach(k=>{if(k.startsWith('utm_')){u.searchParams.delete(k)}});navigator.clipboard.writeText(u.href)})();",
+                "stance": "支持"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 52.011,
+          "end_time": 70.17,
+          "props": {
+            "story_index": 1,
+            "editor_angle": "AI转型下的监控悖论：员工成为训练样本",
+            "source_title": "Meta's embrace of AI is making its employees miserable",
+            "dek": "Meta为训练AI全面追踪员工电脑操作，数千员工强烈抗议",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "Meta追踪员工键盘、鼠标、点击和屏幕用于AI训练"
+              },
+              {
+                "label": "争议",
+                "text": "员工无法退出，CTO明确拒绝请求，愤怒表情刷屏"
+              }
+            ],
+            "why_it_matters": "AI巨头的数据收集边界与员工信任危机暴露，技术战略与人性冲突",
+            "keywords": [
+              "员工监控",
+              "AI训练",
+              "隐私争议"
+            ],
+            "category": "其他",
+            "visual_hint": "文章配图",
+            "display_index": 1,
+            "story_count": 10,
+            "story_title": "Meta's embrace of AI is making its employees miserable",
+            "title_cn": "Meta 拥抱 AI 让员工苦不堪言",
+            "event_summary": "Meta公司近日在内部宣布，将对其美国员工的办公电脑进行全程行为追踪，包括键盘输入、鼠标移动、点击位置和屏幕内容，目的是收集数据以训练其人工智能模型，让AI学习“人类如何使用计算机完成日常任务”。这一决定立即引发数千名员工的强烈不满，员工在内部评论中抨击该措施侵犯隐私、反社会且冷酷无情。一名工程经理直接询问如何退出，而Meta首席技术官博斯沃思明确回复“公司笔记本无法选择退出”，该消息下员工用超过100个愤怒和惊讶的表情符号表达抗议。尽管CEO扎克伯格将公司未来押注于AI，斥资数千亿美元开发模型和建设数据中心，但Meta从互联网公司向AI组织转型的过程中，这一内部举措暴露了其技术战略与员工信任之间的严重冲突，被内部员工形容为“尴尬且丑陋”。",
+            "next_watch": "",
+            "image_src": "images/48077126_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 70.17,
+          "end_time": 87.807,
+          "props": {
+            "story_index": 1,
+            "stance_distribution": {
+              "支持": 0.05,
+              "质疑": 0.5,
+              "中立": 0.2,
+              "调侃": 0.1,
+              "担忧": 0.15
+            },
+            "debate_focus": [
+              "隐私与AI训练的矛盾",
+              "强制参与无可选择",
+              "员工信任崩塌"
+            ],
+            "community_sentiment": "社区普遍愤怒与讽刺，认为Meta越界且不尊重基本权利",
+            "score": 425,
+            "comment_count": 492,
+            "controversy_score": 6.4
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 87.807,
+          "end_time": 102.489,
+          "props": {
+            "story_index": 1,
+            "quotes": [
+              {
+                "author": "bravetraveler",
+                "text": "I'm skipping the LLMs/extra steps and simply waiting for the PIP; $EMPLOYER can go ahead and say exactly how many pieces of flair, sorry, tokens they think I need to do my work. It's exactly 0 but I'd like to hear their joke. Not at Meta but see hints building towards similar madness. War Games, it ",
+                "text_cn": "我跳过LLM/额外步骤，直接等待PIP；$EMPLOYER可以继续明确说出他们认为我需要多少块“装饰品”——抱歉，是“令牌”——来完成我的工作。就是0块，但我想听听他们的笑话。不是Meta，但能看到类似的疯狂正在酝酿。这是《战争游戏》啊。不如改下国际象棋？我不太喜欢操纵市场。",
+                "stance": "质疑"
+              },
+              {
+                "author": "Tenoke",
+                "text": "In 2019 I suggested[0] you might reach AGI if you train on computer usage - mouse movement, keypresses, what's on the screen etc. - and it sounds like Meta are kind of trying some form of it. 0. https://svilentodorov.xyz/blog/human-imitating-task/",
+                "text_cn": "2019年我曾建议[0]，如果你在计算机使用数据上训练——鼠标移动、按键、屏幕上的内容等——你可能实现AGI，而Meta似乎正在尝试某种形式。0. https://svilentodorov.xyz/blog/human-imitating-task/",
                 "stance": "支持"
               },
               {
-                "author": "tinycommit",
-                "text": "Eww. Ok, so, I’ve used reCAPTCHA on sites I maintain at work, just on forms to prevent excessive bot spam submissions. No way do I want to subject users to this BS, though. Does anyone have recommendations for other decent captchas that could be used instead?",
-                "text_cn": "呃。好吧，我在工作中维护的网站上使用过reCAPTCHA，只是在表单上用来防止过多的机器人垃圾提交。但我绝不想让用户受这种废话的折磨。有人能推荐其他可用的验证码替代品吗？",
+                "author": "Forgeties79",
+                "text": "My current bar is “if you know I’m expecting to hear from a person don’t paste unedited ChatGPT outputs and hit send.” Everybody wants to send out the efforts of their corner-cutting, but nobody wants to receive them. Most people know when they are doing it. If you feel the need to obscure your LLM ",
+                "text_cn": "我目前的标准是：“如果你知道我在期待一个真人回复，就不要把未编辑的ChatGPT输出粘贴过来然后点发送。”每个人都想把自己偷工减料的成果发出去，但没人想收到它们。大多数人都知道自己什么时候在这样做。如果你觉得有必要掩盖自己使用了LLM，那就意味着你在最终稿中没有投入足够自己的声音和工作，你需要对此做点什么。",
+                "stance": "中立"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 102.489,
+          "end_time": 120.58,
+          "props": {
+            "story_index": 2,
+            "editor_angle": "汇编Web服务器，极客浪漫还是无意义？",
+            "source_title": "Show HN: Building a web server in assembly to give my life (a lack of) meaning",
+            "dek": "开发者用ARM64汇编手写Web服务器，标题自嘲'给生活缺少的意义'，引发技术价值讨论。",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "纯ARM64汇编实现Web服务器，无libc，仅依赖系统调用"
+              },
+              {
+                "label": "争议",
+                "text": "标题'给生活意义'自嘲，社区对项目实用性褒贬不一"
+              }
+            ],
+            "why_it_matters": "在AI生成代码时代，手写汇编成为极少数人的技术浪漫，也引发对开发者生存意义的反思。",
+            "keywords": [
+              "汇编Web服务器",
+              "ARM64手写",
+              "技术浪漫"
+            ],
+            "category": "开发者体验",
+            "visual_hint": "代码仓库截图",
+            "display_index": 2,
+            "story_count": 10,
+            "story_title": "Show HN: Building a web server in assembly to give my life (a lack of) meaning",
+            "title_cn": "Show HN：用汇编构建 Web 服务器，给我的生活（缺乏）意义",
+            "event_summary": "ymawky 是一个完全用 ARM64 汇编手写的 Web 服务器，仅依赖系统调用，无 libc，采用 fork-per-connection 模型，运行于 Apple Silicon 的 macOS 上，需 Xcode Command Line Tools 编译。它支持静态文件服务，实现 GET、PUT、DELETE、OPTIONS、HEAD 等方法，具备路径遍历防护（拒绝包含 `..` 的路径）、`%` 十六进制编码解码、`Range: bytes=` 范围请求（支持视频拖拽）、MIME 类型自动检测（涵盖 HTML、CSS、JS、图片、字体、文档、音视频、压缩包等数十种类型）。PUT 上传采用临时文件再重命名保证原子性，最大 1 GiB 可配置。安全方面：拒绝长度超 PATH_MAX（4096 字节）或过短（<16 字节）的路径、禁止符号链接（`O_NOFOLLOW_ANY`）、10 秒超时防 slowloris 攻击、限制请求根目录为 `www/`、拒绝 `PUT` 临时文件名。支持 HTTP/1.0 与 1.1，错误码上至 418（茶壶）、503、507 等共 18 种，可自定义错误页模板。配置通过 `config.S` 修改文档根目录、默认首页等。项目仅为汇编学习趣味项目，作者承认可能存在未知漏洞。",
+            "next_watch": "",
+            "image_src": "images/48080587_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 120.58,
+          "end_time": 132.25,
+          "props": {
+            "story_index": 2,
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.2,
+              "中立": 0.2,
+              "调侃": 0.15,
+              "担忧": 0.05
+            },
+            "debate_focus": [
+              "汇编编程的实用价值",
+              "AI时代手写代码的意义",
+              "工作与技术热情的平衡"
+            ],
+            "community_sentiment": "多数赞赏技术极客精神，同时调侃标题自嘲，少数质疑实用性",
+            "score": 355,
+            "comment_count": 192,
+            "controversy_score": 4.6
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 132.25,
+          "end_time": 149.659,
+          "props": {
+            "story_index": 2,
+            "quotes": [
+              {
+                "author": "tgma",
+                "text": "If you actually start writing big stuff in assembly, esp a macro-assembler, you'd quickly realize it is more verbose, but not fundamentally that different from higher level programming. You basically need to get a hang of how to build abstractions with procedures and macros and you'd be good to go. ",
+                "text_cn": "如果你真的开始用汇编语言编写大型项目，特别是宏汇编器，你会很快意识到它更冗长，但本质上与高级编程没有太大区别。你基本上需要掌握如何用过程和宏来构建抽象，然后就可以开始了。有效地阅读汇编通常比编写它难得多。",
+                "stance": "支持"
+              },
+              {
+                "author": "cylinder714",
+                "text": "Here's a piece on writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assemb...",
+                "text_cn": "这里有一篇关于编写可移植ARM64汇编的文章：https://ariadne.space/2023/04/12/writing-portable-arm-assemb...",
+                "stance": "中立"
+              },
+              {
+                "author": "imtomt",
+                "text": "Yeah, I know MacOS syscalls aren't stable. Interesting point about Go, I hadn't heard about that. Unfortunately I'm a masochist though, and want to avoid libSystem.dylib as much as possible. The only reason I link against it at all is because MacOS requires it for executables to run, I never actuall",
+                "text_cn": "是的，我知道macOS系统调用不稳定。关于Go的有趣观点，我还没听说过。不过不幸的是我是个受虐狂，想尽可能避免使用libSystem.dylib。我链接它的唯一原因是macOS要求可执行文件必须有它才能运行，我实际上从未调用过它。我想如果系统调用号变了，我就更新一下。",
                 "stance": "质疑"
               }
             ],
@@ -704,702 +868,624 @@
         },
         {
           "element_type": "event_card",
-          "start_time": 51.716,
-          "end_time": 69.341,
+          "start_time": 149.659,
+          "end_time": 165.318,
           "props": {
-            "story_index": 1,
-            "event_summary": "数学家Gowers用ChatGPT 5.5 Pro在一小时内完成博士级数学研究，门槛被AI大幅提升。",
-            "editor_angle": "AI攻克博士级数学，数学家身份危机",
-            "category": "AI工具",
-            "keywords": [
-              "数学研究",
-              "AI能力",
-              "博士级问题",
-              "人类价值",
-              "ChatGPT 5.5"
+            "story_index": 0,
+            "editor_angle": "Debian包可重现强制化，信任链再加固",
+            "source_title": "Debian must ship reproducible packages",
+            "dek": "Debian正式强制所有新包必须可重现，不可重现包将被自动拦截，确保构建可信",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "Debian启用迁移软件自动拦截不可重现包，现有包回归也会被阻止。"
+              },
+              {
+                "label": "影响",
+                "text": "此举旨在加强软件供应链安全，配合EU Cyber Resilience Act合规需求。"
+              }
             ],
-            "display_index": 1,
+            "why_it_matters": "抵抗供应链攻击的关键一步，为软件物料清单提供可靠基础。",
+            "keywords": [
+              "可重现构建",
+              "Debian",
+              "供应链安全"
+            ],
+            "category": "基础设施",
+            "visual_hint": "Debian官方网站截图",
+            "display_index": 3,
             "story_count": 10,
-            "story_title": "A recent experience with ChatGPT 5.5 Pro",
-            "title_cn": "近期使用 ChatGPT 5.5 Pro 的体验",
-            "why_it_matters": "",
+            "story_title": "I’ve banned query strings",
+            "title_cn": "我已禁用查询字符串",
+            "event_summary": "作者在自己的网站（chrismorgan.info）上全面禁止了未经授权的URL查询字符串（query strings），原因是不喜欢他人（如外站引用或分享链接时）擅自附加跟踪参数（如`?ref=`、`?utm_source=`等）。作者认为，这类参数本质上是对用户隐私的滥用，正确的做法是依靠HTTP的`Referer`头部来获知来源；若`Referer`缺失，通常也有合理理由。目前作者网站自身不使用任何查询字符串，未来若需使用，也只允许预先定义的合法参数。该禁令已在Caddyfile中通过配置实现（具体配置代码未在文中展示）。作者明确指出，这是其个人网站自主控制的体现，不干预他人网站的做法。文章核心立场是：URL应保持简洁，不应被第三方追踪参数污染。",
             "next_watch": "",
-            "image_src": "images/48071262_0.jpg",
+            "image_src": "images/48076173_bing_0.jpg",
             "image_type": "article"
           }
         },
         {
           "element_type": "atmosphere_card",
-          "start_time": 69.341,
-          "end_time": 82.0,
+          "start_time": 165.318,
+          "end_time": 175.648,
           "props": {
-            "story_index": 1,
+            "story_index": 0,
+            "stance_distribution": {
+              "支持": 0.5,
+              "质疑": 0.3,
+              "中立": 0.1,
+              "调侃": 0.1,
+              "担忧": 0.0
+            },
+            "debate_focus": [
+              "可重现构建完整性对比",
+              "强制性的必要性与成本"
+            ],
+            "community_sentiment": "社区普遍支持，但围绕完整性和先行者经验有讨论",
+            "score": 509,
+            "comment_count": 267,
+            "controversy_score": 4.6
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 175.648,
+          "end_time": 193.33,
+          "props": {
+            "story_index": 0,
+            "quotes": [
+              {
+                "author": "varenc",
+                "text": "great spot! I noticed that his server also doesn't accept URLs ending is a single `/`: https://chrismorgan.info/no-query-strings/ But instead of the banned query strings message, it just returns a very sassy not-a-404 page. Once again, this is violating a common convention, but there's nothing in th",
+                "text_cn": "好发现！我注意到他的服务器也不接受以单个斜杠结尾的URL：https://chrismorgan.info/no-query-strings/ 但它没有返回“禁止的查询字符串”消息，而是返回一个非常傲慢的非404页面。这又一次违反了常见惯例，但HTTP规范并没有要求将这两个URL视为等同。同样地，当你添加额外的斜杠时，比如 https://chrismorgan.info///no-query-strings，网站也会返回404。题外话：我喜欢在各种网站上尝试“domain.com//”。有时它会触发奇怪的错误，比如502或500。",
+                "stance": "中立"
+              },
+              {
+                "author": "pgt",
+                "text": "If query strings are banned, tracking parameters will simply move to the URL, or use `?t=` & `?h=` if those are whitelisted.",
+                "text_cn": "如果查询字符串被禁止，跟踪参数就会直接移到URL中，或者如果`?t=`和`?h=`被列入白名单，那就用它们。",
+                "stance": "质疑"
+              },
+              {
+                "author": "susam",
+                "text": "This corrupts a URL like: https://example.com/?p=20&utm_source=spam to: https://example.com/ when in fact we want the following: https://example.com/?p=20 A possible improvement can be: javascript:(()=>{const u=new URL(location.href);[...u.searchParams.keys()].forEach(k=>{if(k.startsWith('utm_')){u.",
+                "text_cn": "这会破坏像 https://example.com/?p=20&utm_source=spam 这样的URL，将其变为 https://example.com/，而实际上我们想要的是 https://example.com/?p=20。一个可能的改进是：javascript:(()=>{const u=new URL(location.href);[...u.searchParams.keys()].forEach(k=>{if(k.startsWith('utm_')){u.searchParams.delete(k)}});navigator.clipboard.writeText(u.href)})();",
+                "stance": "支持"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 193.33,
+          "end_time": 210.216,
+          "props": {
+            "story_index": 4,
+            "editor_angle": "Zed默认主题被批'灰上加灰'，官方推构建器自救",
+            "source_title": "Zed Editor Theme-Builder",
+            "dek": "Zed 编辑器发布官方主题构建工具，让用户自定义界面配色，解决默认主题缺乏对比度的问题",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "提供可视化UI元素层级配置，实时预览主题变化"
+              },
+              {
+                "label": "背景",
+                "text": "默认暗色主题被批低对比度，部分用户因此弃用Zed"
+              }
+            ],
+            "why_it_matters": "主题可定制成为现代编辑器标配，Zed此举缩小了与VS Code等对手的体验差距",
+            "keywords": [
+              "主题构建器",
+              "Zed编辑器",
+              "高对比度"
+            ],
+            "category": "开发者体验",
+            "visual_hint": "产品界面",
+            "display_index": 4,
+            "story_count": 10,
+            "story_title": "Zed Editor Theme-Builder",
+            "title_cn": "Zed 编辑器主题构建器",
+            "event_summary": "这篇关于Zed编辑器主题构建器的文章，实际展示了编辑器的两个核心特性：灵活的界面主题定制能力和强大的代码错误检测功能。\n\n文章前半部分列出了Zed主题构建器的配置层级，包括表面背景（Surface Background）、面板背景（Panel Background）、聚焦边框（Focused Border）、缩进辅助线（Panel Indent Guide）等多种UI元素，并标注了它们之间的关联关系。这表明Zed提供了细粒度的界面颜色自定义能力。\n\n后半部分则是一个带有故意错误的TypeScript代码片段——一个名为`MeetingScheduler`的会议调度器组件。该代码包含多种类型错误和代码问题：属性`couldHaveBeenAnEmail`被声明但未使用；`actuallyStartsOnTime`属性被赋值为字符串`\"never\"`，但类型要求为`number`；函数参数拼写错误（`atendees`应为`attendees`）；变量`agendaItem`被声明为`let`但建议使用`const`。Zed编辑器将这些错误直接以错误提示和警告的形式高亮显示在代码中。此外，代码还包含一个幽默的`useEffect`，每分钟降低“开发者理智值”，直到归零时发出警告。\n\n通过这个示例，文章生动演示了Zed编辑器如何实时检测并提示代码中的类型不匹配、未使用变量、拼写建议等问题，体现了其作为现代化编辑器的智能代码分析能力。",
+            "next_watch": "",
+            "image_src": "images/48076651_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 210.216,
+          "end_time": 226.125,
+          "props": {
+            "story_index": 4,
             "stance_distribution": {
               "支持": 0.3,
               "质疑": 0.4,
               "中立": 0.2,
+              "调侃": 0.1
+            },
+            "debate_focus": [
+              "默认主题低对比度",
+              "构建器预览不直观",
+              "隐私与头像显示"
+            ],
+            "community_sentiment": "期待主题构建器，但对默认主题的批评依然强烈",
+            "score": 263,
+            "comment_count": 77,
+            "controversy_score": 3.4
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 226.125,
+          "end_time": 246.0,
+          "props": {
+            "story_index": 4,
+            "quotes": [
+              {
+                "author": "MeetingsBrowser",
+                "text": "This feels shallow, but one of the biggest things keeping me from using zed is the lack of a good default dark theme. The defaults all feel very low contrast, gray on gray that makes the experience feel dull and off putting to me, even if the editor itself is great.",
+                "text_cn": "这听起来可能有点肤浅，但阻止我使用zed的最大原因之一是缺少一个好看的默认暗色主题。默认主题都感觉对比度很低，灰色配灰色，让体验感觉沉闷且令人反感，尽管编辑器本身很棒。",
+                "stance": "中立"
+              },
+              {
+                "author": "phren0logy",
+                "text": "If you use Omarchy, the 3.8 update includes dynamic theming for Zed. It's very cool: https://github.com/APS6/omazed",
+                "text_cn": "如果你使用Omarchy，3.8更新包含了Zed的动态主题设置。非常酷：https://github.com/APS6/omazed",
+                "stance": "支持"
+              },
+              {
+                "author": "mosselman",
+                "text": "How come I see my own github avatar in the designed editor along with others? I assume people also visiting the builder? Not very cool if I may say so.",
+                "text_cn": "为什么我在设计的编辑器中看到自己的GitHub头像，旁边还有别人？我猜是不是也有人访问了构建器？恕我直言，这不太酷。",
+                "stance": "质疑"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 246.0,
+          "end_time": 261.955,
+          "props": {
+            "story_index": 5,
+            "editor_angle": "法国推动‘定向读取’加密，技术界指漏洞百出",
+            "source_title": "France moves to break encrypted messaging",
+            "dek": "法国议会情报代表团正式支持打破端到端加密，建议法官和情报机构对WhatsApp、Signal、Telegram等平台消息进行‘定向访问’",
+            "key_points": [
+              {
+                "label": "争议",
+                "text": "Telegram被错误归为E2EE，实际默认非加密"
+              },
+              {
+                "label": "风险",
+                "text": "技术专家警告后门方案会破坏加密本质，无法仅限‘好人’使用"
+              }
+            ],
+            "why_it_matters": "若立法通过，将开创国家强制削弱加密的先例，威胁全球通信安全",
+            "keywords": [
+              "加密后门",
+              "法国立法",
+              "通信安全"
+            ],
+            "category": "安全风险",
+            "visual_hint": "文章配图",
+            "display_index": 5,
+            "story_count": 10,
+            "story_title": "France moves to break encrypted messaging",
+            "title_cn": "法国着手破解加密消息",
+            "event_summary": "法国议会情报代表团正式支持打破端到端加密，建议允许法官和情报机构对WhatsApp、Signal、Telegram等平台的加密消息进行“定向访问”。代表团认为无法访问加密通信内容是司法和情报工作的重大障碍，但技术专家指出，任何后门或“幽灵参与者”方案都会破坏加密本质，无法确保只有“好人”使用。现有手段如RDI（远程设备入侵）已可全面获取手机内容，但代表团仍认为不足。参议员佩兰推动的修正案曾要求平台提供解密能力，遭国民议会否决；另一修正案主张将加密保护写入法律、禁止强制安装后门，已在参议院通过但后续停滞。文章指出，当前辩论本质并非是否应赋予情报机构工具，而是是否要摧毁目前唯一能抵抗国家拦截的数学加密通信类别。",
+            "next_watch": "",
+            "image_src": "images/48078811_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 261.955,
+          "end_time": 276.508,
+          "props": {
+            "story_index": 5,
+            "stance_distribution": {
+              "支持": 0.1,
+              "质疑": 0.5,
+              "中立": 0.25,
               "调侃": 0.05,
+              "担忧": 0.1
+            },
+            "debate_focus": [
+              "技术定义争议",
+              "后门可行性",
+              "权力平衡"
+            ],
+            "community_sentiment": "社区普遍质疑，技术细节纠错为主，呼吁关注隐私",
+            "score": 259,
+            "comment_count": 124,
+            "controversy_score": 4.4
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 276.508,
+          "end_time": 297.863,
+          "props": {
+            "story_index": 5,
+            "quotes": [
+              {
+                "author": "heinrich5991",
+                "text": "This article incorrectly implies that Telegram is end-to-end encrypted, by putting it in the same line as WhatsApp and Signal. Telegram doesn't even try to be end-to-end-encrypted by default. WhatsApp claims to be end-to-end-encrypted, but it's not open-source, Signal is end-to-end-encrypted.",
+                "text_cn": "这篇文章错误地暗示Telegram是端到端加密的，因为它将其与WhatsApp和Signal放在同一行。Telegram默认甚至不尝试端到端加密。WhatsApp声称是端到端加密的，但它不是开源的，而Signal是端到端加密的。",
+                "stance": "中立"
+              },
+              {
+                "author": "em-bee",
+                "text": "telegram may not be end-to-end encrypted by default but it does support end-to-end encryption. the generous reading is that this encryption, if used, should be broken. so as i read it the article doesn't suggest that all of telegram is end-to-end encrypted only that it has support for it.",
+                "text_cn": "Telegram默认可能不是端到端加密的，但它确实支持端到端加密。宽泛的理解是，如果使用了这种加密，它就应该被破解。所以据我理解，这篇文章并没有说整个Telegram都是端到端加密的，只是说它支持这种加密。",
+                "stance": "支持"
+              },
+              {
+                "author": "adrianwaj",
+                "text": "It will become more important over time - Telegram and the TON coin are reintegrating. So messaging surveillance is financial surveillance too? Price is going up too. https://x.com/BSCNews/status/2053046567930937817 Upgraded a month ago: https://x.com/durov/status/2042247948147241072 It'd be interes",
+                "text_cn": "随着时间的推移，它会变得更加重要——Telegram和TON币正在重新整合。所以消息监控也是金融监控？价格也在上涨。https://x.com/BSCNews/status/2053046567930937817 一个月前升级了：https://x.com/durov/status/2042247948147241072 看到曾经被认为秘密的东西公之于众会很有趣（可怕？）。想象一下，如果所有聊天和支付最终在某个时候都公开了…… “透明性”，当什么都无法加密时，就没人会尝试加密了。人类变成一个整体——还是退化？有了TON，也许山寨币会让位给微型币——专门为应用及其用户/创始人定制？……用于微支付和在AI基础设施上运行。区块链和AI基础设施在很大程度上已经可以互换。因此，如果交易历史暴露，损害是有限的。初创公司不会寻求IPO，而是会考虑发行代币来赚大钱。币安做到了。Polymarket会是下一个？目前Polymarket由比特币主导。我不确定以太坊代币是否也会是同样的东西。",
+                "stance": "质疑"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 297.863,
+          "end_time": 310.385,
+          "props": {
+            "story_index": 6,
+            "editor_angle": "开源社区反向移植，Space Cadet弹球重生",
+            "source_title": "Space Cadet Pinball on Linux",
+            "dek": "一篇指南教Linux用户通过Flatpak安装经典弹球游戏Space Cadet Pinball，并提供高清画质升级方案。",
+            "key_points": [
+              {
+                "label": "方法",
+                "text": "Flatpak一键安装后替换Full Tilt数据实现高清"
+              },
+              {
+                "label": "争议",
+                "text": "物理引擎受批，怀旧情怀成主要下载动力"
+              }
+            ],
+            "why_it_matters": "逆向工程让老游戏跨平台重生，开源社区延续经典生命力。",
+            "keywords": [
+              "经典弹球",
+              "开源移植",
+              "Linux游戏"
+            ],
+            "category": "开源生态",
+            "visual_hint": "游戏界面截图",
+            "display_index": 6,
+            "story_count": 10,
+            "story_title": "Space Cadet Pinball on Linux",
+            "title_cn": "Linux 上的太空军校生弹球",
+            "event_summary": "这篇文章面向Linux用户，介绍如何安装和运行经典游戏Space Cadet Pinball（即Windows XP自带的3D弹球）。作者指出，开发者通过反编译和逆向工程创建了开源项目（GitHub），使得该游戏可在多平台运行。在Linux上最便捷的安装方式是通过Flatpak，运行命令 `flatpak install com.github.k4zmu2a.spacecadetpinball` 即可获得包含原始游戏资源的版本。针对原始480p分辨率略显粗糙的问题，文章提供了升级方案：从archive.org下载Full Tilt! Pinball的游戏数据文件（支持1024×768分辨率），然后通过解压并替换Flatpak安装目录中的文件来实现高清显示。具体步骤包括：进入游戏数据目录、解压CADET.ZIP、删除旧文件。如果希望保留两个版本的数据，可以合并文件，在游戏中自由切换。文章同时提醒，如果游戏更新可能需要重复替换操作，但该Flatpak已超过两年未更新，因此影响不大。整篇文章以操作指南为主，分享了一种在Linux上获得怀旧游戏体验的实用方法。",
+            "next_watch": "",
+            "image_src": "images/48082968_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 310.385,
+          "end_time": 321.692,
+          "props": {
+            "story_index": 6,
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.3,
+              "中立": 0.2,
+              "调侃": 0.1
+            },
+            "debate_focus": [
+              "游戏品质 vs 情怀",
+              "安装门槛",
+              "历史准确性"
+            ],
+            "community_sentiment": "怀旧为主，兼有对游戏品质的质疑",
+            "score": 247,
+            "comment_count": 82,
+            "controversy_score": 3.6
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 321.692,
+          "end_time": 334.613,
+          "props": {
+            "story_index": 6,
+            "quotes": [
+              {
+                "author": "sakjur",
+                "text": "Raymond Chen has two blog posts that first describes why Space Cadet was removed because of a 64-bit rounding mode bug and then a follow-up post a decade later clarifying that that might not be the full story. It's a fun bit of Windows history trivia. - https://devblogs.microsoft.com/oldnewthing/201",
+                "text_cn": "Raymond Chen有两篇博客文章，第一篇描述了为什么Space Cadet因为一个64位舍入模式错误而被移除，十年后的一篇后续文章澄清说这可能不是全部原因。这是一个有趣的Windows历史冷知识。- https://devblogs.microsoft.com/oldnewthing/20121218-00/?p=58... - https://devblogs.microsoft.com/oldnewthing/20220106-00/?p=10...",
+                "stance": "支持"
+              },
+              {
+                "author": "stavros",
+                "text": "Space Cadet wasn't bundled with Windows, was it? It was included in Microsoft Plus! 98 but not Windows 98.",
+                "text_cn": "Space Cadet没有随Windows捆绑，是吧？它包含在Microsoft Plus! 98中，但不在Windows 98中。",
+                "stance": "中立"
+              },
+              {
+                "author": "prmoustache",
+                "text": "Honestly my favorite pinball game of all time is not at all realistic: Devil Crush (I think it was called Devil Crash in the USA). It has been released on both the pcengine and the megadrive. For some reason I tend to prefer the pcengine more despite the graphics quality being a bit below, probably ",
+                "text_cn": "老实说，我最喜欢的弹球游戏一点也不真实：Devil Crush（我记得在美国叫Devil Crash）。它在PC Engine和Mega Drive上都发布过。出于某种原因，我更倾向于PC Engine版本，尽管画面质量稍差，可能是因为更“脏”的音效配乐。这是我飞行时的主要消遣。https://www.youtube.com/watch?v=J-7iC8z6q8s&t=7",
+                "stance": "质疑"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 334.613,
+          "end_time": 348.294,
+          "props": {
+            "story_index": 7,
+            "editor_angle": "安全旅游神话下的司法硬核现实",
+            "source_title": "Getting arrested in Japan",
+            "dek": "第一人称揭秘日本拘留系统：最长关押23天，审讯压力巨大，规矩严苛到睡姿都受限",
+            "key_points": [
+              {
+                "label": "流程",
+                "text": "逮捕后初始拘留达23天，可因新罪名重置延长"
+              },
+              {
+                "label": "后果",
+                "text": "长期失联可能导致失业，即使无罪释放也蒙受巨大损失"
+              }
+            ],
+            "why_it_matters": "揭示日本安全标签背后，对外籍人士可能不公平的司法实践",
+            "keywords": [
+              "日本拘留制度",
+              "外国游客风险",
+              "司法程序争议"
+            ],
+            "category": "安全风险",
+            "visual_hint": "文章配图|日本警察局|监狱内部示意图",
+            "display_index": 7,
+            "story_count": 10,
+            "story_title": "Getting arrested in Japan",
+            "title_cn": "在日本被逮捕的经历",
+            "event_summary": "日本警察拘留所（kōchi-sho）是逮捕后临时关押的设施，警方在此期间调查案件。根据文章，单次逮捕最长可拘留23天（初始处理3天+常规10天+可延长10天），但若警方以其他罪名追加逮捕，拘留时间可重置并大幅延长；部分人在认罪后仍可能被羁押数月等待遣返或移交。与美国系统不同，日本将调查置于指控之前，拘留期间不立即见法官、不允许保释，且审讯时律师在场权有限。拘留所内规矩极其严格：全天监视、固定作息（6:00起床-21:00熄灯）、禁止交谈（仅限日语）、每5天洗一次澡、所有物品（包括内衣）需全面检查，作息细节（如睡姿、盖脸）均受控制。作者认为该系统设计旨在通过孤立、高压与疲劳审讯瓦解被拘留者心理，甚至迫使无辜者虚假认罪。文章指出，许多智力障碍成年人也被关押，未能获得特殊照顾，系统存在严重缺陷。",
+            "next_watch": "",
+            "image_src": "images/48078647_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 348.294,
+          "end_time": 358.522,
+          "props": {
+            "story_index": 7,
+            "stance_distribution": {
+              "支持": 0.2,
+              "质疑": 0.45,
+              "中立": 0.15,
+              "调侃": 0.1,
+              "担忧": 0.1
+            },
+            "debate_focus": [
+              "拘留制度是否人道",
+              "外国人的知情权不足",
+              "安全社会是否必须牺牲程序正义"
+            ],
+            "community_sentiment": "多数评论警示风险，少数认为应尊重当地法律",
+            "score": 240,
+            "comment_count": 284,
+            "controversy_score": 6.4
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 358.522,
+          "end_time": 373.658,
+          "props": {
+            "story_index": 7,
+            "quotes": [
+              {
+                "author": "nayuki",
+                "text": "I enjoyed learning from this video years ago, which introduces the topic of how you are treated when arrested in Japan: * Paolo fromTOKYO - \"Why Japan Arrests Foreigners\" https://www.youtube.com/watch?v=r1ZLGqL1FMo (14m23s) [2019-08-16]",
+                "text_cn": "几年前我从这个视频中学到了很多，它介绍了在日本被捕时你会受到怎样的对待：* Paolo fromTOKYO - \"Why Japan Arrests Foreigners\" https://www.youtube.com/watch?v=r1ZLGqL1FMo (14分23秒) [2019-08-16]",
+                "stance": "质疑"
+              },
+              {
+                "author": "pech0rin",
+                "text": "I love how this starts out by listing “innocent” laws that you can break. Its your job to know the laws of the country and if you break them you should be punished. US people love visiting Japan and talking about how safe it is. Why exactly do you think its so safe?",
+                "text_cn": "我喜欢它一开始就列出你可以违反的“无辜”法律。了解所在国家的法律是你的责任，如果你违反了，就应该受到惩罚。美国人喜欢去日本旅游，谈论那里有多安全。你到底为什么认为它这么安全？",
+                "stance": "支持"
+              },
+              {
+                "author": "laughing_man",
+                "text": "In what country is getting arrested pleasant? Japan is probably worse than Northern Europe, but it's still pretty high on \"if I had to be arrested, I'd rather it was here\" list.",
+                "text_cn": "在哪个国家被捕会是愉快的？日本可能比北欧更糟，但在“如果必须被捕，我宁愿在这里”的名单上仍然排名很高。",
+                "stance": "中立"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 373.658,
+          "end_time": 387.635,
+          "props": {
+            "story_index": 8,
+            "editor_angle": "Clojure在Go上7ms启动，抛弃JVM",
+            "source_title": "Show HN: I made a Clojure-like language in Go, boots in 7ms",
+            "dek": "开发者用Go实现Clojure方言，二进制10MB，冷启动7ms，彻底抛弃JVM。",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "Go编写字节码编译器与栈虚拟机，兼容Clojure语法"
+              },
+              {
+                "label": "优势",
+                "text": "启动比Clojure JVM快约50倍，二进制仅10MB"
+              }
+            ],
+            "why_it_matters": "Clojure可在资源受限环境或容器中高效运行，拓展Lisp应用场景。",
+            "keywords": [
+              "Clojure方言",
+              "Go编写",
+              "7ms冷启动"
+            ],
+            "category": "开发者体验",
+            "visual_hint": "代码仓库",
+            "display_index": 8,
+            "story_count": 10,
+            "story_title": "Show HN: I made a Clojure-like language in Go, boots in 7ms",
+            "title_cn": "Show HN：我用 Go 做了一个类似 Clojure 的语言，7 毫秒启动",
+            "event_summary": "## 摘要\n\nlet-go 是一个用 Go 实现的 Clojure 方言，包含字节码编译器与栈虚拟机。二进制文件仅约 10MB，冷启动约 7ms，无需 JVM，在 jank-lang 测试套件中实现约 95% 的 Clojure 兼容性。核心设计为在 Go 生态中嵌入 Clojure 语法，支持持久化数据结构、惰性序列、protocols、multimethods、core.async 等特性。基准测试显示：相比 Babashka、Joker、Clojure JVM，let-go 在二进制体积、启动速度和空闲内存上优势明显（启动比 JVM 快约 50 倍，比 Babashka 快约 3 倍）；短周期数据处理（如 map/filter）性能领先，但大型数值计算（如 fib、reduce）落后于 go-joker 的 WASM JIT 和预热后的 JVM。技术方案上，let-go 通过 Go 的 goroutine 实现 core.async，支持 AOT 编译为独立二进制或 WASM 页面，并内置 nREPL 服务器（兼容 CIDER、Calva、Conjure）。实际应用包括 CLI、Web 服务器、容器运行时及浏览器中的 roguelike 游戏。已知限制：缺少 STM、agent、chunked 序列，BigDecimal 精度支持不完整，数值溢出默认静默回绕等。",
+            "next_watch": "",
+            "image_src": "images/48076815_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 387.635,
+          "end_time": 398.578,
+          "props": {
+            "story_index": 8,
+            "stance_distribution": {
+              "支持": 0.5,
+              "质疑": 0.3,
+              "中立": 0.15,
+              "调侃": 0.05
+            },
+            "debate_focus": [
+              "性能实用性争议",
+              "特性兼容性不足",
+              "Go生态编译语言趋势"
+            ],
+            "community_sentiment": "多数赞赏创新，部分质疑实际性能",
+            "score": 239,
+            "comment_count": 68,
+            "controversy_score": 3.3
+          }
+        },
+        {
+          "element_type": "quote_card",
+          "start_time": 398.578,
+          "end_time": 412.306,
+          "props": {
+            "story_index": 8,
+            "quotes": [
+              {
+                "author": "marcingas",
+                "text": "The JVM itself - yes, but then you need to wait for Clojure itself. Clojure is famously slow because it interns a bunch of stuff and computes var references every time it boots. I never intended for let-go to be a race car but small distro, low memory usage and snappy start are its priorities at the",
+                "text_cn": "JVM本身——是的，但之后你需要等待Clojure本身。Clojure以慢著称，因为它会驻留一堆东西并在每次启动时计算变量引用。我从未打算让let-go成为赛车，但小型发行版、低内存使用率和快速启动是它目前的优先事项。",
+                "stance": "中立"
+              },
+              {
+                "author": "phplovesong",
+                "text": "There seems to be a surge in compile to Go projects recently. To me this signals that the runtime / stdlib of Go is one of the best out there (when going the GD'd route), but the surface level (syntax) is too simple/verbose and lacks the expressiveness developers want. So far Lisette ( http://lisett",
+                "text_cn": "最近似乎出现了大量编译到Go的项目。对我来说，这表明Go的运行时/标准库是最优秀的之一（当走GD路线时），但表层（语法）过于简单/冗长，缺乏开发者想要的表达能力。到目前为止，Lisette（http://lisette.run）似乎是编译到Go语言中最好/最活跃的版本。",
+                "stance": "支持"
+              },
+              {
+                "author": "j3s",
+                "text": "absolutely sick of reading through obviously AI-slopped READMEs. it's your project, take a little pride and tell me why i should like it quickly instead of asking your agent to rattle off a list of features -- it's severely boring & offputting.",
+                "text_cn": "非常厌倦阅读那些明显是AI糊弄出来的README。这是你的项目，稍微引以为傲，快速告诉我为什么我该喜欢它，而不是让你的代理罗列一堆功能——这极其无聊且令人反感。",
+                "stance": "质疑"
+              }
+            ],
+            "next_watch": ""
+          }
+        },
+        {
+          "element_type": "event_card",
+          "start_time": 412.306,
+          "end_time": 427.465,
+          "props": {
+            "story_index": 9,
+            "editor_angle": "Rossmann 怒斥 Bambu Lab，自掏腰包帮开发者打官司",
+            "source_title": "Louis Rossmann offers to pay legal fees for a threatened OrcaSlicer developer",
+            "dek": "Louis Rossmann 承诺支付 1 万美元法律费用，支持因重建打印机本地控制而收到律师函的开源开发者。",
+            "key_points": [
+              {
+                "label": "做法",
+                "text": "Rossmann 公开募捐并呼吁开发者重新上传代码"
+              },
+              {
+                "label": "争议",
+                "text": "Bambu Lab 称云端每天遭 3000 万次未经授权请求"
+              }
+            ],
+            "why_it_matters": "此事件将决定用户对自己购买的 3D 打印机的控制权边界，影响维修权运动未来走向。",
+            "keywords": [
+              "维修权运动",
+              "开源打印机",
+              "法律对抗"
+            ],
+            "category": "开发者体验",
+            "visual_hint": "公司Logo",
+            "display_index": 9,
+            "story_count": 10,
+            "story_title": "Louis Rossmann offers to pay legal fees for a threatened OrcaSlicer developer",
+            "title_cn": "Louis Rossmann 主动提出为受威胁的 OrcaSlicer 开发者支付法律费用",
+            "event_summary": "Louis Rossmann 承诺提供1万美元，为受到Bambu Lab律师函威胁的OrcaSlicer开发者Pawel Jarczak支付首笔法律费用。Jarczak因创建恢复Bambu Lab 3D打印机与OrcaSlicer直接控制的复刻项目而收到停止函，已主动关闭项目。Rossmann通过视频动员“维修权”社区众筹支持，并呼吁Jarczak重新上传代码以对抗企业威胁。Bambu Lab称其云服务器每天遭遇约3000万次“未经授权”请求，其中OrcaSlicer为主要来源，但批评者指出该公司依赖开源贡献却限制用户控制权。视频已获超5.4万观看，多名网友表示愿出资支持（如20美元、100美元）。Rossmann尚未正式发起众筹，意在先展示社区声援。文章还批评Bambu Lab打印机的可修复性差（如胶合零件、不可更换碳杆），凸显“维修权”运动的核心诉求：用户有权维修和修改自己购买的产品。",
+            "next_watch": "",
+            "image_src": "images/48084432_0.jpg",
+            "image_type": "article"
+          }
+        },
+        {
+          "element_type": "atmosphere_card",
+          "start_time": 427.465,
+          "end_time": 442.908,
+          "props": {
+            "story_index": 9,
+            "stance_distribution": {
+              "支持": 0.4,
+              "质疑": 0.3,
+              "中立": 0.15,
+              "调侃": 0.1,
               "担忧": 0.05
             },
             "debate_focus": [
-              "数学家的不朽VS AI替代",
-              "AI是否真正理解数学",
-              "人类专家角色是否贬值"
+              "连接私有API是否侵权",
+              "企业是否应限制开源软件访问"
             ],
-            "community_sentiment": "多数人震惊且悲观，但部分认为AI是工具",
-            "score": 616,
-            "comment_count": 446,
+            "community_sentiment": "社区愤怒与支持并存，争议焦点在于 API 使用边界。",
+            "score": 228,
+            "comment_count": 164,
             "controversy_score": 5.3
           }
         },
         {
           "element_type": "quote_card",
-          "start_time": 82.0,
-          "end_time": 94.568,
-          "props": {
-            "story_index": 1,
-            "quotes": [
-              {
-                "author": "few",
-                "text": ">So if your aim in doing mathematics is to achieve some kind of immortality, so to speak, then you should understand that that won’t necessarily be possible for much longer — not just for you, but for anybody. This made me a little sad",
-                "text_cn": ">所以说，如果你研究数学的目的是为了某种不朽，那么你应该明白，这在不久的将来可能不再可能——不仅是对你，对任何人都是如此。这让我有点难过。",
-                "stance": "质疑"
-              },
-              {
-                "author": "MinimalAction",
-                "text": "As a graduate student, this piece made me sad. I always believed that my work speaks for itself and transcends beyond my limited time on this cosmic experience. This notion of immortality was just a small intangible bonus I hoped for when I jumped into grad school. AI is making me feel less worthy.",
-                "text_cn": "作为一名研究生，这篇文章让我感到难过。我一直相信我的工作会为自己说话，超越我在这次宇宙体验中的有限时间。这种不朽的概念只是我进入研究生院时希望得到的一点微小无形回报。AI让我感觉自己价值变低了。",
-                "stance": "支持"
-              },
-              {
-                "author": "bustermellotron",
-                "text": "I saw Tim Gowers give a talk at the AMS-MAA joint meeting in Seattle about ten years ago where he predicted that in 100 years humans would no longer be doing research mathematics. I wonder if he’s adjusted his timeline. At the time I thought the key missing tool was a natural language search that ac",
-                "text_cn": "大约十年前，我在西雅图的AMS-MAA联合会议上听了Tim Gowers的演讲，他预测100年后人类将不再从事数学研究。我想知道他是否调整过他的时间表。当时我认为缺少的关键工具是一个类似MathOverflow的自然语言搜索，你可以解释你的问题或想法（按你的理解），然后获得相关文献的引用（可能超出了你的经验或词汇范围）。",
-                "stance": "中立"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 94.568,
-          "end_time": 111.477,
-          "props": {
-            "story_index": 2,
-            "event_summary": "互联网档案馆在瑞士圣加仑成立非营利基金会，扩展全球知识保存使命，并率先存档AI模型防止被重新训练抹除。",
-            "editor_angle": "知识保存的全球化支点，但执行细节引争议",
-            "category": "基础设施",
-            "keywords": [
-              "互联网档案馆",
-              "瑞士",
-              "知识保存",
-              "全球化",
-              "AI模型存档"
-            ],
-            "display_index": 2,
-            "story_count": 10,
-            "story_title": "Internet Archive Switzerland",
-            "title_cn": "瑞士互联网档案馆",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48074265_upload_20260510_134841.png",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 111.477,
-          "end_time": 128.193,
-          "props": {
-            "story_index": 2,
-            "stance_distribution": {
-              "支持": 0.4,
-              "质疑": 0.3,
-              "中立": 0.2,
-              "担忧": 0.1,
-              "调侃": 0.0
-            },
-            "debate_focus": [
-              "长期可持续性",
-              "网站可用性 vs 使命",
-              "分散化必要性"
-            ],
-            "community_sentiment": "多数乐见其成，但对执行细节有保留",
-            "score": 574,
-            "comment_count": 87,
-            "controversy_score": 2.2
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 128.193,
-          "end_time": 147.443,
-          "props": {
-            "story_index": 2,
-            "quotes": [
-              {
-                "author": "red_admiral",
-                "text": "Sankt Gallen's more physical archive is worth a visit too:  https://www.stiftsbezirk.ch/de/stiftsbibliothek/",
-                "text_cn": "圣加仑的实体档案馆也值得一游：https://www.stiftsbezirk.ch/de/stiftsbibliothek/",
-                "stance": "中立"
-              },
-              {
-                "author": "DeadEye2111",
-                "text": "Very proud of my alma mater town to be a place for this. It’s much needed infrastructure for Europe.",
-                "text_cn": "为我的母校所在城市能成为这样一个场所而感到自豪。这是欧洲急需的基础设施。",
-                "stance": "支持"
-              },
-              {
-                "author": "vages",
-                "text": "The .eu branch that card zero criticized seems to be based in Amsterdam, the capital of the Netherlands (an EU member). Or am I missing something?",
-                "text_cn": "Card zero批评的.eu分支似乎设在阿姆斯特丹——荷兰（欧盟成员国）的首都。还是我遗漏了什么？",
-                "stance": "质疑"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 147.443,
-          "end_time": 162.159,
-          "props": {
-            "story_index": 3,
-            "event_summary": "Bun用Rust重写实验版本通过99.8%测试，仅用6天，展示AI辅助代码迁移潜力。",
-            "editor_angle": "AI加速重写，但安全与维护仍存疑",
-            "category": "开发者体验",
-            "keywords": [
-              "Bun",
-              "Rust重写",
-              "AI辅助",
-              "测试兼容性",
-              "Zig生态"
-            ],
-            "display_index": 3,
-            "story_count": 10,
-            "story_title": "Bun's experimental Rust rewrite hits 99.8% test compatibility on Linux x64 glibc",
-            "title_cn": "Bun 的实验性 Rust 重写在 Linux x64 glibc 上达到 99.8% 测试兼容性",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 162.159,
-          "end_time": 177.193,
-          "props": {
-            "story_index": 3,
-            "stance_distribution": {
-              "支持": 0.3,
-              "质疑": 0.4,
-              "中立": 0.15,
-              "担忧": 0.15
-            },
-            "debate_focus": [
-              "AI辅助代码迁移可靠性",
-              "Zig生态影响"
-            ],
-            "community_sentiment": "多数开发者看好但担忧AI重写长期安全性与维护",
-            "score": 476,
-            "comment_count": 451,
-            "controversy_score": 5.9
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 177.193,
-          "end_time": 194.511,
-          "props": {
-            "story_index": 3,
-            "quotes": [
-              {
-                "author": "Tiberium",
-                "text": "I just want to comment that I think it's a good change if we look past the AI involvement. Bun has had an extremely high amount of crashes/memory bugs due to them using Zig, unlike Deno which is Rust. Of course, if Bun's Rust port has tons of `unsafe`, it won't magically solve them all, but it'll st",
-                "text_cn": "我只想评论说，如果抛开AI的参与，我认为这是一个好的改变。Bun因为使用Zig而有过极高的崩溃/内存错误数量，而Deno使用的是Rust。当然，如果Bun的Rust移植版有大量`unsafe`代码，也不会神奇地解决所有问题，但情况仍然会好转。",
-                "stance": "支持"
-              },
-              {
-                "author": "arjie",
-                "text": "Character-density and token-efficiency are different things. Latter is data and, therefore, tokenizer specific e.g. take GPT-5's tokenizer o200k_base and run mandarin text and its translation through. Some amount of the time en will beat zh. I just tested with news articles and wikipedia. After all ",
-                "text_cn": "字符密度和token效率是不同的概念。后者与数据（因此也与分词器）相关，例如以GPT-5的分词器o200k_base为例，运行普通话文本及其翻译。有时英文会比中文少token。我用新闻文章和维基百科测试过。毕竟，`def func():`在o200k_base上只有3个token。",
-                "stance": "中立"
-              },
-              {
-                "author": "AtNightWeCode",
-                "text": "Kinda crazy to use AI to switch from zig to rust in a tool that runs js. Bin bun and use a real lang to begin with. No reason to have that extra layer anymore.",
-                "text_cn": "用AI把运行JS的工具从Zig换成Rust有点疯狂。直接用原生语言（如C/C++）来写Bun不就好了。没必要再多这一层。",
-                "stance": "质疑"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 194.511,
-          "end_time": 207.5,
-          "props": {
-            "story_index": 4,
-            "event_summary": "欧盟议会研究机构警告VPN被用于绕过年龄验证，呼吁关闭这一‘漏洞’。",
-            "editor_angle": "以保护儿童之名，实为监控扩权",
-            "category": "安全风险",
-            "keywords": [
-              "EU",
-              "VPN",
-              "年龄验证",
-              "隐私",
-              "监控"
-            ],
-            "display_index": 4,
-            "story_count": 10,
-            "story_title": "EU Parliamentary Research Service calls VPNs \"a loophole that needs closing\"",
-            "title_cn": "欧盟议会研究服务称 VPN 为“需要堵上的漏洞”",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48072190_0.jpg",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 207.5,
-          "end_time": 221.784,
-          "props": {
-            "story_index": 4,
-            "stance_distribution": {
-              "支持": 0.05,
-              "质疑": 0.15,
-              "中立": 0.2,
-              "调侃": 0.05,
-              "担忧": 0.55
-            },
-            "debate_focus": [
-              "年龄验证与身份验证的绑定",
-              "隐私保护 vs 儿童安全",
-              "商业利益驱动"
-            ],
-            "community_sentiment": "多数用户强烈反对，认为这是数字威权主义",
-            "score": 453,
-            "comment_count": 303,
-            "controversy_score": 5.1
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 221.784,
-          "end_time": 235.773,
-          "props": {
-            "story_index": 4,
-            "quotes": [
-              {
-                "author": "donmcronald",
-                "text": "I think all the identity verification schemes should start with the beneficial owners of companies.  Governments have been lobbied to allow complete anonymity for the wealthy that own businesses doing questionable things while regular people are going to have to show id to buy food.",
-                "text_cn": "我认为所有身份验证方案都应该从公司的实际受益人开始。政府被游说允许拥有从事可疑业务的企业的富豪完全匿名，而普通人却要出示身份证才能买食物。",
-                "stance": "支持"
-              },
-              {
-                "author": "harvey9",
-                "text": "The people who really want to stop VPNs are commercial streamers, especially for live sports. Regardless of state, or governing party, it always comes back to money.",
-                "text_cn": "真正想禁止VPN的是商业流媒体服务，尤其是体育直播。无论哪个州或执政党，归根结底还是钱。",
-                "stance": "中立"
-              },
-              {
-                "author": "pveierland",
-                "text": "Age restrictions + VPN bans + encryption restrictions + client-side monitoring + restricting general purpose computing.. It's just rapid descent into digital fascism set up by people who have no ability to see how the dots will end up connecting.",
-                "text_cn": "年龄限制 + VPN禁令 + 加密限制 + 客户端监控 + 限制通用计算……这纯粹是数字法西斯主义的快速堕落，由那些无法预见这些点最终如何连接的人建立。",
-                "stance": "质疑"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 235.773,
-          "end_time": 251.682,
-          "props": {
-            "story_index": 5,
-            "event_summary": "开发者用Claude Code生成单页HTML应用作为协作单元，比Markdown更直观可交互，引发效率与平台锁定的讨论。",
-            "editor_angle": "HTML成为AI输出新宠，但并非没有代价",
-            "category": "开发者体验",
-            "keywords": [
-              "HTML vs Markdown",
-              "AI协作",
-              "Claude Code",
-              "token效率",
-              "开发者工作流"
-            ],
-            "display_index": 5,
-            "story_count": 10,
-            "story_title": "Using Claude Code: The unreasonable effectiveness of HTML",
-            "title_cn": "使用 Claude Code：HTML 的惊人效力",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 251.682,
-          "end_time": 262.396,
-          "props": {
-            "story_index": 5,
-            "stance_distribution": {
-              "支持": 0.4,
-              "质疑": 0.3,
-              "中立": 0.2,
-              "担忧": 0.1
-            },
-            "debate_focus": [
-              "HTML的token效率低于Markdown",
-              "平台锁定风险"
-            ],
-            "community_sentiment": "多数开发者认可HTML便利性，但也警惕隐藏成本",
-            "score": 435,
-            "comment_count": 248,
-            "controversy_score": 4.7
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 262.396,
-          "end_time": 280.671,
-          "props": {
-            "story_index": 5,
-            "quotes": [
-              {
-                "author": "momojo",
-                "text": "When exploring a new idea or tool, my go to prompt is ```\nIn a single index.html, no dependencies, sparse styling, create an app that <idea>\n``` Even before AI, it's how I built small tools, and there's something lovely about being able to email my friends the tool, and tell them \"If you want to mak",
-                "text_cn": "在探索新想法或新工具时，我的首选提示词是：\n```\n在一个独立的index.html中，无依赖，极简样式，创建一个实现<idea>的应用程序\n```\n即使在AI出现之前，我就是这样构建小工具的，而且能通过邮件把工具发给朋友，告诉他们“如果你想修改，把它扔给你的LLM！”，这种感觉很棒。",
-                "stance": "支持"
-              },
-              {
-                "author": "bicepjai",
-                "text": "I notice this trend where presentations are being made with html. Even I have some prompts that create quick html + JavaScript for data viz. may be it will become our new ppts",
-                "text_cn": "我注意到一种趋势：演示文稿正在用HTML制作。我自己也有一些提示词，用来快速生成用于数据可视化的 HTML + JavaScript。也许这将成为我们新的PPT。",
-                "stance": "中立"
-              },
-              {
-                "author": "kwerk",
-                "text": "Discovered this quite by accident. My cofounder and I were building a pdf editor and I’d analyzed 1,400 PDFs to see where our editor broke. I asked Claude to make an explainer of the process and it popped out an html with a working interactive pdf renderer.",
-                "text_cn": "我偶然发现了这一点。我和联合创始人正在构建一个PDF编辑器，我分析了1400个PDF来查看编辑器在哪里崩溃。我让Claude解释整个过程，结果它弹出了一个包含可交互PDF渲染器的HTML页面。",
-                "stance": "质疑"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 280.671,
-          "end_time": 295.853,
-          "props": {
-            "story_index": 6,
-            "event_summary": "AI使Git提交补丁易被识别，漏洞披露窗口大幅缩短，颠覆传统协调披露文化",
-            "editor_angle": "AI颠覆漏洞披露规则，加速安全军备竞赛",
-            "category": "安全风险",
-            "keywords": [
-              "AI安全",
-              "漏洞披露",
-              "开源安全",
-              "军备竞赛",
-              "Git提交分析"
-            ],
-            "display_index": 6,
-            "story_count": 10,
-            "story_title": "AI is breaking two vulnerability cultures",
-            "title_cn": "AI 正在打破两种漏洞文化",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48066524_0.jpg",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 295.853,
-          "end_time": 308.921,
-          "props": {
-            "story_index": 6,
-            "stance_distribution": {
-              "支持": 0.35,
-              "质疑": 0.35,
-              "中立": 0.2,
-              "担忧": 0.1
-            },
-            "debate_focus": [
-              "协调披露 vs 公开暴露",
-              "AI加速是否改变本质",
-              "集中式 vs 开源安全性"
-            ],
-            "community_sentiment": "讨论理性，观点分化明显",
-            "score": 415,
-            "comment_count": 166,
-            "controversy_score": 4.0
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 308.921,
-          "end_time": 325.296,
-          "props": {
-            "story_index": 6,
-            "quotes": [
-              {
-                "author": "rikafurude21",
-                "text": "This feels more like an old problem getting reframed as an AI problem. people were already diffing kernel commits and figuring out which ones were security fixes long before llms. if a patch lands publicly, the race has basically already started. also not sure shorter embargoes really help. the orgs",
-                "text_cn": "这感觉更像是一个老问题被重新包装成AI问题。早在LLM出现之前，人们就已经在比较内核提交并找出哪些是安全修复。如果一个补丁公开了，竞争基本上就已经开始了。另外，较短的禁运期也不一定有帮助。那些能在几小时内打补丁的组织已经没问题了。其他人仍然需要几天或几周。如果有什么不同的话，更便宜的漏洞利用生成可能使协调披露更重要，而不是更不重要。",
-                "stance": "支持"
-              },
-              {
-                "author": "noashavit",
-                "text": "Perimeter defense is outdated. AI changes the attack surface from network edges to the data pipeline itself. We need to securing the prompt, the model, and the data.",
-                "text_cn": "边界防御已经过时。AI将攻击面从网络边缘转移到数据管道本身。我们需要保护提示词、模型和数据的安全。",
-                "stance": "中立"
-              },
-              {
-                "author": "oytis",
-                "text": "The old saying of Tony Hoare about no obvious bugs vs obviously no bugs holds in the age of LLMs more than ever",
-                "text_cn": "Tony Hoare那句关于“没有明显的错误”与“明显没有错误”的老话，在LLM时代比以往任何时候都更适用。",
-                "stance": "质疑"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 325.296,
-          "end_time": 341.705,
-          "props": {
-            "story_index": 7,
-            "event_summary": "Cartoon Network经典Flash游戏合集被Web Design Museum在线展出，Flash消亡后依托Ruffle进行技术保存。",
-            "editor_angle": "Flash游戏遗珠，数字保存进行时",
-            "category": "其他",
-            "keywords": [
-              "Flash游戏",
-              "数字保存",
-              "Cartoon Network",
-              "怀旧",
-              "Ruffle"
-            ],
-            "display_index": 7,
-            "story_count": 10,
-            "story_title": "Cartoon Network Flash Games",
-            "title_cn": "卡通网络 Flash 游戏",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48065360_bing_2.jpg",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 341.705,
-          "end_time": 352.569,
-          "props": {
-            "story_index": 7,
-            "stance_distribution": {
-              "支持": 0.6,
-              "质疑": 0.15,
-              "中立": 0.15,
-              "担忧": 0.1
-            },
-            "debate_focus": [
-              "数字遗产保存与兼容性",
-              "平台化趋势之殇"
-            ],
-            "community_sentiment": "怀旧为主，偶有技术吐槽",
-            "score": 405,
-            "comment_count": 127,
-            "controversy_score": 3.5
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 352.569,
-          "end_time": 366.671,
-          "props": {
-            "story_index": 7,
-            "quotes": [
-              {
-                "author": "Throwthrowbob",
-                "text": "Neat, but Ruffle failed to load the first game I tried, with reasoning that there is possibly no file to load. And then I was blocked by Cloudflare, even though there were no Cloudflare scripts to enable (checking in an alternate browser). edit: It looks like uBlock origin sees the cloudflare script",
-                "text_cn": "不错，但Ruffle在我尝试的第一个游戏上加载失败了，理由是可能没有文件可加载。然后我被Cloudflare阻挡了，即使没有Cloudflare脚本可以启用（在另一个浏览器中检查）。编辑：看起来uBlock Origin能看到cloudflare脚本，但NoScript不能（一开始没有显示3个脚本）。我过会儿再试。",
-                "stance": "质疑"
-              },
-              {
-                "author": "darkmarmot",
-                "text": "Doh, I did some work on some CN games back in the day -- but don't see any of those here. Hopefully they keeping adding to it!",
-                "text_cn": "哎呀，我以前做过一些中文游戏的工作——但这里一个都没看到。希望他们能继续添加！",
-                "stance": "支持"
-              },
-              {
-                "author": "Moomoomoo309",
-                "text": "If anyone wants to see more of these flash games, check out the Flashpoint archive.  https://flashpointarchive.org/",
-                "text_cn": "如果有人想看到更多Flash游戏，可以查看Flashpoint存档：https://flashpointarchive.org/",
-                "stance": "中立"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 366.671,
-          "end_time": 386.739,
-          "props": {
-            "story_index": 8,
-            "event_summary": "研究显示，将文档委托给LLM处理会导致事实和语义错误累积，多次传递后严重偏离原文。",
-            "editor_angle": "AI助手可能让文档变得更糟",
-            "category": "安全风险",
-            "keywords": [
-              "LLM委托",
-              "文档腐蚀",
-              "AI清洗",
-              "事实错误",
-              "代理信任"
-            ],
-            "display_index": 8,
-            "story_count": 10,
-            "story_title": "LLMs corrupt your documents when you delegate",
-            "title_cn": "当你委托时，LLMs 会损坏你的文档",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48073246_bing_0.jpg",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 386.739,
-          "end_time": 404.807,
-          "props": {
-            "story_index": 8,
-            "stance_distribution": {
-              "支持": 0.3,
-              "质疑": 0.25,
-              "中立": 0.2,
-              "调侃": 0.05,
-              "担忧": 0.2
-            },
-            "debate_focus": [
-              "LLM固有缺陷 vs 使用边界",
-              "对代码和文本影响不对称"
-            ],
-            "community_sentiment": "多数用户认可风险，讨论有建设性",
-            "score": 380,
-            "comment_count": 146,
-            "controversy_score": 3.9
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 404.807,
-          "end_time": 422.932,
-          "props": {
-            "story_index": 8,
-            "quotes": [
-              {
-                "author": "causal",
-                "text": "Yeah I've been saying this for a while: AI-washing any text will degrade it, compounding with each pass. \"Semantic ablation\" is my favorite term for it:  https://www.theregister.com/software/2026/02/16/semantic-abl...",
-                "text_cn": "是的，我一直在这么说：给任何文本刷AI都会使其质量下降，而且每经过一次处理都会加剧。我最喜欢用“语义消融”这个词来形容它：https://www.theregister.com/software/2026/02/16/semantic-abl...",
-                "stance": "支持"
-              },
-              {
-                "author": "enrique_mendez",
-                "text": "I'm making tools for fighting this kind of degradation:  https://github.com/JigSpec/JigSpec",
-                "text_cn": "我正致力于制作对抗这种质量下降的工具：https://github.com/JigSpec/JigSpec",
-                "stance": "质疑"
-              },
-              {
-                "author": "wtetzner",
-                "text": "I think the problem is that we're using LLMs to do too much of the work. We should aim to design agents that use the LLM as the thinnest possible layer to translate the natural language intent into a deterministic process, minimizing round trips to the LLM as much as possible.",
-                "text_cn": "我认为问题在于我们让LLM做了太多工作。我们应该设计使用LLM作为最薄层的代理，将自然语言意图转化为确定性的流程，尽可能减少对LLM的往返调用。",
-                "stance": "中立"
-              }
-            ],
-            "next_watch": ""
-          }
-        },
-        {
-          "element_type": "event_card",
-          "start_time": 422.932,
-          "end_time": 439.091,
-          "props": {
-            "story_index": 9,
-            "event_summary": "Meta关闭Instagram私信端到端加密，用户隐私面临监控风险，引发安全担忧。",
-            "editor_angle": "Meta关闭端到端加密，隐私让步监控",
-            "category": "安全风险",
-            "keywords": [
-              "端到端加密",
-              "Instagram",
-              "隐私",
-              "Meta",
-              "安全"
-            ],
-            "display_index": 9,
-            "story_count": 10,
-            "story_title": "Meta Shuts Down End-to-End Encryption for Instagram Messaging",
-            "title_cn": "Meta 关闭 Instagram 消息的端到端加密",
-            "why_it_matters": "",
-            "next_watch": "",
-            "image_src": "images/48069192_0.jpg",
-            "image_type": "article"
-          }
-        },
-        {
-          "element_type": "atmosphere_card",
-          "start_time": 439.091,
-          "end_time": 454.989,
-          "props": {
-            "story_index": 9,
-            "stance_distribution": {
-              "支持": 0.05,
-              "质疑": 0.3,
-              "中立": 0.2,
-              "调侃": 0.05,
-              "担忧": 0.4
-            },
-            "debate_focus": [
-              "隐私与安全平衡",
-              "Meta动机（监控 vs 保护）",
-              "用户实际需求"
-            ],
-            "community_sentiment": "多数用户不满，认为Meta再次背叛信任",
-            "score": 319,
-            "comment_count": 216,
-            "controversy_score": 5.1
-          }
-        },
-        {
-          "element_type": "quote_card",
-          "start_time": 454.989,
-          "end_time": 475.785,
+          "start_time": 442.908,
+          "end_time": 458.703,
           "props": {
             "story_index": 9,
             "quotes": [
               {
-                "author": "lrvick",
-                "text": "Centralized proprietary software on on proprietary platforms can always be opted into a special update that makes all the private keys deterministic making end to end encryption useless for anyone with knowledge of that targeted backdoor. Only FOSS can deliver verifiable E2EE, and all centralized an",
-                "text_cn": "集中式专有软件运行在专有平台上，随时可以接收一个特殊更新，使所有私钥变成确定性，从而使端到端加密对知道该针对性后门的任何人毫无用处。只有自由开源软件（FOSS）才能提供可验证的E2EE，所有集中式和专有的解决方案（如Zoom、WhatsApp、Instagram等）都应该停止安全表演。我赞赏Meta至少在一个产品上诚实了一次。",
-                "stance": "支持"
-              },
-              {
-                "author": "jezzamon",
-                "text": "People here like it, but end-to-end encryption is an objectively worse user experience for people that don't care about that feature",
-                "text_cn": "这里的人喜欢它，但端到端加密对于不关心该功能的人来说，客观上是一个更差的用户体验。",
+                "author": "Aurornis",
+                "text": "OrcaSlicer supports Bambu printers already. Does anyone have any better sources for what this other fork supposedly did? EDIT: I’m not going to sit through another angry Louis Rossmann video, but from what I can see someone tried to make a branch of OrcaSlicer that interacted directly with Bambu’s p",
+                "text_cn": "OrcaSlicer已经支持Bambu打印机。有人有更好的来源说明这个其他分支到底做了什么吗？编辑：我不打算再看另一个愤怒的路易斯·罗斯曼视频，但从我所见，有人试图创建一个OrcaSlicer的分支，直接与Bambu的私有云API交互，以冒充Bambu Studio。我不同意法律威胁，但这个案例是关于连接到他们的非公开云API，而不是直接连接到打印机。",
                 "stance": "中立"
               },
               {
-                "author": "2ndorderthought",
-                "text": "Instagram should be shut down. Not using encryption for social media and places where users expect any level of privacy is insanity.",
-                "text_cn": "Instagram应该被关闭。在社交媒体和用户期望一定隐私的地方不使用加密，简直是疯了。",
+                "author": "dspillett",
+                "text": "> I’m not going to sit through another angry Louis Rossmann video Try https://youtu.be/0tdZ5Z7nRDY?si=vjnJ90p6ba_Xik9B for a less emotive take on this specific case, and the closely related matter of Bambu's attempt to circumvent some of AGPL's protections.",
+                "text_cn": "> 我不打算再看另一个愤怒的路易斯·罗斯曼视频 试试 https://youtu.be/0tdZ5Z7nRDY?si=vjnJ90p6ba_Xik9B 获取对这个具体案例以及密切相关事件——Bambu试图规避AGPL部分保护——的更冷静的看法。",
                 "stance": "质疑"
+              },
+              {
+                "author": "ChristianJacobs",
+                "text": "Bambu showed their true colours last year when they would've eliminated offline access altogether if not for public outrage. You don't own your Bambu printer, you're leasing it at a subsidised premium. This move does not surprise me at all, and I'm genuinely happy that Louis is willing to shell out ",
+                "text_cn": "Bambu去年露出了真面目，如果不是公众愤怒，他们本会完全消除离线访问。你不拥有你的Bambu打印机，你是在以补贴溢价的方式租赁它。这一举动一点也不让我惊讶，而且我真心高兴路易斯愿意掏钱帮助那些无法自卫的人。我很高兴Bambu终于让Prusa上心，但即使他们不断创新，我也不会为他们欢呼。这很可悲。",
+                "stance": "支持"
               }
             ],
             "next_watch": ""
@@ -1410,27 +1496,27 @@
     },
     {
       "segment_type": "closing",
-      "audio_text": "好，今天的速览就到这里，新的一周加油，多喝热水。",
+      "audio_text": "好，今天的速览就到这里，下期再见，多喝热水。",
       "cues": [
         {
-          "text": "好，今天的速览就到这里，新的一周加油，多喝热水。",
+          "text": "好，今天的速览就到这里，下期再见，多喝热水。",
           "start_time": 0.0,
-          "end_time": 4.896
+          "end_time": 4.728
         }
       ],
-      "duration": 4.896,
-      "start_time": 504.488,
-      "end_time": 509.384,
+      "duration": 4.728,
+      "start_time": 470.912,
+      "end_time": 475.64,
       "scene_elements": [
         {
           "element_type": "closing_card",
           "start_time": 0.0,
-          "end_time": 4.896,
+          "end_time": 4.728,
           "props": {}
         }
       ],
       "audio_path": "audio/segment_03.mp3"
     }
   ],
-  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-05-10\\audio"
+  "audioDir": "E:\\Code\\HNTechPulse\\data\\2026-05-11\\audio"
 }

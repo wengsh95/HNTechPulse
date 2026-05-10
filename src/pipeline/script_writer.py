@@ -2,6 +2,7 @@ import json
 import time
 from pathlib import Path
 from dataclasses import asdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from src.core.models import Script, ScriptSegment, ContentPackage, ContentItem, SelectionResult
@@ -36,6 +37,8 @@ class ScriptWriter:
         props = event_elem.props if event_elem else {}
         return {
             "editor_angle": props.get("editor_angle") or segment.meta.get("editor_angle") or "",
+            "dek": props.get("dek") or segment.meta.get("dek") or "",
+            "key_points": props.get("key_points") or segment.meta.get("key_points") or [],
             "event_summary": props.get("event_summary") or "",
             "why_it_matters": props.get("why_it_matters") or segment.meta.get("why_it_matters") or "",
             "next_watch": props.get("next_watch") or segment.meta.get("next_watch") or "",
@@ -50,42 +53,16 @@ class ScriptWriter:
         content: Optional[ContentPackage] = None,
         story_scan_segs: Optional[list[ScriptSegment]] = None,
     ) -> ScriptSegment:
-        """Generate an opening that leads with today's concrete topics."""
+        """Generate a short positioning line before the first story."""
         from datetime import datetime
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             date_display = date_obj.strftime("%Y年%m月%d日")
-            weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-            weekday_str = weekday_names[date_obj.weekday()]
         except (ValueError, TypeError):
             date_display = date
-            weekday_str = None
 
-        angles = []
-        for seg in (story_scan_segs or [])[:3]:
-            angle = self._story_angle_from_segment(seg)
-            headline = angle.get("editor_angle") or angle.get("event_summary")
-            if headline:
-                angles.append(str(headline))
-
-        if not angles and selection and content:
-            for bi in selection.brief_items[:3]:
-                story_idx = bi.get("story_index")
-                if story_idx is not None and story_idx < len(content.items):
-                    item = content.items[story_idx]
-                    angles.append(item.title_cn or item.title)
-
-        topic_text = "、".join(angles[:3])
-        weekday_text = f"，{weekday_str}" if weekday_str else ""
-        if weekday_str in ("周六", "周日"):
-            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。今天 HN 值得看这几件事：{topic_text}。"
-        elif weekday_str == "周五":
-            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}啦。今天 HN 最热的信号是：{topic_text}。"
-        else:
-            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。先看今天 HN 最值得关注的几个技术信号：{topic_text}。"
-        if not topic_text:
-            audio_text = f"大家好，我是小P，今天是{date_display}{weekday_text}。先看今天 HN 最值得关注的几个技术信号。"
-        duration = 9
+        audio_text = "这里是 HN TechPulse，直接看今天的技术信号。"
+        duration = 4
 
         return ScriptSegment(
             segment_type="opening",
@@ -100,8 +77,8 @@ class ScriptWriter:
                     props={
                         "title": "HN TechPulse",
                         "subtitle": date_display,
-                        "headline": "今日技术信号",
-                        "topics": angles[:3],
+                        "headline": "HNTechPulse",
+                        "topics": [],
                         "stats": "",
                     }
                 )
@@ -111,6 +88,18 @@ class ScriptWriter:
             ],
             meta={}
         )
+
+    def _opening_needs_refresh(self, segment: ScriptSegment) -> bool:
+        """Detect cached openings that still preview the top stories."""
+        audio_text = segment.audio_text or ""
+        if "：" in audio_text or "这几件事" in audio_text or "几个技术信号" in audio_text:
+            return True
+
+        for elem in segment.scene_elements:
+            if elem.element_type == "title_card" and elem.props.get("topics"):
+                return True
+
+        return False
 
     def _generate_fixed_closing(self, date: str) -> ScriptSegment:
         """生成每日快讯结尾"""
@@ -181,7 +170,7 @@ class ScriptWriter:
                     "story_index": story_idx,
                     "original_title": item.title,
                     "title_translation": item.title_cn,
-                    "editor_angle": angle.get("editor_angle") or angle.get("event_summary") or item.title_cn or item.title,
+                    "editor_angle": angle.get("editor_angle") or angle.get("dek") or angle.get("event_summary") or item.title_cn or item.title,
                     "why_it_matters": angle.get("why_it_matters") or "",
                     "next_watch": angle.get("next_watch") or "",
                     "category": angle.get("category") or "",
@@ -223,12 +212,17 @@ class ScriptWriter:
         segments = []
 
         # Generate story scans first so opening/dashboard can lead with concrete angles.
-        story_scan_segs = []
-        for bi in selection.brief_items:
-            story_idx = bi.get("story_index")
-            if story_idx is None:
-                continue
-            seg = self.llm_provider.generate_single_story_segment(
+        story_indices = [
+            bi.get("story_index")
+            for bi in selection.brief_items
+            if bi.get("story_index") is not None
+        ]
+        story_scan_segs_by_index = {}
+        max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
+        max_workers = max(1, min(max_workers, len(story_indices) or 1))
+
+        def _generate_story_scan(story_idx: int) -> ScriptSegment:
+            return self.llm_provider.generate_single_story_segment(
                 content=content,
                 story_index=story_idx,
                 segment_type="story_scan_item",
@@ -236,7 +230,28 @@ class ScriptWriter:
                 date=date,
                 comments_data=None
             )
-            story_scan_segs.append(seg)
+
+        if max_workers == 1 or len(story_indices) <= 1:
+            for story_idx in story_indices:
+                story_scan_segs_by_index[story_idx] = _generate_story_scan(story_idx)
+        else:
+            self.logger.info(
+                f"Generating {len(story_indices)} story scans with {max_workers} LLM workers"
+            )
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(_generate_story_scan, story_idx): story_idx
+                    for story_idx in story_indices
+                }
+                for future in as_completed(futures):
+                    story_idx = futures[future]
+                    story_scan_segs_by_index[story_idx] = future.result()
+
+        story_scan_segs = [
+            story_scan_segs_by_index[story_idx]
+            for story_idx in story_indices
+            if story_idx in story_scan_segs_by_index
+        ]
 
         # 固定开场
         segments.append(self._generate_fixed_opening(date, selection, content, story_scan_segs))
@@ -339,6 +354,17 @@ class ScriptWriter:
         if script_path.exists():
             self.logger.info(f"Found existing {script_path}, loading...")
             script = self.load_script(content.date)
+            opening_segment = next(
+                (seg for seg in script.segments if seg.segment_type == "opening"),
+                None,
+            )
+            if opening_segment and self._opening_needs_refresh(opening_segment):
+                self.logger.info("Cached opening uses topic preview, refreshing opening only")
+                refreshed_opening = self._generate_fixed_opening(content.date)
+                script.segments = [
+                    refreshed_opening if seg.segment_type == "opening" else seg
+                    for seg in script.segments
+                ]
             # Validate cached script has story content when content items exist.
             # A broken cache (e.g. from a prior failed run) would be missing the
             # story_scan segment, producing a video with no news content.
@@ -510,7 +536,7 @@ class ScriptWriter:
                 atmosphere_elem = next((e for e in elems if e.element_type == "atmosphere_card"), None)
                 quote_elem = next((e for e in elems if e.element_type == "quote_card"), None)
 
-                event_summary = event_elem.props.get("event_summary", "") if event_elem else ""
+                event_summary = event_elem.props.get("dek", "") or event_elem.props.get("event_summary", "") if event_elem else ""
                 display_idx = event_elem.props.get("display_index", i) if event_elem else i
 
                 lines.append(f"### {display_idx + 1}. {event_summary or (item.title if item else '')}")
@@ -672,7 +698,11 @@ class ScriptWriter:
             if elem.element_type == "event_card":
                 if not (elem.props.get("editor_angle") or story_scan.meta.get("editor_angle")):
                     return False
-                if not (elem.props.get("event_summary") or story_scan.meta.get("event_summary")):
+                if not (elem.props.get("dek") or story_scan.meta.get("dek") or elem.props.get("event_summary") or story_scan.meta.get("event_summary")):
+                    return False
+                if not (elem.props.get("key_points") or story_scan.meta.get("key_points")):
+                    return False
+                if not (elem.props.get("why_it_matters") or story_scan.meta.get("why_it_matters")):
                     return False
 
         # Scene elements must know their sub-segment index

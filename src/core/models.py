@@ -14,7 +14,10 @@ class ContentComment:
     author: str
     content: str
     content_cn: Optional[str] = None
+    source_id: Optional[str] = None
     upvotes: Optional[int] = None
+    depth: Optional[int] = None
+    published_at: Optional[int] = None
     sentiment: Optional[float] = None
     quality_score: Optional[float] = None
 

@@ -205,7 +205,14 @@ class Orchestrator:
         self.logger.info("Step: Generate script (daily_brief)")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
         self.logger.info(f"Model: {self.config.get('llm', {}).get('model', 'unknown')}")
-        self.logger.info(f"Expected LLM calls: R1a={len(content.items)} + R2={len(content.items)} = {len(content.items) * 2}")
+        num_brief = min(
+            self.config.get("pipeline", {}).get("num_brief_items", 6),
+            len(content.items),
+        )
+        self.logger.info(
+            f"Expected script LLM calls: story_scan={num_brief} "
+            f"(translations/enrichment may add separate calls)"
+        )
         self.logger.info("=" * 50)
 
         if self.dry_run:

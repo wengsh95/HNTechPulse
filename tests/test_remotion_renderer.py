@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
+from src.core.models import Script, ScriptSegment
 from src.providers.renderer.remotion_renderer import RemotionRenderer
 
 
@@ -174,3 +175,36 @@ class TestWritePropsFile:
                 with patch.object(Path, "resolve", return_value=Path("/data/cli_props.json")):
                     result = renderer._write_props_file('{"key": "val"}')
                     assert "cli_props.json" in result
+
+
+class TestPreview:
+    def test_writes_dated_cli_props_file(self):
+        renderer = _make_renderer()
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            total_duration=1.0,
+            segments=[
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="test",
+                    estimated_duration=1.0,
+                    actual_duration=1.0,
+                    start_time=0.0,
+                    end_time=1.0,
+                )
+            ],
+        )
+
+        with patch.object(renderer, "_prepare_render_data", return_value=(Path("public/props.json"), '{"ok": true}')):
+            with patch.object(renderer, "_ensure_dependencies_installed"):
+                with patch.object(renderer, "_write_props_file", return_value="data/2024-01-15/cli_props.json") as write_props:
+                    with patch.object(renderer, "_get_remotion_cli_path", return_value="remotion-cli.js"):
+                        with patch.object(renderer, "_build_env", return_value={}):
+                            with patch("src.providers.renderer.remotion_renderer.subprocess.run") as run:
+                                run.return_value.returncode = 0
+
+                                renderer.preview(script, "data/2024-01-15/audio", date="2024-01-15")
+
+        write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")

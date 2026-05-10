@@ -1,7 +1,9 @@
 import pytest
+import json
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
+from src.core.models import ContentItem, ContentPackage
 from src.providers.enricher.article_enricher import _make_headers, _find_chrome, ArticleEnricher
 
 
@@ -138,6 +140,28 @@ class TestExtractImages:
         result = enricher._extract_images(html, "https://x.com")
         assert len(result) <= 1
 
+    def test_srcset_uses_largest_image(self):
+        enricher = _make_enricher()
+        html = (
+            '<html><body><article>'
+            '<img srcset="/small.jpg 320w, /large.jpg 1280w">'
+            '</article></body></html>'
+        )
+        result = enricher._extract_images(html, "https://x.com/post")
+        assert "https://x.com/large.jpg" in result
+
+    def test_lazy_and_poster_images(self):
+        enricher = _make_enricher(max_images=3)
+        html = (
+            '<html><body><main>'
+            '<img data-lazy-src="/lazy.jpg">'
+            '<video poster="/poster.jpg"></video>'
+            '</main></body></html>'
+        )
+        result = enricher._extract_images(html, "https://x.com/post")
+        assert "https://x.com/lazy.jpg" in result
+        assert "https://x.com/poster.jpg" in result
+
     def test_exception_returns_empty(self):
         enricher = _make_enricher()
         with patch("src.providers.enricher.article_enricher.BeautifulSoup", side_effect=Exception("boom")):
@@ -167,3 +191,105 @@ class TestSkipDomains:
         from urllib.parse import urlparse
         host = urlparse("https://github.com/something").hostname
         assert not (host == "twitter.com" or host.endswith(".twitter.com"))
+
+
+class TestImageSelection:
+    def test_auto_select_prefers_suitable_page_image(self):
+        enricher = _make_enricher()
+        candidates = [
+            {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
+            {"path": "images/good.jpg", "source": "page", "width": 900, "height": 500},
+            {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
+            {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
+        ]
+
+        selected = enricher._choose_auto_image_candidate(candidates)
+
+        assert selected["path"] == "images/good.jpg"
+        assert enricher._candidate_paths(candidates, preferred_path=selected["path"])[0] == "images/good.jpg"
+
+    def test_auto_select_uses_screenshot_before_bing_when_page_is_too_small(self):
+        enricher = _make_enricher()
+        candidates = [
+            {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
+            {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
+            {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
+        ]
+
+        selected = enricher._choose_auto_image_candidate(candidates)
+
+        assert selected["path"] == "images/shot.jpg"
+
+    def test_auto_select_uses_suitable_bing_when_no_screenshot(self):
+        enricher = _make_enricher()
+        candidates = [
+            {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
+            {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
+        ]
+
+        selected = enricher._choose_auto_image_candidate(candidates)
+
+        assert selected["path"] == "images/bing.jpg"
+
+    def test_merge_preserves_selected_image_and_adds_new_candidates(self, tmp_path, monkeypatch):
+        enricher = _make_enricher()
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        sel_dir = Path("data") / date
+        sel_dir.mkdir(parents=True)
+        sel_path = sel_dir / "image_selection.json"
+        sel_path.write_text(
+            json.dumps({
+                "date": date,
+                "items": {
+                    "42": {
+                        "title": "Old",
+                        "url": "https://x.com/old",
+                        "candidates": [{"path": "images/old.jpg", "source": "page"}],
+                        "selected_image": "images/old.jpg",
+                    }
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="New",
+            url="https://x.com/new",
+            image_candidates=[
+                {"path": "images/old.jpg", "source": "page"},
+                {"path": "images/new.jpg", "source": "bing", "origin_url": "https://img/new.jpg"},
+            ],
+        )
+        enricher._generate_image_selection(ContentPackage(date=date, items=[item]), date)
+
+        merged = json.loads(sel_path.read_text(encoding="utf-8"))
+        entry = merged["items"]["42"]
+        assert entry["selected_image"] == "images/old.jpg"
+        assert [c["path"] for c in entry["candidates"]] == ["images/old.jpg", "images/new.jpg"]
+
+    def test_generate_selection_uses_auto_selected_default(self, tmp_path, monkeypatch):
+        enricher = _make_enricher()
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="Story",
+            url="https://x.com/story",
+            image_candidates=[
+                {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
+                {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
+                {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
+            ],
+        )
+
+        enricher._generate_image_selection(ContentPackage(date=date, items=[item]), date)
+
+        data = json.loads((Path("data") / date / "image_selection.json").read_text(encoding="utf-8"))
+        entry = data["items"]["42"]
+        assert entry["selected_image"] == "images/shot.jpg"
+        selected = [c for c in entry["candidates"] if c.get("auto_selected")]
+        assert selected[0]["path"] == "images/shot.jpg"

@@ -1,16 +1,18 @@
 import React from "react";
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 
-import { COLORS } from "./design";
+import { COLORS, LAYOUT } from "./design";
 
 interface ProgressBarProps {
   totalDuration: number;
   storyBoundaries: number[];
+  activeStoryIndex?: number;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   totalDuration,
   storyBoundaries,
+  activeStoryIndex = -1,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -24,8 +26,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   });
 
   const BAR_HEIGHT = 3;
-  const TICK_HEIGHT = 7;
-  const PAD = 24;
+  const TICK_HEIGHT = 8;
+  const PAD = LAYOUT.progressInsetX;
 
   return (
     <div
@@ -37,14 +39,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         height: TICK_HEIGHT + 8,
         opacity: fadeIn,
       }}
-    >
-      {/* Track container */}
-      <div
+      >
+        {/* Track container */}
+        <div
         style={{
           position: "absolute",
           left: PAD,
           right: PAD,
-          bottom: 6,
+          bottom: LAYOUT.progressBottom,
           height: BAR_HEIGHT,
         }}
       >
@@ -86,9 +88,12 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                 height: TICK_HEIGHT,
                 borderRadius: 1,
                 background:
-                  progress >= pos
+                  i === activeStoryIndex
+                    ? COLORS.text
+                    : progress >= pos
                     ? COLORS.accentLight
                     : "rgba(255, 255, 255, 0.15)",
+                boxShadow: i === activeStoryIndex ? "0 0 10px rgba(255,255,255,0.35)" : "none",
               }}
             />
           );

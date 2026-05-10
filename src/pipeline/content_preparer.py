@@ -38,7 +38,10 @@ class ContentPreparer:
                             "author": c.author,
                             "content": c.content,
                             "content_cn": c.content_cn,
+                            "source_id": c.source_id,
                             "upvotes": c.upvotes,
+                            "depth": c.depth,
+                            "published_at": c.published_at,
                             "sentiment": c.sentiment,
                             "quality_score": c.quality_score,
                         }
@@ -86,7 +89,10 @@ class ContentPreparer:
                         author=c.get("author", ""),
                         content=c.get("content", ""),
                         content_cn=c.get("content_cn"),
+                        source_id=c.get("source_id"),
                         upvotes=c.get("upvotes"),
+                        depth=c.get("depth"),
+                        published_at=c.get("published_at"),
                         sentiment=c.get("sentiment"),
                         quality_score=c.get("quality_score"),
                     )

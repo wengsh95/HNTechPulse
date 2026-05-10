@@ -1,14 +1,15 @@
-import html
 import json
-import re
 from pathlib import Path
 
 from src.core.interfaces import LLMProvider
-from src.core.models import Script
 from src.pipeline.content_preparer import ContentPreparer
+from src.pipeline.comment_selection import (
+    clean_comment_text,
+    classify_comment_stance,
+    comment_key,
+    select_representative_comments,
+)
 from src.utils.logger import setup_logger
-
-_HTML_TAG_RE = re.compile(r"<[^>]*>")
 
 
 class TranslationManager:
@@ -21,39 +22,12 @@ class TranslationManager:
     @staticmethod
     def _classify_stance(comment) -> str:
         """Classify comment stance from VADER sentiment, matching _expand_quote_card."""
-        sentiment = comment.sentiment or 0.0
-        if sentiment > 0.3:
-            return "支持"
-        if sentiment < -0.3:
-            return "质疑"
-        return "中立"
+        return classify_comment_stance(comment)
 
     @staticmethod
     def _pick_stance_diverse(comments: list, max_n: int = 3) -> list:
         """Pick one top-quality comment per stance, then fill with remaining top comments."""
-        scored = [c for c in comments if (c.quality_score or 0) > 0]
-        scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
-
-        selected = []
-        seen_stances = set()
-        for c in scored:
-            stance = TranslationManager._classify_stance(c)
-            if stance in seen_stances:
-                continue
-            selected.append(c)
-            seen_stances.add(stance)
-            if len(selected) >= max_n:
-                break
-
-        # Fill up to at least 2 if stance diversity didn't yield enough
-        if len(selected) < 2:
-            for c in scored:
-                if c not in selected:
-                    selected.append(c)
-                if len(selected) >= 2:
-                    break
-
-        return selected
+        return select_representative_comments(comments, max_n=max_n)
 
     def translate(self, content, script, date: str):
         """Translate titles + referenced comments. Checkpointed.
@@ -84,10 +58,14 @@ class TranslationManager:
 
         # 2. Collect and translate stance-diverse comments (if not cached)
         comment_refs = self.collect_comment_refs(content)
-        has_comment = any(k.startswith("comment_") for k in translations)
+        missing_comment_refs = {
+            key: value
+            for key, value in comment_refs.items()
+            if key not in translations
+        }
 
-        if comment_refs and not has_comment:
-            comment_translations = self.llm_provider.translate_comments(content, comment_refs)
+        if missing_comment_refs:
+            comment_translations = self.llm_provider.translate_comments(content, missing_comment_refs)
             translations.update(comment_translations)
             self._apply_comment_translations(content, translations)
 
@@ -106,8 +84,15 @@ class TranslationManager:
     @staticmethod
     def _clean_html(text: str) -> str:
         """Strip HTML tags and decode entities so the LLM translates clean text."""
-        text = _HTML_TAG_RE.sub(" ", text)
-        return html.unescape(text).strip()
+        return clean_comment_text(text)
+
+    @staticmethod
+    def _comment_translation_key(story_idx: int, item, comment, selected_idx: int) -> str:
+        return comment_key(story_idx, item.source_id, comment, selected_idx)
+
+    @staticmethod
+    def _legacy_comment_translation_key(story_idx: int, selected_idx: int) -> str:
+        return f"comment_{story_idx}_{selected_idx}"
 
     def collect_comment_refs(self, content) -> dict:
         """Collect one top-quality comment per stance per story for translation.
@@ -120,29 +105,20 @@ class TranslationManager:
             selected = self._pick_stance_diverse(item.comments)
             for i, c in enumerate(selected):
                 if c.content:
-                    key = f"comment_{story_idx}_{i}"
+                    key = self._comment_translation_key(story_idx, item, c, i)
                     refs[key] = self._clean_html(c.content)
         return refs
 
     def _apply_comment_translations(self, content, translations: dict) -> None:
         """Set content_cn on stance-diverse selected comments from translations."""
-        for key, value in translations.items():
-            if not key.startswith("comment_"):
-                continue
-            parts = key.split("_")
-            if len(parts) != 3:
-                continue
-            try:
-                story_idx = int(parts[1])
-                comment_idx = int(parts[2])
-            except ValueError:
-                continue
-            if story_idx >= len(content.items):
-                continue
-            item = content.items[story_idx]
+        for story_idx, item in enumerate(content.items):
             selected = self._pick_stance_diverse(item.comments)
-            if comment_idx < len(selected):
-                selected[comment_idx].content_cn = value
+            for selected_idx, comment in enumerate(selected):
+                stable_key = self._comment_translation_key(story_idx, item, comment, selected_idx)
+                legacy_key = self._legacy_comment_translation_key(story_idx, selected_idx)
+                value = translations.get(stable_key) or translations.get(legacy_key)
+                if value:
+                    comment.content_cn = value
 
     @staticmethod
     def apply_translations_to_script(script, content, translations: dict) -> None:
@@ -161,6 +137,15 @@ class TranslationManager:
                         story_idx = elem.props.get("story_index")
                         for i, q in enumerate(elem.props.get("quotes", [])):
                             if story_idx is not None:
-                                key = f"comment_{story_idx}_{i}"
-                                if key in translations:
-                                    q["text_cn"] = translations[key]
+                                item = content.items[story_idx] if story_idx < len(content.items) else None
+                                if item is None:
+                                    continue
+                                selected = TranslationManager._pick_stance_diverse(item.comments)
+                                if i >= len(selected):
+                                    continue
+                                stable_key = TranslationManager._comment_translation_key(story_idx, item, selected[i], i)
+                                legacy_key = TranslationManager._legacy_comment_translation_key(story_idx, i)
+                                if stable_key in translations:
+                                    q["text_cn"] = translations[stable_key]
+                                elif legacy_key in translations:
+                                    q["text_cn"] = translations[legacy_key]

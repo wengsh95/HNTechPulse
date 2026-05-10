@@ -1,14 +1,16 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
-import { ElementProps, stanceLabel, stripHtml, UI_TEXT } from "./utils";
 import { STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { ElementProps, stanceLabel, stripHtml, UI_TEXT } from "./utils";
 
 interface Quote {
   author: string;
   text: string;
   text_cn?: string;
+  quote_en?: string;
+  source_quote_en?: string;
   stance: string;
 }
 
@@ -20,16 +22,92 @@ function cleanQuote(text: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
+    .replace(/^\s*>+\s*/, "")
     .trim();
 }
 
-export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
+function lineClamp(lines: number): React.CSSProperties {
+  return {
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: lines,
+    WebkitBoxOrient: "vertical" as const,
+  };
+}
+
+function getQuoteText(quote: Quote) {
+  const hasChinese = Boolean(quote.text_cn?.trim());
+
+  return {
+    primaryText: hasChinese ? cleanQuote(quote.text_cn!.trim()) : cleanQuote(quote.text),
+  };
+}
+
+function getEnglishExcerpt(quote: Quote): string {
+  const curated = quote.quote_en?.trim() || quote.source_quote_en?.trim();
+  if (curated) {
+    return cleanQuote(curated);
+  }
+
+  const cleaned = cleanQuote(quote.text);
+  const sentence = cleaned.match(/^.{24,170}?[.!?](?=\s|$)/)?.[0];
+  if (sentence) {
+    return sentence;
+  }
+
+  return cleaned.split(/\s+/).slice(0, 22).join(" ");
+}
+
+const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, featured = false }) => {
+  const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: featured ? 12 : 8,
+        marginBottom: featured ? 20 : 10,
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: featured ? 12 : 10,
+          fontWeight: 780,
+          color: stanceColor,
+          backgroundColor: stanceColor + (featured ? "22" : "18"),
+          border: `1px solid ${stanceColor}${featured ? "38" : "24"}`,
+          borderRadius: 999,
+          padding: featured ? "5px 12px" : "4px 9px",
+          letterSpacing: 0,
+        }}
+      >
+        {stanceLabel(quote.stance)}
+      </span>
+      <span
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: featured ? 14 : 12,
+          fontWeight: featured ? 640 : 560,
+          color: featured ? "rgba(255,255,255,0.72)" : COLORS.textSecondary,
+        }}
+      >
+        {quote.author}
+      </span>
+    </div>
+  );
+};
+
+export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
+  const featuredQuote = quotes[0];
   const cardW = width - LAYOUT.pageInset * 2;
-  const topY = Math.round(height * 0.11);
+  const topY = LAYOUT.topInset;
 
   const cardProgress = spring({
     frame,
@@ -41,6 +119,16 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
     return null;
   }
 
+  const featuredProgress = spring({
+    frame,
+    fps,
+    config: { damping: 10, stiffness: 130 },
+    delay: 6,
+  });
+
+  const featuredColor = STANCE_COLORS[featuredQuote.stance] || COLORS.textSecondary;
+  const featuredEnglish = getEnglishExcerpt(featuredQuote);
+
   return (
     <div
       style={{
@@ -49,113 +137,141 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "28px 36px 32px",
+        padding: "32px 40px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div style={sectionLabel}>{UI_TEXT.keyVoices}</div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 16,
+          gap: 24,
+        }}
+      >
+        <div style={{ ...sectionLabel, marginBottom: 0 }}>{UI_TEXT.keyVoices}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          {quotes.map((quote, i) => {
+            const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {quotes.map((quote, i) => {
-          const quoteProgress = spring({
-            frame,
-            fps,
-            config: { damping: 10, stiffness: 130 },
-            delay: 6 + i * 7,
-          });
-
-          const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
-          const primaryText = quote.text_cn?.trim()
-            ? cleanQuote(quote.text_cn.trim())
-            : cleanQuote(quote.text);
-          const originalText = quote.text_cn?.trim() ? cleanQuote(quote.text) : "";
-          const isFeatured = i === 0;
-          const label = stanceLabel(quote.stance);
-
-          return (
-            <div
-              key={i}
-              style={{
-                opacity: quoteProgress,
-                transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
-                backgroundColor: isFeatured ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.035)",
-                borderRadius: 18,
-                padding: isFeatured ? "16px 20px 18px" : "12px 16px 14px",
-                borderLeft: `5px solid ${stanceColor}`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: isFeatured ? 14 : 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: stanceColor,
-                    backgroundColor: stanceColor + "20",
-                    borderRadius: 999,
-                    padding: "4px 10px",
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  {label}
-                </span>
-                <span
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: COLORS.textSecondary,
-                  }}
-                >
-                  {quote.author}
-                </span>
-              </div>
-
-              <div
+            return (
+              <span
+                key={`${quote.author}-${i}`}
                 style={{
                   fontFamily: FONTS.sans,
-                  fontSize: 15,
-                  color: COLORS.text,
-                  lineHeight: 1.42,
-                  fontWeight: 600,
-                  letterSpacing: 0.1,
-                  marginBottom: originalText ? 10 : 0,
-                  maxWidth: "100%",
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
+                  fontSize: 11,
+                  fontWeight: 720,
+                  color: i === 0 ? "rgba(255,255,255,0.78)" : COLORS.textSecondary,
+                  backgroundColor: i === 0 ? stanceColor + "22" : "rgba(255,255,255,0.045)",
+                  border: `1px solid ${i === 0 ? stanceColor + "34" : "rgba(255,255,255,0.06)"}`,
+                  borderRadius: 999,
+                  padding: "5px 10px",
+                  whiteSpace: "nowrap",
                 }}
               >
-                "{primaryText}"
-              </div>
+                {stanceLabel(quote.stance)}
+              </span>
+            );
+          })}
+        </div>
+      </div>
 
-              {originalText && (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        {quotes.map((quote, i) => {
+          const quoteProgress = i === 0
+            ? featuredProgress
+            : spring({
+              frame,
+              fps,
+              config: { damping: 10, stiffness: 130 },
+              delay: 10 + i * 7,
+            });
+          const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
+          const { primaryText } = getQuoteText(quote);
+          const isFeatured = i === 0;
+
+          return (
+          <div
+            key={`${quote.author}-${i}`}
+            style={{
+              opacity: quoteProgress,
+              transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
+              position: "relative",
+              overflow: "hidden",
+              borderRadius: 18,
+              background: isFeatured
+                ? `linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.038)), ${featuredColor}0D`
+                : "rgba(255,255,255,0.032)",
+              border: `1px solid ${isFeatured ? stanceColor + "30" : "rgba(255,255,255,0.055)"}`,
+              borderLeft: `${isFeatured ? 5 : 4}px solid ${stanceColor}`,
+              padding: isFeatured ? "16px 24px" : "16px 24px",
+              boxSizing: "border-box",
+              filter: isFeatured ? "none" : "saturate(0.88)",
+            }}
+          >
+            <QuoteMeta quote={quote} featured={isFeatured} />
+            <div
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: isFeatured ? 20 : 16,
+                color: COLORS.text,
+                lineHeight: isFeatured ? 1.38 : 1.42,
+                fontWeight: isFeatured ? 740 : 640,
+                letterSpacing: 0,
+                maxWidth: "100%",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+                ...lineClamp(isFeatured ? 4 : 3),
+              }}
+            >
+              “{primaryText}”
+            </div>
+
+            {isFeatured && featuredEnglish && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 11,
+                  borderTop: "1px solid rgba(255,255,255,0.075)",
+                }}
+              >
                 <div
                   style={{
                     fontFamily: FONTS.sans,
-                    fontSize: 14,
-                    color: COLORS.textSecondary,
-                    lineHeight: 1.45,
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.48)",
+                    lineHeight: 1.42,
+                    fontWeight: 520,
                     fontStyle: "italic",
+                    letterSpacing: 0,
                     maxWidth: "100%",
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
+                    ...lineClamp(2),
                   }}
                 >
-                  {UI_TEXT.original}："{originalText}"
+                  "{featuredEnglish}"
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
           );
         })}
       </div>

@@ -17,13 +17,28 @@ llm:
   provider: "openai"
   model: "deepseek-v4-flash"
   max_tokens: 16384
-  temperature: 0.7
+  temperature: 0.4
   base_url: "https://api.deepseek.com"
   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
+  max_completion_tokens_cap: 32768     # Auto-expand cap when output is truncated
+  max_workers: 3                       # Concurrent story script generation
+  cache_schema_version: 2              # Segment cache fingerprint version
   fast:                                # 低成本模型，用于翻译等轻量任务
     model: "deepseek-v4-flash"
     max_tokens: 4096
-    temperature: 0.3
+    temperature: 0.1
+
+# llm:
+#   provider: "openai"
+#   model: "grok-4.1-mini"
+#   max_tokens: 16384
+#   temperature: 0.7
+#   base_url: "https://api.xinjianya.top/v1"
+#   json_parse_max_retries: 3           # LLM JSON parse retries
+#   fast:                                # Low-cost model for lightweight tasks
+#     model: "grok-4.1-mini"
+#     max_tokens: 4096
+#     temperature: 0.3
 
 tts:
   provider: "edge-tts"
@@ -167,7 +182,7 @@ analyze:
 enrich:
   enabled: true                     # 总开关：是否访问文章 URL 获取内容
   max_text_length: 8000            # 提取文章正文最大字符数（截断给 LLM）
-  max_images: 3                    # 每篇文章最多提取图片数
+  max_images: 8                    # 每篇文章最多提取图片数
   max_image_size: 5242880          # 单张图片最大字节数（5MB）
   request_timeout: 15              # HTTP 请求超时（秒）
   max_concurrent: 5                # 并发请求数
@@ -176,12 +191,14 @@ enrich:
   headless: true                   # 启用 Playwright 无头 Chrome 兜底（aiohttp 失败后），自动检测本地 Chrome
   headed: true                     # 启用 Playwright 有头 Chrome（headless=False）作为第3策略（JS重/反爬站）
   bing_image_search: true          # 启用 Bing 图片搜索作为图片兜底
-  bing_max_results: 3              # Bing 搜索最多下载图片数
+  bing_max_results: 5              # Bing 搜索最多下载图片数
+  bing_max_queries: 2              # Bing image search queries (title+domain, title)
   skip_domains:                    # 直接跳过这些域名的 enrich（反爬太重或抓不到正文）
     - twitter.com
     - x.com
     - mobile.twitter.com
   image_target_size: [1280, 720]   # 图片目标尺寸（超过则等比缩放）
+  image_min_size: [640, 360]       # 自动选图的最小合适尺寸
   screenshot_enabled: true         # 启用 headless Chrome 截图（Logo 之前的降级）
   save_fetched_html: true          # Phase 1 抓到的 HTML 是否落盘到 downloaded_pages/（默认 true）
   headless_batch: true             # 单 browser 实例复用来处理多条 headless 抓取（默认 true）

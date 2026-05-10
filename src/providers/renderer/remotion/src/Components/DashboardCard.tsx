@@ -51,7 +51,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
         extrapolateRight: "clamp",
       });
 
-  const cardTop = 60;
+  const cardTop = LAYOUT.topInset;
   const cardPadTop = 44;
   const cardPadBottom = 40;
   const titleAreaH = 88;
@@ -83,7 +83,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           top: cardTop,
           width: cardW,
           ...glassCard,
-          padding: "40px 48px 42px",
+          padding: "40px 48px",
           boxShadow: glassCardShadow,
           opacity: cardProgress,
           transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
@@ -94,8 +94,8 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           style={{
             display: "flex",
             alignItems: "baseline",
-            gap: 14,
-            marginBottom: 26,
+            gap: 16,
+            marginBottom: 24,
           }}
         >
           <div
@@ -125,7 +125,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {guideEntries.map((entry, i) => {
             const rowStart = 10 + i * 5;
             const rowProgress = interpolate(frame, [rowStart, rowStart + 20], [0, 1], {
@@ -150,7 +150,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
                   alignItems: "center",
                   minHeight: 86,
                   padding: "12px 16px",
-                  borderRadius: 12,
+                  borderRadius: 10,
                   backgroundColor: i < focusCount ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.028)",
                   border: "1px solid rgba(255,255,255,0.055)",
                   opacity: rowProgress,
@@ -273,7 +273,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
         top: cardTop,
         width: cardW,
         ...glassCard,
-        padding: "44px 48px 40px",
+        padding: "40px 48px",
         boxShadow: glassCardShadow,
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
@@ -285,7 +285,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           fontWeight: 700,
           fontSize: 34,
           color: COLORS.text,
-          marginBottom: 28,
+          marginBottom: 24,
           letterSpacing: -0.7,
           display: "flex",
           alignItems: "baseline",
@@ -340,8 +340,8 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
             const rank = entry.rank || (currentPage * perPage + i + 1);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;
-            const rowStart = pageStartFrame + 10 + i * 4;
-            const rowProgress = interpolate(frame, [rowStart, rowStart + 20], [0, 1], {
+            const rowStart = pageStartFrame + 6 + i * 3;
+            const rowProgress = interpolate(frame, [rowStart, rowStart + 12], [0, 1], {
               extrapolateLeft: "clamp",
               extrapolateRight: "clamp",
               easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -362,7 +362,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
                   paddingTop: 12,
                   paddingBottom: 12,
                   borderBottom: isLast ? "none" : "0.5px solid rgba(255,255,255,0.04)",
-                  opacity: rowProgress,
+                  opacity: interpolate(rowProgress, [0, 1], [0.48, 1]),
                   transform: `translateY(${interpolate(rowProgress, [0, 1], [18, 0])}px)`,
                 }}
               >

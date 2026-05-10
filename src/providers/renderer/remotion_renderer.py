@@ -171,7 +171,7 @@ class RemotionRenderer(Renderer):
         _, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
         self._ensure_dependencies_installed()
 
-        props_file = self._write_props_file(props_json)
+        props_file = self._write_props_file(props_json, date=date)
 
         cmd = [
             str(self._node_path),

@@ -12,6 +12,11 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script, ScriptSegment, WordTiming
+from src.pipeline.comment_selection import (
+    clean_comment_text,
+    classify_comment_stance,
+    select_representative_comments,
+)
 from src.utils.logger import setup_logger
 
 
@@ -152,9 +157,12 @@ def _expand_event_card(props, content):
         return props
     result = dict(props)
     result["story_title"] = item.title
+    result["source_title"] = result.get("source_title") or item.title
     result["title_cn"] = item.title_cn or ""
     result["editor_angle"] = result.get("editor_angle") or item.title_cn or item.title
     result["event_summary"] = result.get("event_summary") or item.article_summary or item.summary or item.title_cn or item.title
+    result["dek"] = result.get("dek") or result["event_summary"]
+    result["key_points"] = result.get("key_points") or []
     result["why_it_matters"] = result.get("why_it_matters") or ""
     result["next_watch"] = result.get("next_watch") or ""
 
@@ -223,9 +231,6 @@ def _expand_atmosphere_card(props, content):
 
 def _expand_quote_card(props, content):
     """Expand quote_card: inject representative comments across different stances."""
-    import html
-    import re
-
     item = _safe_get_item(content, props.get("story_index"))
     if item is None:
         return props
@@ -238,44 +243,13 @@ def _expand_quote_card(props, content):
         if cn:
             orig_text_cn[q.get("text", "")] = cn
 
-    # Prefer one high-quality comment per stance, so the card reads as viewpoint contrast.
-    scored = [c for c in item.comments if (c.quality_score or 0) > 0]
-    scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
-
-    def _clean(text: str) -> str:
-        text = re.sub(r"<[^>]*>", " ", text)
-        return html.unescape(text).strip()
-
-    def _stance_for_comment(comment) -> str:
-        sentiment = comment.sentiment or 0.0
-        if sentiment > 0.3:
-            return "支持"
-        if sentiment < -0.3:
-            return "质疑"
-        return "中立"
-
-    selected = []
-    seen_stances = set()
-    for c in scored:
-        stance = _stance_for_comment(c)
-        if stance in seen_stances:
-            continue
-        selected.append(c)
-        seen_stances.add(stance)
-        if len(selected) >= 3:
-            break
-
-    if len(selected) < 2:
-        for c in scored:
-            if c not in selected:
-                selected.append(c)
-            if len(selected) >= 2:
-                break
+    # Prefer one high-quality comment per stance, with de-duplication.
+    selected = select_representative_comments(item.comments, max_n=3)
 
     quotes = []
     for c in selected[:3]:
-        stance = _stance_for_comment(c)
-        text = _clean(c.content or "")[:300]
+        stance = classify_comment_stance(c)
+        text = clean_comment_text(c.content or "")[:300]
         text_cn = c.content_cn or orig_text_cn.get(text, "")
         quotes.append({
             "author": c.author,
