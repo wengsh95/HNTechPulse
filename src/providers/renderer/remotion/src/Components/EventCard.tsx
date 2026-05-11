@@ -120,7 +120,6 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const editorAngle = cleanText(p(elementProps, "editor_angle", ""));
   const eventSummary = cleanText(p(elementProps, "event_summary", ""));
   const dek = cleanText(p(elementProps, "dek", "")) || eventSummary;
-  const whyItMatters = cleanText(p(elementProps, "why_it_matters", ""));
   const keyPoints = cleanKeyPoints(elementProps.key_points);
   const imageSrc = p(elementProps, "image_src", "");
   const imageType = p<string>(elementProps, "image_type", "");
@@ -128,7 +127,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const category = cleanText(p(elementProps, "category", ""));
   const mainTitle = editorAngle || titleCn || storyTitle;
   const showOriginalTitle = Boolean(sourceTitle && mainTitle !== sourceTitle);
-  const hasStructuredBody = keyPoints.length > 0 || Boolean(whyItMatters);
+  const hasStructuredBody = keyPoints.length > 0;
 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
@@ -157,7 +156,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: hasImage ? "32px 40px" : "40px 48px",
+        padding: hasImage ? "36px 44px" : "40px 48px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -197,7 +196,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             color: COLORS.text,
             lineHeight: 1.14,
             letterSpacing: 0,
-            marginBottom: 11,
+            marginBottom: 14,
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             maxWidth: textColW,
@@ -234,7 +233,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
               color: "rgba(255,255,255,0.72)",
               lineHeight: 1.38,
               fontWeight: 470,
-              marginBottom: hasStructuredBody ? 14 : 17,
+              marginBottom: hasStructuredBody ? 18 : 20,
               maxWidth: LAYOUT.contentMaxWidth,
               overflowWrap: "anywhere",
               wordBreak: "break-word",
@@ -250,69 +249,14 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 8,
-              marginBottom: whyItMatters || keywords.length > 0 ? 16 : 0,
+              gap: 12,
+              marginBottom: keywords.length > 0 ? 20 : 0,
               maxWidth: LAYOUT.contentMaxWidth,
             }}
           >
             {keyPoints.map((point, i) => (
               <InfoPoint key={`${point.label}-${i}`} point={point} delay={8 + i * 4} frame={frame} fps={fps} />
             ))}
-          </div>
-        )}
-
-        {whyItMatters && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "42px minmax(0, 1fr)",
-              gap: 12,
-              alignItems: "center",
-              minHeight: 48,
-              marginBottom: keywords.length > 0 ? 16 : 0,
-              padding: "8px 12px",
-              borderRadius: 14,
-              backgroundColor: "rgba(0,122,255,0.07)",
-              border: "1px solid rgba(51,149,255,0.16)",
-              maxWidth: LAYOUT.contentMaxWidth,
-              boxSizing: "border-box",
-            }}
-          >
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 38,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: "rgba(0,122,255,0.1)",
-                border: "1px solid rgba(51,149,255,0.16)",
-                boxSizing: "border-box",
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                fontWeight: 800,
-                color: COLORS.accentLight,
-                lineHeight: 1,
-                whiteSpace: "nowrap",
-              }}
-            >
-              看点
-            </div>
-            <div
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 15,
-                fontWeight: 620,
-                color: "rgba(255,255,255,0.8)",
-                lineHeight: 1.42,
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-                ...lineClamp(2),
-              }}
-            >
-              {whyItMatters}
-            </div>
           </div>
         )}
 

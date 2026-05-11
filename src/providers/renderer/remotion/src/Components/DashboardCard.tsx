@@ -337,6 +337,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
           {pageEntries.map((entry, i) => {
             const title = entry.original_title || entry.title || "";
             const titleCn = entry.title_translation || entry.title_cn || "";
+            const mainTitle = entry.editor_angle || titleCn || title;
             const rank = entry.rank || (currentPage * perPage + i + 1);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;
@@ -424,9 +425,9 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
                       maxWidth: LAYOUT.contentMaxWidth,
                     }}
                   >
-                    {titleCn || title}
+                    {mainTitle}
                   </span>
-                  {titleCn && title && (
+                  {entry.editor_angle && (titleCn || title) && (
                     <span
                       style={{
                         fontSize: 13,
@@ -440,7 +441,7 @@ export const DashboardCard: React.FC<ElementProps> = ({ elementProps, width, hei
                         maxWidth: LAYOUT.contentMaxWidth,
                       }}
                     >
-                      {title}
+                      {titleCn || title}
                     </span>
                   )}
                 </span>

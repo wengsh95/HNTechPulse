@@ -276,7 +276,6 @@ class TestExpandAtmosphereCard:
         content = _make_content_package()
         result = _expand_atmosphere_card({"story_index": 0}, content)
         assert result["debate_focus"] == []
-        assert result["community_sentiment"] == ""
 
     def test_includes_controversy_score(self):
         content = _make_content_package()

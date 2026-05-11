@@ -191,16 +191,24 @@ def main():
 
     # Quick validation
     errors = []
-    if "event_summary" not in result:
-        errors.append("Missing 'event_summary'")
-    if "viewpoints" not in result:
-        errors.append("Missing 'viewpoints'")
-    elif not (2 <= len(result["viewpoints"]) <= 3):
-        errors.append(f"Expected 2-3 viewpoints, got {len(result['viewpoints'])}")
-    if "audio_text" not in result:
-        errors.append("Missing 'audio_text'")
     if "scene_elements" not in result:
         errors.append("Missing 'scene_elements'")
+    else:
+        event_card = next(
+            (e for e in result["scene_elements"] if e.get("element_type") == "event_card"),
+            None,
+        )
+        if event_card is None:
+            errors.append("Missing event_card in scene_elements")
+        else:
+            props = event_card.get("props", {})
+            for key in ("editor_angle", "dek", "key_points", "why_it_matters", "keywords"):
+                if key not in props:
+                    errors.append(f"Missing '{key}' in event_card.props")
+    if "card_narrations" not in result:
+        errors.append("Missing 'card_narrations'")
+    elif len(result["card_narrations"]) != 3:
+        errors.append(f"Expected 3 card_narrations, got {len(result['card_narrations'])}")
 
     if errors:
         print("\n[WARN] Validation warnings:")
@@ -210,8 +218,16 @@ def main():
         print("\n[OK] All basic fields present.")
 
     # Print key fields for quick inspection
-    print(f"\nevent_summary: {result.get('event_summary', 'N/A')}")
-    print(f"audio_text ({len(result.get('audio_text', ''))} chars): {result.get('audio_text', 'N/A')}")
+    event_card = next(
+        (e for e in result.get("scene_elements", []) if e.get("element_type") == "event_card"),
+        {},
+    )
+    ep = event_card.get("props", {})
+    print(f"\neditor_angle: {ep.get('editor_angle', 'N/A')}")
+    print(f"dek: {ep.get('dek', 'N/A')}")
+    narrations = result.get("card_narrations", [])
+    total_chars = sum(len(n.get("audio_text", "")) for n in narrations)
+    print(f"card_narrations ({len(narrations)} cards, {total_chars} chars total)")
     print(f"estimated_duration: {result.get('estimated_duration', 'N/A')}s")
     print(f"emotion: {result.get('emotion', 'N/A')}")
 

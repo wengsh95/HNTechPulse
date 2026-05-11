@@ -1,10 +1,11 @@
 import json
+import math
 import sys
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
-from src.core.models import Script, ScriptSegment
+from src.core.models import Script, ScriptSegment, SceneElement
 from src.providers.renderer.remotion_renderer import RemotionRenderer
 
 
@@ -208,3 +209,109 @@ class TestPreview:
                                 renderer.preview(script, "data/2024-01-15/audio", date="2024-01-15")
 
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
+
+
+# ── _compute_segment_chunks ────────────────────────────────────────────
+
+class TestComputeSegmentChunks:
+    def _make_renderer(self):
+        return _make_renderer()
+
+    def test_basic_segments(self):
+        renderer = self._make_renderer()
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            total_duration=17.0,
+            segments=[
+                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
+                              actual_duration=4.0, start_time=0.0, end_time=4.0),
+                ScriptSegment(segment_type="dashboard", audio_text="", estimated_duration=5.0,
+                              actual_duration=5.0, start_time=4.0, end_time=9.0),
+                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=8.0,
+                              actual_duration=8.0, start_time=9.0, end_time=17.0),
+            ],
+        )
+        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=408)
+        assert len(chunks) == 3
+        assert chunks[0][2] == "opening"
+        assert chunks[1][2] == "dashboard"
+        assert chunks[2][2] == "closing"
+        # Frames should be contiguous and cover full range
+        assert chunks[0][0] == 0
+        assert chunks[-1][1] == 407
+        for i in range(len(chunks) - 1):
+            assert chunks[i][1] + 1 == chunks[i + 1][0]
+
+    def test_story_scan_split_by_scene_elements(self):
+        renderer = self._make_renderer()
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            total_duration=30.0,
+            segments=[
+                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
+                              actual_duration=4.0, start_time=0.0, end_time=4.0),
+                ScriptSegment(
+                    segment_type="story_scan", audio_text="", estimated_duration=20.0,
+                    actual_duration=20.0, start_time=4.0, end_time=24.0,
+                    scene_elements=[
+                        SceneElement(element_type="event_card", props={}, start_time=0.0, end_time=7.0),
+                        SceneElement(element_type="event_card", props={}, start_time=7.0, end_time=14.0),
+                        SceneElement(element_type="event_card", props={}, start_time=14.0, end_time=20.0),
+                    ],
+                ),
+                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=6.0,
+                              actual_duration=6.0, start_time=24.0, end_time=30.0),
+            ],
+        )
+        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=720)
+        assert len(chunks) == 5
+        labels = [c[2] for c in chunks]
+        assert labels == ["opening", "story_0", "story_1", "story_2", "closing"]
+        # Contiguous
+        assert chunks[0][0] == 0
+        assert chunks[-1][1] == 719
+        for i in range(len(chunks) - 1):
+            assert chunks[i][1] + 1 == chunks[i + 1][0]
+
+    def test_story_scan_without_elements_falls_back_to_whole_segment(self):
+        renderer = self._make_renderer()
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            total_duration=24.0,
+            segments=[
+                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
+                              actual_duration=4.0, start_time=0.0, end_time=4.0),
+                ScriptSegment(segment_type="story_scan", audio_text="", estimated_duration=16.0,
+                              actual_duration=16.0, start_time=4.0, end_time=20.0),
+                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=4.0,
+                              actual_duration=4.0, start_time=20.0, end_time=24.0),
+            ],
+        )
+        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=576)
+        assert len(chunks) == 3
+        assert chunks[1][2] == "story_scan"
+
+    def test_frames_cover_total(self):
+        renderer = self._make_renderer()
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            total_duration=10.5,
+            segments=[
+                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.5,
+                              actual_duration=4.5, start_time=0.0, end_time=4.5),
+                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=6.0,
+                              actual_duration=6.0, start_time=4.5, end_time=10.5),
+            ],
+        )
+        total_frames = math.ceil(10.5 * 24)
+        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=total_frames)
+        assert chunks[0][0] == 0
+        assert chunks[-1][1] == total_frames - 1

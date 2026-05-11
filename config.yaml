@@ -8,10 +8,13 @@ logging:
 #   temperature: 0.7
 #   base_url: "https://openrouter.ai/api/v1"
 #   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数（_call_llm_with_json_retry）
+#   max_completion_tokens_cap: 32768     # Auto-expand cap when output is truncated
+#   max_workers: 3                       # Concurrent story script generation
+#   cache_schema_version: 2              # Segment cache fingerprint version
 #   fast:                                # 低成本模型，用于翻译等轻量任务
 #     model: "inclusionai/ring-2.6-1t:free"
 #     max_tokens: 4096
-#     temperature: 0.3
+#     temperature: 0.1
 
 llm:
   provider: "openai"
@@ -56,13 +59,11 @@ remotion:
   browser_executable: null          # Chrome 路径；null=自动检测系统安装的 Chrome/Edge/Chromium
                                     # 例: "C:\Program Files\Google\Chrome\Application\chrome.exe"
                                     # 留空则让 Remotion 使用自带的 Chrome Headless Shell
+  gl: "angle"                       # GPU 后端：angle (Windows DirectX) / swiftshader (软件) / disable (纯CPU)
 
 video:
   resolution: [1280, 720]        # 720p 足够（1080p 对文字卡片类视频过剩，且慢 2x）
   fps: 24                        # 24fps 电影感足够（比 30fps 快 20%）
-  bg_color: "#0d1117"          # GitHub Dark 底色
-  accent_color: "#ff6600"       # HN 橙（score/热度）
-  text_color: "#e6edf3"         # 柔和白
 
 pipeline:
   product: "daily_brief"         # 产品类型：仅 daily_brief（每日快讯）
@@ -86,97 +87,10 @@ hn:
 
 # ── 评论分析 ──
 analyze:
-  enabled: true                      # 总开关：是否对评论做情感分析+质量评分+关键词提取
+  enabled: true                     # 总开关：是否对评论做情感分析+质量评分+关键词提取
   min_quality_score: 0.1            # 低于此分的评论不送入 LLM（过滤噪音）
   max_keywords_per_comment: 5       # 每条评论最多提取 TF-IDF 关键词数
   max_comments_for_llm: 10          # 每个 story 送入 LLM 的高质量评论数（按 quality_score 排序取 top-N）
-  stopwords:                        # 额外停用词（在 scikit-learn 内置停用词基础上追加）
-    # HTML entity fragments
-    - "quot"
-    - "amp"
-    - "lt"
-    - "gt"
-    - "nbsp"
-    - "apos"
-    - "x27"
-    - "x2f"
-    - "x3c"
-    - "x3e"
-    - "x26"
-    # Common English function words
-    - "the"
-    - "and"
-    - "for"
-    - "that"
-    - "you"
-    - "with"
-    - "this"
-    - "have"
-    - "from"
-    - "your"
-    - "will"
-    - "what"
-    - "when"
-    - "which"
-    - "about"
-    - "they"
-    - "their"
-    - "there"
-    - "would"
-    - "could"
-    - "should"
-    - "been"
-    - "like"
-    - "just"
-    - "very"
-    - "also"
-    - "only"
-    - "some"
-    - "more"
-    - "such"
-    - "than"
-    - "then"
-    - "them"
-    - "into"
-    - "other"
-    - "after"
-    - "over"
-    - "don"
-    - "because"
-    - "really"
-    - "still"
-    - "even"
-    - "much"
-    - "said"
-    - "know"
-    - "think"
-    - "right"
-    - "going"
-    # URLs
-    - "http"
-    - "https"
-    - "www"
-    - "com"
-    - "org"
-    - "like"
-    - "just"
-    - "don"
-    - "doesn"
-    - "didn"
-    - "isn"
-    - "aren"
-    - "would"
-    - "could"
-    - "should"
-    - "really"
-    - "still"
-    - "also"
-    - "get"
-    - "one"
-    - "will"
-    - "can"
-    - "make"
-    - "even"
 
 # ── 文章内容增强 ──
 enrich:

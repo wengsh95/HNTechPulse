@@ -200,11 +200,9 @@ def _expand_atmosphere_card(props, content):
         return props
     result = dict(props)
 
-    # debate_focus and community_sentiment are set by LLM in props, ensure defaults
+    # debate_focus is set by LLM in props, ensure default
     if "debate_focus" not in result:
         result["debate_focus"] = []
-    if "community_sentiment" not in result:
-        result["community_sentiment"] = ""
 
     # stance_distribution already set by LLM in props, just ensure it exists
     if "stance_distribution" not in result:

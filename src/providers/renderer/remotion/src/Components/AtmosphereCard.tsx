@@ -23,7 +23,7 @@ function getControversyLabel(score: number): string {
   return "高度争议";
 }
 
-function getMoodSummary(distribution: Record<string, number>, debateFocus: string[], communitySentiment: string) {
+function getMoodSummary(distribution: Record<string, number>, debateFocus: string[]) {
   const entries = Object.entries(distribution)
     .filter(([, value]) => value > 0)
     .sort((a, b) => b[1] - a[1]);
@@ -43,7 +43,7 @@ function getMoodSummary(distribution: Record<string, number>, debateFocus: strin
   const dominantLabel = stanceLabel(dominant);
 
   return {
-    title: communitySentiment || `${dominantLabel}是当前主调`,
+    title: `${dominantLabel}是当前主调`,
     detail: debateFocus.length > 0
       ? `核心分歧：${debateFocus.join(" · ")}`
       : "评论区观点已经出现明显倾向。",
@@ -145,7 +145,6 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
 
   const stanceDistribution = (elementProps.stance_distribution as Record<string, number>) ?? {};
   const debateFocus = (elementProps.debate_focus as string[]) ?? [];
-  const communitySentiment = (elementProps.community_sentiment as string) ?? "";
 
   const controversyScore = p(elementProps, "controversy_score", 0);
   const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
@@ -154,7 +153,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
   const controversyColor = getControversyColor(scoreNum);
   const controversyLabel = getControversyLabel(scoreNum);
-  const mood = getMoodSummary(stanceDistribution, debateFocus, communitySentiment);
+  const mood = getMoodSummary(stanceDistribution, debateFocus);
   const dominantColor = STANCE_COLORS[mood.dominant] || COLORS.accentLight;
   const compactStances = compactDistribution(stanceDistribution);
 

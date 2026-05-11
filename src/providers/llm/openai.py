@@ -395,46 +395,14 @@ class OpenAILLMProvider(LLMProvider):
             )
             for e in seg_dict.get("scene_elements", [])
         ]
-        # Inject top-level fields into event_card props as fallback
-        for elem in scene_elements:
-            if elem.element_type == "event_card":
-                if "keywords" in seg_dict and "keywords" not in elem.props:
-                    elem.props["keywords"] = seg_dict["keywords"]
-                for key in (
-                    "editor_angle",
-                    "category",
-                    "source_title",
-                    "dek",
-                    "key_points",
-                    "why_it_matters",
-                    "next_watch",
-                    "visual_hint",
-                ):
-                    if key in seg_dict and key not in elem.props:
-                        elem.props[key] = seg_dict[key]
-                break
+        # Top-level fields are no longer duplicated in LLM output;
+        # they live only in event_card.props. No injection needed.
         meta = seg_dict.get("meta", {})
-        # Pass through structured narration and keywords from LLM output
+        # Pass through structured narration from LLM output
         if "card_narrations" in seg_dict:
             meta["card_narrations"] = seg_dict["card_narrations"]
-        if "keywords" in seg_dict:
-            meta["keywords"] = seg_dict["keywords"]
         if "debate_focus" in seg_dict:
             meta["debate_focus"] = seg_dict["debate_focus"]
-        if "community_sentiment" in seg_dict:
-            meta["community_sentiment"] = seg_dict["community_sentiment"]
-        for key in (
-            "editor_angle",
-            "source_title",
-            "dek",
-            "key_points",
-            "why_it_matters",
-            "next_watch",
-            "category",
-            "visual_hint",
-        ):
-            if key in seg_dict:
-                meta[key] = seg_dict[key]
 
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),

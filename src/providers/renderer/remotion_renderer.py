@@ -12,11 +12,12 @@ Advantages:
 """
 
 import json
+import math
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.models import Script
 from src.core.interfaces import Renderer
@@ -49,10 +50,14 @@ class RemotionRenderer(Renderer):
         self.codec = remotion_config.get("codec", "h264")
         self.crf = remotion_config.get("crf", 23)
         self.pixels_per_frame = remotion_config.get("pixels_per_frame", None)
+        self.gl = remotion_config.get("gl", None)
+        self.chunk_frames = remotion_config.get("chunk_frames", 1500)
+        self.resume_enabled = remotion_config.get("resume_enabled", True)
 
         self._node_path = self._find_node()
         self._npm_path = self._find_npm()
         self._npx_path = self._find_npx()
+        self._ffmpeg_path = self._find_ffmpeg()
 
         self.chrome_path = (
             remotion_config.get("browser_executable")
@@ -139,6 +144,20 @@ class RemotionRenderer(Renderer):
             if Path(p).exists():
                 return p
 
+        return None
+
+    def _find_ffmpeg(self) -> Optional[str]:
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg:
+            return ffmpeg
+
+        # Windows common paths
+        for p in [
+            r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+        ]:
+            if Path(p).exists():
+                return p
         return None
 
     def _prepare_render_data(self, script: Script, audio_dir: str, content=None, date: str = "") -> tuple[Path, str]:
@@ -228,6 +247,9 @@ class RemotionRenderer(Renderer):
                 "npx not found! It should come with Node.js. "
                 "Try: npm install -g npx"
             )
+        if not self._ffmpeg_path and self.resume_enabled:
+            self.logger.warning("ffmpeg not found, falling back to full render without resume support.")
+            self.resume_enabled = False
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -236,46 +258,146 @@ class RemotionRenderer(Renderer):
 
         self._ensure_dependencies_installed()
 
-        remotion_output = self.remotion_dir / "out" / "output.mp4"
-
         cli_props_file = self._write_props_file(props_json, date=date)
 
-        cmd = [
+        total_frames = math.ceil((script.total_duration or 0) * self.fps)
+        if total_frames <= 0:
+            self.logger.error("Script has 0 frames.")
+            return
+
+        self.logger.info(
+            f"Total segments: {len(script.segments)}, "
+            f"Total frames: {total_frames} ({script.total_duration:.1f}s)"
+        )
+
+        base_cmd = [
             str(self._node_path),
             self._get_remotion_cli_path(),
             "render",
             "src/index.ts",
             "HNTechPulseComposition",
             f"--props={cli_props_file}",
-            f"--output={remotion_output}",
         ]
 
         if self.chrome_path:
-            cmd.append(f"--browser-executable={self.chrome_path}")
-
-        if self.codec == "h264":
-            cmd.extend(["--codec=h264"])
-        elif self.codec == "h265":
-            cmd.extend(["--codec=h265"])
-
+            base_cmd.append(f"--browser-executable={self.chrome_path}")
+        if self.gl:
+            base_cmd.append(f"--gl={self.gl}")
+        if self.codec in ["h264", "h265"]:
+            base_cmd.extend([f"--codec={self.codec}"])
         if self.crf is not None:
-            cmd.extend([f"--crf={self.crf}"])
-
+            base_cmd.extend([f"--crf={self.crf}"])
         if self.image_format == "jpeg":
-            cmd.extend(["--image-format=jpeg"])
+            base_cmd.extend(["--image-format=jpeg"])
             if self.pixels_per_frame:
-                cmd.extend([f"--pixels-per-frame={self.pixels_per_frame}"])
-
+                base_cmd.extend([f"--pixels-per-frame={self.pixels_per_frame}"])
         if self.concurrency:
-            cmd.extend([f"--concurrency={self.concurrency}"])
+            base_cmd.extend([f"--concurrency={self.concurrency}"])
+        base_cmd.append("--overwrite")
 
-        cmd.append("--overwrite")
+        if not self.resume_enabled or len(script.segments) <= 1:
+            # Render whole video at once
+            remotion_output = self.remotion_dir / "out" / "output.mp4"
+            cmd = base_cmd + [f"--output={remotion_output}"]
+            self._run_render_cmd(cmd)
+            self._finalize_output(remotion_output, output_file)
+        else:
+            # Segment-based chunked rendering
+            chunks = self._compute_segment_chunks(script, self.fps, total_frames)
 
-        total_frames = int((script.total_duration or 0) * self.fps)
-        self.logger.info(
-            f"Rendering {len(script.segments)} segments, "
-            f"{total_frames} frames ({script.total_duration:.1f}s)"
-        )
+            chunk_files = []
+            chunk_dir = self.remotion_dir / "out" / "chunks"
+            chunk_dir.mkdir(parents=True, exist_ok=True)
+
+            self.logger.info(f"Split rendering into {len(chunks)} segment chunks")
+
+            for idx, (start, end, label) in enumerate(chunks):
+                chunk_file = chunk_dir / f"chunk_{idx:03d}_{label}.mp4"
+                chunk_files.append(chunk_file)
+
+                if chunk_file.exists():
+                    self.logger.info(f"Chunk {idx+1}/{len(chunks)} already exists, skipping ({label})")
+                    continue
+
+                self.logger.info(f"Rendering chunk {idx+1}/{len(chunks)} [{label}]: frames {start}-{end}")
+                cmd = base_cmd + [
+                    f"--output={chunk_file}",
+                    f"--frames={start}-{end}"
+                ]
+                self._run_render_cmd(cmd)
+
+            # Concatenate chunks with ffmpeg
+            self.logger.info(f"Concatenating {len(chunk_files)} chunks via ffmpeg...")
+            concat_list = chunk_dir / "concat.txt"
+            with open(concat_list, "w", encoding="utf-8") as f:
+                for chunk_file in chunk_files:
+                    # ffmpeg requires forward slashes and escaping or proper quoting
+                    path_str = str(chunk_file.absolute()).replace("\\", "/")
+                    f.write(f"file '{path_str}'\n")
+
+            concat_cmd = [
+                self._ffmpeg_path,
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_list),
+                "-c", "copy",
+                str(output_file.absolute())
+            ]
+
+            try:
+                subprocess.run(concat_cmd, check=True, capture_output=True)
+                self.logger.info(f"Video complete: {output_path}")
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"ffmpeg concat failed: {e.stderr.decode('utf-8', errors='ignore')}")
+                raise RuntimeError("ffmpeg concat failed")
+
+        self.logger.info("Rendering complete")
+
+    def _compute_segment_chunks(
+        self, script: Script, fps: int, total_frames: int
+    ) -> List[Tuple[int, int, str]]:
+        """Compute per-segment chunk boundaries for rendering.
+
+        Returns list of (start_frame, end_frame, label) tuples.
+        story_scan segments are split into one chunk per scene_element.
+        """
+        chunks: List[Tuple[int, int, str]] = []
+        story_idx = 0
+
+        for seg in script.segments:
+            seg_start = seg.start_time or 0
+            seg_end = seg.end_time or 0
+
+            if seg.segment_type == "story_scan" and seg.scene_elements:
+                for elem in seg.scene_elements:
+                    abs_start = seg_start + (elem.start_time or 0)
+                    abs_end = seg_start + (elem.end_time or 0)
+                    start_f = math.floor(abs_start * fps)
+                    end_f = min(math.ceil(abs_end * fps) - 1, total_frames - 1)
+                    if start_f <= end_f:
+                        chunks.append((start_f, end_f, f"story_{story_idx}"))
+                    story_idx += 1
+            else:
+                start_f = math.floor(seg_start * fps)
+                end_f = min(math.ceil(seg_end * fps) - 1, total_frames - 1)
+                if start_f <= end_f:
+                    chunks.append((start_f, end_f, seg.segment_type))
+
+        # Align boundaries: each chunk ends exactly one frame before the next starts
+        for i in range(len(chunks) - 1):
+            next_start = chunks[i + 1][0]
+            chunks[i] = (chunks[i][0], next_start - 1, chunks[i][2])
+
+        # Extend last chunk to cover total_frames
+        if chunks:
+            last_start, last_end, last_label = chunks[-1]
+            if last_end < total_frames - 1:
+                chunks[-1] = (last_start, total_frames - 1, last_label)
+
+        return chunks
+
+    def _run_render_cmd(self, cmd: list) -> None:
         cmd_summary = []
         for part in cmd:
             if part.startswith("--props="):
@@ -293,10 +415,8 @@ class RemotionRenderer(Renderer):
                 timeout=600,
                 env=self._build_env(),
             )
-
             if result.returncode != 0:
                 raise RuntimeError(f"Remotion render failed with code {result.returncode}")
-
         except subprocess.TimeoutExpired:
             self.logger.error("Render timed out after 10 minutes!")
             raise
@@ -304,19 +424,18 @@ class RemotionRenderer(Renderer):
             self.logger.error(f"Command not found: {e}")
             raise
 
+    def _finalize_output(self, remotion_output: Path, output_file: Path) -> None:
         if remotion_output.exists():
             output_file.parent.mkdir(parents=True, exist_ok=True)
             if output_file.exists():
                 output_file.unlink()
             shutil.move(str(remotion_output), str(output_file))
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
-            self.logger.info(f"Video complete: {output_path} ({file_size_mb:.1f} MB)")
+            self.logger.info(f"Video complete: {output_file} ({file_size_mb:.1f} MB)")
         else:
             raise FileNotFoundError(
                 f"Remotion did not produce expected output at {remotion_output}"
             )
-
-        self.logger.info("Rendering complete")
 
     def _build_env(self) -> Dict[str, str]:
         import os

@@ -9,8 +9,6 @@ interface Quote {
   author: string;
   text: string;
   text_cn?: string;
-  quote_en?: string;
-  source_quote_en?: string;
   stance: string;
 }
 
@@ -43,20 +41,6 @@ function getQuoteText(quote: Quote) {
   };
 }
 
-function getEnglishExcerpt(quote: Quote): string {
-  const curated = quote.quote_en?.trim() || quote.source_quote_en?.trim();
-  if (curated) {
-    return cleanQuote(curated);
-  }
-
-  const cleaned = cleanQuote(quote.text);
-  const sentence = cleaned.match(/^.{24,170}?[.!?](?=\s|$)/)?.[0];
-  if (sentence) {
-    return sentence;
-  }
-
-  return cleaned.split(/\s+/).slice(0, 22).join(" ");
-}
 
 const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, featured = false }) => {
   const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
@@ -127,7 +111,6 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   });
 
   const featuredColor = STANCE_COLORS[featuredQuote.stance] || COLORS.textSecondary;
-  const featuredEnglish = getEnglishExcerpt(featuredQuote);
 
   return (
     <div
@@ -137,7 +120,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "32px 40px",
+        padding: "40px 48px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -149,7 +132,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 16,
+          marginBottom: 20,
           gap: 24,
         }}
       >
@@ -191,7 +174,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 12,
+          gap: 16,
         }}
       >
         {quotes.map((quote, i) => {
@@ -230,47 +213,20 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             <div
               style={{
                 fontFamily: FONTS.sans,
-                fontSize: isFeatured ? 20 : 16,
+                fontSize: 18,
                 color: COLORS.text,
-                lineHeight: isFeatured ? 1.38 : 1.42,
-                fontWeight: isFeatured ? 740 : 640,
+                lineHeight: 1.4,
+                fontWeight: 680,
                 letterSpacing: 0,
                 maxWidth: "100%",
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
-                ...lineClamp(isFeatured ? 4 : 3),
+                ...lineClamp(3),
               }}
             >
               “{primaryText}”
             </div>
 
-            {isFeatured && featuredEnglish && (
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingTop: 11,
-                  borderTop: "1px solid rgba(255,255,255,0.075)",
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: 12,
-                    color: "rgba(255,255,255,0.48)",
-                    lineHeight: 1.42,
-                    fontWeight: 520,
-                    fontStyle: "italic",
-                    letterSpacing: 0,
-                    maxWidth: "100%",
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
-                    ...lineClamp(2),
-                  }}
-                >
-                  "{featuredEnglish}"
-                </div>
-              </div>
-            )}
           </div>
           );
         })}

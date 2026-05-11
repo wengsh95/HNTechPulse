@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--date", type=str, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
+    parser.add_argument("--force", action="store_true", help="Force re-render (clear render cache)")
     parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,render",
                         help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,render)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Config file path")
@@ -89,6 +90,7 @@ def main():
         orchestrator.run(
             date=args.date,
             steps=steps,
+            force=args.force,
         )
 
         logger.info("Pipeline completed successfully")

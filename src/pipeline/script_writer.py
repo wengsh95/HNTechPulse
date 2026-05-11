@@ -36,14 +36,14 @@ class ScriptWriter:
         )
         props = event_elem.props if event_elem else {}
         return {
-            "editor_angle": props.get("editor_angle") or segment.meta.get("editor_angle") or "",
-            "dek": props.get("dek") or segment.meta.get("dek") or "",
-            "key_points": props.get("key_points") or segment.meta.get("key_points") or [],
+            "editor_angle": props.get("editor_angle") or "",
+            "dek": props.get("dek") or "",
+            "key_points": props.get("key_points") or [],
             "event_summary": props.get("event_summary") or "",
-            "why_it_matters": props.get("why_it_matters") or segment.meta.get("why_it_matters") or "",
-            "next_watch": props.get("next_watch") or segment.meta.get("next_watch") or "",
-            "category": props.get("category") or segment.meta.get("category") or "",
-            "keywords": props.get("keywords") or segment.meta.get("keywords") or [],
+            "why_it_matters": props.get("why_it_matters") or "",
+            "next_watch": props.get("next_watch") or "",
+            "category": props.get("category") or "",
+            "keywords": props.get("keywords") or [],
         }
 
     def _generate_fixed_opening(
@@ -696,13 +696,13 @@ class ScriptWriter:
         # Milestone 2: story cards need editable fields for productized narrative.
         for elem in story_scan.scene_elements:
             if elem.element_type == "event_card":
-                if not (elem.props.get("editor_angle") or story_scan.meta.get("editor_angle")):
+                if not elem.props.get("editor_angle"):
                     return False
-                if not (elem.props.get("dek") or story_scan.meta.get("dek") or elem.props.get("event_summary") or story_scan.meta.get("event_summary")):
+                if not (elem.props.get("dek") or elem.props.get("event_summary")):
                     return False
-                if not (elem.props.get("key_points") or story_scan.meta.get("key_points")):
+                if not elem.props.get("key_points"):
                     return False
-                if not (elem.props.get("why_it_matters") or story_scan.meta.get("why_it_matters")):
+                if not elem.props.get("why_it_matters"):
                     return False
 
         # Scene elements must know their sub-segment index

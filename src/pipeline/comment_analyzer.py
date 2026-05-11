@@ -23,7 +23,6 @@ class CommentAnalyzer:
         self.min_quality_score = analyze_cfg.get("min_quality_score", 0.1)
         self.max_keywords = analyze_cfg.get("max_keywords_per_comment", 5)
         self.max_comments_for_llm = analyze_cfg.get("max_comments_for_llm", 10)
-        self.extra_stopwords = set(analyze_cfg.get("stopwords", []))
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
         self._vader = SentimentIntensityAnalyzer()

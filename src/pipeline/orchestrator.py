@@ -46,7 +46,7 @@ class Orchestrator:
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
         self._timing = TimingEngine(debug=debug)
 
-    def run(self, date: str, steps: Optional[List[str]] = None) -> None:
+    def run(self, date: str, steps: Optional[List[str]] = None, force: bool = False) -> None:
         if steps is None:
             steps = ["fetch", "enrich", "analyze", "script", "translate", "tts", "render"]
 
@@ -100,7 +100,7 @@ class Orchestrator:
             self._step_preview(script, date, content)
 
         if "render" in steps:
-            self._step_render(script, date, content)
+            self._step_render(script, date, content, force=force)
 
         # Save transcript
         if script and ("script" in steps or "tts" in steps):
@@ -292,7 +292,7 @@ class Orchestrator:
                 if img not in existing:
                     item.article_images.append(img)
 
-    def _step_render(self, script: Script, date: str, content = None) -> None:
+    def _step_render(self, script: Script, date: str, content = None, force: bool = False) -> None:
         self.logger.info("Step: Render video")
         if self.dry_run:
             self.logger.info("Dry run: skipping render")
@@ -306,6 +306,23 @@ class Orchestrator:
 
         self._merge_enrichment_images(content, date)
 
+        if force:
+            self._clear_render_cache(date)
+
         output_path = f"data/{date}/output.mp4"
         audio_dir = f"data/{date}/audio"
         self.renderer.render(script, audio_dir, output_path, content, date=date)
+
+    def _clear_render_cache(self, date: str) -> None:
+        """Delete chunk cache and output file to force a full re-render."""
+        remotion_dir = Path("src/providers/renderer/remotion")
+        chunk_dir = remotion_dir / "out" / "chunks"
+        if chunk_dir.exists():
+            import shutil
+            shutil.rmtree(chunk_dir)
+            self.logger.info(f"Cleared chunk cache: {chunk_dir}")
+
+        output_path = Path(f"data/{date}/output.mp4")
+        if output_path.exists():
+            output_path.unlink()
+            self.logger.info(f"Deleted output: {output_path}")
