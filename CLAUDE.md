@@ -158,6 +158,15 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+### 6. Separate Thinking from Coding
+
+**When thinking or planning, do not write code. When writing code, think about code.**
+
+- During planning/analysis phases, focus on problem understanding, tradeoffs, and approach — not implementation details.
+- Do not draft code in your head or explore code structure "just in case" during planning.
+- Only switch to code-level thinking when you are actually about to write code.
+- This keeps plans concise and avoids premature commitment to implementation details.
+
 ***
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

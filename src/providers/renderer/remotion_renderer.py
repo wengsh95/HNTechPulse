@@ -16,6 +16,7 @@ import math
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,6 +54,7 @@ class RemotionRenderer(Renderer):
         self.gl = remotion_config.get("gl", None)
         self.chunk_frames = remotion_config.get("chunk_frames", 1500)
         self.resume_enabled = remotion_config.get("resume_enabled", True)
+        self.render_workers = remotion_config.get("render_workers", 2)
 
         self._node_path = self._find_node()
         self._npm_path = self._find_npm()
@@ -302,7 +304,7 @@ class RemotionRenderer(Renderer):
             self._run_render_cmd(cmd)
             self._finalize_output(remotion_output, output_file)
         else:
-            # Segment-based chunked rendering
+            # Segment-based chunked rendering (parallel)
             chunks = self._compute_segment_chunks(script, self.fps, total_frames)
 
             chunk_files = []
@@ -311,6 +313,8 @@ class RemotionRenderer(Renderer):
 
             self.logger.info(f"Split rendering into {len(chunks)} segment chunks")
 
+            # Build list of chunks that need rendering
+            pending = []
             for idx, (start, end, label) in enumerate(chunks):
                 chunk_file = chunk_dir / f"chunk_{idx:03d}_{label}.mp4"
                 chunk_files.append(chunk_file)
@@ -319,12 +323,39 @@ class RemotionRenderer(Renderer):
                     self.logger.info(f"Chunk {idx+1}/{len(chunks)} already exists, skipping ({label})")
                     continue
 
-                self.logger.info(f"Rendering chunk {idx+1}/{len(chunks)} [{label}]: frames {start}-{end}")
-                cmd = base_cmd + [
-                    f"--output={chunk_file}",
-                    f"--frames={start}-{end}"
-                ]
-                self._run_render_cmd(cmd)
+                pending.append((idx, start, end, label, chunk_file))
+
+            # Render pending chunks in parallel
+            if pending:
+                workers = min(self.render_workers, len(pending))
+                self.logger.info(f"Rendering {len(pending)} chunks with {workers} workers")
+
+                def _render_chunk(idx, start, end, label, chunk_file):
+                    self.logger.info(f"Rendering chunk {idx+1}/{len(chunks)} [{label}]: frames {start}-{end}")
+                    cmd = base_cmd + [
+                        f"--output={chunk_file}",
+                        f"--frames={start}-{end}"
+                    ]
+                    self._run_render_cmd(cmd)
+                    return idx
+
+                try:
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
+                        futures = {
+                            pool.submit(_render_chunk, *args): args[0]
+                            for args in pending
+                        }
+                        for future in as_completed(futures):
+                            idx = futures[future]
+                            future.result()  # raises on failure
+                            label = chunks[idx][2]
+                            self.logger.info(f"Chunk {idx+1}/{len(chunks)} done ({label})")
+                except Exception:
+                    # Clean up partial outputs so re-run doesn't skip them
+                    for _, _, _, _, chunk_file in pending:
+                        if chunk_file.exists() and chunk_file.stat().st_size == 0:
+                            chunk_file.unlink()
+                    raise
 
             # Concatenate chunks with ffmpeg
             self.logger.info(f"Concatenating {len(chunk_files)} chunks via ffmpeg...")
