@@ -8,6 +8,12 @@ from typing import Optional
 from src.core.models import Script, ScriptSegment, ContentPackage, ContentItem, SelectionResult
 from src.core.interfaces import LLMProvider
 from src.pipeline.content_preparer import ContentPreparer
+from src.pipeline.comment_judgement import (
+    candidate_ids_for_story,
+    comment_judgement_key,
+    load_comment_judgements,
+)
+from src.pipeline.comment_selection import select_quote_comments
 from src.utils.logger import setup_logger
 from src.core.models import SceneElement, Cue
 
@@ -61,7 +67,7 @@ class ScriptWriter:
         except (ValueError, TypeError):
             date_display = date
 
-        audio_text = "这里是 HN TechPulse，直接看今天的技术信号。"
+        audio_text = "早上好，这里是 HN TechPulse，带你看昨天HN发生了什么。"
         duration = 4
 
         return ScriptSegment(
@@ -181,7 +187,7 @@ class ScriptWriter:
 
         dashboard_duration = 8.0
         focus_count = min(3, len(entries))
-        audio_text = "来看今天的热度排行。"
+        audio_text = "来看今天的热度排行。对于感兴趣的话题，可以通过下方进度条快速跳转。"
 
         return ScriptSegment(
             segment_type="dashboard",
@@ -218,17 +224,20 @@ class ScriptWriter:
             if bi.get("story_index") is not None
         ]
         story_scan_segs_by_index = {}
+        comment_judgements = load_comment_judgements(date)
         max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
         max_workers = max(1, min(max_workers, len(story_indices) or 1))
 
         def _generate_story_scan(story_idx: int) -> ScriptSegment:
+            item = content.items[story_idx]
+            judgement = comment_judgements.get(comment_judgement_key(item), {})
             return self.llm_provider.generate_single_story_segment(
                 content=content,
                 story_index=story_idx,
                 segment_type="story_scan_item",
                 prompt_template_path="prompts/single_story_scan.md",
                 date=date,
-                comments_data=None
+                comments_data=judgement or None
             )
 
         if max_workers == 1 or len(story_indices) <= 1:
@@ -252,6 +261,12 @@ class ScriptWriter:
             for story_idx in story_indices
             if story_idx in story_scan_segs_by_index
         ]
+        for story_idx, seg in zip(story_indices, story_scan_segs):
+            self._normalize_quote_card_selection(
+                seg,
+                content.items[story_idx],
+                comment_judgements.get(comment_judgement_key(content.items[story_idx]), {}),
+            )
 
         # 固定开场
         segments.append(self._generate_fixed_opening(date, selection, content, story_scan_segs))
@@ -345,6 +360,30 @@ class ScriptWriter:
             description=f"每日快讯 - {date}",
             tags=[],
             segments=segments)
+
+    @staticmethod
+    def _normalize_quote_card_selection(segment: ScriptSegment, item: ContentItem, judgement: dict) -> None:
+        preferred_ids = candidate_ids_for_story(judgement, max_n=12)
+        for elem in segment.scene_elements:
+            if elem.element_type != "quote_card":
+                continue
+            props = elem.props or {}
+            selected_ids = props.get("selected_comment_ids") or []
+            combined_ids = list(selected_ids)
+            for comment_id in preferred_ids:
+                if comment_id not in combined_ids:
+                    combined_ids.append(comment_id)
+            selected_comments = select_quote_comments(
+                item.comments,
+                selected_ids=combined_ids,
+                max_n=3,
+            )
+            props["selected_comment_ids"] = [
+                str(c.source_id)
+                for c in selected_comments
+                if c.source_id is not None
+            ]
+            elem.props = props
 
     def write(self, content: ContentPackage) -> Script:
         t_total = time.monotonic()
@@ -701,8 +740,6 @@ class ScriptWriter:
                 if not (elem.props.get("dek") or elem.props.get("event_summary")):
                     return False
                 if not elem.props.get("key_points"):
-                    return False
-                if not elem.props.get("why_it_matters"):
                     return False
 
         # Scene elements must know their sub-segment index

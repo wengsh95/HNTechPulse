@@ -11,10 +11,11 @@ from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
-from src.core.models import Script, ScriptSegment, SceneElement, ContentPackage, SelectionResult
+from src.core.models import Script, ScriptSegment, SceneElement, ContentPackage, ContentItem, SelectionResult
 from src.core.interfaces import LLMProvider
 from src.core.prompts import render_prompt
-from src.pipeline.comment_selection import clean_comment_text, compute_comment_quality
+from src.pipeline.comment_selection import clean_comment_text, compute_comment_quality, is_resource_pointer_comment
+from src.pipeline.comment_judgement import normalize_story_judgement
 from src.utils.logger import setup_logger
 from src.utils.config import get_env
 
@@ -108,13 +109,17 @@ class OpenAILLMProvider(LLMProvider):
         model: str,
         max_tokens: int,
         temperature: float,
+        extra_body: Optional[Dict[str, Any]] = None,
     ):
-        return self.client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=messages,
-        )
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": messages,
+        }
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+        return self.client.chat.completions.create(**kwargs)
 
     def _call_llm_with_json_retry(
         self,
@@ -123,6 +128,7 @@ class OpenAILLMProvider(LLMProvider):
         max_tokens: int | None = None,
         model: str | None = None,
         temperature: float | None = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> str:
         current_messages = list(messages)
         effective_max_tokens = max_tokens or self.max_tokens
@@ -138,6 +144,7 @@ class OpenAILLMProvider(LLMProvider):
                     model=effective_model,
                     max_tokens=effective_max_tokens,
                     temperature=effective_temperature,
+                    extra_body=extra_body,
                 )
             elapsed = time.monotonic() - t0
 
@@ -152,6 +159,16 @@ class OpenAILLMProvider(LLMProvider):
             response_text = (message.content or "") if message else ""
             finish_reason = choice.finish_reason
             usage = response.usage
+            self._log_empty_or_truncated_diagnostics(
+                label=label,
+                attempt=attempt,
+                response=response,
+                choice=choice,
+                message=message,
+                response_text=response_text,
+                finish_reason=finish_reason,
+                max_tokens=effective_max_tokens,
+            )
 
             if usage is None:
                 self.logger.info(
@@ -172,6 +189,34 @@ class OpenAILLMProvider(LLMProvider):
                 )
 
             if finish_reason == "length":
+                self._log_truncated_response(label, attempt, response_text)
+                if not response_text.strip():
+                    self.logger.info(
+                        f"  [{label}] Empty response with finish_reason=length. "
+                        f"This usually means the compatible API/model consumed the token budget "
+                        f"without producing visible content."
+                    )
+                    if label.startswith("comment_judge_"):
+                        raise ValueError(
+                            f"[{label}] Empty truncated response from comment judge"
+                        )
+                    self.logger.info(
+                        f"  [{label}] Retrying without increasing max_tokens..."
+                    )
+                    current_messages = list(messages) + [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous response was empty/truncated. "
+                                "Return only a compact JSON object, no markdown or explanation."
+                            ),
+                        }
+                    ]
+                    continue
+                if label.startswith("comment_judge_"):
+                    raise ValueError(
+                        f"[{label}] Truncated comment judge response"
+                    )
                 if effective_max_tokens >= self.max_completion_tokens_cap:
                     raise ValueError(
                         f"[{label}] Response truncated at max token cap "
@@ -216,6 +261,100 @@ class OpenAILLMProvider(LLMProvider):
                     raise
 
         raise ValueError(f"[{label}] Failed to get valid JSON after {self.json_parse_max_retries} retries")
+
+    def _log_empty_or_truncated_diagnostics(
+        self,
+        *,
+        label: str,
+        attempt: int,
+        response,
+        choice,
+        message,
+        response_text: str,
+        finish_reason: str,
+        max_tokens: int,
+    ) -> None:
+        """Persist full-ish response diagnostics when visible content is suspicious."""
+        if finish_reason != "length" and response_text:
+            return
+        try:
+            debug_dir = Path("data/llm_debug")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "_", label)[:80]
+            path = debug_dir / f"{safe_label}_attempt{attempt}_diagnostics.json"
+
+            message_dump = None
+            choice_dump = None
+            response_dump = None
+            if hasattr(message, "model_dump"):
+                message_dump = message.model_dump()
+            elif message is not None:
+                message_dump = dict(getattr(message, "__dict__", {}))
+
+            if hasattr(choice, "model_dump"):
+                choice_dump = choice.model_dump()
+            elif choice is not None:
+                choice_dump = dict(getattr(choice, "__dict__", {}))
+
+            if hasattr(response, "model_dump"):
+                response_dump = response.model_dump()
+            elif response is not None:
+                response_dump = dict(getattr(response, "__dict__", {}))
+
+            diagnostics = {
+                "label": label,
+                "attempt": attempt,
+                "finish_reason": finish_reason,
+                "max_tokens": max_tokens,
+                "visible_content_length": len(response_text or ""),
+                "message_attrs": sorted(
+                    k for k in dir(message)
+                    if not k.startswith("_")
+                ) if message is not None else [],
+                "message_dump": message_dump,
+                "choice_dump": choice_dump,
+                "response_dump": response_dump,
+            }
+            path.write_text(
+                json.dumps(diagnostics, ensure_ascii=False, indent=2, default=str),
+                encoding="utf-8",
+            )
+            self.logger.info(
+                f"  [{label}] Saved suspicious response diagnostics to {path}"
+            )
+
+            reasoning = ""
+            if message is not None:
+                reasoning = (
+                    getattr(message, "reasoning_content", None)
+                    or getattr(message, "reasoning", None)
+                    or ""
+                )
+            if reasoning:
+                self.logger.info(
+                    f"  [{label}] Response has non-empty reasoning field "
+                    f"(chars={len(str(reasoning))}) while visible content chars="
+                    f"{len(response_text or '')}"
+                )
+        except Exception as e:
+            self.logger.info(f"  [{label}] Failed to save response diagnostics: {e}")
+
+    def _log_truncated_response(self, label: str, attempt: int, response_text: str) -> None:
+        """Log and persist truncated LLM output so prompt/schema issues are visible."""
+        preview = (response_text or "")[:4000]
+        self.logger.info(
+            f"  [{label}] Truncated raw response preview "
+            f"(attempt={attempt}, chars={len(response_text or '')}):\n{preview}"
+        )
+        try:
+            debug_dir = Path("data/llm_debug")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "_", label)[:80]
+            path = debug_dir / f"{safe_label}_attempt{attempt}_truncated.json.txt"
+            path.write_text(response_text or "", encoding="utf-8")
+            self.logger.info(f"  [{label}] Saved truncated raw response to {path}")
+        except Exception as e:
+            self.logger.info(f"  [{label}] Failed to save truncated raw response: {e}")
 
     def _get_segment_cache_path(self, date: str, segment_type: str, story_index: int) -> Path:
         cache_dir = Path(f"data/{date}/segments")
@@ -275,7 +414,7 @@ class OpenAILLMProvider(LLMProvider):
             None,
         )
         props = event_elem.props if event_elem else {}
-        required = ("editor_angle", "dek", "key_points", "why_it_matters")
+        required = ("editor_angle", "dek", "key_points")
         return all(props.get(key) or segment.meta.get(key) for key in required)
 
     def _save_segment_cache(
@@ -335,7 +474,7 @@ class OpenAILLMProvider(LLMProvider):
     ) -> ScriptSegment:
         """为单个 story 生成对应的 ScriptSegment，带缓存"""
         item = content.items[story_index]
-        story_json = self._single_story_to_json(item, story_index)
+        story_json = self._single_story_to_json(item, story_index, comments_data=comments_data)
 
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
@@ -517,14 +656,63 @@ class OpenAILLMProvider(LLMProvider):
                 out[key] = value
         return out
 
+    def judge_story_comments(
+        self,
+        item: ContentItem,
+        story_index: int,
+        prompt_template_path: str = "prompts/comment_judge.md",
+    ) -> dict:
+        """Use the fast model to rank quote-worthy comments for one story."""
+        story_json = self._story_comments_for_judge(item, story_index)
+        prompt_path = Path(prompt_template_path)
+        if prompt_path.exists():
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        else:
+            prompt_template = prompt_template_path
+        prompt = render_prompt(prompt_template, story_json=story_json)
+
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label=f"comment_judge_{story_index}",
+            max_tokens=self.config.get("analyze", {}).get("comment_judge_max_tokens", 512),
+            model=self.fast_model,
+            temperature=0.1,
+            extra_body=self._comment_judge_extra_body(),
+        )
+        result = self._extract_json(response_text)
+        return normalize_story_judgement(result, item)
+
+    def _comment_judge_extra_body(self) -> Optional[Dict[str, Any]]:
+        analyze_cfg = self.config.get("analyze", {})
+        thinking = analyze_cfg.get("comment_judge_thinking", "disabled")
+        if not thinking:
+            return None
+        return {"thinking": {"type": str(thinking)}}
+
     @contextmanager
     def _spinner(self, label: str):
-        if threading.current_thread() is not threading.main_thread():
-            yield
-            return
-
         t0 = time.monotonic()
         stop_event = threading.Event()
+
+        if threading.current_thread() is not threading.main_thread():
+            thread_name = threading.current_thread().name
+
+            def _log_elapsed():
+                while not stop_event.wait(5.0):
+                    elapsed_sec = int(time.monotonic() - t0)
+                    self.logger.info(
+                        f"  {label} elapsed {elapsed_sec}s "
+                        f"(thread={thread_name})"
+                    )
+
+            reporter = threading.Thread(target=_log_elapsed, daemon=True)
+            reporter.start()
+            try:
+                yield
+            finally:
+                stop_event.set()
+                reporter.join(timeout=1.0)
+            return
 
         def _animate():
             symbols = "⠋⠙⠹⠸⠼⠴⠦⠧⠏"
@@ -545,10 +733,13 @@ class OpenAILLMProvider(LLMProvider):
             stop_event.set()
             thread.join(timeout=2.0)
 
-    def _single_story_to_json(self, item, index: int) -> str:
+    def _single_story_to_json(self, item, index: int, comments_data: Optional[Dict] = None) -> str:
         analyze_cfg = self.config.get("analyze", {})
 
-        max_comments = analyze_cfg.get("max_comments_for_llm", 10)
+        max_comments = analyze_cfg.get(
+            "max_comments_for_llm",
+            self.config.get("pipeline", {}).get("max_comments_for_r1_analyze", 10),
+        )
         min_quality = analyze_cfg.get("min_quality_score", 0.1)
 
         # Prefer persisted analysis, but never send the raw 80-comment fallback to
@@ -563,6 +754,7 @@ class OpenAILLMProvider(LLMProvider):
             quality_score = c.quality_score
             if quality_score is None:
                 quality_score = compute_comment_quality(c, item)
+                c.quality_score = quality_score
                 computed_fallback_scores = True
             if quality_score >= min_quality:
                 scored_comments.append((quality_score, c, text))
@@ -610,9 +802,65 @@ class OpenAILLMProvider(LLMProvider):
             story_dict["article_excerpt"] = item.article_text[:500]
         if item.article_images:
             story_dict["has_images"] = True
+        if comments_data:
+            story_dict["comment_judgement"] = comments_data
         result = json.dumps(story_dict, ensure_ascii=False, indent=2)
         self.logger.debug(f"Story[{index}] serialized: {len(result)} chars ({story_dict['truncated_to']} comments)")
         return result
+
+    def _story_comments_for_judge(self, item, index: int) -> str:
+        analyze_cfg = self.config.get("analyze", {})
+        max_comments = analyze_cfg.get("max_comments_for_judge", 15)
+        min_quality = analyze_cfg.get("judge_min_quality_score", 0.05)
+
+        scored_comments = []
+        for c in item.comments:
+            text = clean_comment_text(c.content or "")
+            if not text:
+                continue
+            quality_score = c.quality_score
+            if quality_score is None:
+                quality_score = compute_comment_quality(c, item)
+                c.quality_score = quality_score
+            if quality_score < min_quality and not is_resource_pointer_comment(text):
+                continue
+            scored_comments.append((quality_score, c, text))
+
+        scored_comments.sort(
+            key=lambda x: (
+                x[0],
+                -1 * (x[1].depth if x[1].depth is not None else 3),
+            ),
+            reverse=True,
+        )
+        comments_json = [
+            {
+                "id": c.source_id,
+                "author": c.author,
+                "text": text[:360],
+                "depth": c.depth,
+                "sentiment": c.sentiment,
+                "quality_score": quality_score,
+                "resource_pointer_hint": is_resource_pointer_comment(text),
+            }
+            for quality_score, c, text in scored_comments[:max_comments]
+            if c.source_id is not None
+        ]
+
+        story_dict = {
+            "index": index,
+            "id": item.source_id,
+            "title": item.title,
+            "url": item.url,
+            "score": item.score,
+            "comment_count": item.comment_count,
+            "total_comments_available": len(item.comments),
+            "truncated_to": len(comments_json),
+            "comments": comments_json,
+        }
+        if item.article_summary:
+            story_dict["article_summary"] = item.article_summary
+        return json.dumps(story_dict, ensure_ascii=False, indent=2)
 
     def _extract_json(self, text: str) -> dict:
         text = _strip_json_fence(text)

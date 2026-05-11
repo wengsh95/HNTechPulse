@@ -15,8 +15,9 @@ from src.core.models import Script, ScriptSegment, WordTiming
 from src.pipeline.comment_selection import (
     clean_comment_text,
     classify_comment_stance,
-    select_representative_comments,
+    select_quote_comments,
 )
+from src.pipeline.comment_judgement import comment_judgement_key, load_comment_judgements
 from src.utils.logger import setup_logger
 
 
@@ -241,8 +242,16 @@ def _expand_quote_card(props, content):
         if cn:
             orig_text_cn[q.get("text", "")] = cn
 
-    # Prefer one high-quality comment per stance, with de-duplication.
-    selected = select_representative_comments(item.comments, max_n=3)
+    judgement = {}
+    date = getattr(content, "date", "")
+    if date:
+        judgement = load_comment_judgements(date).get(comment_judgement_key(item), {})
+    selected = select_quote_comments(
+        item.comments,
+        selected_ids=props.get("selected_comment_ids") or [],
+        judgement=judgement,
+        max_n=3,
+    )
 
     quotes = []
     for c in selected[:3]:

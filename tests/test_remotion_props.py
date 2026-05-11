@@ -15,6 +15,12 @@ from src.providers.renderer.remotion_props import (
     build_cues, _build_cues_from_word_timings, _build_cues_from_sentence_timings,
     _split_into_cues, sanitize_props, script_to_props,
 )
+from src.pipeline.comment_selection import (
+    compute_comment_quality,
+    is_resource_pointer_comment,
+    select_representative_comments,
+    select_quote_comments,
+)
 
 
 def _make_content_package():
@@ -297,8 +303,16 @@ class TestExpandQuoteCard:
 
     def test_derives_stance_from_sentiment(self):
         content = _make_content_package()
+        content.items[0].comments[0].content = (
+            "This is a good default because it keeps the common case simple while "
+            "still leaving room for advanced users to opt out."
+        )
         content.items[0].comments[0].sentiment = 0.8
         content.items[0].comments[0].quality_score = 0.9
+        content.items[0].comments[1].content = (
+            "I am skeptical because the same mechanism can break workflows where "
+            "people need to control the deployment boundary themselves."
+        )
         content.items[0].comments[1].sentiment = -0.7
         content.items[0].comments[1].quality_score = 0.8
         result = _expand_quote_card({"story_index": 0}, content)
@@ -308,6 +322,142 @@ class TestExpandQuoteCard:
 
 
 # ── expand_element_props ───────────────────────────────────────────────
+
+def test_quote_selection_filters_resource_pointer_comments():
+    text = "Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/"
+    comment = ContentComment(author="linker", content=text, source_id="link", quality_score=0.95)
+    assert is_resource_pointer_comment(text)
+    assert select_representative_comments([comment]) == []
+
+
+def test_quote_card_prefers_llm_selected_comment_ids():
+    content = _make_content_package()
+    content.items[0].comments = [
+        ContentComment(
+            author="linker",
+            content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
+            source_id="link",
+            quality_score=0.95,
+        ),
+        ContentComment(
+            author="skeptic",
+            content="The hard part is not the syntax, it is keeping ABI assumptions and toolchain behavior consistent across platforms.",
+            source_id="view",
+            quality_score=0.7,
+            sentiment=-0.4,
+        ),
+        ContentComment(
+            author="operator",
+            content="In production this usually fails at the boundary where deployment scripts assume one platform and users bring another.",
+            source_id="ops",
+            quality_score=0.65,
+            sentiment=-0.2,
+        ),
+        ContentComment(
+            author="supporter",
+            content="I like the goal, but it should document the unsupported cases clearly instead of pretending portability is automatic.",
+            source_id="support",
+            quality_score=0.6,
+            sentiment=0.5,
+        ),
+    ]
+    result = _expand_quote_card(
+        {"story_index": 0, "selected_comment_ids": ["view"]},
+        content,
+    )
+    assert len(result["quotes"]) == 3
+    assert result["quotes"][0]["author"] == "skeptic"
+
+
+def test_quote_card_rejects_llm_selected_resource_pointer_and_falls_back():
+    content = _make_content_package()
+    content.items[0].comments = [
+        ContentComment(
+            author="linker",
+            content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
+            source_id="link",
+            quality_score=0.95,
+        ),
+        ContentComment(
+            author="skeptic",
+            content="The hard part is not the syntax, it is keeping ABI assumptions and toolchain behavior consistent across platforms.",
+            source_id="view",
+            quality_score=0.7,
+            sentiment=-0.4,
+        ),
+        ContentComment(
+            author="operator",
+            content="In production this usually fails at the boundary where deployment scripts assume one platform and users bring another.",
+            source_id="ops",
+            quality_score=0.65,
+            sentiment=-0.2,
+        ),
+        ContentComment(
+            author="supporter",
+            content="I like the goal, but it should document the unsupported cases clearly instead of pretending portability is automatic.",
+            source_id="support",
+            quality_score=0.6,
+            sentiment=0.5,
+        ),
+    ]
+    result = _expand_quote_card(
+        {"story_index": 0, "selected_comment_ids": ["link"]},
+        content,
+    )
+    assert len(result["quotes"]) == 3
+    assert result["quotes"][0]["author"] == "skeptic"
+
+
+def test_select_quote_comments_honors_ids_then_fills_to_three():
+    comments = [
+        ContentComment(
+            author="linker",
+            content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
+            source_id="link",
+            quality_score=0.95,
+        ),
+        ContentComment(
+            author="skeptic",
+            content="The hard part is not the syntax, it is keeping ABI assumptions and toolchain behavior consistent across platforms.",
+            source_id="view",
+            quality_score=0.7,
+            sentiment=-0.4,
+        ),
+        ContentComment(
+            author="operator",
+            content="In production this usually fails at the boundary where deployment scripts assume one platform and users bring another.",
+            source_id="ops",
+            quality_score=0.65,
+            sentiment=-0.2,
+        ),
+        ContentComment(
+            author="supporter",
+            content="I like the goal, but it should document the unsupported cases clearly instead of pretending portability is automatic.",
+            source_id="support",
+            quality_score=0.6,
+            sentiment=0.5,
+        ),
+    ]
+    selected = select_quote_comments(comments, selected_ids=["view"])
+    assert [c.source_id for c in selected] == ["view", "support", "ops"]
+
+
+def test_resource_pointer_quality_is_penalized():
+    item = ContentItem(
+        source="hn",
+        source_id="1",
+        title="Writing portable ARM64 assembly",
+        url=None,
+        published_at=0,
+    )
+    comment = ContentComment(
+        author="linker",
+        content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
+        source_id="link",
+        depth=0,
+    )
+    assert compute_comment_quality(comment, item) < 0.22
+
 
 class TestExpandElementProps:
     def test_known_type_dispatches(self):

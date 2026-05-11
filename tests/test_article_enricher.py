@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 import json
 from unittest.mock import patch, MagicMock
@@ -293,3 +294,59 @@ class TestImageSelection:
         assert entry["selected_image"] == "images/shot.jpg"
         selected = [c for c in entry["candidates"] if c.get("auto_selected")]
         assert selected[0]["path"] == "images/shot.jpg"
+
+    def test_phase2_reuses_cached_image_candidates(self, tmp_path, monkeypatch):
+        enricher = _make_enricher()
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        pages_dir = Path("data") / date / "downloaded_pages"
+        image_dir = Path("data") / date / "images"
+        pages_dir.mkdir(parents=True)
+        image_dir.mkdir(parents=True)
+        (pages_dir / "42.html").write_text("<html><body><p>article</p><img src='/new.jpg'></body></html>", encoding="utf-8")
+        (image_dir / "42_0.jpg").write_bytes(b"cached")
+        (image_dir / "42_screenshot.jpg").write_bytes(b"shot")
+
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="Story",
+            url="https://x.com/story",
+            article_images=["images/42_0.jpg"],
+            screenshot_image="images/42_screenshot.jpg",
+            image_candidates=[
+                {
+                    "path": "images/42_0.jpg",
+                    "source": "page",
+                    "label": "Article image",
+                    "rank": 0,
+                    "width": 900,
+                    "height": 500,
+                }
+            ],
+        )
+
+        async def fail_download(*args, **kwargs):
+            raise AssertionError("cached images should skip page image downloads")
+
+        async def fail_bing(*args, **kwargs):
+            raise AssertionError("cached images should skip Bing image search")
+
+        async def fail_screenshot(*args, **kwargs):
+            raise AssertionError("cached screenshots should skip recapture")
+
+        enricher._extract_text = MagicMock(return_value="A" * 300)
+        enricher._extract_images = MagicMock(return_value=["https://x.com/new.jpg"])
+        enricher._summarize = MagicMock(return_value="summary")
+        enricher._download_image_candidates = fail_download
+        enricher._search_bing_images = fail_bing
+        enricher._capture_screenshot = fail_screenshot
+
+        asyncio.run(enricher._phase2_extract_one(item, date, asyncio.Semaphore(1)))
+
+        assert item.article_text == "A" * 300
+        assert item.article_images[0] == "images/42_0.jpg"
+        assert [c["path"] for c in item.image_candidates] == [
+            "images/42_0.jpg",
+            "images/42_screenshot.jpg",
+        ]

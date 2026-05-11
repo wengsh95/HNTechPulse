@@ -12,6 +12,7 @@ from src.pipeline.tts_processor import TTSProcessor
 from src.pipeline.translation_manager import TranslationManager
 from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.comment_analyzer import CommentAnalyzer
+from src.pipeline.comment_judge import CommentJudge
 from src.utils.logger import setup_logger
 
 
@@ -44,6 +45,7 @@ class Orchestrator:
         self.translation_manager = TranslationManager(llm_provider, self.content_preparer, config, debug=debug, level=log_level)
         self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
+        self.comment_judge = CommentJudge(llm_provider, config, debug=debug)
         self._timing = TimingEngine(debug=debug)
 
     def run(self, date: str, steps: Optional[List[str]] = None, force: bool = False) -> None:
@@ -187,6 +189,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping analysis")
             return content
         content = self.comment_analyzer.analyze(content, date)
+        self.comment_judge.judge(content, date)
         self.content_preparer.save_content(content, date)
         return content
 

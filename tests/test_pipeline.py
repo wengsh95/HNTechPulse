@@ -10,6 +10,7 @@ from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Render
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.orchestrator import Orchestrator
+from src.pipeline.comment_judgement import save_comment_judgements
 
 
 def _make_config():
@@ -123,6 +124,51 @@ class TestScriptWriter:
 
         assert mock_llm.generate_single_story_segment.call_count == 6  # num_brief_items default
         assert len(script.segments) >= 2  # at least opening + closing
+
+    def test_write_passes_comment_judgement_to_story_generation(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = _make_config()
+        mock_llm = MagicMock()
+        mock_llm.generate_single_story_segment.return_value = ScriptSegment(
+            segment_type="story_scan_item",
+            audio_text="test",
+            estimated_duration=10.0,
+            emotion="upbeat",
+            scene_elements=[
+                SceneElement(
+                    element_type="quote_card",
+                    start_time=0,
+                    end_time=0,
+                    props={"story_index": 0, "selected_comment_ids": []},
+                )
+            ],
+        )
+        content = _make_content_package()
+        content.items[0].comments = [
+            ContentComment(
+                author="u",
+                content="I am skeptical because this creates a real operational tradeoff.",
+                source_id="c1",
+                quality_score=0.8,
+            )
+        ]
+        save_comment_judgements(
+            content.date,
+            {
+                content.items[0].source_id: {
+                    "story_id": content.items[0].source_id,
+                    "quote_candidates": [
+                        {"comment_id": "c1", "quote_score": 0.9, "has_viewpoint": True}
+                    ],
+                }
+            },
+        )
+
+        writer = ScriptWriter(config, mock_llm, debug=True)
+        writer.write(content)
+
+        first_call = mock_llm.generate_single_story_segment.call_args_list[0]
+        assert first_call.kwargs["comments_data"]["quote_candidates"][0]["comment_id"] == "c1"
 
 
 class TestOrchestrator:

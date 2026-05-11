@@ -531,6 +531,7 @@ class ArticleEnricher:
                 html = html_path.read_text(encoding="utf-8", errors="replace")
                 image_dir = Path(f"data/{date}/images")
                 image_dir.mkdir(parents=True, exist_ok=True)
+                cached_image_candidates = self._cached_image_candidates(item, image_dir)
 
                 # Extract text
                 article_text = self._extract_text(html, item.url or "")
@@ -549,7 +550,12 @@ class ArticleEnricher:
 
                 # Download page images
                 page_candidates = []
-                if image_urls:
+                if cached_image_candidates:
+                    self.logger.debug(
+                        f"Reusing {len(cached_image_candidates)} cached image candidates "
+                        f"for {item.source_id}"
+                    )
+                elif image_urls:
                     page_candidates = await self._download_image_candidates(
                         image_urls,
                         image_dir,
@@ -560,7 +566,7 @@ class ArticleEnricher:
 
                 # Bing image search
                 bing_candidates = []
-                if self.bing_image_search and item.title:
+                if not cached_image_candidates and self.bing_image_search and item.title:
                     bing_candidates = await self._search_bing_images(
                         item.title, item.url or "", image_dir, str(item.source_id)
                     )
@@ -580,10 +586,16 @@ class ArticleEnricher:
                 # LLM summary
                 article_summary = self._summarize(article_text, item.title)
 
-                image_candidates = []
-                image_candidates.extend(page_candidates)
-                image_candidates.extend(bing_candidates)
-                if screenshot_image:
+                image_candidates = list(cached_image_candidates)
+                if not image_candidates:
+                    image_candidates.extend(page_candidates)
+                    image_candidates.extend(bing_candidates)
+                existing_paths = {
+                    candidate.get("path")
+                    for candidate in image_candidates
+                    if candidate.get("path")
+                }
+                if screenshot_image and screenshot_image not in existing_paths:
                     image_candidates.append({
                         "path": screenshot_image,
                         "source": "screenshot",
@@ -1129,6 +1141,56 @@ class ArticleEnricher:
                 paths.append(path)
                 seen.add(path)
         return paths
+
+    @staticmethod
+    def _image_cache_path_exists(image_dir: Path, path: Optional[str]) -> bool:
+        if not path:
+            return False
+        p = Path(path)
+        if p.is_absolute():
+            return p.exists()
+        if len(p.parts) >= 2 and p.parts[0] == "images":
+            return (image_dir / p.name).exists()
+        return (image_dir / p).exists()
+
+    def _cached_image_candidates(self, item, image_dir: Path) -> List[Dict[str, Any]]:
+        """Return cached image candidates whose local files still exist."""
+        candidates: List[Dict[str, Any]] = []
+        seen = set()
+
+        for candidate in item.image_candidates or []:
+            path = candidate.get("path")
+            if path and path not in seen and self._image_cache_path_exists(image_dir, path):
+                candidates.append(dict(candidate))
+                seen.add(path)
+
+        for rank, path in enumerate(item.article_images or []):
+            if path in seen or not self._image_cache_path_exists(image_dir, path):
+                continue
+            candidates.append({
+                "path": path,
+                "source": "cached",
+                "label": "Cached image",
+                "rank": rank,
+            })
+            seen.add(path)
+
+        screenshot_image = item.screenshot_image
+        if (
+            screenshot_image
+            and screenshot_image not in seen
+            and self._image_cache_path_exists(image_dir, screenshot_image)
+        ):
+            candidates.append({
+                "path": screenshot_image,
+                "source": "screenshot",
+                "label": "Page screenshot",
+                "rank": len(candidates),
+                "width": 1280,
+                "height": 720,
+            })
+
+        return candidates
 
     async def _download_images(self, urls: List[str], image_dir: Path, source_id: str) -> List[str]:
         candidates = await self._download_image_candidates(

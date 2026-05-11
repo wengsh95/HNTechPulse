@@ -15,6 +15,9 @@ from src.pipeline.comment_selection import clean_comment_text, compute_comment_q
 from src.utils.logger import setup_logger
 
 
+ANALYSIS_SCHEMA_VERSION = 2
+
+
 class CommentAnalyzer:
     def __init__(self, config: dict, debug: bool = False):
         self.config = config
@@ -50,6 +53,13 @@ class CommentAnalyzer:
         self._save_cache(content, cache_path)
         return content
 
+    def _rebuild_cache(self, content: ContentPackage, cache_path: Path) -> ContentPackage:
+        self.logger.info(f"Rebuilding analysis cache: {cache_path}")
+        for item in content.items:
+            self._analyze_item(item)
+        self._save_cache(content, cache_path)
+        return content
+
     def _analyze_item(self, item: ContentItem) -> None:
         # 1. VADER sentiment
         for comment in item.comments:
@@ -76,7 +86,11 @@ class CommentAnalyzer:
 
     def _save_cache(self, content: ContentPackage, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"date": content.date, "items": []}
+        data = {
+            "schema_version": ANALYSIS_SCHEMA_VERSION,
+            "date": content.date,
+            "items": [],
+        }
         for item in content.items:
             item_data = {
                 "source_id": item.source_id,
@@ -98,6 +112,12 @@ class CommentAnalyzer:
     def _load_from_cache(self, content: ContentPackage, path: Path) -> None:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        if data.get("schema_version") != ANALYSIS_SCHEMA_VERSION:
+            self.logger.info(
+                f"Analysis cache schema changed; ignoring stale cache: {path}"
+            )
+            self._rebuild_cache(content, path)
+            return
 
         items_by_id = {item.source_id: item for item in content.items}
         for item_data in data.get("items", []):

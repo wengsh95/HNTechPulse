@@ -40,6 +40,11 @@ class LLMProvider(ABC):
         pass
 
 
+    def judge_story_comments(self, item, story_index: int, prompt_template_path: str = "prompts/comment_judge.md") -> dict:
+        """Optional: rank comments that are suitable for QuoteCard display."""
+        return {}
+
+
 class TTSResult:
     """TTS 合成结果"""
 

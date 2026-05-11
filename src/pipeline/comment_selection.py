@@ -10,6 +10,24 @@ _URL_RE = re.compile(r"https?://\S+")
 _CODE_RE = re.compile(r"```|`[^`]+`")
 _STRUCTURED_RE = re.compile(r"^\s*[-*>]\s", re.MULTILINE)
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_+#.-]+")
+_RESOURCE_POINTER_RE = re.compile(
+    r"\b("
+    r"here(?:'s| is)|there(?:'s| is)|see also|related|link|article|paper|blog post|"
+    r"write-?up|documentation|docs|guide|tutorial|resource|read this|check out|"
+    r"worth reading|may be useful|might be useful"
+    r")\b",
+    re.IGNORECASE,
+)
+_VIEWPOINT_MARKER_RE = re.compile(
+    r"\b("
+    r"because|since|therefore|however|but|although|unless|if|when|why|how|"
+    r"should|shouldn't|cannot|can't|won't|would|could|problem|trade-?off|risk|"
+    r"concern|worried|skeptical|convinced|agree|disagree|prefer|instead|actually|"
+    r"experience|used|tried|built|maintain|production|fails?|breaks?|works?|"
+    r"means|implies|depends"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 def clean_comment_text(text: str) -> str:
@@ -50,6 +68,40 @@ def _url_only_penalty(text: str) -> float:
     if _URL_RE.search(text) and len(without_urls) < 30:
         return 0.25
     return 0.0
+
+
+def is_resource_pointer_comment(text: str) -> bool:
+    """Return True for link/resource pointers that do not carry a viewpoint."""
+    clean_text = clean_comment_text(text)
+    if not clean_text or not _URL_RE.search(clean_text):
+        return False
+
+    without_urls = _URL_RE.sub("", clean_text).strip(" :-.,;()[]{}<>")
+    word_count = len(_WORD_RE.findall(without_urls))
+    has_pointer_language = bool(_RESOURCE_POINTER_RE.search(without_urls))
+    has_viewpoint_language = bool(_VIEWPOINT_MARKER_RE.search(without_urls))
+
+    if len(without_urls) < 30:
+        return True
+    if len(without_urls) < 90 and has_pointer_language and not has_viewpoint_language:
+        return True
+    if word_count <= 14 and has_pointer_language and not has_viewpoint_language:
+        return True
+    return False
+
+
+def is_quotable_comment(comment: ContentComment, min_quality: float = 0.22) -> bool:
+    """Whether a comment is suitable for QuoteCard display, not merely useful context."""
+    text = clean_comment_text(comment.content or "")
+    if not text:
+        return False
+    if is_resource_pointer_comment(text):
+        return False
+    if len(text) < 20:
+        return False
+    if (comment.quality_score or 0.0) < min_quality:
+        return False
+    return True
 
 
 def _quote_heavy_penalty(raw_text: str, clean_text: str) -> float:
@@ -148,6 +200,8 @@ def compute_comment_quality(comment: ContentComment, item: Optional[ContentItem]
 
     if text_len < 45 and upvotes == 0:
         score -= 0.12
+    if is_resource_pointer_comment(text):
+        score = min(score - 0.35, 0.08)
     score -= _url_only_penalty(text)
     score -= _quote_heavy_penalty(raw_text, text)
 
@@ -177,11 +231,11 @@ def _ranked_comments(comments: Iterable[ContentComment]) -> List[ContentComment]
 def select_representative_comments(
     comments: Iterable[ContentComment],
     max_n: int = 3,
-    min_quality: float = 0.1,
+    min_quality: float = 0.22,
     similarity_threshold: float = 0.58,
 ) -> List[ContentComment]:
     """Pick high-quality, stance-diverse comments while avoiding near-duplicates."""
-    ranked = [c for c in _ranked_comments(comments) if (c.quality_score or 0) >= min_quality]
+    ranked = [c for c in _ranked_comments(comments) if is_quotable_comment(c, min_quality)]
     selected: List[ContentComment] = []
     seen_stances = set()
 
@@ -215,4 +269,107 @@ def select_representative_comments(
             if len(selected) >= min(2, max_n):
                 break
 
+    return selected[:max_n]
+
+
+def select_comments_by_ids(
+    comments: Iterable[ContentComment],
+    selected_ids: Iterable,
+    max_n: int = 3,
+    min_quality: float = 0.22,
+) -> List[ContentComment]:
+    """Pick explicitly requested quotable comments by source_id, preserving id order."""
+    id_order = [str(comment_id) for comment_id in selected_ids if comment_id is not None]
+    if not id_order:
+        return []
+    comments_by_id = {
+        str(c.source_id): c
+        for c in comments
+        if c.source_id is not None and is_quotable_comment(c, min_quality)
+    }
+    selected = []
+    seen = set()
+    for comment_id in id_order:
+        if comment_id in seen:
+            continue
+        comment = comments_by_id.get(comment_id)
+        if comment is None:
+            continue
+        selected.append(comment)
+        seen.add(comment_id)
+        if len(selected) >= max_n:
+            break
+    return selected
+
+
+def select_quote_comments(
+    comments: Iterable[ContentComment],
+    selected_ids: Optional[Iterable] = None,
+    judgement: Optional[dict] = None,
+    max_n: int = 3,
+    min_quality: float = 0.22,
+    similarity_threshold: float = 0.58,
+) -> List[ContentComment]:
+    """Select QuoteCard comments: honor LLM ids, then fill with strong fallbacks."""
+    comments_list = list(comments)
+    selected = select_comments_by_ids(
+        comments_list,
+        selected_ids or [],
+        max_n=max_n,
+        min_quality=min_quality,
+    )
+    selected_object_ids = {id(c) for c in selected}
+    selected_stances = {classify_comment_stance(c) for c in selected}
+    if len(selected) >= max_n:
+        return selected[:max_n]
+
+    judged_fillers = []
+    if judgement:
+        comments_by_id = {
+            str(c.source_id): c
+            for c in comments_list
+            if c.source_id is not None and is_quotable_comment(c, min_quality)
+        }
+        for candidate in judgement.get("quote_candidates", []) or []:
+            if candidate.get("reject_for_quote") or not candidate.get("has_viewpoint", True):
+                continue
+            comment_id = candidate.get("comment_id")
+            if comment_id is None:
+                continue
+            comment = comments_by_id.get(str(comment_id))
+            if comment is not None:
+                judged_fillers.append(comment)
+            if len(judged_fillers) >= max_n:
+                break
+    for comment in judged_fillers:
+        if id(comment) in selected_object_ids:
+            continue
+        selected.append(comment)
+        selected_object_ids.add(id(comment))
+        selected_stances.add(classify_comment_stance(comment))
+        if len(selected) >= max_n:
+            return selected[:max_n]
+
+    fillers = select_representative_comments(
+        comments_list,
+        max_n=max_n,
+        min_quality=min_quality,
+        similarity_threshold=similarity_threshold,
+    )
+    neutral_stance = classify_comment_stance(ContentComment(author="", content=""))
+    fillers.sort(
+        key=lambda c: (
+            classify_comment_stance(c) in selected_stances,
+            classify_comment_stance(c) == neutral_stance,
+            -(c.quality_score or 0),
+        )
+    )
+    for comment in fillers:
+        if id(comment) in selected_object_ids:
+            continue
+        selected.append(comment)
+        selected_object_ids.add(id(comment))
+        selected_stances.add(classify_comment_stance(comment))
+        if len(selected) >= max_n:
+            break
     return selected[:max_n]
