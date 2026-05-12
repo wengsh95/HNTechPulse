@@ -7,6 +7,8 @@ from pathlib import Path
 
 from src.core.models import Script, ScriptSegment, SceneElement
 from src.providers.renderer.remotion_renderer import RemotionRenderer
+from src.providers.renderer.binary_finder import find_node, find_npm, find_npx, find_chrome
+from src.providers.renderer.chunk_planner import compute_segment_chunks
 
 
 def _make_config():
@@ -40,94 +42,82 @@ def _make_renderer():
         return renderer
 
 
-# ── _find_node ────────────────────────────────────────────────────────
+# ── find_node ────────────────────────────────────────────────────────
 
 class TestFindNode:
     def test_found_in_path(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value="/usr/bin/node"):
-            result = renderer._find_node()
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/node"):
+            result = find_node()
             assert result == "/usr/bin/node"
 
     def test_not_found(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value=None):
-            with patch("src.providers.renderer.remotion_renderer.Path") as MockPath:
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+            with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 mp = MagicMock()
                 mp.exists.return_value = False
                 MockPath.return_value = mp
                 MockPath.prefix = MagicMock()
                 MockPath.home.return_value = mp
-                result = renderer._find_node()
+                result = find_node()
                 assert result is None
 
 
-# ── _find_npm ─────────────────────────────────────────────────────────
+# ── find_npm ─────────────────────────────────────────────────────────
 
 class TestFindNpm:
     def test_found_in_path(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value="/usr/bin/npm"):
-            result = renderer._find_npm()
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/npm"):
+            result = find_npm()
             assert result == "/usr/bin/npm"
 
     def test_found_next_to_node(self):
-        renderer = _make_renderer()
-        renderer._node_path = "/usr/bin/node"
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value=None):
-            with patch("src.providers.renderer.remotion_renderer.Path") as MockPath:
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+            with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 node_dir = MagicMock()
                 npm_candidate = MagicMock()
                 npm_candidate.exists.return_value = True
                 node_dir.__truediv__ = MagicMock(return_value=npm_candidate)
                 MockPath.return_value = node_dir
-                result = renderer._find_npm()
+                result = find_npm(node_path="/usr/bin/node")
                 # Should find npm.cmd or npm next to node
                 assert result is not None or result is None  # path-dependent
 
     def test_not_found(self):
-        renderer = _make_renderer()
-        renderer._node_path = None
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value=None):
-            result = renderer._find_npm()
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+            result = find_npm(node_path=None)
             assert result is None
 
 
-# ── _find_npx ─────────────────────────────────────────────────────────
+# ── find_npx ─────────────────────────────────────────────────────────
 
 class TestFindNpx:
     def test_found_in_path(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value="/usr/bin/npx"):
-            result = renderer._find_npx()
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/npx"):
+            result = find_npx()
             assert result == "/usr/bin/npx"
 
     def test_not_found_no_node(self):
-        renderer = _make_renderer()
-        renderer._node_path = None
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value=None):
-            result = renderer._find_npx()
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+            result = find_npx(node_path=None)
             assert result is None
 
 
-# ── _find_chrome ──────────────────────────────────────────────────────
+# ── find_chrome ──────────────────────────────────────────────────────
 
 class TestFindChrome:
     def test_found_via_which(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", side_effect=lambda x: "/usr/bin/chromium" if x == "chromium" else None):
-            result = renderer._find_chrome()
+        with patch("src.providers.renderer.binary_finder.shutil.which", side_effect=lambda x: "/usr/bin/chromium" if x == "chromium" else None):
+            result = find_chrome()
             assert result == "/usr/bin/chromium"
 
     def test_not_found(self):
-        renderer = _make_renderer()
-        with patch("src.providers.renderer.remotion_renderer.shutil.which", return_value=None):
-            with patch("src.providers.renderer.remotion_renderer.Path") as MockPath:
+        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+            with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 mp = MagicMock()
                 mp.exists.return_value = False
                 MockPath.return_value = mp
                 MockPath.home.return_value = mp
-                result = renderer._find_chrome()
+                result = find_chrome()
                 assert result is None
 
 
@@ -211,14 +201,10 @@ class TestPreview:
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
 
 
-# ── _compute_segment_chunks ────────────────────────────────────────────
+# ── compute_segment_chunks ────────────────────────────────────────────
 
 class TestComputeSegmentChunks:
-    def _make_renderer(self):
-        return _make_renderer()
-
     def test_basic_segments(self):
-        renderer = self._make_renderer()
         script = Script(
             title="Test",
             description="",
@@ -233,7 +219,7 @@ class TestComputeSegmentChunks:
                               actual_duration=8.0, start_time=9.0, end_time=17.0),
             ],
         )
-        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=408)
+        chunks = compute_segment_chunks(script, fps=24, total_frames=408)
         assert len(chunks) == 3
         assert chunks[0][2] == "opening"
         assert chunks[1][2] == "dashboard"
@@ -245,7 +231,6 @@ class TestComputeSegmentChunks:
             assert chunks[i][1] + 1 == chunks[i + 1][0]
 
     def test_story_scan_split_by_scene_elements(self):
-        renderer = self._make_renderer()
         script = Script(
             title="Test",
             description="",
@@ -267,7 +252,7 @@ class TestComputeSegmentChunks:
                               actual_duration=6.0, start_time=24.0, end_time=30.0),
             ],
         )
-        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=720)
+        chunks = compute_segment_chunks(script, fps=24, total_frames=720)
         assert len(chunks) == 5
         labels = [c[2] for c in chunks]
         assert labels == ["opening", "story_0", "story_1", "story_2", "closing"]
@@ -278,7 +263,6 @@ class TestComputeSegmentChunks:
             assert chunks[i][1] + 1 == chunks[i + 1][0]
 
     def test_story_scan_without_elements_falls_back_to_whole_segment(self):
-        renderer = self._make_renderer()
         script = Script(
             title="Test",
             description="",
@@ -293,12 +277,11 @@ class TestComputeSegmentChunks:
                               actual_duration=4.0, start_time=20.0, end_time=24.0),
             ],
         )
-        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=576)
+        chunks = compute_segment_chunks(script, fps=24, total_frames=576)
         assert len(chunks) == 3
         assert chunks[1][2] == "story_scan"
 
     def test_frames_cover_total(self):
-        renderer = self._make_renderer()
         script = Script(
             title="Test",
             description="",
@@ -312,6 +295,6 @@ class TestComputeSegmentChunks:
             ],
         )
         total_frames = math.ceil(10.5 * 24)
-        chunks = renderer._compute_segment_chunks(script, fps=24, total_frames=total_frames)
+        chunks = compute_segment_chunks(script, fps=24, total_frames=total_frames)
         assert chunks[0][0] == 0
         assert chunks[-1][1] == total_frames - 1

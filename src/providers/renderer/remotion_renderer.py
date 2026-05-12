@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.core.models import Script
 from src.core.interfaces import Renderer
 from src.providers.renderer.remotion_props import script_to_props
+from src.providers.renderer.binary_finder import find_node, find_npm, find_npx, find_chrome, find_ffmpeg
+from src.providers.renderer.chunk_planner import compute_segment_chunks
 from src.utils.logger import setup_logger
 
 
@@ -56,14 +58,14 @@ class RemotionRenderer(Renderer):
         self.resume_enabled = remotion_config.get("resume_enabled", True)
         self.render_workers = remotion_config.get("render_workers", 2)
 
-        self._node_path = self._find_node()
-        self._npm_path = self._find_npm()
-        self._npx_path = self._find_npx()
-        self._ffmpeg_path = self._find_ffmpeg()
+        self._node_path = find_node()
+        self._npm_path = find_npm(self._node_path)
+        self._npx_path = find_npx(self._node_path)
+        self._ffmpeg_path = find_ffmpeg()
 
         self.chrome_path = (
             remotion_config.get("browser_executable")
-            or self._find_chrome()
+            or find_chrome()
         )
         if self.chrome_path:
             self.logger.info(f"Using browser: {self.chrome_path}")
@@ -74,93 +76,6 @@ class RemotionRenderer(Renderer):
             )
 
         self._ensure_dependencies_installed()
-
-    def _find_node(self) -> Optional[str]:
-        node = shutil.which("node")
-        if not node:
-            for p in [
-                r"C:\Program Files\nodejs\node.exe",
-                str(Path(sys.prefix) / "nodejs" / "node.exe"),
-                str(Path.home() / "AppData" / "Local" / "Programs" / "nodejs" / "node.exe"),
-            ]:
-                if Path(p).exists():
-                    return p
-            return None
-        return node
-
-    def _find_npm(self) -> Optional[str]:
-        npm = shutil.which("npm")
-        if not npm and self._node_path:
-            node_dir = Path(self._node_path).parent
-            candidate = node_dir / "npm.cmd"
-            if candidate.exists():
-                return str(candidate)
-            candidate = node_dir / "npm"
-            if candidate.exists():
-                return str(candidate)
-        return npm or None
-
-    def _find_npx(self) -> Optional[str]:
-        npx = shutil.which("npx")
-        if not npx and self._node_path:
-            node_dir = Path(self._node_path).parent
-            candidate = node_dir / "npx.cmd"
-            if candidate.exists():
-                return str(candidate)
-            candidate = node_dir / "npx"
-            if candidate.exists():
-                return str(candidate)
-        return npx or None
-
-    def _find_chrome(self) -> Optional[str]:
-        chrome = shutil.which("chrome") or shutil.which("chromium")
-        if chrome:
-            return chrome
-
-        for p in [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Chromium\Application\chrome.exe",
-        ]:
-            if Path(p).exists():
-                return p
-
-        macos_paths = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        ]
-        for p in macos_paths:
-            if Path(p).exists():
-                return p
-
-        linux_paths = [
-            "/usr/bin/google-chrome",
-            "/usr/bin/google-chrome-stable",
-            "/usr/bin/chromium-browser",
-            "/usr/bin/chromium",
-            "/snap/bin/chromium",
-        ]
-        for p in linux_paths:
-            if Path(p).exists():
-                return p
-
-        return None
-
-    def _find_ffmpeg(self) -> Optional[str]:
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg:
-            return ffmpeg
-
-        # Windows common paths
-        for p in [
-            r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
-            r"C:\ffmpeg\bin\ffmpeg.exe",
-        ]:
-            if Path(p).exists():
-                return p
-        return None
 
     def _prepare_render_data(self, script: Script, audio_dir: str, content=None, date: str = "") -> tuple[Path, str]:
         self._prepare_audio_assets(script, audio_dir)
@@ -305,7 +220,7 @@ class RemotionRenderer(Renderer):
             self._finalize_output(remotion_output, output_file)
         else:
             # Segment-based chunked rendering (parallel)
-            chunks = self._compute_segment_chunks(script, self.fps, total_frames)
+            chunks = compute_segment_chunks(script, self.fps, total_frames)
 
             chunk_files = []
             chunk_dir = self.remotion_dir / "out" / "chunks"
@@ -384,49 +299,6 @@ class RemotionRenderer(Renderer):
                 raise RuntimeError("ffmpeg concat failed")
 
         self.logger.info("Rendering complete")
-
-    def _compute_segment_chunks(
-        self, script: Script, fps: int, total_frames: int
-    ) -> List[Tuple[int, int, str]]:
-        """Compute per-segment chunk boundaries for rendering.
-
-        Returns list of (start_frame, end_frame, label) tuples.
-        story_scan segments are split into one chunk per scene_element.
-        """
-        chunks: List[Tuple[int, int, str]] = []
-        story_idx = 0
-
-        for seg in script.segments:
-            seg_start = seg.start_time or 0
-            seg_end = seg.end_time or 0
-
-            if seg.segment_type == "story_scan" and seg.scene_elements:
-                for elem in seg.scene_elements:
-                    abs_start = seg_start + (elem.start_time or 0)
-                    abs_end = seg_start + (elem.end_time or 0)
-                    start_f = math.floor(abs_start * fps)
-                    end_f = min(math.ceil(abs_end * fps) - 1, total_frames - 1)
-                    if start_f <= end_f:
-                        chunks.append((start_f, end_f, f"story_{story_idx}"))
-                    story_idx += 1
-            else:
-                start_f = math.floor(seg_start * fps)
-                end_f = min(math.ceil(seg_end * fps) - 1, total_frames - 1)
-                if start_f <= end_f:
-                    chunks.append((start_f, end_f, seg.segment_type))
-
-        # Align boundaries: each chunk ends exactly one frame before the next starts
-        for i in range(len(chunks) - 1):
-            next_start = chunks[i + 1][0]
-            chunks[i] = (chunks[i][0], next_start - 1, chunks[i][2])
-
-        # Extend last chunk to cover total_frames
-        if chunks:
-            last_start, last_end, last_label = chunks[-1]
-            if last_end < total_frames - 1:
-                chunks[-1] = (last_start, total_frames - 1, last_label)
-
-        return chunks
 
     def _run_render_cmd(self, cmd: list) -> None:
         cmd_summary = []

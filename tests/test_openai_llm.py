@@ -35,8 +35,8 @@ def _make_content_item(index=0):
 
 
 def _make_provider():
-    with patch("src.providers.llm.openai.get_env", return_value="fake-key"):
-        with patch("src.providers.llm.openai.OpenAI"):
+    with patch("src.providers.llm.llm_client.get_env", return_value="fake-key"):
+        with patch("src.providers.llm.llm_client.OpenAI"):
             return OpenAILLMProvider(_make_config())
 
 
@@ -147,33 +147,33 @@ class TestExtractJson:
 class TestRepairJson:
     def test_trailing_comma_before_brace(self):
         provider = _make_provider()
-        result = provider._repair_json('{"a": 1,}')
+        result = provider._client._repair_json('{"a": 1,}')
         assert result == {"a": 1}
 
     def test_trailing_comma_before_bracket(self):
         provider = _make_provider()
-        result = provider._repair_json('{"a": [1,]}')
+        result = provider._client._repair_json('{"a": [1,]}')
         assert result == {"a": [1]}
 
     def test_unquoted_keys(self):
         provider = _make_provider()
-        result = provider._repair_json('{a: 1}')
+        result = provider._client._repair_json('{a: 1}')
         assert result == {"a": 1}
 
     def test_double_quoted_keys(self):
         provider = _make_provider()
-        result = provider._repair_json('{"a": 1}')
+        result = provider._client._repair_json('{"a": 1}')
         assert result == {"a": 1}
 
     def test_early_closing_brace(self):
         provider = _make_provider()
-        result = provider._repair_json('{"a": 1} extra stuff')
+        result = provider._client._repair_json('{"a": 1} extra stuff')
         assert result == {"a": 1}
 
     def test_unrepairable_raises(self):
         provider = _make_provider()
         with pytest.raises(json.JSONDecodeError):
-            provider._repair_json("not json at all")
+            provider._client._repair_json("not json at all")
 
 
 # ── _split_prompt ──────────────────────────────────────────────────────
@@ -223,8 +223,8 @@ class TestSingleStoryToJson:
     def test_comment_truncation(self):
         config = _make_config()
         config["pipeline"]["max_comments_for_r1_analyze"] = 2
-        with patch("src.providers.llm.openai.get_env", return_value="fake-key"):
-            with patch("src.providers.llm.openai.OpenAI"):
+        with patch("src.providers.llm.llm_client.get_env", return_value="fake-key"):
+            with patch("src.providers.llm.llm_client.OpenAI"):
                 provider = OpenAILLMProvider(config)
         item = _make_content_item(0)
         result = provider._single_story_to_json(item, 0)
@@ -255,3 +255,33 @@ class TestSingleStoryToJson:
         result = provider._single_story_to_json(item, 0)
         parsed = json.loads(result)
         assert parsed["has_images"] is True
+
+    def test_eventcard_fields_included(self):
+        provider = _make_provider()
+        item = _make_content_item(0)
+        item.editor_angle = "Google发布新模型"
+        item.dek = "Google在IO大会上发布了Gemini 2.5 Pro，推理能力大幅提升"
+        item.key_points = [{"label": "背景", "text": "Google IO 2026大会"}, {"label": "影响", "text": "影响所有使用LLM的开发者"}]
+        item.keywords = ["Gemini", "LLM", "推理"]
+        item.category = "AI工具"
+        item.visual_hint = "产品发布页面截图"
+        result = provider._single_story_to_json(item, 0)
+        parsed = json.loads(result)
+        assert parsed["editor_angle"] == "Google发布新模型"
+        assert parsed["dek"] == "Google在IO大会上发布了Gemini 2.5 Pro，推理能力大幅提升"
+        assert len(parsed["key_points"]) == 2
+        assert parsed["keywords"] == ["Gemini", "LLM", "推理"]
+        assert parsed["category"] == "AI工具"
+        assert parsed["visual_hint"] == "产品发布页面截图"
+
+    def test_eventcard_fields_omitted_when_none(self):
+        provider = _make_provider()
+        item = _make_content_item(0)
+        result = provider._single_story_to_json(item, 0)
+        parsed = json.loads(result)
+        assert "editor_angle" not in parsed
+        assert "dek" not in parsed
+        assert "key_points" not in parsed
+        assert "keywords" not in parsed
+        assert "category" not in parsed
+        assert "visual_hint" not in parsed

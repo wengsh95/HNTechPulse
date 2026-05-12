@@ -1,7 +1,6 @@
 import json
 import time
 from pathlib import Path
-from dataclasses import asdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
@@ -14,6 +13,11 @@ from src.pipeline.comment_judgement import (
     load_comment_judgements,
 )
 from src.pipeline.comment_selection import select_quote_comments
+from src.pipeline.script_io import save_script as _save_script, load_script as _load_script
+from src.pipeline.transcript_generator import (
+    generate_brief_transcript as _generate_brief_transcript,
+    save_transcript as _save_transcript,
+)
 from src.utils.logger import setup_logger
 from src.core.models import SceneElement, Cue
 
@@ -34,7 +38,7 @@ class ScriptWriter:
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
     @staticmethod
-    def _story_angle_from_segment(segment: ScriptSegment) -> dict:
+    def _story_angle_from_segment(segment: ScriptSegment, item=None) -> dict:
         """Extract the product-facing angle fields from an LLM story segment."""
         event_elem = next(
             (elem for elem in segment.scene_elements if elem.element_type == "event_card"),
@@ -42,14 +46,14 @@ class ScriptWriter:
         )
         props = event_elem.props if event_elem else {}
         return {
-            "editor_angle": props.get("editor_angle") or "",
-            "dek": props.get("dek") or "",
-            "key_points": props.get("key_points") or [],
-            "event_summary": props.get("event_summary") or "",
+            "editor_angle": props.get("editor_angle") or (item.editor_angle if item else None) or "",
+            "dek": props.get("dek") or (item.dek if item else None) or "",
+            "key_points": props.get("key_points") or (item.key_points if item else None) or [],
+            "event_summary": props.get("event_summary") or (item.dek if item else None) or "",
             "why_it_matters": props.get("why_it_matters") or "",
             "next_watch": props.get("next_watch") or "",
-            "category": props.get("category") or "",
-            "keywords": props.get("keywords") or [],
+            "category": props.get("category") or (item.category if item else None) or "",
+            "keywords": props.get("keywords") or (item.keywords if item else None) or [],
         }
 
     def _generate_fixed_opening(
@@ -155,7 +159,6 @@ class ScriptWriter:
         entries = []
         angle_by_story = {}
         for idx, seg in enumerate(story_scan_segs or []):
-            angle = self._story_angle_from_segment(seg)
             story_index = None
             for elem in seg.scene_elements:
                 if elem.props and "story_index" in elem.props:
@@ -163,6 +166,8 @@ class ScriptWriter:
                     break
             if story_index is None and idx < len(selection.brief_items):
                 story_index = selection.brief_items[idx].get("story_index")
+            item = content.items[story_index] if story_index is not None and story_index < len(content.items) else None
+            angle = self._story_angle_from_segment(seg, item=item)
             if story_index is not None:
                 angle_by_story[int(story_index)] = angle
 
@@ -456,266 +461,16 @@ class ScriptWriter:
         return script
 
     def save_script(self, script: Script, date: str) -> None:
-        path = Path(f"data/{date}/script.json")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        script_dict = asdict(script)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(script_dict, f, ensure_ascii=False, indent=2)
-        self.logger.info(f"Saved script to {path}")
+        _save_script(script, date, logger=self.logger)
 
     def generate_transcript(self, script: Script, date: str, content: Optional[ContentPackage] = None) -> str:
-        return self._generate_brief_transcript(script, date, content)
-
-    def _generate_brief_transcript(self, script: Script, date: str, content: Optional[ContentPackage] = None) -> str:
-        """Generate newsletter-style markdown for daily brief product (4-segment structure)."""
-        lines = [f"# HN TechPulse 每日快讯 | {date}", ""]
-        if script.description:
-            lines.append(f"> {script.description}")
-        if script.total_duration:
-            mins = int(script.total_duration) // 60
-            secs = int(script.total_duration) % 60
-            lines.append(f"> 视频时长 {mins}:{secs:02d}")
-        lines.append("")
-
-        opening_segment = None
-        dashboard_segment = None
-        scan_segment = None
-        closing_segment = None
-
-        for seg in script.segments:
-            if seg.segment_type == "opening":
-                opening_segment = seg
-            elif seg.segment_type == "dashboard":
-                dashboard_segment = seg
-            elif seg.segment_type == "story_scan":
-                scan_segment = seg
-            elif seg.segment_type == "closing":
-                closing_segment = seg
-
-        # Opening
-        if opening_segment:
-            lines.append("---")
-            lines.append("")
-            lines.append("## 开场")
-            lines.append("")
-            lines.append(opening_segment.audio_text)
-            lines.append("")
-
-        # Dashboard (top10 list)
-        if dashboard_segment:
-            dashboard_entries = []
-            for elem in dashboard_segment.scene_elements:
-                if elem.element_type == "dashboard_card":
-                    dashboard_entries = elem.props.get("entries", [])
-                    break
-
-            lines.append("---")
-            lines.append("")
-            lines.append("## 热度仪表盘")
-            lines.append("")
-
-            if dashboard_entries:
-                for entry in dashboard_entries:
-                    rank = entry.get("rank", "")
-                    title = entry.get("original_title", "") or entry.get("title", "")
-                    title_cn = entry.get("title_translation", "") or entry.get("title_cn", "")
-                    score = entry.get("score", "")
-                    comments = entry.get("comment_count", "")
-                    score_str = f" ▲ {score}" if score else ""
-                    comments_str = f" · 💬 {comments}" if comments else ""
-                    if title_cn:
-                        lines.append(f"{rank}. **{title_cn}** / {title}{score_str}{comments_str}")
-                    else:
-                        lines.append(f"{rank}. **{title}**{score_str}{comments_str}")
-            elif content:
-                for i, item in enumerate(content.items[:10], 1):
-                    score_str = f" ▲ {item.score}" if item.score else ""
-                    comments_str = f" · 💬 {item.comment_count}" if item.comment_count else ""
-                    title_cn = item.title_cn
-                    if title_cn:
-                        lines.append(f"{i}. **{title_cn}** / {item.title}{score_str}{comments_str}")
-                    else:
-                        lines.append(f"{i}. **{item.title}**{score_str}{comments_str}")
-            lines.append("")
-
-        # Story scan (逐条速览)
-        if scan_segment:
-            # Group scene_elements by story_index
-            story_elems: dict = {}
-            for elem in scan_segment.scene_elements:
-                si = elem.props.get("story_index") if elem.props else None
-                if si is not None:
-                    story_elems.setdefault(si, []).append(elem)
-
-            # Split audio_text per card using sub_segment_char_ranges
-            char_ranges = scan_segment.meta.get("sub_segment_char_ranges", []) if scan_segment.meta else []
-            card_texts = []
-            if char_ranges and scan_segment.audio_text:
-                for start, end in char_ranges:
-                    card_texts.append(scan_segment.audio_text[start:end].strip())
-
-            lines.append("---")
-            lines.append("")
-            lines.append("## 逐条速览")
-            lines.append("")
-
-            def _fmt_time(seconds):
-                if seconds is None:
-                    return ""
-                m = int(seconds) // 60
-                s = int(seconds) % 60
-                return f"{m}:{s:02d}"
-
-            card_idx = 0
-            for i in sorted(story_elems.keys()):
-                elems = story_elems[i]
-                item = content.items[i] if content and i < len(content.items) else None
-
-                event_elem = next((e for e in elems if e.element_type == "event_card"), None)
-                atmosphere_elem = next((e for e in elems if e.element_type == "atmosphere_card"), None)
-                quote_elem = next((e for e in elems if e.element_type == "quote_card"), None)
-
-                event_summary = event_elem.props.get("dek", "") or event_elem.props.get("event_summary", "") if event_elem else ""
-                display_idx = event_elem.props.get("display_index", i) if event_elem else i
-
-                lines.append(f"### {display_idx + 1}. {event_summary or (item.title if item else '')}")
-                lines.append("")
-
-                # Card-by-card narration
-                for _ in range(len([e for e in elems if e.element_type in ("event_card", "atmosphere_card", "quote_card")])):
-                    if card_idx < len(card_texts):
-                        lines.append(card_texts[card_idx])
-                        lines.append("")
-                    card_idx += 1
-
-                # Meta info
-                meta_parts = []
-                image_parts = []
-                if item:
-                    if item.score:
-                        meta_parts.append(f"▲ {item.score}")
-                    if item.comment_count:
-                        meta_parts.append(f"💬 {item.comment_count}")
-                    if item.url:
-                        meta_parts.append(f"[原文]({item.url})")
-                    if item.article_images:
-                        for img in item.article_images:
-                            image_parts.append(f"🖼 {img}")
-                    if item.screenshot_image:
-                        image_parts.append(f"📸 {item.screenshot_image}")
-                    if item.logo_image:
-                        image_parts.append(f"🏷 {item.logo_image}")
-                if meta_parts:
-                    lines.append(" · ".join(meta_parts))
-                    lines.append("")
-                if image_parts:
-                    lines.append(" · ".join(image_parts))
-                    lines.append("")
-
-                # Stance distribution from atmosphere_card
-                if atmosphere_elem and atmosphere_elem.props:
-                    dist = atmosphere_elem.props.get("stance_distribution", {})
-                    if dist:
-                        sorted_dist = sorted(dist.items(), key=lambda x: x[1], reverse=True)
-                        dist_str = " · ".join(f"{k} {int(v * 100)}%" for k, v in sorted_dist if v > 0)
-                        if dist_str:
-                            lines.append(f"**社区观点**  {dist_str}")
-                            lines.append("")
-
-                # Debate focus from atmosphere_card
-                if atmosphere_elem and atmosphere_elem.props:
-                    debate_focus = atmosphere_elem.props.get("debate_focus", [])
-                    if debate_focus:
-                        lines.append(f"**争议焦点**  {' · '.join(debate_focus)}")
-                        lines.append("")
-
-                # Quotes from quote_card
-                if quote_elem and quote_elem.props:
-                    quotes = quote_elem.props.get("quotes", [])
-                    if quotes:
-                        for q in quotes:
-                            stance = q.get("stance", "")
-                            author = q.get("author", "")
-                            text = q.get("text", "")
-                            stance_str = f"**[{stance}]** " if stance else ""
-                            lines.append(f"- {stance_str}{author}: \"{text[:120]}\"")
-                        lines.append("")
-            else:
-                if not story_elems and scan_segment.audio_text:
-                    lines.append(scan_segment.audio_text)
-                    lines.append("")
-
-        # Closing
-        if closing_segment:
-            lines.append("---")
-            lines.append("")
-            lines.append("## 结尾")
-            lines.append("")
-            lines.append(closing_segment.audio_text)
-            lines.append("")
-
-        return "\n".join(lines)
+        return _generate_brief_transcript(script, date, content)
 
     def save_transcript(self, script: Script, date: str, content: Optional[ContentPackage] = None) -> Path:
-        path = Path(f"data/{date}/transcript.md")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        md_content = self.generate_transcript(script, date, content)
-        path.write_text(md_content, encoding="utf-8")
-        self.logger.info(f"Saved transcript to {path}")
-        return path
+        return _save_transcript(script, date, content, logger=self.logger)
 
     def load_script(self, date: str) -> Script:
-        path = Path(f"data/{date}/script.json")
-        if not path.exists():
-            raise FileNotFoundError(f"Script not found: {path}")
-
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                script_dict = json.load(f)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Script file {path} contains invalid JSON: {e}") from e
-
-        try:
-            return Script(
-                title=script_dict["title"],
-                description=script_dict["description"],
-                tags=script_dict["tags"],
-                segments=[
-                    ScriptSegment(
-                        segment_type=s["segment_type"],
-                        audio_text=s["audio_text"],
-                        estimated_duration=s["estimated_duration"],
-                        actual_duration=s.get("actual_duration"),
-                        emotion=s.get("emotion", "neutral"),
-                        scene_elements=[
-                            SceneElement(
-                                element_type=e["element_type"],
-                                start_time=e["start_time"],
-                                end_time=e["end_time"],
-                                props=e["props"],
-                                sub_segment_index=e.get("sub_segment_index"),
-                            )
-                            for e in s.get("scene_elements", [])
-                        ],
-                        meta=s.get("meta", {}),
-                        start_time=s.get("start_time"),
-                        end_time=s.get("end_time"),
-                        audio_path=s.get("audio_path"),
-                        cues=[
-                            Cue(
-                                text=c["text"],
-                                start_time=c["start_time"],
-                                end_time=c["end_time"],
-                            )
-                            for c in s.get("cues", [])
-                        ],
-                    )
-                    for s in script_dict["segments"]
-                ],
-                total_duration=script_dict.get("total_duration"),
-            )
-        except (KeyError, TypeError) as e:
-            raise ValueError(f"Script file {path} has unexpected structure: {e}") from e
+        return _load_script(date)
 
     def _validate_cache_metadata(self, script: Script, content) -> bool:
         """Check cached script has timing metadata needed for card/cue alignment.
@@ -733,13 +488,19 @@ class ScriptWriter:
             return False
 
         # Milestone 2: story cards need editable fields for productized narrative.
+        # Fields may come from event_card props or ContentItem (enrichment).
         for elem in story_scan.scene_elements:
             if elem.element_type == "event_card":
-                if not elem.props.get("editor_angle"):
+                si = elem.props.get("story_index")
+                item = content.items[si] if si is not None and si < len(content.items) else None
+                has_angle = elem.props.get("editor_angle") or (item.editor_angle if item else None)
+                has_dek = elem.props.get("dek") or elem.props.get("event_summary") or (item.dek if item else None)
+                has_kp = elem.props.get("key_points") or (item.key_points if item else None)
+                if not has_angle:
                     return False
-                if not (elem.props.get("dek") or elem.props.get("event_summary")):
+                if not has_dek:
                     return False
-                if not elem.props.get("key_points"):
+                if not has_kp:
                     return False
 
         # Scene elements must know their sub-segment index

@@ -42,6 +42,13 @@ class ContentItem:
     logo_image: Optional[str] = None
     screenshot_image: Optional[str] = None
     article_summary: Optional[str] = None
+    # EventCard fields extracted during enrichment
+    editor_angle: Optional[str] = None
+    dek: Optional[str] = None
+    key_points: Optional[List[Dict[str, str]]] = None
+    keywords: Optional[List[str]] = None
+    category: Optional[str] = None
+    visual_hint: Optional[str] = None
     # Where article_text came from: "aiohttp" | "headless" | "headed" | "manual_override" | "none" | "skipped" | "error" | "legacy".
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.

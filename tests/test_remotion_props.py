@@ -12,8 +12,11 @@ from src.providers.renderer.remotion_props import (
     _expand_perspective_compare,
     _expand_event_card, _expand_atmosphere_card, _expand_quote_card,
     expand_element_props, ELEMENT_EXPANDERS,
+    sanitize_props, script_to_props,
+)
+from src.providers.renderer.cue_builder import (
     build_cues, _build_cues_from_word_timings, _build_cues_from_sentence_timings,
-    _split_into_cues, sanitize_props, script_to_props,
+    _split_into_cues,
 )
 from src.pipeline.comment_selection import (
     compute_comment_quality,

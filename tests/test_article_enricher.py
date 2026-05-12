@@ -54,16 +54,16 @@ class TestMakeHeaders:
 
 class TestFindChrome:
     def test_fallback_which(self):
-        with patch("src.providers.enricher.article_enricher.shutil.which", return_value="/usr/bin/chromium"):
-            with patch("src.providers.enricher.article_enricher.platform.system", return_value="Linux"):
+        with patch("src.providers.enricher.page_fetcher.shutil.which", return_value="/usr/bin/chromium"):
+            with patch("src.providers.enricher.page_fetcher.platform.system", return_value="Linux"):
                 result = _find_chrome()
                 # _find_chrome checks candidate paths first, then falls back to which
                 assert result is not None
 
     def test_none_found(self):
-        with patch("src.providers.enricher.article_enricher.shutil.which", return_value=None):
-            with patch("src.providers.enricher.article_enricher.platform.system", return_value="Linux"):
-                with patch("src.providers.enricher.article_enricher.Path") as MockPath:
+        with patch("src.providers.enricher.page_fetcher.shutil.which", return_value=None):
+            with patch("src.providers.enricher.page_fetcher.platform.system", return_value="Linux"):
+                with patch("src.providers.enricher.page_fetcher.Path") as MockPath:
                     # Make all Path.exists() return False
                     mp = MagicMock()
                     mp.exists.return_value = False
@@ -78,33 +78,27 @@ class TestFindChrome:
 class TestExtractText:
     def test_valid_html_returns_text(self):
         enricher = _make_enricher()
-        html = "<html><body><p>" + "A" * 200 + "</p></body></html>"
-        with patch("src.providers.enricher.article_enricher.trafilatura") as mock_traf:
-            mock_traf.extract.return_value = "A" * 200
-            result = enricher._extract_text(html, "https://example.com")
+        with patch.object(enricher.image_handler, "extract_text", return_value="A" * 200):
+            result = enricher._extract_text("<html></html>", "https://example.com")
             assert result is not None
             assert len(result) > 0
 
     def test_short_text_returns_none(self):
         enricher = _make_enricher()
-        html = "<html><body><p>short</p></body></html>"
-        with patch("src.providers.enricher.article_enricher.trafilatura") as mock_traf:
-            mock_traf.extract.return_value = "short"
-            result = enricher._extract_text(html, "https://example.com")
+        with patch.object(enricher.image_handler, "extract_text", return_value=None):
+            result = enricher._extract_text("<html></html>", "https://example.com")
             assert result is None
 
     def test_exception_returns_none(self):
         enricher = _make_enricher()
-        with patch("src.providers.enricher.article_enricher.trafilatura") as mock_traf:
-            mock_traf.extract.side_effect = Exception("boom")
+        with patch.object(enricher.image_handler, "extract_text", return_value=None):
             result = enricher._extract_text("html", "https://example.com")
             assert result is None
 
     def test_truncation(self):
         enricher = _make_enricher(max_text_length=500)
         long_text = "A" * 1000
-        with patch("src.providers.enricher.article_enricher.trafilatura") as mock_traf:
-            mock_traf.extract.return_value = long_text
+        with patch.object(enricher.image_handler, "extract_text", return_value=long_text[:500]):
             result = enricher._extract_text("<html></html>", "https://example.com")
             assert len(result) == 500
 
@@ -115,19 +109,19 @@ class TestExtractImages:
     def test_og_image(self):
         enricher = _make_enricher()
         html = '<html><head><meta property="og:image" content="https://x.com/img.jpg"></head><body></body></html>'
-        result = enricher._extract_images(html, "https://x.com")
+        result = enricher.image_handler.extract_images(html, "https://x.com")
         assert any("img.jpg" in url for url in result)
 
     def test_twitter_image(self):
         enricher = _make_enricher()
         html = '<html><head><meta name="twitter:image" content="https://x.com/tw.jpg"></head><body></body></html>'
-        result = enricher._extract_images(html, "https://x.com")
+        result = enricher.image_handler.extract_images(html, "https://x.com")
         assert any("tw.jpg" in url for url in result)
 
     def test_skip_tracking_images(self):
         enricher = _make_enricher()
         html = '<html><head><meta property="og:image" content="https://x.com/pixel.gif"></head><body></body></html>'
-        result = enricher._extract_images(html, "https://x.com")
+        result = enricher.image_handler.extract_images(html, "https://x.com")
         assert len(result) == 0
 
     def test_max_images_limit(self):
@@ -138,7 +132,7 @@ class TestExtractImages:
             '<meta name="twitter:image" content="https://x.com/b.jpg">'
             '</head><body></body></html>'
         )
-        result = enricher._extract_images(html, "https://x.com")
+        result = enricher.image_handler.extract_images(html, "https://x.com")
         assert len(result) <= 1
 
     def test_srcset_uses_largest_image(self):
@@ -148,7 +142,7 @@ class TestExtractImages:
             '<img srcset="/small.jpg 320w, /large.jpg 1280w">'
             '</article></body></html>'
         )
-        result = enricher._extract_images(html, "https://x.com/post")
+        result = enricher.image_handler.extract_images(html, "https://x.com/post")
         assert "https://x.com/large.jpg" in result
 
     def test_lazy_and_poster_images(self):
@@ -159,14 +153,14 @@ class TestExtractImages:
             '<video poster="/poster.jpg"></video>'
             '</main></body></html>'
         )
-        result = enricher._extract_images(html, "https://x.com/post")
+        result = enricher.image_handler.extract_images(html, "https://x.com/post")
         assert "https://x.com/lazy.jpg" in result
         assert "https://x.com/poster.jpg" in result
 
     def test_exception_returns_empty(self):
         enricher = _make_enricher()
-        with patch("src.providers.enricher.article_enricher.BeautifulSoup", side_effect=Exception("boom")):
-            result = enricher._extract_images("html", "https://x.com")
+        with patch("src.providers.enricher.image_handler.BeautifulSoup", side_effect=Exception("boom")):
+            result = enricher.image_handler.extract_images("html", "https://x.com")
             assert result == []
 
 
@@ -204,10 +198,10 @@ class TestImageSelection:
             {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
         ]
 
-        selected = enricher._choose_auto_image_candidate(candidates)
+        selected = enricher.image_handler.choose_auto_image_candidate(candidates)
 
         assert selected["path"] == "images/good.jpg"
-        assert enricher._candidate_paths(candidates, preferred_path=selected["path"])[0] == "images/good.jpg"
+        assert enricher.image_handler.candidate_paths(candidates, preferred_path=selected["path"])[0] == "images/good.jpg"
 
     def test_auto_select_uses_screenshot_before_bing_when_page_is_too_small(self):
         enricher = _make_enricher()
@@ -217,7 +211,7 @@ class TestImageSelection:
             {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
         ]
 
-        selected = enricher._choose_auto_image_candidate(candidates)
+        selected = enricher.image_handler.choose_auto_image_candidate(candidates)
 
         assert selected["path"] == "images/shot.jpg"
 
@@ -228,7 +222,7 @@ class TestImageSelection:
             {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
         ]
 
-        selected = enricher._choose_auto_image_candidate(candidates)
+        selected = enricher.image_handler.choose_auto_image_candidate(candidates)
 
         assert selected["path"] == "images/bing.jpg"
 
@@ -336,11 +330,11 @@ class TestImageSelection:
             raise AssertionError("cached screenshots should skip recapture")
 
         enricher._extract_text = MagicMock(return_value="A" * 300)
-        enricher._extract_images = MagicMock(return_value=["https://x.com/new.jpg"])
-        enricher._summarize = MagicMock(return_value="summary")
-        enricher._download_image_candidates = fail_download
-        enricher._search_bing_images = fail_bing
-        enricher._capture_screenshot = fail_screenshot
+        enricher.image_handler.extract_images = MagicMock(return_value=["https://x.com/new.jpg"])
+        enricher._enrich_content = MagicMock(return_value={"article_summary": "summary"})
+        enricher.image_handler.download_image_candidates = fail_download
+        enricher.image_handler.search_bing_images = fail_bing
+        enricher.fetcher.capture_screenshot = fail_screenshot
 
         asyncio.run(enricher._phase2_extract_one(item, date, asyncio.Semaphore(1)))
 

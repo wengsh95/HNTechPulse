@@ -1,124 +1,21 @@
 import asyncio
-import io
 import json
 import logging
-import platform
-import random
-import re
-import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
-from urllib.parse import quote_plus, urljoin, urlparse
+from urllib.parse import urlparse
 
-import aiohttp
-from bs4 import BeautifulSoup
-from PIL import Image
 from openai import OpenAI
-import trafilatura
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
 
 from src.core.models import ContentPackage
 from src.core.prompts import render_prompt
-
-# Rotating User-Agent pool — real Chrome/Firefox on Windows/macOS
-_USER_AGENTS = [
-    # Chrome 131 on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    # Chrome 131 on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    # Edge 131 on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
-    # Firefox 133 on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    # Chrome 130 on Linux
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-]
-
-# Base browser headers (User-Agent replaced per request)
-_BASE_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    "DNT": "1",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-}
-
-# Chrome launch args: anti-detection + console/network logging
-_CHROME_LAUNCH_ARGS = [
-    "--disable-blink-features=AutomationControlled",
-    "--disable-features=IsolateOrigins,site-per-process",
-    "--disable-infobars",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-background-timer-throttling",
-    "--disable-backgrounding-occluded-windows",
-    "--disable-renderer-backgrounding",
-    "--enable-features=NetworkService,NetworkServiceInProcess",
-    "--enable-logging",
-    "--v=1",
-]
-
-def _make_headers() -> Dict[str, str]:
-    """Return a copy of base headers with a randomly chosen User-Agent."""
-    headers = dict(_BASE_HEADERS)
-    headers["User-Agent"] = random.choice(_USER_AGENTS)
-    return headers
-
-
-def _find_chrome() -> Optional[str]:
-    """Auto-detect a local Chrome/Chromium executable."""
-    system = platform.system()
-    candidates = []
-
-    if system == "Windows":
-        candidates = [
-            # Chrome stable
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            # Chrome — user install
-            str(Path.home() / r"AppData\Local\Google\Chrome\Application\chrome.exe"),
-            # Chromium
-            str(Path.home() / r"AppData\Local\Chromium\Application\chrome.exe"),
-            # Edge (Chromium-based, Playwright-compatible)
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        ]
-    elif system == "Darwin":
-        candidates = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        ]
-    elif system == "Linux":
-        candidates = [
-            "/usr/bin/google-chrome",
-            "/usr/bin/chromium-browser",
-            "/usr/bin/chromium",
-            "/usr/bin/microsoft-edge",
-            "/snap/bin/chromium",
-        ]
-
-    for path in candidates:
-        if path and shutil.which(path) if system != "Windows" else Path(path).exists():
-            return path
-
-    # Fallback: search PATH
-    for name in ["google-chrome", "chromium-browser", "chromium", "chrome", "msedge"]:
-        found = shutil.which(name)
-        if found:
-            return found
-
-    return None
+from src.providers.enricher.page_fetcher import (
+    _USER_AGENTS,
+    _make_headers,
+    _find_chrome,
+    PageFetcher,
+)
+from src.providers.enricher.image_handler import ImageHandler
 
 
 class ArticleEnricher:
@@ -126,8 +23,6 @@ class ArticleEnricher:
         self.config = config
         self.debug = debug
         enrich_cfg = config.get("enrich", {})
-        # Child of the main "hn_techpulse" logger — inherits its file handler
-        # via propagation, so enricher-level failures land in logs/app_*.log.
         self.logger = logging.getLogger("hn_techpulse.enricher")
 
         self.enabled = enrich_cfg.get("enabled", False)
@@ -151,19 +46,39 @@ class ArticleEnricher:
         if self.browser_executable:
             self.logger.debug(f"Using browser: {self.browser_executable}")
 
-        # Domains to skip outright — heavy anti-bot, login walls, or
-        # sites known to serve nothing useful to scrapers.
         self.skip_domains = {
             d.lower().lstrip(".")
             for d in enrich_cfg.get("skip_domains", []) or []
         }
 
         _target = enrich_cfg.get("image_target_size", [1280, 720])
-        self.image_target_width = _target[0]
-        self.image_target_height = _target[1]
         _min_size = enrich_cfg.get("image_min_size", [640, 360])
-        self.image_min_width = _min_size[0]
-        self.image_min_height = _min_size[1]
+
+        # Sub-components
+        self.fetcher = PageFetcher(
+            logger=self.logger,
+            retry_count=self.retry_count,
+            request_timeout=self.request_timeout,
+            request_delay=self.request_delay,
+            use_headless=self.use_headless,
+            use_headed=self.use_headed,
+            screenshot_enabled=self.screenshot_enabled,
+            save_fetched_html=self.save_fetched_html,
+            browser_executable=self.browser_executable,
+        )
+        self.image_handler = ImageHandler(
+            logger=self.logger,
+            max_images=self.max_images,
+            max_image_size=self.max_image_size,
+            image_target_width=_target[0],
+            image_target_height=_target[1],
+            image_min_width=_min_size[0],
+            image_min_height=_min_size[1],
+            bing_image_search=self.bing_image_search,
+            bing_max_results=self.bing_max_results,
+            bing_max_queries=self.bing_max_queries,
+            request_timeout=self.request_timeout,
+        )
 
         # Independent LLM config for summarization
         llm_cfg = enrich_cfg.get("llm", {})
@@ -185,8 +100,7 @@ class ArticleEnricher:
         self.llm_max_tokens = llm_max_tokens
         self.llm_temperature = llm_temperature
 
-        # Load summarize prompt
-        self._summarize_prompt = self._load_prompt("prompts/article_summarize.md")
+        self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
 
     @staticmethod
     def _load_prompt(path: str) -> str:
@@ -205,19 +119,15 @@ class ArticleEnricher:
 
         self.logger.info(f"Enriching {len(content.items)} items...")
 
-        # Load image selections (user-chosen images from previous runs)
         self._load_image_selection(content, date)
 
-        # Load checkpoint (enrichment.json)
         cache_path = Path(f"data/{date}/enrichment.json")
         if cache_path.exists():
             self._load_from_cache(content, cache_path)
 
-        # Ensure downloaded_pages directory exists
         pages_dir = self._pages_dir(date)
         pages_dir.mkdir(parents=True, exist_ok=True)
 
-        # Classify items
         classified = self._classify_items(content, date)
         done = len(classified["done"]) + len(classified["skipped"])
         to_fetch = len(classified["full"])
@@ -233,7 +143,6 @@ class ArticleEnricher:
             self.logger.info("All items already enriched, skipping")
             return content
 
-        # Run async enrichment
         try:
             loop = asyncio.get_running_loop()
             import concurrent.futures
@@ -243,55 +152,39 @@ class ArticleEnricher:
         except RuntimeError:
             asyncio.run(self._enrich_items(content, date, classified))
 
-        # Generate image selection file for user review
         self._generate_image_selection(content, date)
-
-        # Save checkpoint
         self._save_to_cache(content, cache_path)
         self.logger.info("Enrichment complete")
         return content
 
     async def _enrich_items(self, content: ContentPackage, date: str, classified: dict):
-        # Phase 1: Fetch HTML for 'full' items
         if classified["full"]:
             await self._phase1_fetch_all(content, date, classified["full"])
 
-        # Determine which items need Phase 2 extraction
-        # (Phase 1 successes + pre-existing phase2_only items)
         phase2_items = list(classified["phase2_only"])
         for item in classified["full"]:
             if item.enrichment_source not in ("fetch_failed", "skipped", "error"):
                 phase2_items.append(item)
 
-        # Phase 2: Extract from on-disk HTML
         if phase2_items:
             await self._phase2_extract_all(phase2_items, date)
 
     # ── Item Classification ────────────────────────────────────
 
     def _classify_items(self, content: ContentPackage, date: str) -> dict:
-        """Classify items into done/phase2_only/full/skipped buckets.
-
-        Returns:
-            dict with keys 'done', 'phase2_only', 'full', 'skipped' —
-            each maps to a list of ContentItem.
-        """
         pages_dir = self._pages_dir(date)
         result = {"done": [], "phase2_only": [], "full": [], "skipped": []}
 
         for item in content.items:
-            # Already enriched (from cache or previous run)
             if item.article_text is not None or item.article_summary is not None:
                 result["done"].append(item)
                 continue
 
-            # No URL to fetch
             if not item.url:
                 item.enrichment_source = "skipped"
                 result["skipped"].append(item)
                 continue
 
-            # Domain skip list
             if self.skip_domains:
                 host = (urlparse(item.url).hostname or "").lower().lstrip(".")
                 if any(host == d or host.endswith("." + d) for d in self.skip_domains):
@@ -299,11 +192,16 @@ class ArticleEnricher:
                     item.article_text = None
                     item.article_images = []
                     item.article_summary = None
+                    item.editor_angle = None
+                    item.dek = None
+                    item.key_points = None
+                    item.keywords = None
+                    item.category = None
+                    item.visual_hint = None
                     item.screenshot_image = None
                     result["skipped"].append(item)
                     continue
 
-            # HTML file exists on disk → validate it has extractable content
             html_path = pages_dir / f"{item.source_id}.html"
             if html_path.exists():
                 try:
@@ -326,12 +224,11 @@ class ArticleEnricher:
     # ── Phase 1: Fetch HTML to disk ────────────────────────────
 
     async def _phase1_fetch_all(self, content: ContentPackage, date: str, items: list):
-        """Fetch HTML for 'full' items using aiohttp → headless → headed fallback."""
         pages_dir = self._pages_dir(date)
         remaining = items
         total = len(items)
 
-        # Strategy 1: aiohttp (fast, non-blocking)
+        # Strategy 1: aiohttp
         aiohttp_failed = []
         for item in remaining:
             strategy = await self._phase1_fetch_one_aiohttp(item, pages_dir)
@@ -347,44 +244,44 @@ class ArticleEnricher:
                 f"{len(aiohttp_failed)} → headless"
             )
 
-        # Strategy 2: Headless Chrome (batch, single browser)
+        # Strategy 2: Headless Chrome
         if aiohttp_failed and self.use_headless:
-            headless_failed = await self._phase1_fetch_browser_batch(
+            headless_failed = await self.fetcher.fetch_browser_batch(
                 aiohttp_failed, pages_dir, headless=True, date=date
             )
         else:
             headless_failed = aiohttp_failed
 
-        # Strategy 3: Headed Chrome (batch, single browser)
+        # Strategy 3: Headed Chrome
         if headless_failed and self.use_headed:
-            headed_failed = await self._phase1_fetch_browser_batch(
+            headed_failed = await self.fetcher.fetch_browser_batch(
                 headless_failed, pages_dir, headless=False, date=date
             )
         else:
             headed_failed = headless_failed
 
-        # Remaining failures
         for item in headed_failed:
             item.enrichment_source = "fetch_failed"
             item.article_text = None
             item.article_images = []
             item.article_summary = None
+            item.editor_angle = None
+            item.dek = None
+            item.key_points = None
+            item.keywords = None
+            item.category = None
+            item.visual_hint = None
             item.screenshot_image = None
             self.logger.info(f"[fetch_failed] {item.title[:50]} ({item.url})")
 
     async def _phase1_fetch_one_aiohttp(self, item, pages_dir: Path) -> Optional[str]:
-        """Try aiohttp fetch. On success save HTML to disk, return strategy name.
-        Returns None if fetch fails OR if the HTML has no extractable content,
-        so the item falls through to headless/headed."""
         try:
-            html = await self._fetch_page(item.url)
+            html = await self.fetcher.fetch_page(item.url)
             if html:
                 html_path = pages_dir / f"{item.source_id}.html"
                 if self.save_fetched_html:
                     html_path.write_text(html, encoding="utf-8", errors="replace")
                     self.logger.debug(f"HTML saved: {html_path} ({len(html)} bytes)")
-                # Verify the HTML actually contains extractable content.
-                # If not, return None so headless/headed gets a chance.
                 if self._extract_text(html, item.url or ""):
                     return "aiohttp"
                 self.logger.debug(
@@ -396,120 +293,9 @@ class ArticleEnricher:
             pass
         return None
 
-    async def _phase1_fetch_browser_batch(
-        self, items: list, pages_dir: Path, headless: bool, date: str
-    ) -> list:
-        """Fetch multiple URLs with a single Playwright browser instance.
-
-        Returns list of items that still failed (for next fallback).
-        """
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError:
-            self.logger.info("playwright not installed, skipping browser batch")
-            return items
-
-        launch_kwargs = {"headless": headless, "args": _CHROME_LAUNCH_ARGS}
-        if self.browser_executable:
-            launch_kwargs["executable_path"] = self.browser_executable
-
-        strategy_name = "headless" if headless else "headed"
-        failed = []
-        image_dir = Path(f"data/{date}/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
-                try:
-                    for item in items:
-                        try:
-                            context = await browser.new_context(
-                                user_agent=random.choice(_USER_AGENTS),
-                                viewport={"width": 1280, "height": 720},
-                                locale="en-US",
-                            )
-                            page = await context.new_page()
-                            try:
-                                from playwright_stealth import stealth_async
-                                await stealth_async(page)
-                            except ImportError:
-                                pass
-
-                            if self.request_delay > 0:
-                                await asyncio.sleep(self.request_delay)
-
-                            await page.goto(
-                                item.url,
-                                wait_until="domcontentloaded",
-                                timeout=self.request_timeout * 1000,
-                            )
-                            await asyncio.sleep(1.5)
-
-                            # Check for anti-bot blocks
-                            block_reason = await self._check_anti_bot(page, item.url, self.logger)
-                            if block_reason:
-                                self.logger.debug(
-                                    f"[{strategy_name}] anti-bot: {block_reason} — {item.url}"
-                                )
-                                await context.close()
-                                continue
-
-                            # Save HTML
-                            html = await page.content()
-                            if html and len(html) > 500:
-                                html_path = pages_dir / f"{item.source_id}.html"
-                                if self.save_fetched_html:
-                                    html_path.write_text(html, encoding="utf-8", errors="replace")
-                                item.enrichment_source = strategy_name
-                                self.logger.debug(
-                                    f"[{strategy_name}] {item.title[:50]} ({len(html)} bytes)"
-                                )
-
-                                # Capture screenshot
-                                if self.screenshot_enabled:
-                                    screenshot_dest = image_dir / f"{item.source_id}_screenshot.jpg"
-                                    try:
-                                        await page.screenshot(
-                                            path=str(screenshot_dest),
-                                            type="jpeg", quality=85,
-                                        )
-                                        item.screenshot_image = f"images/{item.source_id}_screenshot.jpg"
-                                    except Exception:
-                                        pass
-                            else:
-                                self.logger.debug(
-                                    f"[{strategy_name}] empty/short HTML for {item.url}"
-                                )
-                            await context.close()
-                        except Exception as e:
-                            self.logger.debug(
-                                f"[{strategy_name}] failed for {item.url}: {e}"
-                            )
-                            try:
-                                await context.close()
-                            except Exception:
-                                pass
-                finally:
-                    await browser.close()
-        except Exception as e:
-            self.logger.debug(f"Browser batch failed: {e}")
-            # If the entire browser launch failed, all items fail
-            for item in items:
-                if item.enrichment_source is None:
-                    failed.append(item)
-            return failed
-
-        # Collect items that still have no strategy (failed in the loop)
-        for item in items:
-            if item.enrichment_source != strategy_name and item not in failed:
-                failed.append(item)
-        return failed
-
     # ── Phase 2: Extract from on-disk HTML ─────────────────────
 
     async def _phase2_extract_all(self, items: list, date: str):
-        """Run Phase 2 extraction for all items that have HTML on disk."""
         semaphore = asyncio.Semaphore(self.max_concurrent)
         tasks = [self._phase2_extract_one(item, date, semaphore) for item in items]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -518,7 +304,6 @@ class ArticleEnricher:
                 self.logger.info(f"Phase 2 extraction failed for item {items[i].source_id}: {r}")
 
     async def _phase2_extract_one(self, item, date: str, semaphore: asyncio.Semaphore):
-        """Read HTML from disk and run full extraction pipeline."""
         async with semaphore:
             try:
                 pages_dir = self._pages_dir(date)
@@ -531,24 +316,25 @@ class ArticleEnricher:
                 html = html_path.read_text(encoding="utf-8", errors="replace")
                 image_dir = Path(f"data/{date}/images")
                 image_dir.mkdir(parents=True, exist_ok=True)
-                cached_image_candidates = self._cached_image_candidates(item, image_dir)
+                cached_image_candidates = self.image_handler.cached_image_candidates(item, image_dir)
 
-                # Extract text
                 article_text = self._extract_text(html, item.url or "")
                 if not article_text:
                     item.article_text = None
                     item.article_images = []
                     item.article_summary = None
+                    item.editor_angle = None
+                    item.dek = None
+                    item.key_points = None
+                    item.keywords = None
+                    item.category = None
+                    item.visual_hint = None
                     item.enrichment_source = "extraction_failed"
-                    self.logger.debug(
-                        f"Phase 2 extraction empty: {item.title[:50]}"
-                    )
+                    self.logger.debug(f"Phase 2 extraction empty: {item.title[:50]}")
                     return
 
-                # Extract images from HTML
-                image_urls = self._extract_images(html, item.url or "")
+                image_urls = self.image_handler.extract_images(html, item.url or "")
 
-                # Download page images
                 page_candidates = []
                 if cached_image_candidates:
                     self.logger.debug(
@@ -556,7 +342,7 @@ class ArticleEnricher:
                         f"for {item.source_id}"
                     )
                 elif image_urls:
-                    page_candidates = await self._download_image_candidates(
+                    page_candidates = await self.image_handler.download_image_candidates(
                         image_urls,
                         image_dir,
                         str(item.source_id),
@@ -564,27 +350,25 @@ class ArticleEnricher:
                         label="Article image",
                     )
 
-                # Bing image search
                 bing_candidates = []
                 if not cached_image_candidates and self.bing_image_search and item.title:
-                    bing_candidates = await self._search_bing_images(
-                        item.title, item.url or "", image_dir, str(item.source_id)
+                    bing_candidates = await self.image_handler.search_bing_images(
+                        item.title, item.url or "", image_dir, str(item.source_id), self.fetcher
                     )
 
-                # Screenshot: reuse from Phase 1 if exists, otherwise capture now
-                screenshot_image = item.screenshot_image  # may have been set in Phase 1
+                screenshot_image = item.screenshot_image
                 if not screenshot_image and self.screenshot_enabled:
                     screenshot_filename = f"{item.source_id}_screenshot.jpg"
                     if (image_dir / screenshot_filename).exists():
                         screenshot_image = f"images/{screenshot_filename}"
                     elif item.url:
-                        screenshot_image = await self._capture_screenshot(
+                        screenshot_image = await self.fetcher.capture_screenshot(
                             item.url, image_dir, str(item.source_id)
                         )
                     item.screenshot_image = screenshot_image
 
-                # LLM summary
-                article_summary = self._summarize(article_text, item.title)
+                enrich_result = self._enrich_content(article_text, item.title)
+                article_summary = enrich_result.get("article_summary") if enrich_result else None
 
                 image_candidates = list(cached_image_candidates)
                 if not image_candidates:
@@ -605,19 +389,24 @@ class ArticleEnricher:
                         "height": 720,
                     })
 
-                selected_candidate = self._choose_auto_image_candidate(image_candidates)
+                selected_candidate = self.image_handler.choose_auto_image_candidate(image_candidates)
                 selected_path = selected_candidate.get("path") if selected_candidate else None
                 if selected_path:
                     for candidate in image_candidates:
                         candidate["auto_selected"] = candidate.get("path") == selected_path
                     if selected_candidate is not None:
-                        selected_candidate["selection_reason"] = self._selection_reason(selected_candidate)
+                        selected_candidate["selection_reason"] = self.image_handler.selection_reason(selected_candidate)
 
-                # Populate item
                 item.article_text = article_text[:self.max_text_length]
-                item.article_images = self._candidate_paths(image_candidates, preferred_path=selected_path)
+                item.article_images = self.image_handler.candidate_paths(image_candidates, preferred_path=selected_path)
                 item.article_summary = article_summary
-                # Keep enrichment_source from Phase 1 if set; otherwise mark as downloaded_page
+                if enrich_result:
+                    item.editor_angle = enrich_result.get("editor_angle")
+                    item.dek = enrich_result.get("dek")
+                    item.key_points = enrich_result.get("key_points")
+                    item.keywords = enrich_result.get("keywords")
+                    item.category = enrich_result.get("category")
+                    item.visual_hint = enrich_result.get("visual_hint")
                 if not item.enrichment_source or item.enrichment_source == "fetch_failed":
                     item.enrichment_source = "downloaded_page"
 
@@ -635,674 +424,75 @@ class ArticleEnricher:
                 item.article_text = None
                 item.article_images = []
                 item.article_summary = None
+                item.editor_angle = None
+                item.dek = None
+                item.key_points = None
+                item.keywords = None
+                item.category = None
+                item.visual_hint = None
                 item.enrichment_source = "error"
                 item.enrichment_error = f"{type(e).__name__}: {e}"
                 item.screenshot_image = None
 
-    async def _fetch_page(self, url: str) -> Optional[str]:
-        # Validate URL
-        parsed = urlparse(url)
-        if parsed.scheme not in ("http", "https"):
-            return None
-
-        @retry(
-            stop=stop_after_attempt(self.retry_count),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
-            retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
-            reraise=True,
-        )
-        async def _do_fetch():
-            headers = _make_headers()  # fresh UA per attempt
-            timeout = aiohttp.ClientTimeout(total=self.request_timeout)
-            async with aiohttp.ClientSession(
-                timeout=timeout,
-                headers=headers,
-                trust_env=True,
-            ) as session:
-                async with session.get(
-                    url, allow_redirects=True, max_redirects=5,
-                ) as resp:
-                    if resp.status == 429:
-                        self.logger.debug(f"HTTP 429 (rate-limited) for {url}")
-                        raise aiohttp.ClientError(f"Rate limited: {url}")
-                    if resp.status in (403, 401):
-                        # Likely WAF / bot challenge. Not retried — headless
-                        # fallback has a better chance than more aiohttp hits.
-                        self.logger.debug(
-                            f"HTTP {resp.status} (likely bot challenge) for {url}"
-                        )
-                        return None
-                    if resp.status != 200:
-                        self.logger.debug(f"HTTP {resp.status} for {url}")
-                        raise aiohttp.ClientError(f"HTTP {resp.status} for {url}")
-                    ct = resp.headers.get("Content-Type", "")
-                    if "text/html" not in ct and "application/xhtml" not in ct:
-                        self.logger.debug(f"Non-HTML content type: {ct} for {url}")
-                        return None
-                    body = await resp.content.read(10 * 1024 * 1024)
-                    return body.decode("utf-8", errors="replace")
-
-        try:
-            return await _do_fetch()
-        except Exception as e:
-            self.logger.debug(f"Fetch failed for {url}: {e}")
-            return None
-
-    async def _capture_screenshot(self, url: str, image_dir: Path, source_id: str) -> Optional[str]:
-        """Capture a webpage screenshot using headless Chrome (standalone, no text extraction)."""
-        if not self.screenshot_enabled or not self.use_headless:
-            return None
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError:
-            return None
-
-        filename = f"{source_id}_screenshot.jpg"
-        dest = image_dir / filename
-
-        launch_kwargs = {"headless": True, "args": _CHROME_LAUNCH_ARGS}
-        if self.browser_executable:
-            launch_kwargs["executable_path"] = self.browser_executable
-
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
-                context = await browser.new_context(
-                    user_agent=random.choice(_USER_AGENTS),
-                    viewport={"width": 1280, "height": 720},
-                    locale="en-US",
-                )
-                page = await context.new_page()
-                try:
-                    from playwright_stealth import stealth_async
-                    await stealth_async(page)
-                except ImportError:
-                    pass
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
-                    await asyncio.sleep(1.5)
-                    await page.screenshot(path=str(dest), type="jpeg", quality=85)
-                    self.logger.debug(f"Screenshot captured: {dest}")
-                    return f"images/{filename}"
-                except Exception as e:
-                    self.logger.debug(f"Screenshot capture failed for {url}: {e}")
-                    return None
-                finally:
-                    await browser.close()
-        except Exception as e:
-            self.logger.debug(f"Headless Chrome failed for screenshot of {url}: {e}")
-            return None
-
-    @staticmethod
-    async def _check_anti_bot(page, url: str, logger) -> Optional[str]:
-        """Detect anti-bot challenges on the page. Returns reason or None."""
-        try:
-            title = await page.title()
-            url_after = page.url
-
-            # Cloudflare challenge
-            if "just a moment" in title.lower() or "checking your browser" in title.lower():
-                return "Cloudflare challenge page"
-            cf_meta = await page.query_selector('meta[name="cf-beacon"]')
-            if cf_meta:
-                # cf-beacon present but content extracted — not necessarily blocked
-                pass
-
-            # Check for common challenge frames
-            cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
-            if cf_iframe:
-                return "Cloudflare Turnstile/Challenge iframe"
-
-            # Generic CAPTCHA indicators
-            captcha = await page.query_selector('[class*="captcha"], [id*="captcha"], .g-recaptcha, .h-captcha')
-            if captcha:
-                return "CAPTCHA detected"
-
-            # Login/paywall redirects
-            parsed_before = urlparse(url)
-            parsed_after = urlparse(url_after)
-            if parsed_after.hostname and parsed_before.hostname:
-                if parsed_after.hostname != parsed_before.hostname:
-                    if any(kw in parsed_after.hostname for kw in ("login", "auth", "signin", "subscribe", "paywall")):
-                        return f"Redirected to {parsed_after.hostname}"
-
-            # JS-rendered empty shell: very few DOM nodes
-            node_count = await page.evaluate("document.querySelectorAll('*').length")
-            if node_count < 15:
-                return f"Near-empty DOM ({node_count} nodes)"
-
-            return None
-        except Exception:
-            return None
-
-    async def _fetch_with_headless(self, url: str, screenshot_path: Optional[str] = None) -> Optional[str]:
-        """Fetch page using Playwright headless Chrome with stealth anti-detection."""
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError:
-            self.logger.info("playwright not installed, run: uv add playwright && playwright install chromium")
-            return None
-
-        launch_kwargs = {"headless": True, "args": _CHROME_LAUNCH_ARGS}
-        if self.browser_executable:
-            launch_kwargs["executable_path"] = self.browser_executable
-
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
-                context = await browser.new_context(
-                    user_agent=random.choice(_USER_AGENTS),
-                    viewport={"width": 1280, "height": 720},
-                    locale="en-US",
-                )
-                page = await context.new_page()
-                try:
-                    from playwright_stealth import stealth_async
-                    await stealth_async(page)
-                except ImportError:
-                    pass
-
-                # Capture console messages for debugging
-                console_msgs = []
-                page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
-
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
-                    await asyncio.sleep(1.5)
-
-                    # Check for anti-bot blocks
-                    block_reason = await self._check_anti_bot(page, url, self.logger)
-                    if block_reason:
-                        self.logger.debug(f"Headless anti-bot: {block_reason} — {url}")
-                        # Log last few console messages for diagnosis
-                        for msg in console_msgs[-5:]:
-                            self.logger.debug(f"  console: {msg}")
-                        return None
-
-                    if screenshot_path and self.screenshot_enabled:
-                        try:
-                            await page.screenshot(path=screenshot_path, type="jpeg", quality=85)
-                        except Exception as e:
-                            self.logger.debug(f"Screenshot capture failed: {e}")
-                    html = await page.content()
-                    if html and len(html) > 500:
-                        return html
-                    return None
-                finally:
-                    await browser.close()
-        except Exception as e:
-            self.logger.debug(f"Headless Chrome failed for {url}: {e}")
-            return None
-
-    async def _fetch_with_headed(self, url: str) -> Optional[str]:
-        """Fetch page using Playwright headed Chrome (visible browser window)."""
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError:
-            self.logger.info("playwright not installed, skipping headed Chrome")
-            return None
-
-        launch_kwargs = {"headless": False, "args": _CHROME_LAUNCH_ARGS}
-        if self.browser_executable:
-            launch_kwargs["executable_path"] = self.browser_executable
-
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
-                context = await browser.new_context(
-                    user_agent=random.choice(_USER_AGENTS),
-                    viewport={"width": 1280, "height": 720},
-                    locale="en-US",
-                )
-                page = await context.new_page()
-                try:
-                    from playwright_stealth import stealth_async
-                    await stealth_async(page)
-                except ImportError:
-                    pass
-
-                # Capture console messages for debugging
-                console_msgs = []
-                page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
-
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
-                    await asyncio.sleep(3.0)
-
-                    # Check for anti-bot blocks
-                    block_reason = await self._check_anti_bot(page, url, self.logger)
-                    if block_reason:
-                        self.logger.debug(f"Headed anti-bot: {block_reason} — {url}")
-                        for msg in console_msgs[-5:]:
-                            self.logger.debug(f"  console: {msg}")
-                        return None
-
-                    html = await page.content()
-                    if html and len(html) > 500:
-                        return html
-                    return None
-                finally:
-                    await browser.close()
-        except Exception as e:
-            self.logger.debug(f"Headed Chrome failed for {url}: {e}")
-            return None
-
-    async def _search_bing_images(
-        self, title: str, url: str, image_dir: Path, source_id: str
-    ) -> List[Dict[str, Any]]:
-        """Search Bing Images for article title, download top results."""
-        domain = urlparse(url).hostname or ""
-        queries = []
-        if domain:
-            queries.append(f"{title} {domain}".strip())
-        queries.append(title.strip())
-
-        try:
-            # Use headless Chrome — Bing blocks plain aiohttp with an empty page.
-            image_urls = []
-            used_queries = []
-            for query in queries[: max(1, self.bing_max_queries)]:
-                if not query:
-                    continue
-                search_url = (
-                    "https://www.bing.com/images/search?"
-                    f"q={quote_plus(query)}&first=1"
-                )
-                html = await self._fetch_with_headless(search_url)
-                if not html:
-                    html = await self._fetch_page(search_url)
-                if not html:
-                    continue
-
-                for img_url in self._extract_bing_image_urls(html):
-                    if img_url not in image_urls:
-                        image_urls.append(img_url)
-                        used_queries.append(query)
-                    if len(image_urls) >= self.bing_max_results:
-                        break
-                if len(image_urls) >= self.bing_max_results:
-                    break
-
-            candidates = await self._download_image_candidates(
-                image_urls[:self.bing_max_results],
-                image_dir,
-                f"{source_id}_bing",
-                source="bing",
-                label="Bing result",
-            )
-            for candidate in candidates:
-                idx = candidate.get("rank", 0)
-                if isinstance(idx, int) and idx < len(used_queries):
-                    candidate["query"] = used_queries[idx]
-            return candidates
-        except Exception as e:
-            self.logger.info(f"Bing image search failed for '{title}': {e}")
-            return []
-
-    def _extract_bing_image_urls(self, html: str) -> List[str]:
-        """Extract image URLs from Bing Images search results HTML."""
-        try:
-            soup = BeautifulSoup(html, "lxml")
-            urls = []
-            # Bing stores image URLs in m attribute on <a class="iusc"> tags
-            for a_tag in soup.find_all("a", class_="iusc", limit=self.bing_max_results * 2):
-                m_attr = a_tag.get("m")
-                if m_attr:
-                    try:
-                        m_data = json.loads(m_attr)
-                        img_url = m_data.get("murl") or m_data.get("turl")
-                        if img_url and img_url not in urls:
-                            urls.append(img_url)
-                    except json.JSONDecodeError:
-                        continue
-            # Fallback: look for img tags with src containing "bing.com/th"
-            if not urls:
-                for img in soup.find_all("img", limit=self.bing_max_results * 3):
-                    src = img.get("src") or ""
-                    if "bing.com/th" in src and src not in urls:
-                        urls.append(src)
-            return urls[:self.bing_max_results]
-        except Exception as e:
-            self.logger.debug(f"Bing image URL extraction failed: {e}")
-            return []
-
     def _extract_text(self, html: str, base_url: str) -> Optional[str]:
+        return self.image_handler.extract_text(html, base_url, max_text_length=self.max_text_length)
+
+    def _enrich_content(self, article_text: str, title: str) -> Optional[Dict[str, Any]]:
+        if not self._enrich_prompt:
+            self.logger.info("Enrich prompt not loaded, skipping LLM enrichment")
+            return None
+
         try:
-            text = trafilatura.extract(html, include_comments=False, include_tables=True, favor_precision=True)
-            if text and len(text.strip()) > 100:
-                return text.strip()[:self.max_text_length]
-            return None
-        except Exception as e:
-            self.logger.debug(f"trafilatura failed: {e}")
-            return None
+            prompt = render_prompt(
+                self._enrich_prompt,
+                title=title,
+                article_text=article_text[:self.max_text_length],
+            )
 
-    @staticmethod
-    def _best_srcset_url(srcset: str) -> Optional[str]:
-        candidates = []
-        for part in srcset.split(","):
-            bits = part.strip().split()
-            if not bits:
-                continue
-            url = bits[0]
-            score = 0
-            if len(bits) > 1:
-                descriptor = bits[1].lower()
-                try:
-                    if descriptor.endswith("w"):
-                        score = int(descriptor[:-1])
-                    elif descriptor.endswith("x"):
-                        score = int(float(descriptor[:-1]) * 1000)
-                except ValueError:
-                    score = 0
-            candidates.append((score, url))
-        if not candidates:
-            return None
-        return max(candidates, key=lambda x: x[0])[1]
+            if "<!-- SYSTEM_CUT -->" in prompt:
+                parts = prompt.split("<!-- SYSTEM_CUT -->", 1)
+                system_msg = parts[0].strip()
+                user_msg = parts[1].strip()
+            else:
+                system_msg = "你是一位技术内容分析师。"
+                user_msg = prompt
 
-    def _image_url_from_tag(self, tag) -> Optional[str]:
-        for attr in (
-            "src",
-            "data-src",
-            "data-original",
-            "data-lazy-src",
-            "data-image",
-            "data-url",
-            "poster",
-        ):
-            value = tag.get(attr)
-            if value:
-                return value
-        srcset = tag.get("srcset") or tag.get("data-srcset")
-        if srcset:
-            return self._best_srcset_url(srcset)
-        return None
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
+                ],
+                max_tokens=self.llm_max_tokens,
+                temperature=self.llm_temperature,
+            )
 
-    def _extract_images(self, html: str, base_url: str) -> List[str]:
-        try:
-            soup = BeautifulSoup(html, "lxml")
-            images = []
+            raw = response.choices[0].message.content.strip()
+            if not raw or len(raw) < 10:
+                return None
 
-            def add_image(raw_url: Optional[str]):
-                if not raw_url:
-                    return
-                img_url = urljoin(base_url, raw_url)
-                if img_url not in images:
-                    images.append(img_url)
+            # Strip markdown code fences if present
+            text = raw.strip()
+            if text.startswith("```"):
+                lines = text.split("\n")
+                lines = [l for l in lines if not l.strip().startswith("```")]
+                text = "\n".join(lines)
 
-            # 1. og:image
-            for og_img in soup.find_all("meta", property="og:image"):
-                add_image(og_img.get("content"))
-
-            # 2. twitter:image
-            for tw_img in soup.find_all("meta", attrs={"name": re.compile(r"twitter:image", re.I)}):
-                add_image(tw_img.get("content"))
-
-            # 3. Article/body images, including lazy-loaded and responsive images
-            containers = []
-            for selector in ("article", "main", '[role="main"]'):
-                found = soup.select_one(selector)
-                if found:
-                    containers.append(found)
-            class_container = soup.find(class_=re.compile(r"article|post|content|entry", re.I))
-            if class_container:
-                containers.append(class_container)
-            if not containers:
-                containers.append(soup.body or soup)
-
-            seen_container_ids = set()
-            for container in containers:
-                if id(container) in seen_container_ids:
-                    continue
-                seen_container_ids.add(id(container))
-                for img in container.find_all(["img", "source", "video"], limit=self.max_images * 4):
-                    raw_url = self._image_url_from_tag(img)
-                    if not raw_url:
-                        continue
-                    # Skip tiny images (icons, spacers) when dimensions are explicit.
-                    width = img.get("width", "")
-                    height = img.get("height", "")
-                    if width and height:
-                        try:
-                            if int(width) < 100 or int(height) < 100:
-                                continue
-                        except ValueError:
-                            pass
-                    add_image(raw_url)
-
-            # Filter out common non-content patterns
-            filtered = []
-            skip_patterns = ["avatar", "logo", "icon", "badge", "pixel", "spacer", "tracking", "analytics", "camo.githubusercontent.com"]
-            for img_url in images:
-                lower = img_url.lower()
-                if lower.endswith(".svg") or ".svg?" in lower:
-                    self.logger.debug(f"Image filtered out (svg): {img_url}")
-                    continue
-                if not any(p in lower for p in skip_patterns):
-                    filtered.append(img_url)
-                else:
-                    self.logger.debug(f"Image filtered out (matched pattern): {img_url}")
-
-            result = filtered[:self.max_images]
-            self.logger.debug(f"Extracted {len(result)} image URLs from {base_url}: {result}")
+            result = json.loads(text)
+            if not isinstance(result, dict):
+                return None
             return result
+
+        except json.JSONDecodeError as e:
+            self.logger.info(f"LLM enrichment JSON parse failed for '{title}': {e}")
+            return None
         except Exception as e:
-            self.logger.debug(f"Image extraction failed: {e}")
-            return []
+            self.logger.info(f"LLM enrichment failed for '{title}': {e}")
+            return None
 
-    def _candidate_has_suitable_size(self, candidate: Dict[str, Any]) -> bool:
-        width = candidate.get("width")
-        height = candidate.get("height")
-        if not isinstance(width, int) or not isinstance(height, int):
-            return False
-        return width >= self.image_min_width and height >= self.image_min_height
-
-    def _choose_auto_image_candidate(
-        self,
-        candidates: List[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
-        for candidate in candidates:
-            if candidate.get("source") == "page" and self._candidate_has_suitable_size(candidate):
-                return candidate
-        for candidate in candidates:
-            if candidate.get("source") == "screenshot" and candidate.get("path"):
-                return candidate
-        for candidate in candidates:
-            if candidate.get("source") == "bing" and self._candidate_has_suitable_size(candidate):
-                return candidate
-
-        # Last-resort fallback keeps rendering from going blank when all images
-        # are small or dimension metadata is missing.
-        for source in ("page", "bing", "screenshot"):
-            for candidate in candidates:
-                if candidate.get("source") == source and candidate.get("path"):
-                    return candidate
-        return None
-
-    def _selection_reason(self, candidate: Dict[str, Any]) -> str:
-        source = candidate.get("source")
-        if source == "page":
-            return "article_image_suitable" if self._candidate_has_suitable_size(candidate) else "article_image_fallback"
-        if source == "screenshot":
-            return "page_screenshot"
-        if source == "bing":
-            return "bing_image_suitable" if self._candidate_has_suitable_size(candidate) else "bing_image_fallback"
-        return "fallback"
-
-    @staticmethod
-    def _candidate_paths(candidates: List[Dict[str, Any]], preferred_path: Optional[str] = None) -> List[str]:
-        paths = []
-        seen = set()
-        if preferred_path:
-            paths.append(preferred_path)
-            seen.add(preferred_path)
-        for candidate in candidates:
-            path = candidate.get("path")
-            if path and path not in seen:
-                paths.append(path)
-                seen.add(path)
-        return paths
-
-    @staticmethod
-    def _image_cache_path_exists(image_dir: Path, path: Optional[str]) -> bool:
-        if not path:
-            return False
-        p = Path(path)
-        if p.is_absolute():
-            return p.exists()
-        if len(p.parts) >= 2 and p.parts[0] == "images":
-            return (image_dir / p.name).exists()
-        return (image_dir / p).exists()
-
-    def _cached_image_candidates(self, item, image_dir: Path) -> List[Dict[str, Any]]:
-        """Return cached image candidates whose local files still exist."""
-        candidates: List[Dict[str, Any]] = []
-        seen = set()
-
-        for candidate in item.image_candidates or []:
-            path = candidate.get("path")
-            if path and path not in seen and self._image_cache_path_exists(image_dir, path):
-                candidates.append(dict(candidate))
-                seen.add(path)
-
-        for rank, path in enumerate(item.article_images or []):
-            if path in seen or not self._image_cache_path_exists(image_dir, path):
-                continue
-            candidates.append({
-                "path": path,
-                "source": "cached",
-                "label": "Cached image",
-                "rank": rank,
-            })
-            seen.add(path)
-
-        screenshot_image = item.screenshot_image
-        if (
-            screenshot_image
-            and screenshot_image not in seen
-            and self._image_cache_path_exists(image_dir, screenshot_image)
-        ):
-            candidates.append({
-                "path": screenshot_image,
-                "source": "screenshot",
-                "label": "Page screenshot",
-                "rank": len(candidates),
-                "width": 1280,
-                "height": 720,
-            })
-
-        return candidates
-
-    async def _download_images(self, urls: List[str], image_dir: Path, source_id: str) -> List[str]:
-        candidates = await self._download_image_candidates(
-            urls,
-            image_dir,
-            source_id,
-            source="image",
-            label="Image",
-        )
-        return self._candidate_paths(candidates)
-
-    async def _download_image_candidates(
-        self,
-        urls: List[str],
-        image_dir: Path,
-        source_id: str,
-        source: str,
-        label: str,
-    ) -> List[Dict[str, Any]]:
-        candidates: List[Dict[str, Any]] = []
-        timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
-
-        async def _fetch_one(session: aiohttp.ClientSession, url: str) -> Optional[bytes]:
-            """Download one image; return bytes or None. Short reads return None."""
-            headers = _make_headers()
-            headers["Accept"] = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    self.logger.warning(f"Image HTTP {resp.status} for {url}")
-                    return None
-
-                cl = resp.headers.get("Content-Length")
-                if cl and int(cl) > self.max_image_size:
-                    self.logger.warning(f"Image too large ({cl} bytes) for {url}")
-                    return None
-
-                data = await resp.read()
-                if len(data) > self.max_image_size:
-                    self.logger.warning(f"Image read too large ({len(data)} bytes) for {url}")
-                    return None
-
-                # Guard against CDN-induced short reads: compare against
-                # Content-Length and reject if we got notably less. PIL on a
-                # severely truncated WebP raises a cryptic "could not create
-                # decoder object", so catch it here with a clearer message.
-                if cl and len(data) < int(cl) * 0.9:
-                    self.logger.warning(
-                        f"Short read for {url}: got {len(data)} / {cl} bytes"
-                    )
-                    return None
-                return data
-
-        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-            for idx, url in enumerate(urls):
-                try:
-                    filename = f"{source_id}_{idx}.jpg"
-                    dest = image_dir / filename
-                    if dest.exists():
-                        candidates.append({
-                            "path": f"images/{filename}",
-                            "source": source,
-                            "label": label,
-                            "origin_url": url,
-                            "rank": idx,
-                        })
-                        continue
-
-                    # One retry on short-read / transient CDN flake.
-                    data = await _fetch_one(session, url)
-                    if data is None:
-                        self.logger.debug(f"Image fetch retry: {url}")
-                        data = await _fetch_one(session, url)
-                    if data is None:
-                        self.logger.warning(f"Image fetch failed after retry: {url}")
-                        continue
-
-                    self.logger.debug(
-                        f"Image fetched {len(data)} bytes from {url}"
-                    )
-                    try:
-                        img = Image.open(io.BytesIO(data))
-                        img = img.convert("RGB")
-
-                        if img.width > self.image_target_width or img.height > self.image_target_height:
-                            img.thumbnail(
-                                (self.image_target_width, self.image_target_height),
-                                Image.Resampling.LANCZOS,
-                            )
-
-                        img.save(dest, "JPEG", quality=85)
-                        candidates.append({
-                            "path": f"images/{filename}",
-                            "source": source,
-                            "label": label,
-                            "origin_url": url,
-                            "rank": idx,
-                            "width": img.width,
-                            "height": img.height,
-                        })
-                        self.logger.debug(
-                            f"Image saved: {dest} ({img.width}x{img.height})"
-                        )
-                    except Exception as e:
-                        self.logger.warning(f"Image decode failed for {url}: {e}")
-
-                except Exception as e:
-                    self.logger.warning(f"Image download failed for {url}: {e}")
-
-        return candidates
+    # ── Image Selection ────────────────────────────────────────
 
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
-        """Load image_selection.json if it exists. Returns set of source_ids with user selections."""
         sel_path = Path(f"data/{date}/image_selection.json")
         if not sel_path.exists():
             return set()
@@ -1324,7 +514,6 @@ class ArticleEnricher:
             return set()
 
     def _generate_image_selection(self, content: ContentPackage, date: str):
-        """Generate or merge image_selection.json for user review."""
         sel_path = Path(f"data/{date}/image_selection.json")
         existed = sel_path.exists()
         data = {"date": date, "items": {}}
@@ -1344,19 +533,19 @@ class ArticleEnricher:
                 continue
             key = str(item.source_id)
             existing_entry = data["items"].get(key, {})
-            candidates = self._merge_image_candidates(
+            candidates = self.image_handler.merge_image_candidates(
                 existing_entry.get("candidates", []),
                 item.image_candidates,
             )
             selected = existing_entry.get("selected_image")
             if not selected:
-                selected_candidate = self._choose_auto_image_candidate(candidates)
+                selected_candidate = self.image_handler.choose_auto_image_candidate(candidates)
                 selected = selected_candidate.get("path") if selected_candidate else None
                 if selected:
                     for candidate in candidates:
                         candidate["auto_selected"] = candidate.get("path") == selected
                     if selected_candidate is not None:
-                        selected_candidate["selection_reason"] = self._selection_reason(selected_candidate)
+                        selected_candidate["selection_reason"] = self.image_handler.selection_reason(selected_candidate)
 
             new_entry = {
                 "title": item.title,
@@ -1377,60 +566,7 @@ class ArticleEnricher:
         action = "Updated" if existed else "Generated"
         self.logger.info(f"{action} image selection file: {sel_path}")
 
-    @staticmethod
-    def _merge_image_candidates(
-        existing: List[Dict[str, Any]],
-        new: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        merged = []
-        seen = set()
-        for candidate in list(existing or []) + list(new or []):
-            path = candidate.get("path")
-            if not path or path in seen:
-                continue
-            merged.append(candidate)
-            seen.add(path)
-        return merged
-
-    def _summarize(self, article_text: str, title: str) -> Optional[str]:
-        if not self._summarize_prompt:
-            self.logger.info("Summarize prompt not loaded, skipping LLM summary")
-            return None
-
-        try:
-            prompt = render_prompt(
-                self._summarize_prompt,
-                title=title,
-                article_text=article_text[:self.max_text_length],
-            )
-
-            # Split on <!-- SYSTEM_CUT --> if present
-            if "<!-- SYSTEM_CUT -->" in prompt:
-                parts = prompt.split("<!-- SYSTEM_CUT -->", 1)
-                system_msg = parts[0].strip()
-                user_msg = parts[1].strip()
-            else:
-                system_msg = "你是一位技术内容分析师。"
-                user_msg = prompt
-
-            response = self.llm_client.chat.completions.create(
-                model=self.llm_model,
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg},
-                ],
-                max_tokens=self.llm_max_tokens,
-                temperature=self.llm_temperature,
-            )
-
-            summary = response.choices[0].message.content.strip()
-            if not summary or len(summary) < 10:
-                return None
-            return summary
-
-        except Exception as e:
-            self.logger.info(f"LLM summarization failed for '{title}': {e}")
-            return None
+    # ── Cache ──────────────────────────────────────────────────
 
     def _save_to_cache(self, content: ContentPackage, cache_path: Path):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1444,6 +580,12 @@ class ArticleEnricher:
                     "article_text": item.article_text,
                     "article_images": item.article_images,
                     "article_summary": item.article_summary,
+                    "editor_angle": item.editor_angle,
+                    "dek": item.dek,
+                    "key_points": item.key_points,
+                    "keywords": item.keywords,
+                    "category": item.category,
+                    "visual_hint": item.visual_hint,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
                     "logo_image": item.logo_image,
@@ -1465,11 +607,17 @@ class ArticleEnricher:
                     item.article_text = cached.get("article_text")
                     item.article_images = cached.get("article_images", [])
                     item.article_summary = cached.get("article_summary")
+                    item.editor_angle = cached.get("editor_angle")
+                    item.dek = cached.get("dek")
+                    item.key_points = cached.get("key_points")
+                    item.keywords = cached.get("keywords")
+                    item.category = cached.get("category")
+                    item.visual_hint = cached.get("visual_hint")
                     source = cached.get("enrichment_source") or "legacy"
                     if source == "manual_override":
                         source = "downloaded_page"
                     elif source == "none" and not cached.get("article_text"):
-                        source = None  # let _classify_items re-evaluate
+                        source = None
                     item.enrichment_source = source
                     item.enrichment_error = cached.get("enrichment_error")
                     item.logo_image = cached.get("logo_image")

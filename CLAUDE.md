@@ -12,10 +12,10 @@ uv run python main.py                            # Run pipeline
 uv run python main.py --date 2026-04-26 --debug  # With options
 uv run python main.py --steps fetch,script       # Run specific steps
 uv run python main.py --dry-run                  # Skip API calls
-uv run pytest                                    # Run tests
-uv run pytest tests/test_pipeline.py             # Specific test
-uv run pytest -v                                 # Verbose
-uv run pytest tests/test_article_enricher.py tests/test_remotion_renderer.py
+uv run python -m pytest                            # Run tests
+uv run python -m pytest tests/test_pipeline.py     # Specific test
+uv run python -m pytest -v                         # Verbose
+uv run python -m pytest tests/test_article_enricher.py tests/test_remotion_renderer.py
 ```
 
 Script editor:
