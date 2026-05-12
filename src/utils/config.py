@@ -5,17 +5,37 @@ from dotenv import load_dotenv
 from typing import Any, Dict
 
 
-def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
+def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Deep merge override into base. Nested dicts are merged, not replaced."""
+    for key, value in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def load_config(config_path: str = "config/") -> Dict[str, Any]:
     load_dotenv()
 
-    config_file = Path(config_path)
-    if not config_file.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config not found: {config_path}")
 
-    with open(config_file, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    if path.is_dir():
+        config: Dict[str, Any] = {}
+        yaml_files = sorted(path.glob("*.yaml")) + sorted(path.glob("*.yml"))
+        if not yaml_files:
+            raise FileNotFoundError(f"No YAML files found in: {config_path}")
+        for f in yaml_files:
+            with open(f, "r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh)
+                if data:
+                    _deep_merge(config, data)
+        return config
 
-    return config
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 def get_env(key: str, default: Any = None) -> Any:

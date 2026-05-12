@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional, List
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .models import Script, ContentPackage, WordTiming, ScriptSegment
+    from .models import Script, ContentPackage, ScriptSegment
 
 
 class ContentFetcher(ABC):
@@ -40,7 +40,7 @@ class LLMProvider(ABC):
         pass
 
 
-    def judge_story_comments(self, item, story_index: int, prompt_template_path: str = "prompts/comment_judge.md") -> dict:
+    def judge_story_comments(self, item, story_index: int, prompt_template_path: str = "prompts/comment_analyze.md", candidates=None) -> dict:
         """Optional: rank comments that are suitable for QuoteCard display."""
         return {}
 
@@ -48,15 +48,8 @@ class LLMProvider(ABC):
 class TTSResult:
     """TTS 合成结果"""
 
-    def __init__(
-        self,
-        duration: float,
-        word_timings: Optional["List[WordTiming]"] = None,
-        timing_level: str = "word",
-    ):
+    def __init__(self, duration: float):
         self.duration = duration
-        self.word_timings = word_timings or []
-        self.timing_level = timing_level
 
 
 class TTSProvider(ABC):
@@ -64,7 +57,7 @@ class TTSProvider(ABC):
 
     @abstractmethod
     def synthesize(self, text: str, output_path: str, emotion: str = None) -> "TTSResult":
-        """合成音频，返回 TTSResult（包含时长和词级时间戳）"""
+        """合成音频，返回 TTSResult"""
         pass
 
 

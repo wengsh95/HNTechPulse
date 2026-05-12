@@ -94,13 +94,6 @@ class SceneElement:
 
 
 @dataclass
-class WordTiming:
-    text: str
-    start_time: float
-    end_time: float
-
-
-@dataclass
 class Cue:
     """单个字幕提示"""
     text: str
@@ -134,15 +127,11 @@ class SegmentMeta(TypedDict, total=False):
         brief_items:     List of brief items surfaced in a story-scan segment.
         dashboard:       Dashboard element payload (overall summary card).
         story_title:     Human-readable story title, cached for display.
-        word_timings:    Per-word timing data from TTS, used by renderer captions.
-        timing_level:    "word" | "segment" — granularity of timing data.
         duration_ratio:  actual_duration / estimated_duration, computed post-TTS.
     """
     brief_items: List[Dict[str, Any]]
     dashboard: Any
     story_title: str
-    word_timings: List[Dict[str, Any]]
-    timing_level: str
     duration_ratio: float
 
 

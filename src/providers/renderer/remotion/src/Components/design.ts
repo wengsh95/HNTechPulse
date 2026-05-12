@@ -11,6 +11,15 @@ export const FONTS = {
   bold: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
 };
 
+/** Standard font weights — use only these values for predictable rendering. */
+export const FW = {
+  regular: 400,
+  medium: 500,
+  semibold: 600,
+  bold: 700,
+  heavy: 800,
+} as const;
+
 export const COLORS = {
   // Dark theme surface colors
   bg: "#0a0a1a",
@@ -21,7 +30,7 @@ export const COLORS = {
   // Text hierarchy
   text: "#ffffff",
   textSecondary: "#98989d",
-  textTertiary: "#6e6e73",
+  textTertiary: "#8e8e93",
 
   // Accent
   accent: "#007aff",

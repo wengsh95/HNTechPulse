@@ -14,12 +14,17 @@
       "end_time": 15.5,
       "scene_elements": [
         {
-          "element_type": "title_card",
+          "element_type": "cover_card",
           "start_time": 0.0,
           "end_time": 15.5,
           "props": {
-            "title": "HN TechPulse",
-            "subtitle": "2026-04-26"
+            "subtitle": "2026-04-26",
+            "headline": "HN TechPulse",
+            "keywords": [
+              "浏览器隐私架构",
+              "量子计算",
+              "AI估值"
+            ]
           }
         }
       ],
@@ -78,7 +83,7 @@
         },
         {
           "element_type": "comment_card",
-          "start_time": 29.60,
+          "start_time": 29.6,
           "end_time": 37.94,
           "props": {
             "author": "michaelt",
@@ -97,13 +102,19 @@
               "label": "平台安全",
               "text": "架构升级旨在限制恶意权限。",
               "translation": "架构升级旨在限制恶意权限。",
-              "keywords": ["MV2", "Performance"]
+              "keywords": [
+                "MV2",
+                "Performance"
+              ]
             },
             "perspective_b": {
               "label": "用户控制",
               "text": "API 限制削弱用户控制权。",
               "translation": "API 限制削弱用户控制权。",
-              "keywords": ["User Control", "uBlock"]
+              "keywords": [
+                "User Control",
+                "uBlock"
+              ]
             }
           }
         },
@@ -132,7 +143,7 @@
         {
           "element_type": "news_carousel_card",
           "start_time": 0.0,
-          "end_time": 9.50,
+          "end_time": 9.5,
           "props": {
             "story_title": "Google plans to invest up to $40B in Anthropic",
             "score": 799,
@@ -145,7 +156,7 @@
         },
         {
           "element_type": "news_carousel_card",
-          "start_time": 9.50,
+          "start_time": 9.5,
           "end_time": 19.01,
           "props": {
             "story_title": "New 10 GbE USB adapters are cooler, smaller, cheaper",

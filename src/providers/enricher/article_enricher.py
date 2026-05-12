@@ -80,12 +80,13 @@ class ArticleEnricher:
             request_timeout=self.request_timeout,
         )
 
-        # Independent LLM config for summarization
-        llm_cfg = enrich_cfg.get("llm", {})
-        llm_base_url = llm_cfg.get("base_url", config.get("llm", {}).get("base_url", ""))
-        llm_model = llm_cfg.get("model", config.get("llm", {}).get("model", ""))
-        llm_max_tokens = llm_cfg.get("max_tokens", self.summary_max_tokens)
-        llm_temperature = llm_cfg.get("temperature", 0.5)
+        # Use llm.fast (lightweight model) for summarization
+        fast_cfg = config.get("llm", {}).get("fast", {})
+        main_cfg = config.get("llm", {})
+        llm_base_url = fast_cfg.get("base_url", main_cfg.get("base_url", ""))
+        llm_model = fast_cfg.get("model", main_cfg.get("model", ""))
+        llm_max_tokens = self.summary_max_tokens
+        llm_temperature = fast_cfg.get("temperature", 0.5)
 
         from src.utils.config import get_env
         api_key = get_env("OPENAI_API_KEY")

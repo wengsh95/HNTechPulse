@@ -9,9 +9,9 @@ import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame
 
 import { ScriptProps, SegmentData } from "../types";
 import {
-  TitleCard,
   Subtitle,
   ClosingCard,
+  CoverCard,
   DashboardCard,
   ImageCard,
   EventCard,
@@ -19,9 +19,24 @@ import {
   QuoteCard,
 } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
-import { COLORS, FONTS, LAYOUT } from "./design";
+import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
 
-const C_BG = "radial-gradient(ellipse 80% 60% at 50% 35%, #1c1c3a 0%, #0d0d24 50%, #070712 100%)";
+const BG_COLOR_1 = "#1c1c3a";
+const BG_COLOR_2 = "#0d0d24";
+const BG_COLOR_3 = "#070712";
+
+const ANIMATED_BG_KEYFRAMES = `
+@keyframes bgHueShift {
+  0% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(8deg); }
+  100% { filter: hue-rotate(0deg); }
+}
+@keyframes bgGlowPulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.6; }
+}
+`;
 
 type StoryChapter = {
   startTime: number;
@@ -37,8 +52,8 @@ const ELEMENT_RENDERERS: Record<
   string,
   React.FC<{ elementProps: Record<string, unknown>; duration: number; width: number; height: number }>
 > = {
-  title_card: (props) => <TitleCard {...props} />,
   closing_card: (props) => <ClosingCard {...props} />,
+  cover_card: (props) => <CoverCard {...props} />,
   image_card: (props) => <ImageCard {...props} />,
   dashboard_card: (props) => <DashboardCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
@@ -75,7 +90,6 @@ const SceneElementRenderer: React.FC<{
       durationInFrames={durationFrames}
       layout="none"
     >
-      {/* 用绝对定位 + offset 来定位，避免嵌套 Sequence 的复杂度 */}
       <div
         style={{
           position: "absolute",
@@ -105,15 +119,23 @@ const SegmentRenderer: React.FC<{
   height: number;
   fps: number;
 }> = ({ segment, index, width, height, fps }) => {
+  const frame = useCurrentFrame();
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
   const segmentDuration = segment.duration;
   const hasTitleLikeCard = segment.scene_elements.some((elem) =>
-    elem.element_type === "title_card" || elem.element_type === "closing_card"
+    elem.element_type === "cover_card" || elem.element_type === "closing_card"
   );
   const subtitleMode = hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
     ? "minimal"
     : "standard";
+
+  const localFrame = frame - startFrame;
+  const TRANSITION_FRAMES = 6;
+  const segOpacity = interpolate(localFrame, [0, TRANSITION_FRAMES], [0.6, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <Sequence
@@ -121,27 +143,57 @@ const SegmentRenderer: React.FC<{
       durationInFrames={durationFrames}
       name={`segment-${index}-${segment.segment_type}`}
     >
-      {/* 背景 */}
-      <AbsoluteFill style={{ background: C_BG }} />
+      {/* Animated background layers */}
+      <style>{ANIMATED_BG_KEYFRAMES}</style>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)` }} />
+      <div
+        style={{
+          ...S,
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
+          background: `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)`,
+          animation: "bgHueShift 40s ease-in-out infinite",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Accent glow spot */}
+      <div
+        style={{
+          ...S,
+          left: "50%",
+          top: "30%",
+          width: 700,
+          height: 400,
+          transform: "translate(-50%, -50%)",
+          background: "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(0,122,255,0.07) 0%, transparent 70%)",
+          animation: "bgGlowPulse 12s ease-in-out infinite",
+          pointerEvents: "none",
+        }}
+      />
 
-      {/* 场景元素 */}
-      {segment.scene_elements.map((elem, i) => (
-        <SceneElementRenderer
-          key={`${index}-elem-${i}`}
-          elem={elem}
+      {/* Scene wrapper with transition opacity */}
+      <div style={{ ...S, left: 0, top: 0, width: "100%", height: "100%", opacity: segOpacity, pointerEvents: "none" }}>
+        {/* 场景元素 */}
+        {segment.scene_elements.map((elem, i) => (
+          <SceneElementRenderer
+            key={`${index}-elem-${i}`}
+            elem={elem}
+            width={width}
+            height={height}
+            fps={fps}
+          />
+        ))}
+
+        {/* 字幕（始终显示在底部，按 cues 逐句切换） */}
+        <Subtitle
+          elementProps={{ text: segment.audio_text, cues: segment.cues, mode: subtitleMode }}
+          duration={segmentDuration}
           width={width}
           height={height}
-          fps={fps}
         />
-      ))}
-
-      {/* 字幕（始终显示在底部，按 cues 逐句切换） */}
-      <Subtitle
-        elementProps={{ text: segment.audio_text, cues: segment.cues, mode: subtitleMode }}
-        duration={segmentDuration}
-        width={width}
-        height={height}
-      />
+      </div>
     </Sequence>
   );
 };
@@ -191,7 +243,7 @@ const GlobalChrome: React.FC<{
           fontFamily: FONTS.sans,
           color: "rgba(255,255,255,0.62)",
           fontSize: 15,
-          fontWeight: 760,
+          fontWeight: FW.heavy,
           letterSpacing: 0,
         }}
       >
@@ -226,7 +278,7 @@ const GlobalChrome: React.FC<{
               height: 16,
               fontFamily: FONTS.mono,
               fontSize: 12,
-              fontWeight: 800,
+              fontWeight: FW.heavy,
               color: COLORS.accentLight,
               lineHeight: 1,
             }}
@@ -241,7 +293,7 @@ const GlobalChrome: React.FC<{
                 height: 16,
                 fontFamily: FONTS.sans,
                 fontSize: 12,
-                fontWeight: 740,
+                fontWeight: FW.bold,
                 color: "rgba(255,255,255,0.66)",
                 lineHeight: 1,
               }}
@@ -263,6 +315,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   bgColor,
   segments,
   audioDir,
+  transitionTimes,
 }) => {
   const frame = useCurrentFrame();
   const totalDuration =
@@ -297,7 +350,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   });
   const firstTitleCard = segments
     .flatMap((seg) => seg.scene_elements)
-    .find((elem) => elem.element_type === "title_card");
+    .find((elem) => elem.element_type === "cover_card");
   const dateLabel = firstTitleCard
     ? String((firstTitleCard.props as Record<string, unknown>).subtitle ?? "")
     : "";
@@ -307,7 +360,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   });
 
   return (
-    <AbsoluteFill style={{ background: bgColor || C_BG }}>
+    <AbsoluteFill style={{ background: bgColor || `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)` }}>
       {/* 遍历所有 segments，按时间线排列视觉内容 */}
       {segments.map((segment, index) => (
         <SegmentRenderer
@@ -334,6 +387,41 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
             <Audio src={staticFile(segment.audio_path!)} />
           </Sequence>
         ))}
+
+      {/* Per-subtitle 音频轨道 (story_scan 使用) */}
+      {segments
+        .filter((seg) => seg.subtitle_audios && seg.subtitle_audios.length > 0)
+        .flatMap((segment) =>
+          (segment.subtitle_audios ?? []).map((sa, i) => ({
+            key: `sub-audio-${segment.start_time}-${i}`,
+            absoluteStart: segment.start_time + sa.start_time,
+            duration: sa.end_time - sa.start_time,
+            audioPath: sa.audio_path,
+          }))
+        )
+        .filter((item) => item.duration > 0)
+        .map((item) => (
+          <Sequence
+            key={item.key}
+            from={Math.floor(item.absoluteStart * fps)}
+            durationInFrames={Math.max(1, Math.ceil(item.duration * fps))}
+            layout="none"
+          >
+            <Audio src={staticFile(item.audioPath)} />
+          </Sequence>
+        ))}
+
+      {/* 每个 story 切入时的转场音效（从 gap 起点播放，填充段间停顿） */}
+      {(transitionTimes ?? storyBoundaries).map((startTime, i) => (
+        <Sequence
+          key={`transition-${i}`}
+          from={Math.floor(startTime * fps)}
+          durationInFrames={Math.ceil(1 * fps)}
+          layout="none"
+        >
+          <Audio src={staticFile("double-click-computer-mouse.mp3")} />
+        </Sequence>
+      ))}
 
       {/* 底部进度条 */}
       <ProgressBar

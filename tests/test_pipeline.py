@@ -292,7 +292,7 @@ class TestSubtitleVisualAlignment:
                     audio_text="Hello",
                     estimated_duration=7.0,
                     actual_duration=6.5,
-                    scene_elements=[SceneElement(element_type="title_card", start_time=0, end_time=0, props={})],
+                    scene_elements=[SceneElement(element_type="cover_card", start_time=0, end_time=0, props={})],
                 ),
                 ScriptSegment(
                     segment_type="closing",

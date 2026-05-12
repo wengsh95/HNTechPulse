@@ -1,5 +1,5 @@
 """
-Test script for prompts/single_story_scan.md
+Test script for prompts/story_script.md
 
 Constructs a realistic HN story with comments, injects persona + story data
 into the prompt, calls the LLM, and prints the parsed JSON result.
@@ -139,7 +139,7 @@ def render_full_prompt(item: ContentItem, date: str, prompt_path: str, persona_p
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Test single_story_scan.md prompt")
+    parser = argparse.ArgumentParser(description="Test story_script.md prompt")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print rendered prompt without calling LLM")
     args = parser.parse_args()
@@ -148,7 +148,7 @@ def main():
     prompt = render_full_prompt(
         item=item,
         date="2026-05-08",
-        prompt_path="prompts/single_story_scan.md",
+        prompt_path="prompts/story_script.md",
         persona_path="prompts/persona.md",
     )
 

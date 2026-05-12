@@ -13,17 +13,19 @@ from src.utils.logger import setup_logger
 
 
 class CommentJudge:
-    def __init__(self, llm_provider: LLMProvider, config: dict, debug: bool = False):
+    def __init__(self, llm_provider: LLMProvider, config: dict, comment_analyzer=None, debug: bool = False):
         self.llm_provider = llm_provider
         self.config = config
+        self.comment_analyzer = comment_analyzer
         analyze_cfg = config.get("analyze", {})
         self.enabled = analyze_cfg.get("comment_judge_enabled", True)
         self.max_workers = int(analyze_cfg.get("comment_judge_max_workers", 2) or 1)
         self.fallback_on_error = analyze_cfg.get("comment_judge_fallback_on_error", True)
         self.prompt_template_path = analyze_cfg.get(
             "comment_judge_prompt",
-            "prompts/comment_judge.md",
+            "prompts/comment_analyze.md",
         )
+        self.judge_candidate_count = analyze_cfg.get("max_comments_for_judge", 15)
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
@@ -68,14 +70,21 @@ class CommentJudge:
                 self.logger.info(f"  {label}: no comments, using heuristic fallback")
                 return comment_judgement_key(item), heuristic_story_judgement(item)
             try:
+                # Use comment_analyzer to pre-filter candidates when available
+                pre_filtered = None
+                if self.comment_analyzer:
+                    pre_filtered = self.comment_analyzer.get_top_comments(
+                        item, n=self.judge_candidate_count
+                    )
                 self.logger.info(
-                    f"  {label}: judging {len(item.comments)} comments "
+                    f"  {label}: judging {len(pre_filtered or item.comments)} comments "
                     f"(model request starting)"
                 )
                 result = self.llm_provider.judge_story_comments(
                     item,
                     idx,
                     self.prompt_template_path,
+                    candidates=pre_filtered,
                 )
                 normalized = normalize_story_judgement(result, item)
                 candidate_count = len(normalized.get("quote_candidates", []) or [])

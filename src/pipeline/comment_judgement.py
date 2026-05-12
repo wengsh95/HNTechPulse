@@ -97,10 +97,28 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
             if normalized is not None:
                 rejected.append(normalized)
 
+    debate_focus = []
+    for entry in raw.get("debate_focus", []) or []:
+        if isinstance(entry, str) and entry.strip():
+            debate_focus.append(entry.strip())
+
+    stance_distribution = {}
+    raw_stance = raw.get("stance_distribution", {}) or {}
+    if isinstance(raw_stance, dict):
+        total = sum(float(v) for v in raw_stance.values() if isinstance(v, (int, float)) and v > 0)
+        if total > 0:
+            stance_distribution = {
+                str(k): round(float(v) / total, 4)
+                for k, v in raw_stance.items()
+                if isinstance(v, (int, float)) and v > 0
+            }
+
     return {
         "story_id": comment_judgement_key(item),
         "quote_candidates": candidates,
         "rejected": rejected,
+        "debate_focus": debate_focus,
+        "stance_distribution": stance_distribution,
     }
 
 

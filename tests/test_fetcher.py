@@ -202,7 +202,7 @@ def main():
         help="测试哪个环节"
     )
     parser.add_argument("--id", type=int, default=None, help="指定 story ID (story/comments)")
-    parser.add_argument("--config", type=str, default="config.yaml", help="配置文件路径")
+    parser.add_argument("--config", type=str, default="config/", help="配置文件目录或路径")
     parser.add_argument("--debug", action="store_true", help="DEBUG 日志级别")
     args = parser.parse_args()
 

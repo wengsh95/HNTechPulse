@@ -27,9 +27,9 @@ def main():
     parser.add_argument("--force", action="store_true", help="Force re-render (clear render cache)")
     parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,render",
                         help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,render)")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Config file path")
+    parser.add_argument("--config", type=str, default="config/", help="Config directory or file path")
     parser.add_argument("--test-prompt", action="store_true",
-                        help="Test prompts/single_story_scan.md with a mock story and print LLM result")
+                        help="Test prompts/story_script.md with a mock story and print LLM result")
 
     args = parser.parse_args()
 

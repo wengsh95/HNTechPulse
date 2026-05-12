@@ -3,7 +3,7 @@ import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 
 import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
 import { StancePie, STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 
 const CONTROVERSY_COLORS = {
   green: "#34c759",
@@ -83,7 +83,7 @@ const MetricBar: React.FC<{
         style={{
           fontFamily: FONTS.sans,
           fontSize: 12,
-          fontWeight: 760,
+          fontWeight: FW.bold,
           color: COLORS.textTertiary,
           textTransform: "uppercase",
           letterSpacing: 0.6,
@@ -96,7 +96,7 @@ const MetricBar: React.FC<{
           style={{
             fontFamily: FONTS.mono,
             fontSize: 26,
-            fontWeight: 820,
+            fontWeight: FW.heavy,
             color: COLORS.text,
           }}
         >
@@ -107,7 +107,7 @@ const MetricBar: React.FC<{
             style={{
               fontFamily: FONTS.sans,
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: FW.bold,
               color,
             }}
           >
@@ -167,13 +167,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     frame,
     fps,
     config: { damping: 14, stiffness: 120 },
+    delay: 4,
   });
 
   const metricProgress = spring({
     frame,
     fps,
-    config: { damping: 10, stiffness: 150 },
-    delay: 8,
+    config: { damping: 10, stiffness: 140 },
+    delay: 14,
   });
 
   return (
@@ -199,7 +200,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               style={{
                 fontFamily: FONTS.sans,
                 fontSize: 14,
-                fontWeight: 800,
+                fontWeight: FW.heavy,
                 color: COLORS.accentLight,
                 marginBottom: 8,
               }}
@@ -211,8 +212,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             style={{
               fontFamily: FONTS.bold,
               fontSize: 28,
-              lineHeight: 1.14,
-              fontWeight: 800,
+              lineHeight: 1.18,
+              fontWeight: FW.heavy,
               color: COLORS.text,
               marginBottom: 12,
             }}
@@ -223,7 +224,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             style={{
               fontFamily: FONTS.sans,
               fontSize: 18,
-              lineHeight: 1.42,
+              lineHeight: 1.5,
+              fontWeight: FW.regular,
               color: COLORS.textSecondary,
               marginBottom: mood.percent > 0 ? 16 : 0,
             }}
@@ -269,7 +271,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                 style={{
                   fontFamily: FONTS.sans,
                   fontSize: 12,
-                  fontWeight: 760,
+                  fontWeight: FW.bold,
                   color: COLORS.textTertiary,
                   marginBottom: 10,
                   textTransform: "uppercase",
@@ -284,7 +286,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                     frame,
                     fps,
                     config: { damping: 10, stiffness: 140 },
-                    delay: 6 + i * 4,
+                    delay: 12 + i * 5,
                   });
 
                   return (
@@ -293,7 +295,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                       style={{
                         fontFamily: FONTS.sans,
                         fontSize: 14,
-                        fontWeight: 700,
+                        fontWeight: FW.bold,
                         color: COLORS.text,
                         opacity: tagProgress,
                         backgroundColor: "rgba(255,255,255,0.055)",
@@ -335,7 +337,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               style={{
                 fontFamily: FONTS.sans,
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: FW.bold,
                 color: COLORS.textSecondary,
                 padding: "7px 12px",
                 borderRadius: 999,

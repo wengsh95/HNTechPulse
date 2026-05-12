@@ -36,21 +36,70 @@ npm run render
 
 ## Architecture
 
-- **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([models.py](src/core/models.py))
+- **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)
 - **Providers** ([src/providers/](src/providers/)): fetcher, llm, tts, renderer, enricher — auto-register via [factory.py](src/providers/factory.py)
-- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [comment_analyzer.py](src/pipeline/comment_analyzer.py), [comment_selection.py](src/pipeline/comment_selection.py), [translation_manager.py](src/pipeline/translation_manager.py), [script_writer.py](src/pipeline/script_writer.py)
+- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM comment judging), [comment_judgement.py](src/pipeline/comment_judgement.py) (judgement data model/normalization), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation + assembly), [translation_manager.py](src/pipeline/translation_manager.py)
 - **Remotion** ([src/providers/renderer/remotion/](src/providers/renderer/remotion/)): React sub-project, receives script as JSON props via [remotion_props.py](src/providers/renderer/remotion_props.py). Dev preview reads `src/providers/renderer/remotion/public/props.json`.
+- **Editor** ([src/editor/](src/editor/)): Streamlit app for manual script editing and image selection.
 
-Pipeline steps: `fetch` → `enrich` → `translate` → `script` → `tts` → `preview` → `render`
+Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `preview` → `render`
 
 Script structure (daily_brief): **opening** (fixed greeting) → **dashboard** (leaderboard) → **story_scan** (per-story LLM segments) → **closing** (fixed sign-off)
 
-All steps cache to `data/{date}/` and resume from disk. Config: [config.yaml](config.yaml), env vars in `.env`.
+### Data Flow
+
+```
+HN API
+  ↓
+[fetch] ContentPackage with items + all comments
+  ↓
+[enrich] Article text, images, editor_angle, key_points per item
+  ↓
+[analyze] Two sub-steps, run by orchestrator._step_analyze():
+  ├── CommentAnalyzer.analyze()    — VADER sentiment + heuristic quality_score on every comment
+  │     Cached to data/{date}/comment_analysis.json
+  └── CommentJudge.judge()         — get_top_comments(n=15) → LLM with prompts/comment_analyze.md
+        Produces: quote_candidates, debate_focus, stance_distribution
+        Falls back to heuristic_story_judgement() when LLM disabled or errors
+        Cached to data/{date}/comment_judgement.json
+  ↓
+[script] ScriptWriter.write()
+  ├── Selection: top N stories by HN score (no LLM)
+  ├── Per story: generate_single_story_segment() with prompts/story_script.md
+  │     _single_story_to_json() uses judge's quote_candidates to select comments
+  │     Falls back to quality-score top-N when no judge data
+  │     Judge data embedded as story_json.comment_judgement
+  ├── _normalize_quote_card_selection() — replace LLM-picked comment IDs with judge candidates
+  └── _normalize_atmosphere_card() — inject debate_focus + stance_distribution from judge
+  ↓
+[translate] TranslationManager: titles, comments (batched LLM calls with fast model)
+  ↓
+[tts] TTSProcessor: per-subtitle synthesis, timing alignment
+  ↓
+[render] Remotion: chunked parallel rendering → output.mp4
+```
+
+Key principle: **single source of truth for comment selection**. CommentAnalyzer scores all comments once. CommentJudge selects the top candidates via `get_top_comments()`. Story script consumes the judge's `quote_candidates` — it does not independently re-select comments.
+
+### Prompt Templates
+
+| Template | Used By | Placeholders |
+|----------|---------|-------------|
+| [prompts/persona.md](prompts/persona.md) | All LLM calls (prepended) | `{{ persona }}` |
+| [prompts/story_script.md](prompts/story_script.md) | `generate_single_story_segment` | `{{ story_json }}`, `{{ story_index }}`, `{{ date }}` |
+| [prompts/comment_analyze.md](prompts/comment_analyze.md) | `judge_story_comments` (CommentJudge) | `{{ story_json }}` |
+| [prompts/translate.md](prompts/translate.md) | `translate_titles`, `translate_comments` | `{{ items_json }}` |
+| [prompts/article_enrich.md](prompts/article_enrich.md) | Article enricher | `{{ title }}`, `{{ article_text }}` |
+
+All steps cache to `data/{date}/` and resume from disk. Config: [config/](config/) directory (YAML files deep-merged), env vars in `.env`.
 
 ## Current Product State
 
 Recently completed:
 
+- Comment pipeline refactored: CommentAnalyzer scores all → CommentJudge pre-filters via `get_top_comments()` → LLM judges → Story script consumes `quote_candidates` directly. No independent re-selection downstream.
+- AtmosphereCard: `debate_focus` and `stance_distribution` now injected from comment judgement rather than re-generated by story script LLM.
+- Prompt renames: `comment_judge.md` → `comment_analyze.md`, `single_story_scan.md` → `story_script.md`.
 - Global `HN TechPulse` chrome in body segments with date/window label.
 - Story chapter indicator (`01/10`) and bottom progress bar story ticks.
 - EventCard hierarchy pass: editor angle/title first, HN original title as secondary, key points and why-it-matters modules, keyword limit.
@@ -75,8 +124,10 @@ Known next priorities are tracked in [ROADMAP.md](ROADMAP.md):
 - **LLM Token Cap**: `llm.max_completion_tokens_cap` bounds auto-expansion when model output is truncated.
 - **Segment Cache Version**: `llm.cache_schema_version` should be bumped when segment-cache semantics change.
 - **Concurrent Story Generation**: `llm.max_workers` controls concurrent story script generation.
+- **Concurrent Comment Judging**: `analyze.comment_judge_max_workers` controls concurrent LLM judge calls.
 - **TTS Consistency Check**: Bigram similarity < 0.6 between cached timings and `audio_text` triggers re-synthesis.
-- **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation/summarization.
+- **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation/summarization and comment judging.
+- **Comment Data Flow**: CommentAnalyzer scores all → CommentJudge pre-filters via `get_top_comments()` → LLM judges → ScriptWriter consumes `quote_candidates`. No independent re-selection downstream.
 - **Comment Translation Keys**: Use stable keys from story/comment source ids when available. Avoid index-only keys unless no ids exist.
 - **Image Selection**: Prefer strong article/page candidates and screenshots before weaker search images; enforce configured minimum dimensions where possible.
 - **Remotion Props**: Renderer writes/uses public props for Studio preview. Keep package scripts aligned with composition id `HNTechPulseComposition`.

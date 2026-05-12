@@ -1,0 +1,15 @@
+# ── 评论分析配置 ──
+
+analyze:
+  enabled: true                     # 总开关：是否对评论做情感分析+质量评分+关键词提取
+  min_quality_score: 0.22           # 低于此分的评论不送入脚本 LLM（与 QuoteCard 上屏阈值保持一致）
+  max_keywords_per_comment: 5       # 每条评论最多提取 TF-IDF 关键词数
+  max_comments_for_llm: 10          # 每个 story 送入 LLM 的高质量评论数（按 quality_score 排序取 top-N）
+  comment_judge_enabled: true       # 使用独立 LLM 评审每条 story 的上屏评论候选
+  comment_judge_max_workers: 2      # comment judge 并发数；调大可更快但会增加并发 LLM 调用
+  comment_judge_prompt: "prompts/comment_analyze.md"
+  max_comments_for_judge: 15        # 每条 story 最多送给 comment judge 的评论数
+  comment_judge_max_tokens: 512     # judge 只输出 3 个评论 id
+  comment_judge_thinking: "disabled" # DeepSeek v4 默认 thinking=enabled，会吃完 completion 导致 content 为空
+  comment_judge_fallback_on_error: true   # LLM judge 失败时回退到启发式筛选，避免中断整条流水线
+  judge_min_quality_score: 0.05     # judge 初筛阈值，允许短但有态度的评论进入候选池

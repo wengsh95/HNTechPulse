@@ -362,31 +362,38 @@ class RemotionRenderer(Renderer):
         audio_path_obj = Path(audio_dir).resolve()
         copied_files: set = set()
 
-        for segment in script.segments:
-            if not getattr(segment, "audio_path", None):
-                continue
-
-            src_audio = Path(segment.audio_path)
-            if not src_audio.is_absolute():
-                src_audio = audio_path_obj / src_audio
-
-            if not src_audio.exists():
-                fallback = audio_path_obj / src_audio.name
+        def _copy_audio(src_path: str) -> str | None:
+            """Copy one audio file to public/audio/ if not already copied.
+            Returns the relative path (audio/filename) or None on failure.
+            """
+            src = Path(src_path)
+            if not src.is_absolute():
+                src = audio_path_obj / src
+            if not src.exists():
+                fallback = audio_path_obj / src.name
                 if fallback.exists():
-                    src_audio = fallback
+                    src = fallback
                 else:
-                    self.logger.info(f"Audio file not found: {src_audio}")
-                    continue
+                    self.logger.info(f"Audio file not found: {src}")
+                    return None
+            if str(src) in copied_files:
+                return f"audio/{src.name}"
+            shutil.copy2(src, audio_subdir / src.name)
+            copied_files.add(str(src))
+            self.logger.debug(f"Copied audio: {src.name} -> public/audio/")
+            return f"audio/{src.name}"
 
-            dest_name = src_audio.name
-            dest_path = audio_subdir / dest_name
+        for segment in script.segments:
+            if getattr(segment, "audio_path", None):
+                rel = _copy_audio(segment.audio_path)
+                if rel:
+                    segment.audio_path = rel
 
-            if str(src_audio) not in copied_files:
-                shutil.copy2(src_audio, dest_path)
-                copied_files.add(str(src_audio))
-                self.logger.debug(f"Copied audio: {src_audio.name} -> public/audio/")
-
-            segment.audio_path = f"audio/{dest_name}"
+            subtitle_audios = segment.meta.get("subtitle_audios", [])
+            for sa in subtitle_audios:
+                sa_audio_path = sa.get("audio_path", "")
+                if sa_audio_path:
+                    _copy_audio(sa_audio_path)
 
         self.logger.info(f"Prepared {len(copied_files)} audio files in public/")
 

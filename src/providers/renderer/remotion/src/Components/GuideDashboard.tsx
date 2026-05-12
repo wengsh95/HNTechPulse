@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { ElementProps, UI_TEXT } from "./utils";
-import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 import {
   DashboardEntry,
   MedalBadge,
@@ -59,7 +59,7 @@ export const GuideDashboard: React.FC<{
         <div
           style={{
             fontFamily: FONTS.bold,
-            fontWeight: 760,
+            fontWeight: FW.heavy,
             fontSize: 36,
             color: COLORS.text,
             lineHeight: 1.12,
@@ -72,7 +72,7 @@ export const GuideDashboard: React.FC<{
           style={{
             fontFamily: FONTS.sans,
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: FW.bold,
             color: COLORS.accentLight,
             backgroundColor: COLORS.accentBg,
             borderRadius: 999,
@@ -83,32 +83,36 @@ export const GuideDashboard: React.FC<{
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
         {guideEntries.map((entry, i) => {
           const rowStart = 10 + i * 5;
-          const rowProgress = rowEntryAnimation(frame, rowStart, 20);
+          const rowProgress = rowEntryAnimation(frame, rowStart, 22);
           const rank = entry.rank || i + 1;
           const angle = entry.editor_angle || entry.title_translation || entry.title_cn || entry.original_title || entry.title || "";
           const why = entry.why_it_matters || entry.next_watch || entry.original_title || "";
           const keywords = entry.keywords ?? [];
           const category = entry.category || "";
           const medal = rank <= 3 ? medalSets[rank - 1] : null;
+          const isLast = i === guideEntries.length - 1;
 
           return (
             <div
               key={i}
               style={{
                 display: "grid",
-                gridTemplateColumns: "44px 1fr 128px",
+                gridTemplateColumns: "48px 1fr 132px",
                 columnGap: 18,
                 alignItems: "center",
                 minHeight: 86,
-                padding: "12px 16px",
-                borderRadius: 10,
-                backgroundColor: i < focusCount ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.028)",
-                border: "1px solid rgba(255,255,255,0.055)",
+                padding: "14px 16px",
+                borderRadius: 0,
+                backgroundColor: "transparent",
+                borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                borderTop: "none",
+                borderLeft: "none",
+                borderRight: "none",
                 opacity: rowProgress,
-                transform: `translateY(${interpolate(rowProgress, [0, 1], [16, 0])}px)`,
+                transform: `translateY(${interpolate(rowProgress, [0, 1], [12, 0])}px)`,
               }}
             >
               <div
@@ -123,7 +127,7 @@ export const GuideDashboard: React.FC<{
                   border: `1.5px solid ${medal?.ring ?? "rgba(255,255,255,0.12)"}`,
                   fontFamily: FONTS.mono,
                   fontSize: 15,
-                  fontWeight: 800,
+                  fontWeight: FW.heavy,
                   color: medal?.text ?? COLORS.textSecondary,
                 }}
               >
@@ -135,8 +139,8 @@ export const GuideDashboard: React.FC<{
                   style={{
                     fontFamily: FONTS.sans,
                     fontSize: 22,
-                    lineHeight: 1.28,
-                    fontWeight: 750,
+                    lineHeight: 1.32,
+                    fontWeight: FW.bold,
                     color: COLORS.text,
                     overflow: "hidden",
                     display: "-webkit-box",
@@ -151,7 +155,8 @@ export const GuideDashboard: React.FC<{
                     style={{
                       fontFamily: FONTS.sans,
                       fontSize: 14,
-                      lineHeight: 1.36,
+                      lineHeight: 1.42,
+                      fontWeight: FW.regular,
                       color: COLORS.textSecondary,
                       marginTop: 6,
                       overflow: "hidden",
@@ -167,8 +172,8 @@ export const GuideDashboard: React.FC<{
 
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                 {category && <CategoryBadge category={category} />}
-                <div style={{ display: "flex", gap: 8, color: COLORS.textTertiary, fontFamily: FONTS.mono, fontSize: 13 }}>
-                  <span>{entry.score || 0}</span>
+                <div style={{ display: "flex", gap: 8, color: COLORS.textTertiary, fontFamily: FONTS.mono, fontSize: 13, fontWeight: FW.medium }}>
+                  <span style={{ color: COLORS.text }}>{entry.score || 0}</span>
                   <span>·</span>
                   <span>{entry.comment_count || 0}评</span>
                 </div>

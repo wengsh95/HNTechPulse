@@ -3,7 +3,7 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 
 import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
-import { COLORS, FONTS, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
 
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
@@ -55,6 +55,8 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
 
   const isMinimal = mode === "minimal";
 
+  const subMaxWidth = Math.min(width - LAYOUT.pageInset * 2.4, 720);
+
   return (
     <div style={{
       ...S,
@@ -62,26 +64,26 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
       bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
       transform: "translateX(-50%)",
       background: isMinimal
-        ? "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.28) 18%, rgba(7, 7, 18, 0.28) 82%, rgba(7, 7, 18, 0))"
-        : "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.40) 16%, rgba(7, 7, 18, 0.40) 84%, rgba(7, 7, 18, 0))",
+        ? "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.38) 16%, rgba(7, 7, 18, 0.38) 84%, rgba(7, 7, 18, 0))"
+        : "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.52) 14%, rgba(7, 7, 18, 0.52) 86%, rgba(7, 7, 18, 0))",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: isMinimal ? "8px 24px" : "8px 32px",
-      width: Math.min(width - LAYOUT.pageInset * 2.4, LAYOUT.subtitleMaxWidth),
-      minHeight: isMinimal ? 38 : 46,
-      opacity: opacity * (isMinimal ? 0.7 : 0.84),
+      padding: isMinimal ? "10px 28px" : "10px 28px",
+      width: subMaxWidth,
+      minHeight: isMinimal ? 40 : 48,
+      opacity: opacity * (isMinimal ? 0.72 : 0.88),
       borderRadius: 12,
     }}>
       <span style={{
         fontFamily: FONTS.sans,
-        fontSize: 19,
+        fontSize: 22,
         color: COLORS.text,
         textAlign: "center",
-        lineHeight: 1.36,
-        fontWeight: 500,
+        lineHeight: 1.45,
+        fontWeight: FW.semibold,
         letterSpacing: 0,
-        textShadow: "0 2px 10px rgba(0,0,0,0.62), 0 1px 2px rgba(0,0,0,0.76)",
+        textShadow: "0 2px 12px rgba(0,0,0,0.68), 0 1px 3px rgba(0,0,0,0.8)",
         maxWidth: "100%",
         overflow: "hidden",
         display: "-webkit-box",

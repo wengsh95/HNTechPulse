@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 import { ElementProps, p } from "./utils";
-import { COLORS, FONTS, S } from "./design";
+import { COLORS, FONTS, FW, S } from "./design";
 
 export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
@@ -52,7 +52,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
             lineHeight: 1.35,
             textAlign: "center",
             maxWidth: "78%",
-            fontWeight: 700,
+            fontWeight: FW.bold,
             letterSpacing: -0.4,
             opacity: questionProgress,
             transform: `translateY(${interpolate(questionProgress, [0, 1], [22, 0])}px)`,
@@ -69,7 +69,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
             fontSize: 16,
             color: COLORS.textSecondary,
             marginTop: 32,
-            fontWeight: 500,
+            fontWeight: FW.medium,
             letterSpacing: 0.4,
             textTransform: "uppercase",
             opacity: moodProgress,
@@ -82,7 +82,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
       <div
         style={{
           fontFamily: FONTS.bold,
-          fontWeight: 700,
+          fontWeight: FW.bold,
           fontSize: 56,
           color: COLORS.text,
           marginTop: visualMood ? 40 : 56,

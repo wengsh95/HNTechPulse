@@ -72,7 +72,17 @@ class ScriptWriter:
             date_display = date
 
         audio_text = "早上好，这里是 HN TechPulse，带你看昨天HN发生了什么。"
-        duration = 4
+        duration = 5
+
+        keywords: list[str] = []
+        if story_scan_segs:
+            for seg in story_scan_segs[:3]:
+                for elem in seg.scene_elements:
+                    if elem.element_type == "event_card":
+                        kw = elem.props.get("editor_angle") or elem.props.get("title_cn") or ""
+                        if kw:
+                            keywords.append(str(kw))
+                        break
 
         return ScriptSegment(
             segment_type="opening",
@@ -81,15 +91,13 @@ class ScriptWriter:
             emotion="warm",
             scene_elements=[
                 SceneElement(
-                    element_type="title_card",
+                    element_type="cover_card",
                     start_time=0.0,
                     end_time=float(duration),
                     props={
-                        "title": "HN TechPulse",
+                        "headline": "每日技术速览",
                         "subtitle": date_display,
-                        "headline": "HNTechPulse",
-                        "topics": [],
-                        "stats": "",
+                        "keywords": keywords[:3],
                     }
                 )
             ],
@@ -106,7 +114,7 @@ class ScriptWriter:
             return True
 
         for elem in segment.scene_elements:
-            if elem.element_type == "title_card" and elem.props.get("topics"):
+            if elem.element_type == "cover_card" and elem.props.get("topics"):
                 return True
 
         return False
@@ -240,7 +248,7 @@ class ScriptWriter:
                 content=content,
                 story_index=story_idx,
                 segment_type="story_scan_item",
-                prompt_template_path="prompts/single_story_scan.md",
+                prompt_template_path="prompts/story_script.md",
                 date=date,
                 comments_data=judgement or None
             )
@@ -267,10 +275,15 @@ class ScriptWriter:
             if story_idx in story_scan_segs_by_index
         ]
         for story_idx, seg in zip(story_indices, story_scan_segs):
+            judgement = comment_judgements.get(comment_judgement_key(content.items[story_idx]), {})
             self._normalize_quote_card_selection(
                 seg,
                 content.items[story_idx],
-                comment_judgements.get(comment_judgement_key(content.items[story_idx]), {}),
+                judgement,
+            )
+            self._normalize_atmosphere_card(
+                seg,
+                judgement,
             )
 
         # 固定开场
@@ -286,44 +299,49 @@ class ScriptWriter:
                 f"content items. Video will have no news content in the middle."
             )
         else:
-            combined_audio = ""
+            combined_audio_parts = []
             combined_scene_elements = []
-            sub_segment_char_ranges = []  # [(start, end), ...] per-card char offsets
+            sub_segment_subtitle_texts = []  # list of list[str]
+            sub_segment_duration_estimates = []
             sub_idx = 0
+            SPEECH_CPS = 3.5  # approximate Chinese chars per second
+
             for story_i, s in enumerate(story_scan_segs):
                 card_narrations = s.meta.get("card_narrations", [])
                 if not card_narrations:
-                    # Fallback: no card_narrations, treat entire story as one block
-                    char_start = len(combined_audio)
-                    if combined_audio:
-                        combined_audio += " "
-                    combined_audio += s.audio_text
-                    char_end = len(combined_audio)
-                    sub_segment_char_ranges.append((char_start, char_end))
+                    card_audio = (s.audio_text or "").strip()
+                    if not card_audio:
+                        continue
+                    texts = [card_audio]
+                    combined_audio_parts.append(card_audio)
+                    sub_segment_subtitle_texts.append(texts)
+                    sub_segment_duration_estimates.append(
+                        sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
+                    )
                     for elem in s.scene_elements:
                         elem.sub_segment_index = sub_idx
                         if elem.element_type == "event_card":
                             elem.props["display_index"] = story_i
                             elem.props["story_count"] = len(story_scan_segs)
+                        elem.props["subtitle_texts"] = texts
                         combined_scene_elements.append(elem)
                     sub_idx += 1
                     continue
 
-                # Card-level processing: each card_narration → own char_range + sub_segment_index
                 for card in card_narrations:
-                    card_audio = card.get("audio_text", "")
-                    card_type = card.get("card_type", "")
-                    if not card_audio:
+                    raw_texts = card.get("subtitle_texts", []) or []
+                    texts = [t.strip() for t in raw_texts if t and t.strip()]
+                    if not texts:
                         continue
+                    card_type = card.get("card_type", "")
 
-                    char_start = len(combined_audio)
-                    if combined_audio:
-                        combined_audio += " "
-                    combined_audio += card_audio
-                    char_end = len(combined_audio)
-                    sub_segment_char_ranges.append((char_start, char_end))
+                    for t in texts:
+                        combined_audio_parts.append(t)
+                    sub_segment_subtitle_texts.append(texts)
+                    sub_segment_duration_estimates.append(
+                        sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
+                    )
 
-                    # Find matching scene_element
                     matched = False
                     for elem in s.scene_elements:
                         if elem.element_type == card_type and elem.sub_segment_index is None:
@@ -331,6 +349,7 @@ class ScriptWriter:
                             if elem.element_type == "event_card":
                                 elem.props["display_index"] = story_i
                                 elem.props["story_count"] = len(story_scan_segs)
+                            elem.props["subtitle_texts"] = texts
                             combined_scene_elements.append(elem)
                             matched = True
                             break
@@ -342,7 +361,8 @@ class ScriptWriter:
 
                     sub_idx += 1
 
-            total_duration = sum(s.estimated_duration for s in story_scan_segs)
+            combined_audio = " ".join(combined_audio_parts)
+            total_duration = sum(sub_segment_duration_estimates)
 
             story_scan_seg = ScriptSegment(
                 segment_type="story_scan",
@@ -351,8 +371,8 @@ class ScriptWriter:
                 emotion="upbeat",
                 scene_elements=combined_scene_elements,
                 meta={
-                    "sub_segment_estimated_durations": [s.estimated_duration for s in story_scan_segs],
-                    "sub_segment_char_ranges": sub_segment_char_ranges,
+                    "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
+                    "sub_segment_duration_estimates": sub_segment_duration_estimates,
                 },
             )
             segments.append(story_scan_seg)
@@ -388,6 +408,23 @@ class ScriptWriter:
                 for c in selected_comments
                 if c.source_id is not None
             ]
+            elem.props = props
+
+    @staticmethod
+    def _normalize_atmosphere_card(segment: ScriptSegment, judgement: dict) -> None:
+        """Inject debate_focus and stance_distribution from comment judgement into atmosphere_card props."""
+        debate_focus = judgement.get("debate_focus") or []
+        stance_distribution = judgement.get("stance_distribution") or {}
+        if not debate_focus and not stance_distribution:
+            return
+        for elem in segment.scene_elements:
+            if elem.element_type != "atmosphere_card":
+                continue
+            props = dict(elem.props or {})
+            if debate_focus:
+                props["debate_focus"] = debate_focus
+            if stance_distribution:
+                props["stance_distribution"] = stance_distribution
             elem.props = props
 
     def write(self, content: ContentPackage) -> Script:
@@ -483,8 +520,8 @@ class ScriptWriter:
         if story_scan is None:
             return True  # No story_scan to validate
 
-        # Must have char_ranges for TTS-based timing
-        if not story_scan.meta.get("sub_segment_char_ranges"):
+        # Must have per-card subtitle_texts for per-subtitle TTS timing
+        if not story_scan.meta.get("sub_segment_subtitle_texts"):
             return False
 
         # Milestone 2: story cards need editable fields for productized narrative.

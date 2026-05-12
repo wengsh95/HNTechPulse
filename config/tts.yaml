@@ -1,0 +1,13 @@
+# ── TTS 语音合成配置 ──
+
+tts:
+  provider: "mimo"
+  voice: "Chloe"
+  model: "mimo-v2.5-tts"
+  base_url: "https://api.xiaomimimo.com/v1"
+  format: "pcm16"
+  sample_rate: 24000
+  max_workers: 3
+  temperature: 0.2                 # 越低越稳定（0-2），播报推荐 0.1-0.3
+  # top_p: 0.9                     # 核采样，与 temperature 二选一；不设置则用 API 默认
+  # seed: 42                       # 固定种子可复现相同语音；不设置则每次随机

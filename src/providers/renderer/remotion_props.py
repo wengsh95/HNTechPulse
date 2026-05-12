@@ -373,6 +373,20 @@ def script_to_props(
                 src_audio = audio_path_obj / src_audio
             seg_dict["audio_path"] = f"audio/{src_audio.name}"
 
+        # Per-subtitle audio tracks (story_scan with per-card TTS)
+        subtitle_audios = segment.meta.get("subtitle_audios", [])
+        if subtitle_audios:
+            seg_dict["subtitle_audios"] = []
+            for sa in subtitle_audios:
+                src = Path(sa["audio_path"])
+                if not src.is_absolute():
+                    src = audio_path_obj / src
+                seg_dict["subtitle_audios"].append({
+                    "audio_path": f"audio/{src.name}",
+                    "start_time": sa["start_time"],
+                    "end_time": sa["end_time"],
+                })
+
         # 2. Expand element props and use times set by orchestrator
         expanded_count = 0
         for elem in segment.scene_elements:
@@ -397,6 +411,17 @@ def script_to_props(
 
         segments_data.append(seg_dict)
 
+    # Transition sound times: for each story_scan segment, when the transition
+    # whoosh should play. First story: at its start. Subsequent stories: at the
+    # PREVIOUS story's end (gap start), so the sound fills the gap.
+    story_segments = [s for s in script.segments if s.segment_type == "story_scan"]
+    transition_times = []
+    for i, seg in enumerate(story_segments):
+        if i == 0:
+            transition_times.append(float(seg.start_time or 0))
+        else:
+            transition_times.append(float(story_segments[i - 1].end_time or 0))
+
     return {
         "width": width,
         "height": height,
@@ -406,4 +431,5 @@ def script_to_props(
         "totalDuration": float(script.total_duration or 0),
         "segments": segments_data,
         "audioDir": str(Path(audio_dir).resolve()),
+        "transitionTimes": transition_times,
     }

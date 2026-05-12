@@ -2,7 +2,7 @@ import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 import { ElementProps, stanceLabel, stripHtml, UI_TEXT } from "./utils";
 
 interface Quote {
@@ -59,7 +59,7 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
         style={{
           fontFamily: FONTS.sans,
           fontSize: featured ? 12 : 10,
-          fontWeight: 780,
+          fontWeight: FW.heavy,
           color: stanceColor,
           backgroundColor: stanceColor + (featured ? "22" : "18"),
           border: `1px solid ${stanceColor}${featured ? "38" : "24"}`,
@@ -74,7 +74,7 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
         style={{
           fontFamily: FONTS.sans,
           fontSize: featured ? 14 : 12,
-          fontWeight: featured ? 640 : 560,
+          fontWeight: featured ? FW.semibold : FW.medium,
           color: featured ? "rgba(255,255,255,0.72)" : COLORS.textSecondary,
         }}
       >
@@ -97,6 +97,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
     frame,
     fps,
     config: { damping: 14, stiffness: 120 },
+    delay: 4,
   });
 
   if (quotes.length === 0) {
@@ -107,7 +108,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
     frame,
     fps,
     config: { damping: 10, stiffness: 130 },
-    delay: 6,
+    delay: 10,
   });
 
   const featuredColor = STANCE_COLORS[featuredQuote.stance] || COLORS.textSecondary;
@@ -154,7 +155,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                 style={{
                   fontFamily: FONTS.sans,
                   fontSize: 11,
-                  fontWeight: 720,
+                  fontWeight: FW.bold,
                   color: i === 0 ? "rgba(255,255,255,0.78)" : COLORS.textSecondary,
                   backgroundColor: i === 0 ? stanceColor + "22" : "rgba(255,255,255,0.045)",
                   border: `1px solid ${i === 0 ? stanceColor + "34" : "rgba(255,255,255,0.06)"}`,
@@ -184,7 +185,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
               frame,
               fps,
               config: { damping: 10, stiffness: 130 },
-              delay: 10 + i * 7,
+              delay: 14 + i * 9,
             });
           const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
           const { primaryText } = getQuoteText(quote);
@@ -215,8 +216,8 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                 fontFamily: FONTS.sans,
                 fontSize: 18,
                 color: COLORS.text,
-                lineHeight: 1.4,
-                fontWeight: 680,
+                lineHeight: 1.5,
+                fontWeight: FW.semibold,
                 letterSpacing: 0,
                 maxWidth: "100%",
                 overflowWrap: "anywhere",

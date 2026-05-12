@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
-import { COLORS, FONTS } from "./design";
+import { COLORS, FONTS, FW } from "./design";
 
 export const STANCE_COLORS: Record<string, string> = {
   "支持": "#3395ff",
@@ -81,7 +81,7 @@ export const StancePie: React.FC<{
               transform: "translate(-50%, -50%)",
               fontFamily: FONTS.mono,
               fontSize: 18,
-              fontWeight: 700,
+              fontWeight: FW.bold,
               color: COLORS.text,
               textAlign: "center",
               lineHeight: 1.25,
@@ -109,7 +109,7 @@ export const StancePie: React.FC<{
               style={{
                 fontFamily: FONTS.sans,
                 fontSize: 13,
-                fontWeight: 500,
+                fontWeight: FW.medium,
                 color: COLORS.text,
                 display: "flex",
                 alignItems: "center",

@@ -20,6 +20,13 @@ export interface CueData {
   end_time: number;   // 秒（相对于 segment 起始）
 }
 
+/** 单条字幕音频（用于 per-subtitle TTS 模式） */
+export interface SubtitleAudioData {
+  audio_path: string;  // 音频文件名（相对于 public/ 目录）
+  start_time: number;  // 秒（相对于 segment 起始）
+  end_time: number;    // 秒（相对于 segment 起始）
+}
+
 /** 单个 Segment（对应 Python ScriptSegment） */
 export interface SegmentData {
   segment_type: string;        // "opening" | "deep_dive" | "medium_dive" | "quick_news" | "quick_briefs" | "context" | "viewpoint_a" | "viewpoint_b" | "comment_deep" | "synthesis" | "closing"
@@ -29,6 +36,7 @@ export interface SegmentData {
   start_time: number;          // 在时间线上的绝对起始位置（秒）
   end_time: number;            // 在时间线上的绝对结束位置（秒）
   audio_path?: string;         // TTS 音频文件路径（相对于 audioDir 或绝对路径）
+  subtitle_audios?: SubtitleAudioData[];  // per-subtitle 音频（story_scan 使用）
   scene_elements: SceneElementData[];
 }
 
@@ -42,4 +50,5 @@ export interface ScriptProps {
   totalDuration: number;       // 总时长（秒）
   segments: SegmentData[];
   audioDir: string;            // 音频文件根目录
+  transitionTimes?: number[];  // 每个 story 的转场音效起始时间（秒）
 }

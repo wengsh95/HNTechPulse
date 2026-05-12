@@ -1,7 +1,7 @@
 import React from "react";
 import { interpolate, Easing } from "remotion";
 
-import { COLORS, FONTS, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
 
 export interface DashboardEntry {
   rank?: number;
@@ -46,7 +46,7 @@ export const MedalBadge: React.FC<{
           border: `1.5px solid ${medal!.ring}`,
           fontFamily: FONTS.mono,
           fontSize,
-          fontWeight: 700,
+          fontWeight: FW.bold,
           color: medal!.text,
           lineHeight: 1,
         }}
@@ -61,7 +61,7 @@ export const MedalBadge: React.FC<{
       style={{
         fontFamily: FONTS.mono,
         fontSize: fontSize + 3,
-        fontWeight: 500,
+        fontWeight: FW.medium,
         color: COLORS.textTertiary,
       }}
     >

@@ -45,8 +45,13 @@ class Orchestrator:
         self.translation_manager = TranslationManager(llm_provider, self.content_preparer, config, debug=debug, level=log_level)
         self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
-        self.comment_judge = CommentJudge(llm_provider, config, debug=debug)
-        self._timing = TimingEngine(debug=debug)
+        self.comment_judge = CommentJudge(llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug)
+        timing_cfg = config.get("timing", {})
+        self._timing = TimingEngine(
+            segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
+            story_gap=float(timing_cfg.get("story_gap", 0.0)),
+            debug=debug,
+        )
 
     def run(self, date: str, steps: Optional[List[str]] = None, force: bool = False) -> None:
         if steps is None:

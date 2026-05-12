@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 from src.core.models import (
     ContentItem, ContentComment, ContentPackage,
-    Script, ScriptSegment, SceneElement, WordTiming,
+    Script, ScriptSegment, SceneElement,
 )
 from src.providers.renderer.remotion_props import (
     _safe_get_item, _safe_get_comment,
@@ -15,8 +15,7 @@ from src.providers.renderer.remotion_props import (
     sanitize_props, script_to_props,
 )
 from src.providers.renderer.cue_builder import (
-    build_cues, _build_cues_from_word_timings, _build_cues_from_sentence_timings,
-    _split_into_cues,
+    build_cues, _split_into_cues,
 )
 from src.pipeline.comment_selection import (
     compute_comment_quality,
@@ -54,14 +53,7 @@ def _make_content_package():
     )
 
 
-def _make_script_segment(segment_type="opening", audio_text="Hello world.", duration=10.0, word_timings=None):
-    meta = {}
-    if word_timings:
-        meta["word_timings"] = [
-            {"text": wt.text, "start_time": wt.start_time, "end_time": wt.end_time}
-            for wt in word_timings
-        ]
-        meta["timing_level"] = "word"
+def _make_script_segment(segment_type="opening", audio_text="Hello world.", duration=10.0):
     return ScriptSegment(
         segment_type=segment_type,
         audio_text=audio_text,
@@ -69,7 +61,6 @@ def _make_script_segment(segment_type="opening", audio_text="Hello world.", dura
         actual_duration=duration,
         start_time=0.0,
         end_time=duration,
-        meta=meta,
     )
 
 
@@ -493,108 +484,11 @@ class TestExpandElementProps:
 # ── build_cues ─────────────────────────────────────────────────────────
 
 class TestBuildCues:
-    def test_word_timings_priority(self):
-        wt = [WordTiming(text="Hello.", start_time=0.0, end_time=1.0)]
-        seg = _make_script_segment(word_timings=wt)
-        logger = MagicMock()
-        cues = build_cues(seg, 1.0, logger)
-        assert len(cues) > 0
-        logger.debug.assert_called()
-
     def test_auto_split_fallback(self):
         seg = _make_script_segment(audio_text="Hello world. Goodbye.", duration=5.0)
-        seg.meta = {}
         logger = MagicMock()
         cues = build_cues(seg, 5.0, logger)
         assert len(cues) >= 1
-
-
-# ── _build_cues_from_word_timings ──────────────────────────────────────
-
-class TestBuildCuesFromWordTimings:
-    def test_sentence_break_flushes(self):
-        timings = [
-            WordTiming(text="Hello", start_time=0.0, end_time=0.5),
-            WordTiming(text="world.", start_time=0.5, end_time=1.0),
-            WordTiming(text="Next", start_time=1.0, end_time=1.5),
-            WordTiming(text="line.", start_time=1.5, end_time=2.0),
-        ]
-        cues = _build_cues_from_word_timings(timings, 2.0)
-        assert len(cues) == 2
-        assert cues[0]["text"] == "Helloworld."
-        assert cues[1]["text"] == "Nextline."
-
-    def test_clause_break_long_text(self):
-        timings = [
-            WordTiming(text="This is a really long clause,",
-                       start_time=0.0, end_time=1.0),
-            WordTiming(text=" and another part.", start_time=1.0, end_time=2.0),
-        ]
-        cues = _build_cues_from_word_timings(timings, 2.0)
-        assert len(cues) == 2
-
-    def test_clause_break_short_text_no_flush(self):
-        timings = [
-            WordTiming(text="Short,", start_time=0.0, end_time=0.5),
-            WordTiming(text=" text.", start_time=0.5, end_time=1.0),
-        ]
-        cues = _build_cues_from_word_timings(timings, 1.0)
-        assert len(cues) == 1
-
-    def test_first_cue_starts_at_zero(self):
-        timings = [
-            WordTiming(text="Hello.", start_time=0.1, end_time=1.0),
-        ]
-        cues = _build_cues_from_word_timings(timings, 1.0)
-        assert cues[0]["start_time"] == 0.0
-
-    def test_last_cue_ends_at_duration(self):
-        timings = [
-            WordTiming(text="Hello.", start_time=0.0, end_time=0.9),
-        ]
-        cues = _build_cues_from_word_timings(timings, 5.0)
-        assert cues[-1]["end_time"] == 5.0
-
-    def test_empty_timings(self):
-        assert _build_cues_from_word_timings([], 5.0) == []
-
-    def test_chinese_sentence_breaks(self):
-        timings = [
-            WordTiming(text="你好。", start_time=0.0, end_time=1.0),
-            WordTiming(text="世界！", start_time=1.0, end_time=2.0),
-        ]
-        cues = _build_cues_from_word_timings(timings, 2.0)
-        assert len(cues) == 2
-
-
-# ── _build_cues_from_sentence_timings ──────────────────────────────────
-
-class TestBuildCuesFromSentenceTimings:
-    def test_basic_sentence_cues(self):
-        timings = [
-            WordTiming(text="First sentence.", start_time=0.0, end_time=2.0),
-            WordTiming(text="Second sentence.", start_time=2.0, end_time=4.0),
-        ]
-        cues = _build_cues_from_sentence_timings(timings, 4.0)
-        assert len(cues) == 2
-        assert cues[0]["text"] == "First sentence."
-
-    def test_first_cue_starts_at_zero(self):
-        timings = [
-            WordTiming(text="Hi.", start_time=0.1, end_time=1.0),
-        ]
-        cues = _build_cues_from_sentence_timings(timings, 1.0)
-        assert cues[0]["start_time"] == 0.0
-
-    def test_last_cue_ends_at_duration(self):
-        timings = [
-            WordTiming(text="Hi.", start_time=0.0, end_time=0.9),
-        ]
-        cues = _build_cues_from_sentence_timings(timings, 5.0)
-        assert cues[-1]["end_time"] == 5.0
-
-    def test_empty_timings(self):
-        assert _build_cues_from_sentence_timings([], 5.0) == []
 
 
 # ── _split_into_cues ───────────────────────────────────────────────────

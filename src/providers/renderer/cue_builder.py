@@ -1,99 +1,21 @@
 import re
 from typing import Any, Dict, List
 
-from src.core.models import WordTiming
-
 
 def build_cues(segment: "ScriptSegment", duration: float, logger) -> List[Dict[str, Any]]:
-    """Build subtitle cues from TTS word timings or auto-split.
+    """Build subtitle cues.
 
-    Priority: real TTS word_timings > auto-split by punctuation.
+    Priority: per-card cues (story_scan segments) > auto-split by sentence length.
     """
-    word_timings_raw = segment.meta.get("word_timings", [])
-    if word_timings_raw:
-        word_timings = [
-            WordTiming(text=wt["text"], start_time=wt["start_time"], end_time=wt["end_time"])
-            for wt in word_timings_raw
+    if segment.cues:
+        logger.debug(f"Using per-card cues: {len(segment.cues)} cues")
+        return [
+            {"text": c.text, "start_time": c.start_time, "end_time": c.end_time}
+            for c in segment.cues
         ]
-        timing_level = segment.meta.get("timing_level", "word")
-        logger.debug(
-            f"Using real TTS timings: {timing_level} level, {len(word_timings)} timings"
-        )
-        if timing_level == "sentence":
-            return _build_cues_from_sentence_timings(word_timings, duration)
-        else:
-            return _build_cues_from_word_timings(word_timings, duration)
 
     logger.debug(f"Using auto-split cues: duration={duration:.2f}s")
     return _split_into_cues(segment.audio_text, duration)
-
-
-def _build_cues_from_sentence_timings(
-    sentence_timings: List["WordTiming"], duration: float
-) -> List[Dict[str, Any]]:
-    if not sentence_timings:
-        return []
-
-    cues: List[Dict[str, Any]] = []
-    for st in sentence_timings:
-        cues.append({
-            "text": st.text,
-            "start_time": round(st.start_time, 3),
-            "end_time": round(st.end_time, 3),
-        })
-
-    if cues:
-        cues[0]["start_time"] = 0.0
-        cues[-1]["end_time"] = duration
-
-    return cues
-
-
-def _build_cues_from_word_timings(
-    word_timings: List["WordTiming"], duration: float
-) -> List[Dict[str, Any]]:
-    if not word_timings:
-        return []
-
-    sentence_breaks = set("。！？.!?")
-    clause_breaks = set("，,、：:;；")
-
-    cues: List[Dict[str, Any]] = []
-    current_words: List["WordTiming"] = []
-    current_text_parts: List[str] = []
-
-    def flush():
-        if not current_words:
-            return
-        text = "".join(current_text_parts)
-        cues.append({
-            "text": text,
-            "start_time": round(current_words[0].start_time, 3),
-            "end_time": round(current_words[-1].end_time, 3),
-        })
-
-    for wt in word_timings:
-        current_words.append(wt)
-        current_text_parts.append(wt.text)
-
-        last_char = wt.text[-1] if wt.text else ""
-        if last_char in sentence_breaks:
-            flush()
-            current_words = []
-            current_text_parts = []
-        elif last_char in clause_breaks and len("".join(current_text_parts)) > 20:
-            flush()
-            current_words = []
-            current_text_parts = []
-
-    if current_words:
-        flush()
-
-    if cues:
-        cues[0]["start_time"] = 0.0
-        cues[-1]["end_time"] = duration
-
-    return cues
 
 
 def _split_into_cues(text: str, duration: float) -> List[Dict[str, Any]]:

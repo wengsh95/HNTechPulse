@@ -71,15 +71,10 @@ class OpenAILLMProvider(LLMProvider):
         else:
             prompt_template = prompt_template_path
 
-        comments_json_str = "{}"
-        if comments_data:
-            comments_json_str = json.dumps(comments_data, ensure_ascii=False, indent=2)
-
         prompt = render_prompt(
             prompt_template,
             story_json=story_json,
             story_index=str(story_index),
-            comments_json=comments_json_str,
             date=date
         )
 
@@ -237,9 +232,10 @@ class OpenAILLMProvider(LLMProvider):
         self,
         item: ContentItem,
         story_index: int,
-        prompt_template_path: str = "prompts/comment_judge.md",
+        prompt_template_path: str = "prompts/comment_analyze.md",
+        candidates=None,
     ) -> dict:
-        story_json = self._story_comments_for_judge(item, story_index)
+        story_json = self._story_comments_for_judge(item, story_index, candidates=candidates)
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
             prompt_template = prompt_path.read_text(encoding="utf-8")
@@ -269,52 +265,89 @@ class OpenAILLMProvider(LLMProvider):
 
     def _single_story_to_json(self, item, index: int, comments_data: Optional[Dict] = None) -> str:
         analyze_cfg = self.config.get("analyze", {})
-
-        max_comments = analyze_cfg.get(
-            "max_comments_for_llm",
-            self.config.get("pipeline", {}).get("max_comments_for_r1_analyze", 10),
-        )
         min_quality = analyze_cfg.get("min_quality_score", 0.1)
 
-        scored_comments = []
-        computed_fallback_scores = False
-        for c in item.comments:
-            text = clean_comment_text(c.content)
-            if not text:
-                continue
-            quality_score = c.quality_score
-            if quality_score is None:
-                quality_score = compute_comment_quality(c, item)
-                c.quality_score = quality_score
-                computed_fallback_scores = True
-            if quality_score >= min_quality:
-                scored_comments.append((quality_score, c, text))
-
-        if not scored_comments:
-            scored_comments = [
-                (compute_comment_quality(c, item), c, clean_comment_text(c.content))
+        # When judge results are available, use quote_candidates to select comments.
+        # Otherwise fall back to quality-score top-N selection.
+        if comments_data and comments_data.get("quote_candidates"):
+            candidate_ids = []
+            for c in comments_data["quote_candidates"]:
+                cid = c.get("comment_id")
+                if cid is not None:
+                    candidate_ids.append(str(cid))
+            comments_by_id = {
+                str(c.source_id): c
                 for c in item.comments
-                if clean_comment_text(c.content)
+                if c.source_id is not None
+            }
+            selected = []
+            seen = set()
+            for cid in candidate_ids:
+                comment = comments_by_id.get(cid)
+                if comment and cid not in seen:
+                    selected.append(comment)
+                    seen.add(cid)
+            comments_json = []
+            for c in selected:
+                text = clean_comment_text(c.content)
+                if not text:
+                    continue
+                comments_json.append({
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text,
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": c.quality_score,
+                })
+            self.logger.debug(
+                f"Story[{index}] using {len(comments_json)} judge-selected comments "
+                f"(from {len(candidate_ids)} candidates)"
+            )
+        else:
+            max_comments = analyze_cfg.get(
+                "max_comments_for_llm",
+                self.config.get("pipeline", {}).get("max_comments_for_r1_analyze", 10),
+            )
+            scored_comments = []
+            computed_fallback_scores = False
+            for c in item.comments:
+                text = clean_comment_text(c.content)
+                if not text:
+                    continue
+                quality_score = c.quality_score
+                if quality_score is None:
+                    quality_score = compute_comment_quality(c, item)
+                    c.quality_score = quality_score
+                    computed_fallback_scores = True
+                if quality_score >= min_quality:
+                    scored_comments.append((quality_score, c, text))
+
+            if not scored_comments:
+                scored_comments = [
+                    (compute_comment_quality(c, item), c, clean_comment_text(c.content))
+                    for c in item.comments
+                    if clean_comment_text(c.content)
+                ]
+
+            scored_comments.sort(key=lambda x: x[0], reverse=True)
+            comments_json = [
+                {
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text,
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": quality_score,
+                }
+                for quality_score, c, text in scored_comments[:max_comments]
             ]
 
-        scored_comments.sort(key=lambda x: x[0], reverse=True)
-        comments_json = [
-            {
-                "id": c.source_id,
-                "author": c.author,
-                "text": text,
-                "depth": c.depth,
-                "sentiment": c.sentiment,
-                "quality_score": quality_score,
-            }
-            for quality_score, c, text in scored_comments[:max_comments]
-        ]
-
-        if computed_fallback_scores:
-            self.logger.debug(
-                f"Story[{index}] comments had no analysis cache; "
-                f"computed fallback quality scores and selected top {len(comments_json)}"
-            )
+            if computed_fallback_scores:
+                self.logger.debug(
+                    f"Story[{index}] comments had no analysis cache; "
+                    f"computed fallback quality scores and selected top {len(comments_json)}"
+                )
 
         story_dict = {
             "index": index,
@@ -351,44 +384,64 @@ class OpenAILLMProvider(LLMProvider):
         self.logger.debug(f"Story[{index}] serialized: {len(result)} chars ({story_dict['truncated_to']} comments)")
         return result
 
-    def _story_comments_for_judge(self, item, index: int) -> str:
-        analyze_cfg = self.config.get("analyze", {})
-        max_comments = analyze_cfg.get("max_comments_for_judge", 15)
-        min_quality = analyze_cfg.get("judge_min_quality_score", 0.05)
+    def _story_comments_for_judge(self, item, index: int, candidates=None) -> str:
+        if candidates is not None:
+            comments_json = []
+            for c in candidates:
+                text = clean_comment_text(c.content or "")
+                if not text or c.source_id is None:
+                    continue
+                comments_json.append({
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text[:360],
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": c.quality_score,
+                    "resource_pointer_hint": is_resource_pointer_comment(text),
+                })
+            self.logger.debug(
+                f"Story[{index}] judge using {len(comments_json)} "
+                f"pre-filtered comments (from {len(candidates)} candidates)"
+            )
+        else:
+            analyze_cfg = self.config.get("analyze", {})
+            max_comments = analyze_cfg.get("max_comments_for_judge", 15)
+            min_quality = analyze_cfg.get("judge_min_quality_score", 0.05)
 
-        scored_comments = []
-        for c in item.comments:
-            text = clean_comment_text(c.content or "")
-            if not text:
-                continue
-            quality_score = c.quality_score
-            if quality_score is None:
-                quality_score = compute_comment_quality(c, item)
-                c.quality_score = quality_score
-            if quality_score < min_quality and not is_resource_pointer_comment(text):
-                continue
-            scored_comments.append((quality_score, c, text))
+            scored_comments = []
+            for c in item.comments:
+                text = clean_comment_text(c.content or "")
+                if not text:
+                    continue
+                quality_score = c.quality_score
+                if quality_score is None:
+                    quality_score = compute_comment_quality(c, item)
+                    c.quality_score = quality_score
+                if quality_score < min_quality and not is_resource_pointer_comment(text):
+                    continue
+                scored_comments.append((quality_score, c, text))
 
-        scored_comments.sort(
-            key=lambda x: (
-                x[0],
-                -1 * (x[1].depth if x[1].depth is not None else 3),
-            ),
-            reverse=True,
-        )
-        comments_json = [
-            {
-                "id": c.source_id,
-                "author": c.author,
-                "text": text[:360],
-                "depth": c.depth,
-                "sentiment": c.sentiment,
-                "quality_score": quality_score,
-                "resource_pointer_hint": is_resource_pointer_comment(text),
-            }
-            for quality_score, c, text in scored_comments[:max_comments]
-            if c.source_id is not None
-        ]
+            scored_comments.sort(
+                key=lambda x: (
+                    x[0],
+                    -1 * (x[1].depth if x[1].depth is not None else 3),
+                ),
+                reverse=True,
+            )
+            comments_json = [
+                {
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text[:360],
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": quality_score,
+                    "resource_pointer_hint": is_resource_pointer_comment(text),
+                }
+                for quality_score, c, text in scored_comments[:max_comments]
+                if c.source_id is not None
+            ]
 
         story_dict = {
             "index": index,

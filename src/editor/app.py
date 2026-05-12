@@ -119,17 +119,26 @@ def render_opening_editor(state: EditorState):
         seg["emotion"] = emotion
         st.session_state.dirty = True
 
-    # Title card props
+    # Cover card props
     for elem in seg.get("scene_elements", []):
-        if elem.get("element_type") == "title_card":
+        if elem.get("element_type") == "cover_card":
             props = elem.get("props", {})
-            new_title = st.text_input("标题", value=props.get("title", ""), key="tc_title")
-            if new_title != props.get("title"):
-                props["title"] = new_title
+            new_headline = st.text_input("主标题", value=props.get("headline", ""), key="cc_headline")
+            if new_headline != props.get("headline"):
+                props["headline"] = new_headline
                 st.session_state.dirty = True
-            new_sub = st.text_input("副标题", value=props.get("subtitle", ""), key="tc_sub")
+            new_sub = st.text_input("副标题/日期", value=props.get("subtitle", ""), key="cc_sub")
             if new_sub != props.get("subtitle"):
                 props["subtitle"] = new_sub
+                st.session_state.dirty = True
+            new_img = st.text_input("背景图片路径", value=props.get("cover_image", ""), key="cc_img")
+            if new_img != props.get("cover_image"):
+                props["cover_image"] = new_img
+                st.session_state.dirty = True
+            kw_str = st.text_input("关键词（逗号分隔）", value=", ".join(props.get("keywords", []) or []), key="cc_kw")
+            new_kw = [k.strip() for k in kw_str.split(",") if k.strip()]
+            if new_kw != props.get("keywords"):
+                props["keywords"] = new_kw
                 st.session_state.dirty = True
 
 

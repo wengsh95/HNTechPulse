@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { ElementProps, UI_TEXT } from "./utils";
-import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 import {
   DashboardEntry,
   MedalBadge,
@@ -33,6 +33,8 @@ export const RankingDashboard: React.FC<{
   const transitionFrames = 12;
   const currentPage = frame < halfFrame ? 0 : 1;
   const pageEntries = pages[currentPage] ?? pages[0] ?? [];
+
+  const maxScore = Math.max(1, ...pageEntries.map((e) => e.score || 0));
 
   const pageFadeProgress = currentPage === 0
     ? interpolate(frame, [halfFrame - transitionFrames, halfFrame], [1, 0], {
@@ -76,7 +78,7 @@ export const RankingDashboard: React.FC<{
       <div
         style={{
           fontFamily: FONTS.bold,
-          fontWeight: 700,
+          fontWeight: FW.bold,
           fontSize: 34,
           color: COLORS.text,
           marginBottom: 24,
@@ -92,7 +94,7 @@ export const RankingDashboard: React.FC<{
           style={{
             fontFamily: FONTS.mono,
             fontSize: 12,
-            fontWeight: 700,
+            fontWeight: FW.bold,
             color: COLORS.accentLight,
             backgroundColor: COLORS.accentBg,
             borderRadius: 999,
@@ -111,9 +113,9 @@ export const RankingDashboard: React.FC<{
           alignItems: "center",
           fontFamily: FONTS.sans,
           fontSize: 11,
-          fontWeight: 600,
+          fontWeight: FW.semibold,
           color: COLORS.textTertiary,
-          borderBottom: "0.5px solid rgba(255,255,255,0.06)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
           paddingBottom: 12,
           marginBottom: 8,
           textTransform: "uppercase",
@@ -122,8 +124,8 @@ export const RankingDashboard: React.FC<{
       >
         <span style={{ width: 56 }}>#</span>
         <span style={{ flex: 1 }}>{UI_TEXT.title}</span>
-        <span style={{ width: 96, textAlign: "right" }}>{UI_TEXT.heat}</span>
-        <span style={{ width: 82, textAlign: "right" }}>{UI_TEXT.comments}</span>
+        <span style={{ width: 130, textAlign: "right" }}>{UI_TEXT.heat}</span>
+        <span style={{ width: 72, textAlign: "right" }}>{UI_TEXT.comments}</span>
       </div>
 
       <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 8, opacity: pageFadeProgress }}>
@@ -133,10 +135,12 @@ export const RankingDashboard: React.FC<{
             const titleCn = entry.title_translation || entry.title_cn || "";
             const mainTitle = entry.editor_angle || titleCn || title;
             const rank = entry.rank || (currentPage * perPage + i + 1);
+            const score = entry.score || 0;
+            const barWidth = Math.round((score / maxScore) * 40);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;
-            const rowStart = pageStartFrame + 6 + i * 3;
-            const rowProgress = rowEntryAnimation(frame, rowStart, 12);
+            const rowStart = pageStartFrame + 6 + i * 5;
+            const rowProgress = rowEntryAnimation(frame, rowStart, 14);
 
             const isMedal = rank <= 3;
             const isLast = i === pageEntries.length - 1;
@@ -151,8 +155,8 @@ export const RankingDashboard: React.FC<{
                   minHeight: rowH,
                   paddingTop: 12,
                   paddingBottom: 12,
-                  borderBottom: isLast ? "none" : "0.5px solid rgba(255,255,255,0.04)",
-                  opacity: interpolate(rowProgress, [0, 1], [0.48, 1]),
+                  borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                  opacity: interpolate(rowProgress, [0, 1], [0.4, 1]),
                   transform: `translateY(${interpolate(rowProgress, [0, 1], [18, 0])}px)`,
                 }}
               >
@@ -177,7 +181,7 @@ export const RankingDashboard: React.FC<{
                       display: "-webkit-box",
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: "vertical" as const,
-                      fontWeight: 500,
+                      fontWeight: FW.medium,
                       fontSize: 20,
                       color: COLORS.text,
                       maxWidth: LAYOUT.contentMaxWidth,
@@ -195,7 +199,7 @@ export const RankingDashboard: React.FC<{
                         display: "-webkit-box",
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: "vertical" as const,
-                        fontWeight: 400,
+                        fontWeight: FW.regular,
                         maxWidth: LAYOUT.contentMaxWidth,
                       }}
                     >
@@ -206,26 +210,58 @@ export const RankingDashboard: React.FC<{
 
                 <span
                   style={{
-                    width: 96,
-                    textAlign: "right",
-                    fontFamily: FONTS.mono,
-                    fontSize: 18,
-                    fontWeight: 600,
-                    color: isMedal ? COLORS.accentLight : COLORS.text,
+                    width: 130,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 8,
                     flexShrink: 0,
                     paddingTop: 6,
                   }}
                 >
-                  {entry.score || 0}
+                  <div
+                    style={{
+                      width: 40,
+                      height: 6,
+                      borderRadius: 3,
+                      background: "rgba(255,255,255,0.07)",
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: barWidth,
+                        height: "100%",
+                        borderRadius: 3,
+                        background: isMedal
+                          ? `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`
+                          : `linear-gradient(90deg, ${COLORS.accentLight}88, ${COLORS.accentLight}44)`,
+                        boxShadow: isMedal ? `0 0 6px ${COLORS.accent}40` : "none",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontFamily: FONTS.mono,
+                      fontSize: 16,
+                      fontWeight: FW.semibold,
+                      color: isMedal ? COLORS.accentLight : COLORS.text,
+                      width: 36,
+                      textAlign: "right",
+                    }}
+                  >
+                    {score}
+                  </span>
                 </span>
 
                 <span
                   style={{
-                    width: 82,
+                    width: 72,
                     textAlign: "right",
                     fontFamily: FONTS.mono,
                     fontSize: 16,
-                    fontWeight: 500,
+                    fontWeight: FW.medium,
                     color: COLORS.textSecondary,
                     flexShrink: 0,
                     paddingTop: 7,
