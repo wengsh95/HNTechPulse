@@ -54,11 +54,6 @@ class LLMCache:
                 scene_elements=scene_elements,
                 meta=seg_dict.get("meta", {}),
             )
-            if segment_type == "story_scan_item" and not self._has_productized_story_fields(segment):
-                self.logger.info(
-                    f"    [{segment_type}_{story_index}] Cached segment lacks Milestone 2 fields; regenerating"
-                )
-                return None
             return segment
         except Exception as e:
             self.logger.warning(f"    Failed to load cached segment: {e}")
@@ -109,9 +104,3 @@ class LLMCache:
             "story_id": str(story_id),
             "prompt_hash": prompt_hash,
         }
-
-    @staticmethod
-    def _has_productized_story_fields(segment: ScriptSegment) -> bool:
-        # After enrich-step extraction, EventCard fields live on ContentItem
-        # rather than in segment props. Schema version bump handles stale cache.
-        return True

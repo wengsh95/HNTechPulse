@@ -40,9 +40,10 @@ class LLMProvider(ABC):
         pass
 
 
+    @abstractmethod
     def judge_story_comments(self, item, story_index: int, prompt_template_path: str = "prompts/comment_analyze.md", candidates=None) -> dict:
-        """Optional: rank comments that are suitable for QuoteCard display."""
-        return {}
+        """Rank comments suitable for QuoteCard display. Return {} if unsupported."""
+        pass
 
 
 class TTSResult:

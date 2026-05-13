@@ -1,14 +1,11 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
+import { interpolate, Easing } from "remotion";
 
-import { ElementProps, UI_TEXT } from "./utils";
 import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 import {
   DashboardEntry,
-  MedalBadge,
   CategoryBadge,
   KeywordTags,
-  PageIndicator,
   rowEntryAnimation,
   medalSets,
 } from "./DashboardShared";
@@ -41,7 +38,7 @@ export const GuideDashboard: React.FC<{
         top: cardTop,
         width: cardW,
         ...glassCard,
-        padding: "40px 48px",
+        padding: "28px 36px",
         boxShadow: glassCardShadow,
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
@@ -75,7 +72,7 @@ export const GuideDashboard: React.FC<{
             fontWeight: FW.bold,
             color: COLORS.accentLight,
             backgroundColor: COLORS.accentBg,
-            borderRadius: 999,
+            borderRadius: 6,
             padding: "6px 12px",
           }}
         >
@@ -107,7 +104,7 @@ export const GuideDashboard: React.FC<{
                 padding: "14px 16px",
                 borderRadius: 0,
                 backgroundColor: "transparent",
-                borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.06)",
                 borderTop: "none",
                 borderLeft: "none",
                 borderRight: "none",
@@ -123,8 +120,8 @@ export const GuideDashboard: React.FC<{
                   width: 34,
                   height: 34,
                   borderRadius: 17,
-                  backgroundColor: medal?.bg ?? "rgba(255,255,255,0.07)",
-                  border: `1.5px solid ${medal?.ring ?? "rgba(255,255,255,0.12)"}`,
+                  backgroundColor: medal?.bg ?? "rgba(255,255,255,0.06)",
+                  border: `1.5px solid ${medal?.ring ?? "rgba(255,255,255,0.10)"}`,
                   fontFamily: FONTS.mono,
                   fontSize: 15,
                   fontWeight: FW.heavy,

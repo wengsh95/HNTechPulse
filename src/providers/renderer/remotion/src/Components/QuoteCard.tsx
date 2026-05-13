@@ -1,9 +1,9 @@
 import React from "react";
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate, Easing, useCurrentFrame } from "remotion";
 
 import { STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
-import { ElementProps, stanceLabel, stripHtml, UI_TEXT } from "./utils";
+import { cleanText, ElementProps, stanceLabel, UI_TEXT } from "./utils";
 
 interface Quote {
   author: string;
@@ -12,32 +12,11 @@ interface Quote {
   stance: string;
 }
 
-function cleanQuote(text: string): string {
-  return stripHtml(text)
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&gt;/g, ">")
-    .replace(/&lt;/g, "<")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .replace(/^\s*>+\s*/, "")
-    .trim();
-}
-
-function lineClamp(lines: number): React.CSSProperties {
-  return {
-    overflow: "hidden",
-    display: "-webkit-box",
-    WebkitLineClamp: lines,
-    WebkitBoxOrient: "vertical" as const,
-  };
-}
-
 function getQuoteText(quote: Quote) {
   const hasChinese = Boolean(quote.text_cn?.trim());
 
   return {
-    primaryText: hasChinese ? cleanQuote(quote.text_cn!.trim()) : cleanQuote(quote.text),
+    primaryText: hasChinese ? cleanText(quote.text_cn!.trim()) : cleanText(quote.text),
   };
 }
 
@@ -63,7 +42,7 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
           color: stanceColor,
           backgroundColor: stanceColor + (featured ? "22" : "18"),
           border: `1px solid ${stanceColor}${featured ? "38" : "24"}`,
-          borderRadius: 999,
+          borderRadius: 6,
           padding: featured ? "5px 12px" : "4px 9px",
           letterSpacing: 0,
         }}
@@ -75,7 +54,7 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
           fontFamily: FONTS.sans,
           fontSize: featured ? 14 : 12,
           fontWeight: featured ? FW.semibold : FW.medium,
-          color: featured ? "rgba(255,255,255,0.72)" : COLORS.textSecondary,
+          color: featured ? COLORS.text : COLORS.textSecondary,
         }}
       >
         {quote.author}
@@ -84,34 +63,95 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
   );
 };
 
+function lineClamp(lines: number): React.CSSProperties {
+  return {
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: lines,
+    WebkitBoxOrient: "vertical" as const,
+  };
+}
+
+const QuoteEntry: React.FC<{
+  quote: Quote;
+  index: number;
+  frame: number;
+  featuredProgress: number;
+}> = ({ quote, index, frame, featuredProgress }) => {
+  const quoteProgress = index === 0
+    ? featuredProgress
+    : interpolate(frame, [14 + index * 9, 14 + index * 9 + 18], [0, 1], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+  const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
+  const { primaryText } = getQuoteText(quote);
+  const isFeatured = index === 0;
+  const borderReveal = interpolate(quoteProgress, [0, 1], [0, isFeatured ? 5 : 4]);
+
+  return (
+    <div
+      key={`${quote.author}-${index}`}
+      style={{
+        opacity: quoteProgress,
+        transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: 10,
+        background: isFeatured
+          ? `${stanceColor}0A`
+          : "rgba(255,255,255,0.04)",
+        border: `1px solid ${isFeatured ? stanceColor + "25" : "rgba(255,255,255,0.08)"}`,
+        borderLeft: `${borderReveal}px solid ${stanceColor}`,
+        padding: "16px 24px",
+        boxSizing: "border-box",
+      }}
+    >
+      <QuoteMeta quote={quote} featured={isFeatured} />
+      <div
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: 18,
+          color: COLORS.text,
+          lineHeight: 1.5,
+          fontWeight: FW.semibold,
+          letterSpacing: 0,
+          maxWidth: "100%",
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+          ...lineClamp(3),
+        }}
+      >
+        "{primaryText}"
+      </div>
+    </div>
+  );
+};
+
 export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
   const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
-  const featuredQuote = quotes[0];
   const cardW = width - LAYOUT.pageInset * 2;
   const topY = LAYOUT.topInset;
 
-  const cardProgress = spring({
-    frame,
-    fps,
-    config: { damping: 14, stiffness: 120 },
-    delay: 4,
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
   if (quotes.length === 0) {
     return null;
   }
 
-  const featuredProgress = spring({
-    frame,
-    fps,
-    config: { damping: 10, stiffness: 130 },
-    delay: 10,
+  const featuredProgress = interpolate(frame, [10, 28], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
-  const featuredColor = STANCE_COLORS[featuredQuote.stance] || COLORS.textSecondary;
 
   return (
     <div
@@ -121,7 +161,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "40px 48px",
+        padding: "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -156,10 +196,10 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                   fontFamily: FONTS.sans,
                   fontSize: 11,
                   fontWeight: FW.bold,
-                  color: i === 0 ? "rgba(255,255,255,0.78)" : COLORS.textSecondary,
-                  backgroundColor: i === 0 ? stanceColor + "22" : "rgba(255,255,255,0.045)",
-                  border: `1px solid ${i === 0 ? stanceColor + "34" : "rgba(255,255,255,0.06)"}`,
-                  borderRadius: 999,
+                  color: i === 0 ? COLORS.text : COLORS.textSecondary,
+                  backgroundColor: i === 0 ? stanceColor + "15" : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${i === 0 ? stanceColor + "25" : "rgba(255,255,255,0.10)"}`,
+                  borderRadius: 6,
                   padding: "5px 10px",
                   whiteSpace: "nowrap",
                 }}
@@ -178,59 +218,15 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
           gap: 16,
         }}
       >
-        {quotes.map((quote, i) => {
-          const quoteProgress = i === 0
-            ? featuredProgress
-            : spring({
-              frame,
-              fps,
-              config: { damping: 10, stiffness: 130 },
-              delay: 14 + i * 9,
-            });
-          const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
-          const { primaryText } = getQuoteText(quote);
-          const isFeatured = i === 0;
-
-          return (
-          <div
+        {quotes.map((quote, i) => (
+          <QuoteEntry
             key={`${quote.author}-${i}`}
-            style={{
-              opacity: quoteProgress,
-              transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
-              position: "relative",
-              overflow: "hidden",
-              borderRadius: 18,
-              background: isFeatured
-                ? `linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.038)), ${featuredColor}0D`
-                : "rgba(255,255,255,0.032)",
-              border: `1px solid ${isFeatured ? stanceColor + "30" : "rgba(255,255,255,0.055)"}`,
-              borderLeft: `${isFeatured ? 5 : 4}px solid ${stanceColor}`,
-              padding: isFeatured ? "16px 24px" : "16px 24px",
-              boxSizing: "border-box",
-              filter: isFeatured ? "none" : "saturate(0.88)",
-            }}
-          >
-            <QuoteMeta quote={quote} featured={isFeatured} />
-            <div
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 18,
-                color: COLORS.text,
-                lineHeight: 1.5,
-                fontWeight: FW.semibold,
-                letterSpacing: 0,
-                maxWidth: "100%",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-                ...lineClamp(3),
-              }}
-            >
-              “{primaryText}”
-            </div>
-
-          </div>
-          );
-        })}
+            quote={quote}
+            index={i}
+            frame={frame}
+            featuredProgress={featuredProgress}
+          />
+        ))}
       </div>
     </div>
   );

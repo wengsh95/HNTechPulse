@@ -1,5 +1,5 @@
 import React from "react";
-import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate, Easing, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { COLORS, LAYOUT } from "./design";
 
@@ -18,9 +18,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const { fps } = useVideoConfig();
 
   const currentTime = frame / fps;
-  const progress = Math.min(currentTime / totalDuration, 1);
+  const progress = totalDuration > 0 ? Math.min(currentTime / totalDuration, 1) : 0;
+  const easedProgress = interpolate(progress, [0, 1], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   const fadeIn = interpolate(frame, [0, 12], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
@@ -55,7 +61,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           style={{
             position: "absolute",
             inset: 0,
-            background: "rgba(255, 255, 255, 0.08)",
+            background: "rgba(255,255,255,0.08)",
             borderRadius: BAR_HEIGHT / 2,
           }}
         />
@@ -67,16 +73,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             left: 0,
             top: 0,
             height: BAR_HEIGHT,
-            width: `${progress * 100}%`,
-            background: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
+            width: `${easedProgress * 100}%`,
+            background: "linear-gradient(90deg, #007AFF, #4DA6FF)",
             borderRadius: BAR_HEIGHT / 2,
-            boxShadow: `0 0 6px ${COLORS.accent}60`,
           }}
         />
 
         {/* Story boundary ticks */}
         {storyBoundaries.map((t, i) => {
-          const pos = t / totalDuration;
+          const pos = totalDuration > 0 ? t / totalDuration : 0;
           return (
             <div
               key={i}
@@ -92,8 +97,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                     ? COLORS.text
                     : progress >= pos
                     ? COLORS.accentLight
-                    : "rgba(255, 255, 255, 0.15)",
-                boxShadow: i === activeStoryIndex ? "0 0 10px rgba(255,255,255,0.35)" : "none",
+                    : "rgba(255,255,255,0.10)",
               }}
             />
           );

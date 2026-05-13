@@ -1,14 +1,14 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
 import { StancePie, STANCE_COLORS } from "./StancePie";
 import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 
 const CONTROVERSY_COLORS = {
-  green: "#34c759",
-  yellow: "#ff9f0a",
-  red: "#ff3b30",
+  green: "#34C759",
+  yellow: "#FFD60A",
+  red: "#FF453A",
 };
 
 function getControversyColor(score: number): string {
@@ -68,7 +68,14 @@ const MetricBar: React.FC<{
   helper?: string;
   progress: number;
   color: string;
-}> = ({ label, valueLabel, helper, progress, color }) => (
+  animProgress: number;
+}> = ({ label, valueLabel, helper, progress, color, animProgress }) => {
+  const fillWidth = interpolate(animProgress, [0, 1], [0, Math.max(0, Math.min(1, progress)) * 100], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
   <div style={{ width: "100%" }}>
     <div
       style={{
@@ -123,25 +130,24 @@ const MetricBar: React.FC<{
         height: 8,
         borderRadius: 4,
         overflow: "hidden",
-        background: "rgba(255,255,255,0.07)",
+        background: "rgba(255,255,255,0.08)",
       }}
     >
       <div
         style={{
-          width: `${Math.max(0, Math.min(1, progress)) * 100}%`,
+          width: `${fillWidth}%`,
           height: "100%",
           borderRadius: 4,
-          background: `linear-gradient(90deg, ${color}, ${color}cc)`,
-          boxShadow: `0 0 14px ${color}30`,
+          background: color,
         }}
       />
     </div>
   </div>
-);
+  );
+};
 
 export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
   const stanceDistribution = (elementProps.stance_distribution as Record<string, number>) ?? {};
   const debateFocus = (elementProps.debate_focus as string[]) ?? [];
@@ -163,18 +169,16 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   const cardW = width - LAYOUT.pageInset * 2;
   const topY = LAYOUT.topInset;
 
-  const cardProgress = spring({
-    frame,
-    fps,
-    config: { damping: 14, stiffness: 120 },
-    delay: 4,
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
-  const metricProgress = spring({
-    frame,
-    fps,
-    config: { damping: 10, stiffness: 140 },
-    delay: 14,
+  const metricProgress = interpolate(frame, [14, 32], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
   return (
@@ -185,7 +189,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: "40px 48px",
+        padding: "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -250,6 +254,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                 helper={mood.dominant}
                 progress={mood.percent / 100}
                 color={dominantColor}
+                animProgress={metricProgress}
               />
             )}
             <MetricBar
@@ -258,6 +263,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               helper={controversyLabel}
               progress={scoreNum / 10}
               color={controversyColor}
+              animProgress={metricProgress}
             />
           </div>
 
@@ -282,11 +288,11 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {debateFocus.slice(0, 3).map((focus, i) => {
-                  const tagProgress = spring({
-                    frame,
-                    fps,
-                    config: { damping: 10, stiffness: 140 },
-                    delay: 12 + i * 5,
+                  const tagDelay = 12 + i * 5;
+                  const tagProgress = interpolate(frame, [tagDelay, tagDelay + 16], [0, 1], {
+                    easing: Easing.bezier(0.16, 1, 0.3, 1),
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
                   });
 
                   return (
@@ -298,9 +304,9 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                         fontWeight: FW.bold,
                         color: COLORS.text,
                         opacity: tagProgress,
-                        backgroundColor: "rgba(255,255,255,0.055)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        borderRadius: 999,
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        borderRadius: 6,
                         padding: "7px 12px",
                         lineHeight: 1.25,
                         transform: `translateY(${interpolate(tagProgress, [0, 1], [8, 0])}px)`,
@@ -340,9 +346,9 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                 fontWeight: FW.bold,
                 color: COLORS.textSecondary,
                 padding: "7px 12px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.045)",
-                border: "1px solid rgba(255,255,255,0.055)",
+                borderRadius: 6,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.10)",
               }}
             >
               热度 {heatScore}

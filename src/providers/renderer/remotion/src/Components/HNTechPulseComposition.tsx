@@ -4,8 +4,8 @@
  * 遍历所有 segments，按时间线排列，每个 segment 内部渲染其 scene_elements。
  * Remotion 的优势：浏览器原生渲染文字（GPU 加速），并行帧渲染。
  */
-import React from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useMemo } from "react";
+import { AbsoluteFill, Audio, Sequence, interpolate, Easing, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
 import {
@@ -20,23 +20,6 @@ import {
 } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
-
-const BG_COLOR_1 = "#1c1c3a";
-const BG_COLOR_2 = "#0d0d24";
-const BG_COLOR_3 = "#070712";
-
-const ANIMATED_BG_KEYFRAMES = `
-@keyframes bgHueShift {
-  0% { filter: hue-rotate(0deg); }
-  50% { filter: hue-rotate(8deg); }
-  100% { filter: hue-rotate(0deg); }
-}
-@keyframes bgGlowPulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 0.85; }
-  100% { opacity: 0.6; }
-}
-`;
 
 type StoryChapter = {
   startTime: number;
@@ -130,9 +113,9 @@ const SegmentRenderer: React.FC<{
     ? "minimal"
     : "standard";
 
-  const localFrame = frame - startFrame;
-  const TRANSITION_FRAMES = 6;
-  const segOpacity = interpolate(localFrame, [0, TRANSITION_FRAMES], [0.6, 1], {
+  const TRANSITION_FRAMES = 12;
+  const segOpacity = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -142,37 +125,8 @@ const SegmentRenderer: React.FC<{
       from={startFrame}
       durationInFrames={durationFrames}
       name={`segment-${index}-${segment.segment_type}`}
+      premountFor={Math.min(8, durationFrames)}
     >
-      {/* Animated background layers */}
-      <style>{ANIMATED_BG_KEYFRAMES}</style>
-      <AbsoluteFill style={{ background: `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)` }} />
-      <div
-        style={{
-          ...S,
-          left: 0,
-          top: 0,
-          width: "100%",
-          height: "100%",
-          background: `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)`,
-          animation: "bgHueShift 40s ease-in-out infinite",
-          pointerEvents: "none",
-        }}
-      />
-      {/* Accent glow spot */}
-      <div
-        style={{
-          ...S,
-          left: "50%",
-          top: "30%",
-          width: 700,
-          height: 400,
-          transform: "translate(-50%, -50%)",
-          background: "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(0,122,255,0.07) 0%, transparent 70%)",
-          animation: "bgGlowPulse 12s ease-in-out infinite",
-          pointerEvents: "none",
-        }}
-      />
-
       {/* Scene wrapper with transition opacity */}
       <div style={{ ...S, left: 0, top: 0, width: "100%", height: "100%", opacity: segOpacity, pointerEvents: "none" }}>
         {/* 场景元素 */}
@@ -216,6 +170,7 @@ const GlobalChrome: React.FC<{
   }
 
   const opacity = interpolate(currentTime - startTime, [0, 0.5], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -241,7 +196,7 @@ const GlobalChrome: React.FC<{
           alignItems: "center",
           gap: 10,
           fontFamily: FONTS.sans,
-          color: "rgba(255,255,255,0.62)",
+          color: COLORS.textSecondary,
           fontSize: 15,
           fontWeight: FW.heavy,
           letterSpacing: 0,
@@ -250,7 +205,7 @@ const GlobalChrome: React.FC<{
         <span style={{ color: COLORS.text }}>HN TechPulse</span>
         {dateLabel && (
           <>
-            <span style={{ color: "rgba(255,255,255,0.24)" }}>/</span>
+            <span style={{ color: COLORS.textTertiary }}>/</span>
             <span>{dateLabel}</span>
           </>
         )}
@@ -265,9 +220,9 @@ const GlobalChrome: React.FC<{
             height: 30,
             padding: "0 12px",
             borderRadius: 999,
-            background: "rgba(15, 18, 34, 0.72)",
-            border: "1px solid rgba(255,255,255,0.075)",
-            boxShadow: "0 8px 22px rgba(0,0,0,0.18)",
+            background: "rgba(0, 122, 255, 0.12)",
+            border: "1px solid rgba(0, 122, 255, 0.25)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.30)",
             boxSizing: "border-box",
           }}
         >
@@ -294,7 +249,7 @@ const GlobalChrome: React.FC<{
                 fontFamily: FONTS.sans,
                 fontSize: 12,
                 fontWeight: FW.bold,
-                color: "rgba(255,255,255,0.66)",
+                color: COLORS.textSecondary,
                 lineHeight: 1,
               }}
             >
@@ -318,49 +273,52 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   transitionTimes,
 }) => {
   const frame = useCurrentFrame();
-  const totalDuration =
-    segments.length > 0
-      ? segments[segments.length - 1].end_time
-      : 0;
+  const totalDuration = useMemo(
+    () => segments.length > 0 ? segments[segments.length - 1].end_time : 0,
+    [segments]
+  );
 
-  const storyEvents = segments.flatMap((seg) =>
-    seg.scene_elements
-      .filter((elem) => elem.element_type === "event_card")
-      .map((elem) => {
-        const props = elem.props as Record<string, unknown>;
-        return {
-          startTime: seg.start_time + elem.start_time,
-          segmentEndTime: seg.end_time,
-          props,
-        };
-      })
-  ).sort((a, b) => a.startTime - b.startTime);
-  const storyBoundaries = storyEvents.map((event) => event.startTime);
-  const storyChapters: StoryChapter[] = storyEvents.map((event, i) => {
-    const index = Number(event.props.display_index ?? event.props.story_index ?? i) || i;
-    const total = Number(event.props.story_count ?? storyEvents.length) || storyEvents.length;
-    return {
-      startTime: event.startTime,
-      endTime: storyEvents[i + 1]?.startTime ?? event.segmentEndTime,
-      title: String(event.props.editor_angle ?? event.props.title_cn ?? event.props.story_title ?? ""),
-      category: String(event.props.category ?? ""),
-      index,
-      total,
-    };
-  });
-  const firstTitleCard = segments
-    .flatMap((seg) => seg.scene_elements)
-    .find((elem) => elem.element_type === "cover_card");
-  const dateLabel = firstTitleCard
-    ? String((firstTitleCard.props as Record<string, unknown>).subtitle ?? "")
-    : "";
+  const { storyEvents, storyBoundaries, storyChapters, dateLabel } = useMemo(() => {
+    const events = segments.flatMap((seg) =>
+      seg.scene_elements
+        .filter((elem) => elem.element_type === "event_card")
+        .map((elem) => {
+          const props = elem.props as Record<string, unknown>;
+          return {
+            startTime: seg.start_time + elem.start_time,
+            segmentEndTime: seg.end_time,
+            props,
+          };
+        })
+    ).sort((a, b) => a.startTime - b.startTime);
+    const boundaries = events.map((event) => event.startTime);
+    const chapters: StoryChapter[] = events.map((event, i) => {
+      const index = Number(event.props.display_index ?? event.props.story_index ?? i) || i;
+      const total = Number(event.props.story_count ?? events.length) || events.length;
+      return {
+        startTime: event.startTime,
+        endTime: events[i + 1]?.startTime ?? event.segmentEndTime,
+        title: String(event.props.editor_angle ?? event.props.title_cn ?? event.props.story_title ?? ""),
+        category: String(event.props.category ?? ""),
+        index,
+        total,
+      };
+    });
+    const firstTitle = segments
+      .flatMap((seg) => seg.scene_elements)
+      .find((elem) => elem.element_type === "cover_card");
+    const label = firstTitle
+      ? String((firstTitle.props as Record<string, unknown>).subtitle ?? "")
+      : "";
+    return { storyEvents: events, storyBoundaries: boundaries, storyChapters: chapters, dateLabel: label };
+  }, [segments]);
   const currentTime = frame / fps;
   const activeStoryIndex = storyChapters.findIndex((chapter) => {
     return currentTime >= chapter.startTime && currentTime < chapter.endTime;
   });
 
   return (
-    <AbsoluteFill style={{ background: bgColor || `radial-gradient(ellipse 80% 60% at 50% 35%, ${BG_COLOR_1} 0%, ${BG_COLOR_2} 50%, ${BG_COLOR_3} 100%)` }}>
+    <AbsoluteFill style={{ background: bgColor || COLORS.bg }}>
       {/* 遍历所有 segments，按时间线排列视觉内容 */}
       {segments.map((segment, index) => (
         <SegmentRenderer

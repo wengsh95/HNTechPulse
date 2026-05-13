@@ -47,7 +47,6 @@ class OpenAILLMProvider(LLMProvider):
     def _split_prompt(prompt: str) -> List[Dict[str, str]]:
         return LLMClient.split_prompt(prompt)
 
-    @staticmethod
     def _spinner(self, label: str):
         return self._client._spinner(label)
 

@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -7,6 +8,8 @@ from src.pipeline.comment_selection import clean_comment_text, is_quotable_comme
 
 
 JUDGEMENT_SCHEMA_VERSION = 1
+
+_save_lock = threading.Lock()
 
 
 def judgement_cache_path(date: str) -> Path:
@@ -49,6 +52,13 @@ def _normalize_candidate(raw: dict, valid_ids: set[str]) -> Optional[dict]:
 
 
 def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
+    """Normalize LLM comment judgement output into a canonical form.
+
+    Deduplication priority: selected_comment_ids entries take precedence over
+    quote_candidates entries. When the same comment_id appears in both lists,
+    the first occurrence (from selected_comment_ids) wins and the duplicate
+    from quote_candidates is silently dropped.
+    """
     valid_ids = {str(c.source_id) for c in item.comments if c.source_id is not None}
     candidates = []
     seen = set()
@@ -165,8 +175,9 @@ def save_comment_judgements(date: str, stories: Dict[str, dict]) -> None:
         "schema_version": JUDGEMENT_SCHEMA_VERSION,
         "stories": stories,
     }
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+    with _save_lock:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
 def candidate_ids_for_story(judgement: Optional[dict], max_n: int = 3) -> List[str]:

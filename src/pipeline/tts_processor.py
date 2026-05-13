@@ -145,6 +145,7 @@ class TTSProcessor:
 
     def _assemble_results(self, script: Script, tasks: list[dict], audio_dir: Path) -> None:
         from itertools import groupby
+        tasks.sort(key=lambda t: t["seg_idx"])
         tasks_by_seg = {k: list(g) for k, g in groupby(tasks, key=lambda t: t["seg_idx"])}
 
         for seg_idx, segment in enumerate(script.segments):
@@ -162,6 +163,7 @@ class TTSProcessor:
         all_cues = []
 
         from itertools import groupby
+        tasks.sort(key=lambda t: t["elem_idx"])
         tasks_by_elem = {k: list(g) for k, g in groupby(tasks, key=lambda t: t["elem_idx"])}
 
         valid_tasks = [t for t in tasks if t["result"] is not None]

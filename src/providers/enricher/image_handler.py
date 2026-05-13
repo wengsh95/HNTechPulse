@@ -305,7 +305,10 @@ class ImageHandler:
                     self.logger.warning(f"Image read too large ({len(data)} bytes) for {url}")
                     return None
 
-                if cl and len(data) < int(cl) * 0.9:
+                # Skip short-read check for compressed responses:
+                # Content-Length reflects compressed size, not decompressed size.
+                ce = resp.headers.get("Content-Encoding", "")
+                if cl and not ce and len(data) < int(cl) * 0.9:
                     self.logger.warning(
                         f"Short read for {url}: got {len(data)} / {cl} bytes"
                     )

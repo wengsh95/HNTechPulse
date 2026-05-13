@@ -24,13 +24,13 @@ def compute_segment_chunks(
                 abs_start = seg_start + (elem.start_time or 0)
                 abs_end = seg_start + (elem.end_time or 0)
                 start_f = math.floor(abs_start * fps)
-                end_f = min(math.ceil(abs_end * fps) - 1, total_frames - 1)
+                end_f = min(math.ceil(abs_end * fps), total_frames - 1)
                 if start_f <= end_f:
                     chunks.append((start_f, end_f, f"story_{story_idx}"))
                 story_idx += 1
         else:
             start_f = math.floor(seg_start * fps)
-            end_f = min(math.ceil(seg_end * fps) - 1, total_frames - 1)
+            end_f = min(math.ceil(seg_end * fps), total_frames - 1)
             if start_f <= end_f:
                 chunks.append((start_f, end_f, seg.segment_type))
 

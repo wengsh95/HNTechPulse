@@ -41,7 +41,14 @@ class EdgeTTSProvider(TTSProvider):
                     if chunk.get("type", "") == "audio":
                         f.write(chunk["data"])
 
-        asyncio.run(_synthesize())
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(_synthesize())
+        else:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(asyncio.run, _synthesize()).result()
 
         duration = get_audio_duration(output_path)
         self.logger.info(f"Audio generated, duration: {duration:.2f}s")

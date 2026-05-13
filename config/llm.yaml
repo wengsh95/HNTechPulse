@@ -11,6 +11,6 @@ llm:
   max_workers: 3                       # Concurrent story script generation
   cache_schema_version: 3              # Segment cache fingerprint version
   fast:                                # 低成本模型，用于翻译等轻量任务
-    model: "deepseek-v4-flash"
+    model: "deepseek-v4-flash"         # TODO: 应与主模型不同以节省成本/延迟
     max_tokens: 4096
     temperature: 0.1

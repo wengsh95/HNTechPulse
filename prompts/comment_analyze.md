@@ -36,6 +36,6 @@ stance_distribution（立场分布）:
 <!-- SYSTEM_CUT -->
 
 输入：
-```json
+<story_json>
 {{ story_json }}
-```
+</story_json>

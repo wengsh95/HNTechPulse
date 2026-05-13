@@ -1,5 +1,5 @@
 import React from "react";
-import { interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate, Easing, staticFile, useCurrentFrame } from "remotion";
 
 import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
 import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
@@ -44,13 +44,11 @@ const InfoPoint: React.FC<{
   point: KeyPoint;
   delay: number;
   frame: number;
-  fps: number;
-}> = ({ point, delay, frame, fps }) => {
-  const progress = spring({
-    frame,
-    fps,
-    config: { damping: 11, stiffness: 140 },
-    delay,
+}> = ({ point, delay, frame }) => {
+  const progress = interpolate(frame, [delay, delay + 18], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
   return (
@@ -62,9 +60,9 @@ const InfoPoint: React.FC<{
         alignItems: "center",
         minHeight: 48,
         padding: "8px 12px",
-        borderRadius: 14,
-        backgroundColor: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.045)",
+        borderRadius: 10,
+        backgroundColor: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
         boxSizing: "border-box",
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [8, 0])}px)`,
@@ -77,9 +75,9 @@ const InfoPoint: React.FC<{
           justifyContent: "center",
           width: 44,
           height: 24,
-          borderRadius: 12,
-          backgroundColor: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 6,
+          backgroundColor: COLORS.accentBg,
+          border: "1px solid rgba(0,122,255,0.25)",
           boxSizing: "border-box",
           fontFamily: FONTS.sans,
           fontSize: 12,
@@ -96,7 +94,7 @@ const InfoPoint: React.FC<{
           fontFamily: FONTS.sans,
           fontSize: 15,
           fontWeight: FW.medium,
-          color: "rgba(255,255,255,0.78)",
+          color: COLORS.text,
           lineHeight: 1.5,
           letterSpacing: 0,
           overflowWrap: "anywhere",
@@ -110,9 +108,40 @@ const InfoPoint: React.FC<{
   );
 };
 
+const KeywordTag: React.FC<{
+  keyword: string;
+  delay: number;
+  frame: number;
+}> = ({ keyword, delay, frame }) => {
+  const tagProgress = interpolate(frame, [delay, delay + 16], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <span
+      style={{
+        fontFamily: FONTS.sans,
+        fontSize: 12,
+        fontWeight: FW.bold,
+        color: COLORS.accent,
+        backgroundColor: COLORS.accentBg,
+        border: "1px solid rgba(0,122,255,0.25)",
+        borderRadius: 6,
+        padding: "5px 11px",
+        letterSpacing: 0,
+        opacity: tagProgress,
+        transform: `scale(${interpolate(tagProgress, [0, 1], [0.8, 1])})`,
+      }}
+    >
+      {keyword}
+    </span>
+  );
+};
+
 export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
   const storyTitle = cleanText(p(elementProps, "story_title", ""));
   const sourceTitle = cleanText(p(elementProps, "source_title", storyTitle));
@@ -123,7 +152,10 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const keyPoints = cleanKeyPoints(elementProps.key_points);
   const imageSrc = p(elementProps, "image_src", "");
   const imageType = p<string>(elementProps, "image_type", "");
-  const keywords = limitList((elementProps.keywords as string[]) ?? [], 3, 16);
+  const keywords = limitList(
+    Array.isArray(elementProps.keywords) ? elementProps.keywords.filter((k): k is string => typeof k === "string") : [],
+    3, 16
+  );
   const category = cleanText(p(elementProps, "category", ""));
   const mainTitle = editorAngle || titleCn || storyTitle;
   const showOriginalTitle = Boolean(sourceTitle && mainTitle !== sourceTitle);
@@ -140,15 +172,14 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const dividerStyle: React.CSSProperties = {
     width: "100%",
     height: 1,
-    background: "rgba(255,255,255,0.05)",
+    background: "rgba(255,255,255,0.08)",
     marginBottom: 18,
   };
 
-  const cardProgress = spring({
-    frame,
-    fps,
-    config: { damping: 14, stiffness: 120 },
-    delay: 4,
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
 
   const mediaW = hasImage ? (isLogo ? 330 : Math.round(cardW * 0.35)) : 0;
@@ -167,8 +198,8 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         top: topY,
         width: cardW,
         ...glassCard,
-        padding: hasImage ? "36px 44px" : "40px 48px",
-        boxShadow: "0 0 0 0.5px rgba(255,255,255,0.05), 0 0 24px rgba(0,122,255,0.06), 0 8px 28px rgba(0,0,0,0.22)",
+        padding: hasImage ? "24px 32px" : "28px 36px",
+        boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
@@ -188,7 +219,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             fontFamily: FONTS.mono,
             fontSize: 72,
             fontWeight: FW.heavy,
-            color: "rgba(255,255,255,0.025)",
+            color: "rgba(255,255,255,0.06)",
             lineHeight: 1,
             pointerEvents: "none",
             letterSpacing: -4,
@@ -207,10 +238,10 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                 fontFamily: FONTS.sans,
                 fontSize: 12,
                 fontWeight: FW.bold,
-                color: "rgba(255,255,255,0.68)",
-                backgroundColor: "rgba(255,255,255,0.052)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 999,
+                color: COLORS.accent,
+                backgroundColor: COLORS.accentBg,
+                border: "1px solid rgba(0,122,255,0.25)",
+                borderRadius: 6,
                 padding: "5px 10px",
               }}
             >
@@ -265,7 +296,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             style={{
               fontFamily: FONTS.sans,
               fontSize: 18,
-              color: "rgba(255,255,255,0.78)",
+              color: COLORS.textSecondary,
               lineHeight: 1.55,
               fontWeight: FW.regular,
               marginBottom: hasStructuredBody ? 18 : 20,
@@ -290,7 +321,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             }}
           >
             {keyPoints.map((point, i) => (
-              <InfoPoint key={`${point.label}-${i}`} point={point} delay={10 + i * 5} frame={frame} fps={fps} />
+              <InfoPoint key={`${point.label}-${i}`} point={point} delay={10 + i * 5} frame={frame} />
             ))}
           </div>
         )}
@@ -307,35 +338,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                 maxWidth: LAYOUT.contentMaxWidth,
               }}
             >
-              {keywords.map((kw, i) => {
-                const tagProgress = spring({
-                  frame,
-                  fps,
-                  config: { damping: 10, stiffness: 140 },
-                  delay: 8 + i * 4,
-                });
-
-                return (
-                  <span
-                    key={kw}
-                    style={{
-                      fontFamily: FONTS.sans,
-                      fontSize: 12,
-                      fontWeight: FW.bold,
-                      color: "rgba(91, 173, 255, 0.88)",
-                      backgroundColor: "rgba(0, 122, 255, 0.11)",
-                      border: "1px solid rgba(51, 149, 255, 0.25)",
-                      borderRadius: 999,
-                      padding: "5px 11px",
-                      letterSpacing: 0,
-                      opacity: tagProgress,
-                      transform: `scale(${interpolate(tagProgress, [0, 1], [0.8, 1])})`,
-                    }}
-                  >
-                    {kw}
-                  </span>
-                );
-              })}
+              {keywords.map((kw, i) => (
+                <KeywordTag key={kw} keyword={kw} delay={8 + i * 4} frame={frame} />
+              ))}
             </div>
           </>
         )}
@@ -348,18 +353,18 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             height: mediaH,
             aspectRatio: isLogo ? undefined : "16 / 9",
             marginTop: isLogo ? 44 : 54,
-            borderRadius: Math.max(14, LAYOUT.cardRadius - 2),
+            borderRadius: LAYOUT.cardRadius,
             overflow: "hidden",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03)",
+            border: "none",
             opacity: interpolate(cardProgress, [0, 0.3], [0, 1], {
               extrapolateLeft: "clamp",
               extrapolateRight: "clamp",
             }),
+            transform: `translateX(${interpolate(cardProgress, [0, 1], [20, 0])}px)`,
           }}
         >
           {isLogo ? (
@@ -371,7 +376,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                 alignItems: "center",
                 justifyContent: "center",
                 background: "rgba(255,255,255,0.04)",
-                borderRadius: 18,
+                borderRadius: 10,
               }}
             >
               <img

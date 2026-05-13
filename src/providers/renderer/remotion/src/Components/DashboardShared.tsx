@@ -1,7 +1,7 @@
 import React from "react";
 import { interpolate, Easing } from "remotion";
 
-import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW } from "./design";
 
 export interface DashboardEntry {
   rank?: number;
@@ -19,9 +19,9 @@ export interface DashboardEntry {
 }
 
 export const medalSets = [
-  { text: "#f5c542", bg: "rgba(245,197,66,0.15)", ring: "rgba(245,197,66,0.4)" },
-  { text: "#bcc4d0", bg: "rgba(188,196,208,0.12)", ring: "rgba(188,196,208,0.3)" },
-  { text: "#d4a574", bg: "rgba(212,165,116,0.15)", ring: "rgba(212,165,116,0.35)" },
+  { text: "#FFD60A", bg: "rgba(255,214,10,0.15)", ring: "rgba(255,214,10,0.35)" },
+  { text: "rgba(245,245,247,0.70)", bg: "rgba(245,245,247,0.08)", ring: "rgba(245,245,247,0.18)" },
+  { text: "#FF9F0A", bg: "rgba(255,159,10,0.12)", ring: "rgba(255,159,10,0.28)" },
 ];
 
 export const MedalBadge: React.FC<{
@@ -100,7 +100,7 @@ export const CategoryBadge: React.FC<{
       fontWeight: 700,
       color: COLORS.accentLight,
       backgroundColor: COLORS.accentBg,
-      borderRadius: 999,
+      borderRadius: 6,
       padding: "5px 10px",
       maxWidth,
       overflow: "hidden",

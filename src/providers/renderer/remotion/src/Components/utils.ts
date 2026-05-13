@@ -6,10 +6,14 @@ export interface ElementProps {
   height: number;
 }
 
-/** Safely read a value from element props. */
+/** Safely read a value from element props with runtime type validation. */
 export function p<T = string>(props: Record<string, unknown>, key: string, fallback: T): T {
   const val = props[key];
-  return (val as T) ?? fallback;
+  if (val === undefined || val === null) return fallback;
+  if (typeof fallback === "number") return (typeof val === "number" ? val : Number(val) || fallback) as T;
+  if (typeof fallback === "string") return (typeof val === "string" ? val : String(val)) as T;
+  if (typeof fallback === "boolean") return (typeof val === "boolean" ? val : Boolean(val)) as T;
+  return val as T;
 }
 
 const ENTITY_MAP: Record<string, string> = {

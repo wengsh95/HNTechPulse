@@ -4,7 +4,7 @@ import { useCurrentFrame, interpolate, Easing } from "remotion";
 import { ElementProps, p } from "./utils";
 import { COLORS, FONTS, FW, S } from "./design";
 
-export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
+export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
   const frame = useCurrentFrame();
 
   const question = p(elementProps, "question", "");
@@ -40,7 +40,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,122,255,0.06) 0%, transparent 100%)",
+        background: COLORS.bg,
       }}
     >
       {question && (
@@ -53,10 +53,9 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
             textAlign: "center",
             maxWidth: "78%",
             fontWeight: FW.bold,
-            letterSpacing: -0.4,
+            letterSpacing: 0,
             opacity: questionProgress,
             transform: `translateY(${interpolate(questionProgress, [0, 1], [22, 0])}px)`,
-            textShadow: "0 0 60px rgba(0,122,255,0.15)",
           }}
         >
           {question}
@@ -87,13 +86,26 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width, heigh
           color: COLORS.text,
           marginTop: visualMood ? 40 : 56,
           lineHeight: 1.15,
-          letterSpacing: -1.2,
+          letterSpacing: 0,
           opacity: brandProgress,
           transform: `translateY(${interpolate(brandProgress, [0, 1], [16, 0])}px)`,
         }}
       >
-        HN TechPulse
+        <span style={{ color: COLORS.brand }}>HN</span> TechPulse
       </div>
+
+      {/* Bottom brand bar — mirrors CoverCard */}
+      <div
+        style={{
+          ...S,
+          left: 0,
+          bottom: 0,
+          width: "100%",
+          height: 3,
+          background: "linear-gradient(90deg, #ff6600, #FF9F0A)",
+          opacity: 0.8 * brandProgress,
+        }}
+      />
     </div>
   );
 };

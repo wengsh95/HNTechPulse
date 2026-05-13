@@ -31,17 +31,19 @@ export const RankingDashboard: React.FC<{
 
   const halfFrame = Math.floor((duration / 2) * fps);
   const transitionFrames = 12;
-  const currentPage = frame < halfFrame ? 0 : 1;
+  const currentPage = totalPages <= 1 ? 0 : (frame < halfFrame ? 0 : 1);
   const pageEntries = pages[currentPage] ?? pages[0] ?? [];
 
   const maxScore = Math.max(1, ...pageEntries.map((e) => e.score || 0));
 
   const pageFadeProgress = currentPage === 0
     ? interpolate(frame, [halfFrame - transitionFrames, halfFrame], [1, 0], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       })
     : interpolate(frame, [halfFrame, halfFrame + transitionFrames], [0, 1], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       });
@@ -69,7 +71,7 @@ export const RankingDashboard: React.FC<{
         top: cardTop,
         width: cardW,
         ...glassCard,
-        padding: "40px 48px",
+        padding: "28px 36px",
         boxShadow: glassCardShadow,
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
@@ -82,7 +84,7 @@ export const RankingDashboard: React.FC<{
           fontSize: 34,
           color: COLORS.text,
           marginBottom: 24,
-          letterSpacing: -0.7,
+          letterSpacing: 0,
           display: "flex",
           alignItems: "baseline",
           flexWrap: "wrap",
@@ -97,7 +99,7 @@ export const RankingDashboard: React.FC<{
             fontWeight: FW.bold,
             color: COLORS.accentLight,
             backgroundColor: COLORS.accentBg,
-            borderRadius: 999,
+            borderRadius: 6,
             padding: "5px 12px",
             letterSpacing: 0.6,
             textTransform: "uppercase",
@@ -115,7 +117,7 @@ export const RankingDashboard: React.FC<{
           fontSize: 11,
           fontWeight: FW.semibold,
           color: COLORS.textTertiary,
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
           paddingBottom: 12,
           marginBottom: 8,
           textTransform: "uppercase",
@@ -128,7 +130,7 @@ export const RankingDashboard: React.FC<{
         <span style={{ width: 72, textAlign: "right" }}>{UI_TEXT.comments}</span>
       </div>
 
-      <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 8, opacity: pageFadeProgress }}>
+      <div style={{ overflow: "hidden", height: visibleRowsH, borderRadius: 0, opacity: pageFadeProgress }}>
         <div>
           {pageEntries.map((entry, i) => {
             const title = entry.original_title || entry.title || "";
@@ -136,11 +138,13 @@ export const RankingDashboard: React.FC<{
             const mainTitle = entry.editor_angle || titleCn || title;
             const rank = entry.rank || (currentPage * perPage + i + 1);
             const score = entry.score || 0;
-            const barWidth = Math.round((score / maxScore) * 40);
 
             const pageStartFrame = currentPage === 0 ? 0 : halfFrame;
             const rowStart = pageStartFrame + 6 + i * 5;
             const rowProgress = rowEntryAnimation(frame, rowStart, 14);
+
+            const barTarget = Math.round((score / maxScore) * 40);
+            const barWidth = Math.round(interpolate(rowProgress, [0, 1], [0, barTarget]));
 
             const isMedal = rank <= 3;
             const isLast = i === pageEntries.length - 1;
@@ -155,7 +159,7 @@ export const RankingDashboard: React.FC<{
                   minHeight: rowH,
                   paddingTop: 12,
                   paddingBottom: 12,
-                  borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+                  borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.06)",
                   opacity: interpolate(rowProgress, [0, 1], [0.4, 1]),
                   transform: `translateY(${interpolate(rowProgress, [0, 1], [18, 0])}px)`,
                 }}
@@ -224,7 +228,7 @@ export const RankingDashboard: React.FC<{
                       width: 40,
                       height: 6,
                       borderRadius: 3,
-                      background: "rgba(255,255,255,0.07)",
+                      background: "rgba(255,255,255,0.08)",
                       overflow: "hidden",
                       flexShrink: 0,
                     }}
@@ -235,9 +239,8 @@ export const RankingDashboard: React.FC<{
                         height: "100%",
                         borderRadius: 3,
                         background: isMedal
-                          ? `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`
-                          : `linear-gradient(90deg, ${COLORS.accentLight}88, ${COLORS.accentLight}44)`,
-                        boxShadow: isMedal ? `0 0 6px ${COLORS.accent}40` : "none",
+                          ? COLORS.accent
+                          : COLORS.accentLight,
                       }}
                     />
                   </div>

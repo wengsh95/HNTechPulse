@@ -264,8 +264,9 @@ def select_representative_comments(
 
     if len(selected) < min(2, max_n):
         for c in ranked:
-            if c not in selected:
-                selected.append(c)
+            if c in selected or not can_add(c):
+                continue
+            selected.append(c)
             if len(selected) >= min(2, max_n):
                 break
 

@@ -61,6 +61,8 @@ class ContentPreparer:
                     "screenshot_image": item.screenshot_image,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
+                    "summary": item.summary,
+                    "raw": item.raw,
                 }
                 for item in content.items
             ],
@@ -128,6 +130,8 @@ class ContentPreparer:
                     screenshot_image=item_dict.get("screenshot_image"),
                     enrichment_source=item_dict.get("enrichment_source"),
                     enrichment_error=item_dict.get("enrichment_error"),
+                    summary=item_dict.get("summary"),
+                    raw=item_dict.get("raw"),
                 ))
 
             return ContentPackage(

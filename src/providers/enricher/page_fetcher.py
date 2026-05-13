@@ -2,7 +2,10 @@ import asyncio
 import logging
 import platform
 import random
+import re
 import shutil
+import socket
+import struct
 from pathlib import Path
 from typing import Dict, Optional
 from urllib.parse import urlparse
@@ -59,6 +62,98 @@ _CHROME_LAUNCH_ARGS = [
 ]
 
 
+# Third-party DNS servers for fallback resolution
+_DNS_SERVERS = [
+    ("1.1.1.1", 53),       # Cloudflare
+    ("8.8.8.8", 53),       # Google
+    ("208.67.222.222", 53), # OpenDNS
+]
+
+
+def _dns_resolve_sync(hostname: str, dns_server: str = "1.1.1.1", port: int = 53, timeout: float = 3.0) -> Optional[str]:
+    """Resolve hostname via a third-party DNS server (synchronous UDP).
+
+    Returns the first A record IP, or None on failure.
+    """
+    try:
+        tx_id = random.randint(0, 65535)
+        question = (
+            struct.pack("!HHHHHH", tx_id, 0x0100, 1, 0, 0, 0)
+            + b"".join(
+                struct.pack("B", len(label)) + label.encode()
+                for label in hostname.rstrip(".").split(".")
+            )
+            + b"\x00"
+            + struct.pack("!HH", 1, 1)
+        )
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        try:
+            sock.sendto(question, (dns_server, port))
+            data, _ = sock.recvfrom(512)
+        finally:
+            sock.close()
+
+        # Skip header (12) + question section
+        idx = 12
+        while idx < len(data) and data[idx] != 0:
+            idx += data[idx] + 1
+        idx += 5  # null + QTYPE(2) + QCLASS(2)
+
+        # Parse answer section
+        while idx + 12 <= len(data):
+            if data[idx] & 0xC0 == 0xC0:
+                idx += 2
+            else:
+                while idx < len(data) and data[idx] != 0:
+                    idx += data[idx] + 1
+                idx += 1
+            if idx + 10 > len(data):
+                break
+            rtype_val = struct.unpack("!H", data[idx + 2 : idx + 4])[0]
+            rdlen = struct.unpack("!H", data[idx + 8 : idx + 10])[0]
+            idx += 10
+            if rtype_val == 1 and rdlen == 4 and idx + 4 <= len(data):
+                return socket.inet_ntoa(data[idx : idx + 4])
+            idx += rdlen
+        return None
+    except Exception:
+        return None
+
+
+async def _resolve_with_fallback(hostname: str, logger: logging.Logger) -> Optional[str]:
+    """Try system DNS first, then fallback to third-party DNS servers.
+
+    Returns IP string, or None if all fail.
+    """
+    # Try system resolver first
+    try:
+        loop = asyncio.get_running_loop()
+        addrs = await loop.getaddrinfo(hostname, 80)
+        for addr in addrs:
+            if addr[0] == socket.AF_INET:
+                return addr[4][0]
+    except Exception:
+        pass
+
+    # Fallback to third-party DNS (sync UDP via executor)
+    loop = asyncio.get_running_loop()
+    for dns_ip, dns_port in _DNS_SERVERS:
+        try:
+            ip = await loop.run_in_executor(
+                None, _dns_resolve_sync, hostname, dns_ip, dns_port, 3.0
+            )
+            if ip:
+                logger.debug(f"DNS fallback: {hostname} → {ip} via {dns_ip}")
+                return ip
+        except Exception:
+            continue
+
+    logger.debug(f"DNS resolution failed for {hostname} (all servers)")
+    return None
+
+
 def _make_headers() -> Dict[str, str]:
     """Return a copy of base headers with a randomly chosen User-Agent."""
     headers = dict(_BASE_HEADERS)
@@ -100,7 +195,7 @@ def _find_chrome() -> Optional[str]:
         ]
 
     for path in candidates:
-        if path and shutil.which(path) if system != "Windows" else Path(path).exists():
+        if path and (Path(path).exists() if system == "Windows" else shutil.which(path) is not None):
             return path
 
     # Fallback: search PATH
@@ -138,7 +233,7 @@ class PageFetcher:
         self.browser_executable = browser_executable
 
     async def fetch_page(self, url: str) -> Optional[str]:
-        """Fetch a page via aiohttp with retry."""
+        """Fetch a page via aiohttp with retry. Falls back to DNS-over-third-party on network errors."""
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return None
@@ -182,6 +277,36 @@ class PageFetcher:
             return await _do_fetch()
         except Exception as e:
             self.logger.debug(f"Fetch failed for {url}: {e}")
+
+        # DNS fallback: resolve via third-party DNS and retry with IP + Host header
+        ip = await _resolve_with_fallback(parsed.hostname, self.logger)
+        if not ip:
+            return None
+
+        ip_url = f"{parsed.scheme}://{ip}{':' + str(parsed.port) if parsed.port else ''}{parsed.path or '/'}{('?' + parsed.query) if parsed.query else ''}"
+        self.logger.debug(f"Retrying with resolved IP: {ip_url} (Host: {parsed.hostname})")
+
+        try:
+            headers = _make_headers()
+            headers["Host"] = parsed.hostname
+            timeout = aiohttp.ClientTimeout(total=self.request_timeout)
+            async with aiohttp.ClientSession(
+                timeout=timeout,
+                headers=headers,
+                trust_env=True,
+            ) as session:
+                async with session.get(
+                    ip_url, allow_redirects=False,
+                ) as resp:
+                    if resp.status != 200:
+                        return None
+                    ct = resp.headers.get("Content-Type", "")
+                    if "text/html" not in ct and "application/xhtml" not in ct:
+                        return None
+                    body = await resp.content.read(10 * 1024 * 1024)
+                    return body.decode("utf-8", errors="replace")
+        except Exception as e:
+            self.logger.debug(f"DNS fallback fetch failed for {url}: {e}")
             return None
 
     async def fetch_browser_batch(
@@ -234,7 +359,12 @@ class PageFetcher:
                             )
                             await asyncio.sleep(1.5)
 
-                            block_reason = await check_anti_bot(page, item.url, self.logger)
+                            # Auto-wait for Cloudflare challenge to resolve
+                            block_reason = await _wait_for_cloudflare(
+                                page, item.url, self.logger, max_wait=8
+                            )
+                            if not block_reason:
+                                block_reason = await check_anti_bot(page, item.url, self.logger)
                             if block_reason:
                                 self.logger.debug(
                                     f"[{strategy_name}] anti-bot: {block_reason} — {item.url}"
@@ -284,8 +414,9 @@ class PageFetcher:
                     failed.append(item)
             return failed
 
+        failed_set = set(id(item) for item in failed)
         for item in items:
-            if item.enrichment_source != strategy_name and item not in failed:
+            if item.enrichment_source != strategy_name and id(item) not in failed_set:
                 failed.append(item)
         return failed
 
@@ -421,10 +552,15 @@ class PageFetcher:
                 page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
 
                 try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
-                    await asyncio.sleep(3.0)
+                    await page.goto(url, wait_until="networkidle", timeout=self.request_timeout * 1000)
+                    await asyncio.sleep(2.0)
 
-                    block_reason = await check_anti_bot(page, url, self.logger)
+                    # Auto-wait for Cloudflare challenge to resolve
+                    block_reason = await _wait_for_cloudflare(
+                        page, url, self.logger, max_wait=10
+                    )
+                    if not block_reason:
+                        block_reason = await check_anti_bot(page, url, self.logger)
                     if block_reason:
                         self.logger.debug(f"Headed anti-bot: {block_reason} — {url}")
                         for msg in console_msgs[-5:]:
@@ -442,6 +578,102 @@ class PageFetcher:
             return None
 
 
+def _parse_github_url(url: str) -> Optional[tuple]:
+    """Extract (owner, repo, path) from a GitHub URL.
+
+    Handles:
+      - https://github.com/owner/repo
+      - https://github.com/owner/repo/blob/branch/path
+      - https://github.com/owner/repo/tree/branch/path
+    Returns None if not a GitHub URL.
+    """
+    parsed = urlparse(url)
+    if parsed.hostname not in ("github.com", "www.github.com"):
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1]
+    # Strip .git suffix
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    path = None
+    if len(parts) >= 4 and parts[2] in ("blob", "tree"):
+        path = "/".join(parts[4:])
+    return owner, repo, path
+
+
+async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]:
+    """Fetch README content from a GitHub repo via the GitHub API.
+
+    Returns HTML string with the README content, or None on failure.
+    """
+    parsed = _parse_github_url(url)
+    if not parsed:
+        return None
+    owner, repo, file_path = parsed
+
+    # If URL points to a specific file, fetch that file
+    if file_path:
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}"
+        headers = {"Accept": "application/vnd.github.v3+json"}
+    else:
+        # Try README via the accepted HTML media type
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/readme"
+        headers = {"Accept": "application/vnd.github.v3.html"}
+
+    try:
+        async with aiohttp.ClientSession(headers=headers, trust_env=True) as session:
+            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    logger.debug(f"GitHub API {resp.status} for {api_url}")
+                    return None
+                if file_path:
+                    data = await resp.json()
+                    content = data.get("content")
+                    encoding = data.get("encoding", "base64")
+                    if content and encoding == "base64":
+                        import base64
+                        return base64.b64decode(content).decode("utf-8", errors="replace")
+                    return None
+                # README HTML response
+                return await resp.text()
+    except Exception as e:
+        logger.debug(f"GitHub API failed for {url}: {e}")
+        return None
+
+
+async def _wait_for_cloudflare(page, url: str, logger, max_wait: float = 8) -> Optional[str]:
+    """Wait for Cloudflare challenge to auto-resolve. Returns block reason or None."""
+    try:
+        title = (await page.title()).lower()
+    except Exception:
+        return None
+
+    is_cf = "just a moment" in title or "checking your browser" in title
+    if not is_cf:
+        cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
+        is_cf = cf_iframe is not None
+
+    if not is_cf:
+        return None
+
+    # Wait for challenge to resolve
+    for _ in range(int(max_wait / 0.5)):
+        await asyncio.sleep(0.5)
+        try:
+            title = (await page.title()).lower()
+            if "just a moment" not in title and "checking your browser" not in title:
+                cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
+                if not cf_iframe:
+                    logger.debug(f"Cloudflare challenge resolved for {url}")
+                    return None
+        except Exception:
+            return "Cloudflare challenge error during wait"
+
+    return "Cloudflare challenge did not resolve"
+
+
 async def check_anti_bot(page, url: str, logger) -> Optional[str]:
     """Detect anti-bot challenges on the page. Returns reason or None."""
     try:
@@ -451,10 +683,6 @@ async def check_anti_bot(page, url: str, logger) -> Optional[str]:
         # Cloudflare challenge
         if "just a moment" in title.lower() or "checking your browser" in title.lower():
             return "Cloudflare challenge page"
-        cf_meta = await page.query_selector('meta[name="cf-beacon"]')
-        if cf_meta:
-            pass
-
         # Check for common challenge frames
         cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
         if cf_iframe:

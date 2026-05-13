@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 from src.core.models import (
     ContentItem, ContentComment, ContentPackage,
     Script, ScriptSegment, SceneElement, Cue,
@@ -93,16 +94,33 @@ class TestContentPreparer:
         result = preparer.prepare(content)
         assert result is content
 
-    def test_save_and_load_roundtrip(self, tmp_path):
+    def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
+        """Save a ContentPackage, load it back, verify all fields match."""
+        monkeypatch.chdir(tmp_path)
         config = _make_config()
         preparer = ContentPreparer(config, debug=True)
         content = _make_content_package()
-
         date = "2026-04-26"
-        with patch.object(Path, "mkdir"):
-            with patch("builtins.open", MagicMock()):
-                with patch("json.dump"):
-                    preparer.save_content(content, date)
+
+        preparer.save_content(content, date)
+        loaded = preparer.load_content(date)
+
+        assert loaded.date == content.date
+        assert loaded.deep_dive_indices == content.deep_dive_indices
+        assert loaded.brief_indices == content.brief_indices
+        assert loaded.quick_news_indices == content.quick_news_indices
+        assert len(loaded.items) == len(content.items)
+        for original, loaded_item in zip(content.items, loaded.items):
+            assert loaded_item.source == original.source
+            assert loaded_item.source_id == original.source_id
+            assert loaded_item.title == original.title
+            assert loaded_item.url == original.url
+            assert loaded_item.score == original.score
+            assert loaded_item.comment_count == original.comment_count
+            assert len(loaded_item.comments) == len(original.comments)
+            for orig_c, load_c in zip(original.comments, loaded_item.comments):
+                assert load_c.author == orig_c.author
+                assert load_c.content == orig_c.content
 
 
 class TestScriptWriter:
@@ -313,8 +331,6 @@ class TestSubtitleVisualAlignment:
     def test_combined_segment_proportional_layout(self):
         """story_scan with sub_segment_estimated_durations lays out elements proportionally."""
         orch = self._make_orchestrator()
-        # 3 sub-segments with estimated durations 10, 20, 10
-        # actual_duration = 50 (different from estimated 40)
         script = Script(
             title="Test",
             description="",
@@ -335,7 +351,6 @@ class TestSubtitleVisualAlignment:
         )
         orch._set_scene_element_times(script)
         seg = script.segments[0]
-        # Proportional: 10/40*50=12.5, 20/40*50=25, 10/40*50=12.5
         assert seg.scene_elements[0].start_time == 0.0
         assert seg.scene_elements[0].end_time == pytest.approx(12.5)
         assert seg.scene_elements[1].start_time == pytest.approx(12.5)

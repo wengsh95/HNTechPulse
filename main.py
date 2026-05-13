@@ -19,23 +19,24 @@ def get_default_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
+def validate_date(value: str) -> str:
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return value
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid date format: '{value}'. Expected YYYY-MM-DD")
+
+
 def main():
     parser = argparse.ArgumentParser(description="HN TechPulse: Generate tech video from Hacker News")
-    parser.add_argument("--date", type=str, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
+    parser.add_argument("--date", type=validate_date, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
     parser.add_argument("--force", action="store_true", help="Force re-render (clear render cache)")
     parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,render",
                         help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,render)")
     parser.add_argument("--config", type=str, default="config/", help="Config directory or file path")
-    parser.add_argument("--test-prompt", action="store_true",
-                        help="Test prompts/story_script.md with a mock story and print LLM result")
-
     args = parser.parse_args()
-
-    if args.test_prompt:
-        from test_single_story_prompt import main as test_main
-        return test_main()
 
     steps = [s.strip() for s in args.steps.split(",")]
 

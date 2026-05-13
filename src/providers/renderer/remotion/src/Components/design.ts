@@ -6,9 +6,9 @@ export const grid = (units: number) => units * GRID_UNIT;
 export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
 
 export const FONTS = {
-  mono: '"SF Mono", "Monaco", "Courier New", monospace',
-  sans: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
-  bold: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+  mono: '"SF Mono", "Menlo", "Source Code Pro", monospace',
+  sans: '-apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
+  bold: '-apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
 };
 
 /** Standard font weights — use only these values for predictable rendering. */
@@ -21,37 +21,43 @@ export const FW = {
 } as const;
 
 export const COLORS = {
-  // Dark theme surface colors
-  bg: "#0a0a1a",
-  surface: "rgba(255, 255, 255, 0.06)",
-  surfaceHover: "rgba(255, 255, 255, 0.09)",
-  surfaceBorder: "rgba(255, 255, 255, 0.08)",
+  // Dark Keynote-inspired theme
+  bg: "#0d0d0f",
+  surface: "rgba(255,255,255,0.06)",
+  surfaceHover: "rgba(255,255,255,0.10)",
+  surfaceBorder: "transparent",
 
-  // Text hierarchy
-  text: "#ffffff",
-  textSecondary: "#98989d",
-  textTertiary: "#8e8e93",
+  // Text hierarchy — white on dark
+  text: "#f5f5f7",
+  textSecondary: "rgba(245,245,247,0.60)",
+  textTertiary: "rgba(245,245,247,0.38)",
 
-  // Accent
-  accent: "#007aff",
-  accentLight: "#3395ff",
-  accentBg: "rgba(0, 122, 255, 0.15)",
-  accentBorder: "rgba(51, 149, 255, 0.34)",
+  // Primary accent — Apple blue
+  accent: "#007AFF",
+  accentLight: "#4DA6FF",
+  accentBg: "rgba(0, 122, 255, 0.12)",
+  accentBorder: "rgba(0, 122, 255, 0.35)",
 
-  // Semantic
-  green: "#34c759",
-  yellow: "#ff9f0a",
-  red: "#ff3b30",
-  purple: "#af52de",
-  orange: "#ff9500",
+  // Brand accent — HN orange (secondary)
+  brand: "#ff6600",
+  brandLight: "#ff8b36",
+  brandBg: "rgba(255, 102, 0, 0.10)",
+  brandBorder: "rgba(255, 102, 0, 0.30)",
+
+  // Semantic — Apple system colors for dark bg
+  green: "#34C759",
+  yellow: "#FFD60A",
+  red: "#FF453A",
+  purple: "#BF5AF2",
+  orange: "#FF9F0A",
 
   // Legacy (kept for minimal diff; some may still be referenced)
-  dim: "#98989d",
-  cardBg: "rgba(255, 255, 255, 0.06)",
-  background: "#0a0a1a",
-  border: "rgba(255, 255, 255, 0.08)",
-  borderLight: "rgba(255, 255, 255, 0.05)",
-  textLight: "#98989d",
+  dim: "rgba(245,245,247,0.60)",
+  cardBg: "rgba(255,255,255,0.06)",
+  background: "#0d0d0f",
+  border: "transparent",
+  borderLight: "rgba(255,255,255,0.06)",
+  textLight: "rgba(245,245,247,0.60)",
 };
 
 export const LAYOUT = {
@@ -65,9 +71,9 @@ export const LAYOUT = {
   progressBottom: grid(1),
   subtitleBottom: grid(7),
   subtitleBottomMinimal: grid(6),
-  cardRadius: 18,
-  cardPaddingX: grid(6),
-  cardPaddingY: grid(5),
+  cardRadius: 14,
+  cardPaddingX: grid(4),
+  cardPaddingY: grid(3),
   contentMaxWidth: grid(102),
   subtitleMaxWidth: grid(130),
 };
@@ -77,30 +83,30 @@ export const GRID_DEBUG = {
   major: grid(4),
 };
 
-/** Glass-morphism card style */
+/** Frosted glass card style (Keynote-inspired) */
 export const glassCard: React.CSSProperties = {
-  background: "rgba(23, 24, 43, 0.84)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255, 255, 255, 0.07)",
+  background: "rgba(255,255,255,0.06)",
+  border: "none",
   borderRadius: LAYOUT.cardRadius,
+  backdropFilter: "blur(40px) saturate(1.4)",
+  WebkitBackdropFilter: "blur(40px) saturate(1.4)",
 };
 
-export const glassCardShadow = "0 0 0 0.5px rgba(255,255,255,0.05), 0 8px 28px rgba(0,0,0,0.22)";
+export const glassCardShadow = "0 4px 24px rgba(0,0,0,0.40), 0 1px 6px rgba(0,0,0,0.25)";
 
 export const SHADOWS = {
   card: glassCardShadow,
-  cardHover: "0 0 0 0.5px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.16), 0 12px 48px rgba(0,0,0,0.32)",
+  cardHover: "0 8px 32px rgba(0,0,0,0.50), 0 2px 10px rgba(0,0,0,0.30)",
 };
 
 export const sectionLabel: React.CSSProperties = {
   fontFamily: FONTS.sans,
-  fontSize: 20,
-  fontWeight: 700,
+  fontSize: 13,
+  fontWeight: 600,
   color: COLORS.textTertiary,
-  marginBottom: 16,
-  textTransform: "uppercase",
-  letterSpacing: 0.7,
+  marginBottom: 14,
+  textTransform: "none",
+  letterSpacing: 0.4,
 };
 
 export const S: React.CSSProperties = { position: "absolute" as const };

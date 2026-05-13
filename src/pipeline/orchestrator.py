@@ -84,7 +84,6 @@ class Orchestrator:
                     "Re-run after placing HTML files in downloaded_pages/."
                 )
                 return
-
         if "analyze" in steps:
             content = self._step_analyze(content, date)
 
@@ -150,7 +149,9 @@ class Orchestrator:
         if self.article_enricher is None:
             self.logger.info("Article enricher not configured, skipping")
             return content
-        content = self.article_enricher.enrich(content, date)
+        enriched = self.article_enricher.enrich(content, date)
+        if enriched is not None:
+            content = enriched
         self.content_preparer.save_content(content, date)
 
         # Gate: check for items that need manual HTML download
@@ -177,14 +178,6 @@ class Orchestrator:
                 f"  Then re-run the pipeline. It will resume from this point."
             )
             return content
-
-        # Image selection: silently load any user selections
-        sel_path = Path(f"data/{date}/image_selection.json")
-        if sel_path.exists():
-            selected = self.article_enricher._load_image_selection(content, date)
-            if selected:
-                self.logger.info(f"Loaded {len(selected)} image selections")
-                self.content_preparer.save_content(content, date)
 
         return content
 

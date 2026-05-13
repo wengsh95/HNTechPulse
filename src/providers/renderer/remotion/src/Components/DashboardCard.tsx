@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
-import { ElementProps, UI_TEXT } from "./utils";
+import { ElementProps } from "./utils";
 import { COLORS, FONTS, glassCard, glassCardShadow, LAYOUT, S } from "./design";
 import { DashboardEntry } from "./DashboardShared";
 import { GuideDashboard } from "./GuideDashboard";

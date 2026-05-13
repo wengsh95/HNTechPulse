@@ -10,7 +10,7 @@ enrich:
   retry_count: 3                   # 失败重试次数（指数退避：1s → 2s → 4s）
   request_delay: 0.5               # 请求间隔（秒），避免触发速率限制
   headless: true                   # 启用 Playwright 无头 Chrome 兜底（aiohttp 失败后），自动检测本地 Chrome
-  headed: true                     # 启用 Playwright 有头 Chrome（headless=False）作为第3策略（JS重/反爬站）
+  headed: true                    # 启用 Playwright 有头 Chrome（headless=False）作为第3策略（JS重/反爬站），设 HNP_HEADED=true 可覆盖
   bing_image_search: true          # 启用 Bing 图片搜索作为图片兜底
   bing_max_results: 5              # Bing 搜索最多下载图片数
   bing_max_queries: 2              # Bing image search queries (title+domain, title)

@@ -34,6 +34,12 @@ class TimingEngine:
         """
         for seg in script.segments:
             if seg.segment_type == "dashboard":
+                # Dashboard has a single dashboard_card spanning the full segment duration.
+                # No per-element timing needed — the card uses segment start/end directly.
+                duration = seg.actual_duration or seg.estimated_duration
+                for elem in seg.scene_elements:
+                    elem.start_time = 0.0
+                    elem.end_time = duration
                 continue
 
             if seg.segment_type == "story_scan":

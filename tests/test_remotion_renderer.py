@@ -79,8 +79,7 @@ class TestFindNpm:
                 node_dir.__truediv__ = MagicMock(return_value=npm_candidate)
                 MockPath.return_value = node_dir
                 result = find_npm(node_path="/usr/bin/node")
-                # Should find npm.cmd or npm next to node
-                assert result is not None or result is None  # path-dependent
+                assert isinstance(result, str)  # found npm.cmd or npm next to node
 
     def test_not_found(self):
         with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):

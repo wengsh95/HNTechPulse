@@ -302,7 +302,7 @@ class ScriptWriter:
             combined_audio_parts = []
             combined_scene_elements = []
             sub_segment_subtitle_texts = []  # list of list[str]
-            sub_segment_duration_estimates = []
+            sub_segment_estimated_durations = []
             sub_idx = 0
             SPEECH_CPS = 3.5  # approximate Chinese chars per second
 
@@ -315,7 +315,7 @@ class ScriptWriter:
                     texts = [card_audio]
                     combined_audio_parts.append(card_audio)
                     sub_segment_subtitle_texts.append(texts)
-                    sub_segment_duration_estimates.append(
+                    sub_segment_estimated_durations.append(
                         sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
                     )
                     for elem in s.scene_elements:
@@ -338,7 +338,7 @@ class ScriptWriter:
                     for t in texts:
                         combined_audio_parts.append(t)
                     sub_segment_subtitle_texts.append(texts)
-                    sub_segment_duration_estimates.append(
+                    sub_segment_estimated_durations.append(
                         sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
                     )
 
@@ -362,7 +362,7 @@ class ScriptWriter:
                     sub_idx += 1
 
             combined_audio = " ".join(combined_audio_parts)
-            total_duration = sum(sub_segment_duration_estimates)
+            total_duration = sum(sub_segment_estimated_durations)
 
             story_scan_seg = ScriptSegment(
                 segment_type="story_scan",
@@ -372,7 +372,7 @@ class ScriptWriter:
                 scene_elements=combined_scene_elements,
                 meta={
                     "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
-                    "sub_segment_duration_estimates": sub_segment_duration_estimates,
+                    "sub_segment_estimated_durations": sub_segment_estimated_durations,
                 },
             )
             segments.append(story_scan_seg)
@@ -408,6 +408,9 @@ class ScriptWriter:
                 for c in selected_comments
                 if c.source_id is not None
             ]
+            # Fallback: if all selected comments lack source_id, keep original LLM ids
+            if not props["selected_comment_ids"] and combined_ids:
+                props["selected_comment_ids"] = [str(cid) for cid in combined_ids[:3]]
             elem.props = props
 
     @staticmethod

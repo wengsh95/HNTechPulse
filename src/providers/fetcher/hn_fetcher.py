@@ -16,6 +16,18 @@ from src.core.interfaces import ContentFetcher
 from src.utils.logger import setup_logger
 
 
+def _run_async(coro):
+    """Run an async coroutine, handling the case where an event loop is already running."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    # Already inside a running loop — create a new one in a separate thread
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 class HNFetcher(ContentFetcher):
     def __init__(
         self,
@@ -35,8 +47,10 @@ class HNFetcher(ContentFetcher):
         self.target_stories_count = config.get("hn", {}).get("target_stories_count", 10)
 
         _raw_timeout = config.get("hn", {}).get("request_timeout", (5, 15))
-        if isinstance(_raw_timeout, list):
+        if isinstance(_raw_timeout, (list, tuple)):
             self.request_timeout = tuple(_raw_timeout)
+        elif isinstance(_raw_timeout, (int, float)):
+            self.request_timeout = (_raw_timeout, _raw_timeout)
         else:
             self.request_timeout = _raw_timeout
 
@@ -141,7 +155,7 @@ class HNFetcher(ContentFetcher):
         return ids[:self.top_stories_count]
 
     def _fetch_stories_concurrent(self, story_ids: List[int]) -> List[HNStory]:
-        return asyncio.run(self._async_fetch_stories(story_ids))
+        return _run_async(self._async_fetch_stories(story_ids))
 
     async def _async_fetch_stories(self, story_ids: List[int]) -> List[HNStory]:
         connector = aiohttp.TCPConnector(limit=self.max_concurrent_requests)
@@ -208,7 +222,7 @@ class HNFetcher(ContentFetcher):
         )
 
     def _fetch_comments_concurrent(self, stories: List[HNStory]) -> Dict[int, List[HNComment]]:
-        return asyncio.run(self._async_fetch_comments(stories))
+        return _run_async(self._async_fetch_comments(stories))
 
     async def _async_fetch_comments(self, stories: List[HNStory]) -> Dict[int, List[HNComment]]:
         import time as _time
@@ -488,7 +502,7 @@ class HNFetcher(ContentFetcher):
                 score=story.score,
                 comment_count=story.descendants,
                 published_at=story.time,
-                raw=story
+                raw=self._story_to_dict(story)
             )
 
             for hn_comment in comments.get(story.id, []):

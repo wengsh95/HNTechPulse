@@ -279,7 +279,9 @@ class RemotionRenderer(Renderer):
                 for chunk_file in chunk_files:
                     # ffmpeg requires forward slashes and escaping or proper quoting
                     path_str = str(chunk_file.absolute()).replace("\\", "/")
-                    f.write(f"file '{path_str}'\n")
+                    # Escape single quotes for ffmpeg concat demuxer
+                    path_escaped = path_str.replace("'", "'\\''")
+                    f.write(f"file '{path_escaped}'\n")
 
             concat_cmd = [
                 self._ffmpeg_path,

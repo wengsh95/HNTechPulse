@@ -110,7 +110,7 @@ class ScriptSegment:
     emotion: str = "neutral"
 
     scene_elements: List[SceneElement] = field(default_factory=list)
-    meta: "SegmentMeta" = field(default_factory=dict)  # type: ignore[assignment]
+    meta: Dict[str, Any] = field(default_factory=dict)
 
     start_time: Optional[float] = None
     end_time: Optional[float] = None

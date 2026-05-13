@@ -264,7 +264,7 @@ class LLMClient:
             except json.JSONDecodeError:
                 pass
 
-        json_match = re.search(r'\{[\s\S]*\}', text)
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
         if json_match:
             json_str = json_match.group(0)
             try:
@@ -277,7 +277,7 @@ class LLMClient:
             except json.JSONDecodeError:
                 pass
 
-        array_match = re.search(r'\[[\s\S]*\]', text)
+        array_match = re.search(r'\[[^\[\]]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^\[\]]*)*\]', text)
         if array_match:
             try:
                 result = json.loads(array_match.group(0))

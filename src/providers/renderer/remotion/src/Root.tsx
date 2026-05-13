@@ -17,13 +17,29 @@ import { ScriptProps } from "./types";
  * CLI 渲染模式：通过 --props 参数注入完整数据，Remotion 自动传递给组件
  */
 
+/** Validate and extract ScriptProps from raw props */
+function validateScriptProps(props: Record<string, unknown>): ScriptProps {
+  const segments = Array.isArray(props.segments) ? props.segments : [];
+  return {
+    width: typeof props.width === "number" ? props.width : 1280,
+    height: typeof props.height === "number" ? props.height : 720,
+    fps: typeof props.fps === "number" ? props.fps : 24,
+    bgColor: typeof props.bgColor === "string" ? props.bgColor : "#0d1117",
+    title: typeof props.title === "string" ? props.title : "",
+    totalDuration: typeof props.totalDuration === "number" ? props.totalDuration : 0,
+    segments,
+    audioDir: typeof props.audioDir === "string" ? props.audioDir : "",
+    transitionTimes: Array.isArray(props.transitionTimes) ? props.transitionTimes : undefined,
+  };
+}
+
 /** calculateMetadata：根据所有 segment 的时长动态计算总帧数 */
 const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
-  const p = props as unknown as ScriptProps;
-  const fps = p.fps ?? 24;
+  const p = validateScriptProps(props);
+  const fps = p.fps;
   const totalDuration =
     p.totalDuration
-    || (p.segments ?? []).reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0)
+    || p.segments.reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0)
     || 10;
 
   return {
@@ -44,12 +60,18 @@ const defaultProps: ScriptProps = {
   audioDir: "",
 };
 
+/** Wrapper that validates raw props before passing to HNTechPulseComposition */
+const ValidatedComposition: React.FC<Record<string, unknown>> = (rawProps) => {
+  const props = validateScriptProps(rawProps);
+  return <HNTechPulseComposition {...props} />;
+};
+
 /** 根组件：Remotion registerRoot 要求无参数函数组件，props 通过 Composition 机制传递 */
 export const Root: React.FC = () => {
   return (
     <Composition
       id="HNTechPulseComposition"
-      component={HNTechPulseComposition as unknown as React.FC<Record<string, unknown>>}
+      component={ValidatedComposition}
       durationInFrames={240}
       fps={24}
       width={1280}

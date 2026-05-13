@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from urllib.parse import urlparse
@@ -14,6 +15,8 @@ from src.providers.enricher.page_fetcher import (
     _make_headers,
     _find_chrome,
     PageFetcher,
+    fetch_github_readme,
+    _parse_github_url,
 )
 from src.providers.enricher.image_handler import ImageHandler
 
@@ -35,7 +38,9 @@ class ArticleEnricher:
         self.retry_count = enrich_cfg.get("retry_count", 3)
         self.request_delay = enrich_cfg.get("request_delay", 0.5)
         self.use_headless = enrich_cfg.get("headless", True)
-        self.use_headed = enrich_cfg.get("headed", True)
+        self.use_headed = enrich_cfg.get("headed", False)
+        if os.environ.get("HNP_HEADED", "").lower() in ("1", "true", "yes"):
+            self.use_headed = True
         self.bing_image_search = enrich_cfg.get("bing_image_search", True)
         self.bing_max_results = enrich_cfg.get("bing_max_results", 3)
         self.bing_max_queries = enrich_cfg.get("bing_max_queries", 2)
@@ -226,22 +231,50 @@ class ArticleEnricher:
 
     async def _phase1_fetch_all(self, content: ContentPackage, date: str, items: list):
         pages_dir = self._pages_dir(date)
-        remaining = items
         total = len(items)
 
-        # Strategy 1: aiohttp
+        # Strategy 0: GitHub API (for github.com URLs)
+        github_ok, remaining = [], list(items)
+        github_items = [item for item in remaining if _parse_github_url(item.url or "")]
+        if github_items:
+            for item in github_items:
+                html = await fetch_github_readme(item.url, self.logger)
+                if html and len(html) > 100:
+                    html_path = pages_dir / f"{item.source_id}.html"
+                    if self.save_fetched_html:
+                        html_path.write_text(html, encoding="utf-8", errors="replace")
+                    if self._extract_text(html, item.url or ""):
+                        item.enrichment_source = "github_api"
+                        github_ok.append(item)
+                        remaining.remove(item)
+                        self.logger.debug(f"[github_api] {item.title[:50]}")
+                        continue
+                self.logger.debug(f"[github_api] failed, will try aiohttp: {item.title[:50]}")
+
+        # Strategy 1: aiohttp (concurrent)
         aiohttp_failed = []
-        for item in remaining:
-            strategy = await self._phase1_fetch_one_aiohttp(item, pages_dir)
+        sem = asyncio.Semaphore(self.max_concurrent)
+
+        async def _fetch_one(item):
+            async with sem:
+                return item, await self._phase1_fetch_one_aiohttp(item, pages_dir)
+
+        results = await asyncio.gather(*[_fetch_one(item) for item in remaining], return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                self.logger.debug(f"[aiohttp] concurrent fetch error: {r}")
+                continue
+            item, strategy = r
             if strategy:
                 item.enrichment_source = strategy
                 self.logger.debug(f"[aiohttp] {item.title[:50]}")
             else:
                 aiohttp_failed.append(item)
 
-        if aiohttp_failed:
+        aiohttp_ok = len(remaining) - len(aiohttp_failed)
+        if remaining:
             self.logger.info(
-                f"Phase 1 aiohttp: {total - len(aiohttp_failed)}/{total} ok, "
+                f"Phase 1 aiohttp: {aiohttp_ok}/{len(remaining)} ok, "
                 f"{len(aiohttp_failed)} → headless"
             )
 

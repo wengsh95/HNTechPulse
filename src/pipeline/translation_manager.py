@@ -61,28 +61,48 @@ class TranslationManager:
         """
         translations_path = Path(f"data/{date}/translations.json")
         translations = {}
+        # Load judgements once for the entire translate step
+        judgements = load_comment_judgements(content.date)
 
         if translations_path.exists():
             self.logger.info(f"  Loading cached translations from {translations_path}")
             with open(translations_path, "r", encoding="utf-8") as f:
                 translations = json.load(f)
+            # Apply title translations by source_id, falling back to index for legacy caches
+            items_by_source_id = {item.source_id: item for item in content.items if item.source_id}
             for key, value in translations.items():
                 if key.startswith("title_"):
-                    idx = int(key.split("_", 1)[1])
-                    if idx < len(content.items):
-                        content.items[idx].title_cn = value
+                    parts = key.split("_", 1)
+                    if len(parts) < 2:
+                        continue
+                    token = parts[1]
+                    # Prefer source_id-based key (title_<source_id>)
+                    item = items_by_source_id.get(token)
+                    if item is None:
+                        # Fallback: legacy positional index key
+                        try:
+                            idx = int(token)
+                            if idx < len(content.items):
+                                item = content.items[idx]
+                        except ValueError:
+                            continue
+                    if item is not None:
+                        item.title_cn = value
             selected_ids_by_story = self._selected_ids_by_story(script)
-            self._apply_comment_translations(content, translations, selected_ids_by_story)
+            self._apply_comment_translations(content, translations, selected_ids_by_story, judgements)
         else:
             # 1. Translate all titles
             content = self.llm_provider.translate_titles(content, "translate.md")
             for idx, item in enumerate(content.items):
                 if item.title_cn:
+                    # Store by source_id for stable cache keys; keep index key for backward compat
+                    if item.source_id:
+                        translations[f"title_{item.source_id}"] = item.title_cn
                     translations[f"title_{idx}"] = item.title_cn
 
         # 2. Collect and translate stance-diverse comments (if not cached)
         selected_ids_by_story = self._selected_ids_by_story(script)
-        comment_refs = self.collect_comment_refs(content, selected_ids_by_story)
+        comment_refs = self.collect_comment_refs(content, selected_ids_by_story, judgements)
         missing_comment_refs = {
             key: value
             for key, value in comment_refs.items()
@@ -92,7 +112,7 @@ class TranslationManager:
         if missing_comment_refs:
             comment_translations = self.llm_provider.translate_comments(content, missing_comment_refs)
             translations.update(comment_translations)
-            self._apply_comment_translations(content, translations, selected_ids_by_story)
+            self._apply_comment_translations(content, translations, selected_ids_by_story, judgements)
 
         # 3. Save checkpoint
         if translations:
@@ -119,14 +139,15 @@ class TranslationManager:
     def _legacy_comment_translation_key(story_idx: int, selected_idx: int) -> str:
         return f"comment_{story_idx}_{selected_idx}"
 
-    def collect_comment_refs(self, content, selected_ids_by_story: dict | None = None) -> dict:
+    def collect_comment_refs(self, content, selected_ids_by_story: dict | None = None, judgements: dict | None = None) -> dict:
         """Collect the exact comments QuoteCard will display for translation.
 
         LLM-selected ids are honored first, then the shared fallback selector fills
         to three quotable comments.
         """
         selected_ids_by_story = selected_ids_by_story or {}
-        judgements = load_comment_judgements(content.date)
+        if judgements is None:
+            judgements = load_comment_judgements(content.date)
         refs = {}
         for story_idx, item in enumerate(content.items):
             selected = self._pick_quote_comments(
@@ -145,10 +166,12 @@ class TranslationManager:
         content,
         translations: dict,
         selected_ids_by_story: dict | None = None,
+        judgements: dict | None = None,
     ) -> None:
         """Set content_cn on the same comments QuoteCard will display."""
         selected_ids_by_story = selected_ids_by_story or {}
-        judgements = load_comment_judgements(content.date)
+        if judgements is None:
+            judgements = load_comment_judgements(content.date)
         for story_idx, item in enumerate(content.items):
             selected = self._pick_quote_comments(
                 item.comments,

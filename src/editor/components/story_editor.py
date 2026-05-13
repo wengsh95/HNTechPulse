@@ -118,16 +118,24 @@ def _render_image_picker(state: EditorState, source_id: str, props: dict, story_
         process_key = f"_processed_{upload_key}"
         if st.session_state.get(process_key) != uploaded.name:
             st.session_state[process_key] = uploaded.name
+            ext = uploaded.name.split(".")[-1].lower() if "." in uploaded.name else "jpg"
+            if ext not in {"png", "jpg", "jpeg", "webp"}:
+                ext = "jpg"
             import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded.name.split('.')[-1]}") as tmp:
-                tmp.write(uploaded.read())
-                tmp_path = tmp.name
-            state.add_image(source_id, tmp_path)
-            state.save_enrichment()
-            # Auto-select the new image
-            new_index = len(state.get_image_candidates(source_id)) - 1
-            props["image_index"] = new_index
-            st.rerun()
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+                    tmp.write(uploaded.read())
+                    tmp_path = tmp.name
+                state.add_image(source_id, tmp_path)
+                state.save_enrichment()
+                # Auto-select the new image
+                new_index = len(state.get_image_candidates(source_id)) - 1
+                props["image_index"] = new_index
+                st.rerun()
+            finally:
+                if tmp_path:
+                    Path(tmp_path).unlink(missing_ok=True)
 
 
 def _render_atmosphere_tab(atmosphere_card: dict, story_index: int):

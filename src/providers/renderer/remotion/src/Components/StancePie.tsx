@@ -4,11 +4,11 @@ import { useCurrentFrame, interpolate, Easing } from "remotion";
 import { COLORS, FONTS, FW } from "./design";
 
 export const STANCE_COLORS: Record<string, string> = {
-  "支持": "#3395ff",
-  "质疑": "#ff4d4d",
-  "中立": "#aeaeb2",
-  "调侃": "#ffb340",
-  "担忧": "#7d7aff",
+  "支持": "#34C759",
+  "质疑": "#FF453A",
+  "中立": "rgba(245,245,247,0.50)",
+  "调侃": "#FFD60A",
+  "担忧": "#BF5AF2",
 };
 
 export const StancePie: React.FC<{
@@ -34,16 +34,19 @@ export const StancePie: React.FC<{
     const startAngle = cumulative * 2 * Math.PI;
     cumulative += value;
     const endAngle = cumulative * 2 * Math.PI;
-    const largeArc = value > 0.5 ? 1 : 0;
+
+    // Arc reveal: each arc sweeps from its startAngle to a progressively revealed endAngle
+    const revealedEndAngle = startAngle + (endAngle - startAngle) * pieProgress;
+    const largeArc = (revealedEndAngle - startAngle) > Math.PI ? 1 : 0;
 
     const outerX1 = cx + outerR * Math.cos(startAngle - Math.PI / 2);
     const outerY1 = cy + outerR * Math.sin(startAngle - Math.PI / 2);
-    const outerX2 = cx + outerR * Math.cos(endAngle - Math.PI / 2);
-    const outerY2 = cy + outerR * Math.sin(endAngle - Math.PI / 2);
+    const outerX2 = cx + outerR * Math.cos(revealedEndAngle - Math.PI / 2);
+    const outerY2 = cy + outerR * Math.sin(revealedEndAngle - Math.PI / 2);
     const innerX1 = cx + innerR * Math.cos(startAngle - Math.PI / 2);
     const innerY1 = cy + innerR * Math.sin(startAngle - Math.PI / 2);
-    const innerX2 = cx + innerR * Math.cos(endAngle - Math.PI / 2);
-    const innerY2 = cy + innerR * Math.sin(endAngle - Math.PI / 2);
+    const innerX2 = cx + innerR * Math.cos(revealedEndAngle - Math.PI / 2);
+    const innerY2 = cy + innerR * Math.sin(revealedEndAngle - Math.PI / 2);
 
     const path = `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`;
     const color = STANCE_COLORS[label] || COLORS.textSecondary;
@@ -57,7 +60,6 @@ export const StancePie: React.FC<{
         flexDirection: "column",
         alignItems: "center",
         flexShrink: 0,
-        opacity: pieProgress,
       }}
     >
       <div style={{ position: "relative", width: size, height: size }}>
@@ -67,8 +69,8 @@ export const StancePie: React.FC<{
               key={i}
               d={arc.path}
               fill={arc.color}
-              stroke="rgba(0,0,0,0.3)"
-              strokeWidth={2}
+              stroke="rgba(13,13,15,0.5)"
+              strokeWidth={1}
             />
           ))}
         </svg>
@@ -101,8 +103,14 @@ export const StancePie: React.FC<{
           justifyContent: "center",
         }}
       >
-        {entries.map(([label, value]) => {
+        {entries.map(([label, value], i) => {
           const color = STANCE_COLORS[label] || COLORS.textSecondary;
+          const legendDelay = 30 + i * 5;
+          const legendProgress = interpolate(frame, [legendDelay, legendDelay + 14], [0, 1], {
+            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
           return (
             <span
               key={label}
@@ -114,6 +122,8 @@ export const StancePie: React.FC<{
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
+                opacity: legendProgress,
+                transform: `translateY(${interpolate(legendProgress, [0, 1], [6, 0])}px)`,
               }}
             >
               <span

@@ -89,12 +89,11 @@ def generate_brief_transcript(
             if si is not None:
                 story_elems.setdefault(si, []).append(elem)
 
-        # Split audio_text per card using sub_segment_char_ranges
-        char_ranges = scan_segment.meta.get("sub_segment_char_ranges", []) if scan_segment.meta else []
+        # Split audio_text per card using sub_segment_subtitle_texts
+        subtitle_texts_list = scan_segment.meta.get("sub_segment_subtitle_texts", []) if scan_segment.meta else []
         card_texts = []
-        if char_ranges and scan_segment.audio_text:
-            for start, end in char_ranges:
-                card_texts.append(scan_segment.audio_text[start:end].strip())
+        for texts in subtitle_texts_list:
+            card_texts.append(" ".join(t for t in texts if t))
 
         lines.append("---")
         lines.append("")

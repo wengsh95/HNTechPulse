@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
@@ -16,36 +16,49 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
 
   let displayText = fallbackText;
   let opacity = 1;
+  let slideY = 0;
   if (cues.length > 0) {
+    // Find the active cue whose time range contains currentTime
     let activeCue = cues.find(
       (c) => currentTime >= c.start_time - 0.05 && currentTime <= c.end_time + 0.05
     );
     if (!activeCue) {
-      let minDist = Infinity;
-      for (const c of cues) {
-        const distToStart = Math.abs(currentTime - c.start_time);
-        const distToEnd = Math.abs(currentTime - c.end_time);
-        const dist = Math.min(distToStart, distToEnd);
-        if (dist < minDist) {
-          minDist = dist;
-          activeCue = c;
+      // No active cue — check if we're in a gap between cues
+      const lastCue = cues[cues.length - 1];
+      const firstCue = cues[0];
+
+      if (currentTime >= lastCue.end_time) {
+        // After all cues — fade out the last cue
+        const fadeOutDuration = 0.5;
+        const timeSinceEnd = currentTime - lastCue.end_time;
+        if (timeSinceEnd < fadeOutDuration) {
+          displayText = lastCue.text;
+          opacity = 1 - timeSinceEnd / fadeOutDuration;
+          slideY = interpolate(opacity, [0, 1], [4, 0]);
+        } else {
+          displayText = "";
+          opacity = 0;
         }
-      }
-    }
-    if (activeCue) {
-      displayText = activeCue.text;
-    } else if (currentTime >= cues[cues.length - 1].end_time) {
-      const fadeOutDuration = 0.5;
-      const timeSinceEnd = currentTime - cues[cues.length - 1].end_time;
-      if (timeSinceEnd < fadeOutDuration) {
-        displayText = cues[cues.length - 1].text;
-        opacity = 1 - timeSinceEnd / fadeOutDuration;
+      } else if (currentTime < firstCue.start_time) {
+        // Before first cue — show nothing
+        displayText = "";
+        opacity = 0;
       } else {
+        // In a gap between cues — show nothing
         displayText = "";
         opacity = 0;
       }
-    } else if (currentTime < cues[0].start_time) {
-      displayText = cues[0].text;
+    } else {
+      displayText = activeCue.text;
+      // Fade in at the start of each cue
+      const cueElapsed = currentTime - activeCue.start_time;
+      const cueFadeIn = interpolate(cueElapsed, [0, 0.15], [0, 1], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+      opacity = cueFadeIn;
+      slideY = interpolate(cueFadeIn, [0, 1], [6, 0]);
     }
   }
 
@@ -62,18 +75,18 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
       ...S,
       left: "50%",
       bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
-      transform: "translateX(-50%)",
+      transform: `translateX(-50%) translateY(${slideY}px)`,
       background: isMinimal
-        ? "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.38) 16%, rgba(7, 7, 18, 0.38) 84%, rgba(7, 7, 18, 0))"
-        : "linear-gradient(90deg, rgba(7, 7, 18, 0), rgba(7, 7, 18, 0.52) 14%, rgba(7, 7, 18, 0.52) 86%, rgba(7, 7, 18, 0))",
+        ? "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.75) 16%, rgba(13,13,15,0.75) 84%, rgba(13,13,15,0))"
+        : "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.88) 14%, rgba(13,13,15,0.88) 86%, rgba(13,13,15,0))",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: isMinimal ? "10px 28px" : "10px 28px",
+      padding: "10px 28px",
       width: subMaxWidth,
       minHeight: isMinimal ? 40 : 48,
-      opacity: opacity * (isMinimal ? 0.72 : 0.88),
-      borderRadius: 12,
+      opacity: opacity * (isMinimal ? 0.85 : 0.95),
+      borderRadius: 10,
     }}>
       <span style={{
         fontFamily: FONTS.sans,
@@ -83,7 +96,6 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
         lineHeight: 1.45,
         fontWeight: FW.semibold,
         letterSpacing: 0,
-        textShadow: "0 2px 12px rgba(0,0,0,0.68), 0 1px 3px rgba(0,0,0,0.8)",
         maxWidth: "100%",
         overflow: "hidden",
         display: "-webkit-box",

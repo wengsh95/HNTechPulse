@@ -15,6 +15,12 @@ from src.utils.audio import get_audio_duration
 from src.utils.config import get_env
 from src.utils.logger import setup_logger
 
+try:
+    from src.providers.renderer.binary_finder import find_ffmpeg as _find_ffmpeg
+    _FFMPEG = _find_ffmpeg() or "ffmpeg"
+except Exception:
+    _FFMPEG = "ffmpeg"
+
 _DEFAULT_TONE = """【角色】
 一档名为《HN TechPulse》的中文科技新闻播报节目的主持人。专业、沉稳、有洞察力的科技媒体人，对技术趋势有独到见解。声音清亮、磁性，有说服力和亲和力。
 
@@ -108,7 +114,8 @@ class MimoTTSProvider(TTSProvider):
                 continue
             audio = getattr(chunk.choices[0].delta, "audio", None)
             if audio is not None:
-                assert isinstance(audio, dict), f"Expected audio dict, got {type(audio)}"
+                if not isinstance(audio, dict):
+                    raise TypeError(f"Expected audio dict, got {type(audio)}")
                 collected_chunks.append(base64.b64decode(audio["data"]))
 
         if not collected_chunks:
@@ -118,7 +125,7 @@ class MimoTTSProvider(TTSProvider):
         np_pcm = np.frombuffer(all_pcm, dtype=np.int16)
 
         # Write WAV via stdlib wave, then convert to MP3 via ffmpeg
-        wav_path = output_path.replace(".mp3", ".wav")
+        wav_path = str(Path(output_path).with_suffix(".wav"))
         with wave.open(wav_path, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
@@ -126,7 +133,7 @@ class MimoTTSProvider(TTSProvider):
             wf.writeframes(np_pcm.tobytes())
 
         subprocess.run(
-            ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-qscale:a", "2", output_path],
+            [_FFMPEG, "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-qscale:a", "2", output_path],
             capture_output=True,
             check=True,
         )

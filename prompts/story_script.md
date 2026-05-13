@@ -202,9 +202,9 @@
 Story Index: {{ story_index }}
 
 Story 数据:
-```json
+<story_json>
 {{ story_json }}
-```
+</story_json>
 
 评论说明:
 - 评论筛选、立场分布（`stance_distribution`）、争议焦点（`debate_focus`）均由上游 comment_judge 完成，你不需要输出这些字段。
