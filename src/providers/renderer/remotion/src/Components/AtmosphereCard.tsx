@@ -3,7 +3,7 @@ import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
 import { StancePie, STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
 
 const CONTROVERSY_COLORS = {
   green: "#34C759",
@@ -165,8 +165,10 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
 
   const hasPie = Object.keys(compactStances).length > 0;
   const hasFocus = debateFocus.length > 0;
+  const compact = isCompactHeight(height);
 
   const cardW = width - LAYOUT.pageInset * 2;
+  const cardMaxH = getCardMaxHeight(height);
   const topY = LAYOUT.topInset;
 
   const cardProgress = interpolate(frame, [4, 22], [0, 1], {
@@ -188,15 +190,17 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         left: LAYOUT.pageInset,
         top: topY,
         width: cardW,
+        maxHeight: cardMaxH,
         ...glassCard,
-        padding: "28px 36px",
+        padding: compact ? "24px 32px" : "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
+        overflow: "hidden",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 328px", gap: 40, alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: compact ? "minmax(0, 1fr) 260px" : "minmax(0, 1fr) 300px", gap: compact ? 28 : 36, alignItems: "center" }}>
         <div style={{ minWidth: 0 }}>
           <div style={sectionLabel}>{UI_TEXT.discussionMood}</div>
           {mood.dominant && (
@@ -215,11 +219,11 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           <div
             style={{
               fontFamily: FONTS.bold,
-              fontSize: 28,
+              fontSize: compact ? 26 : 28,
               lineHeight: 1.18,
               fontWeight: FW.heavy,
               color: COLORS.text,
-              marginBottom: 12,
+              marginBottom: compact ? 8 : 12,
             }}
           >
             {mood.title}
@@ -227,11 +231,11 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           <div
             style={{
               fontFamily: FONTS.sans,
-              fontSize: 18,
-              lineHeight: 1.5,
+              fontSize: compact ? 17 : 18,
+              lineHeight: compact ? 1.42 : 1.5,
               fontWeight: FW.regular,
               color: COLORS.textSecondary,
-              marginBottom: mood.percent > 0 ? 16 : 0,
+              marginBottom: mood.percent > 0 ? (compact ? 12 : 16) : 0,
             }}
           >
             {mood.detail}
@@ -241,8 +245,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 18,
-              marginTop: 24,
+              gap: compact ? 14 : 18,
+              marginTop: compact ? 18 : 24,
               opacity: metricProgress,
               transform: `translateY(${interpolate(metricProgress, [0, 1], [10, 0])}px)`,
             }}
@@ -270,7 +274,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           {hasFocus && (
             <div
               style={{
-                marginTop: 24,
+                marginTop: compact ? 18 : 24,
               }}
             >
               <div
@@ -300,14 +304,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                       key={focus}
                       style={{
                         fontFamily: FONTS.sans,
-                        fontSize: 14,
+                        fontSize: compact ? 13 : 14,
                         fontWeight: FW.bold,
                         color: COLORS.text,
                         opacity: tagProgress,
                         backgroundColor: "rgba(255,255,255,0.06)",
                         border: "1px solid rgba(255,255,255,0.10)",
-                        borderRadius: 6,
-                        padding: "7px 12px",
+                        borderRadius: LAYOUT.chipRadius,
+                        padding: compact ? "6px 10px" : "7px 12px",
                         lineHeight: 1.25,
                         transform: `translateY(${interpolate(tagProgress, [0, 1], [8, 0])}px)`,
                       }}
@@ -328,13 +332,13 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             alignItems: "center",
             justifyContent: "center",
             minWidth: 0,
-            gap: 16,
+            gap: compact ? 12 : 16,
           }}
         >
           {hasPie && (
             <StancePie
               distribution={compactStances}
-              size={158}
+              size={compact ? 142 : 158}
               centerLabel={commentCount > 0 ? `${commentCount}条` : undefined}
             />
           )}
@@ -346,7 +350,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                 fontWeight: FW.bold,
                 color: COLORS.textSecondary,
                 padding: "7px 12px",
-                borderRadius: 6,
+                borderRadius: LAYOUT.chipRadius,
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.10)",
               }}

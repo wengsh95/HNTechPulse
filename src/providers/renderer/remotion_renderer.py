@@ -16,6 +16,8 @@ import math
 import shutil
 import subprocess
 import sys
+import re
+from hashlib import sha256
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -223,10 +225,11 @@ class RemotionRenderer(Renderer):
             chunks = compute_segment_chunks(script, self.fps, total_frames)
 
             chunk_files = []
-            chunk_dir = self.remotion_dir / "out" / "chunks"
+            chunk_dir = self._chunk_cache_dir(date=date, props_json=props_json)
             chunk_dir.mkdir(parents=True, exist_ok=True)
 
             self.logger.info(f"Split rendering into {len(chunks)} segment chunks")
+            self.logger.info(f"Chunk cache: {chunk_dir}")
 
             # Build list of chunks that need rendering
             pending = []
@@ -518,3 +521,9 @@ class RemotionRenderer(Renderer):
         props_path.write_text(props_json, encoding="utf-8")
         self.logger.info(f"Props written to {props_path} ({len(props_json)} bytes)")
         return str(props_path.resolve())
+
+    def _chunk_cache_dir(self, date: str, props_json: str) -> Path:
+        """Return a chunk cache directory scoped to the exact render input."""
+        date_label = re.sub(r"[^0-9A-Za-z_-]+", "_", date).strip("_") or "undated"
+        props_hash = sha256(props_json.encode("utf-8")).hexdigest()[:12]
+        return self.remotion_dir / "out" / "chunks" / f"{date_label}_{props_hash}"

@@ -8,10 +8,10 @@ from src.core.models import (
 from src.providers.renderer.remotion_props import (
     _safe_get_item, _safe_get_comment,
     _expand_story_header, _expand_comment_card, _expand_comment_bubble,
-    _expand_news_carousel_card, _expand_dashboard_card,
+    _expand_news_carousel_card, _expand_highlight_entries,
     _expand_perspective_compare,
     _expand_event_card, _expand_atmosphere_card, _expand_quote_card,
-    expand_element_props, ELEMENT_EXPANDERS,
+    expand_element_props, ELEMENT_EXPANDERS, _story_transition_times,
     sanitize_props, script_to_props,
 )
 from src.providers.renderer.cue_builder import (
@@ -206,26 +206,24 @@ class TestExpandNewsCarouselCard:
         assert result is None
 
 
-# ── _expand_dashboard_card ─────────────────────────────────────────────
+# ── _expand_highlight_entries ──────────────────────────────────────────
 
-class TestExpandDashboardCard:
+class TestExpandHighlightEntries:
     def test_expands_entries(self):
         content = _make_content_package()
-        props = {"entries": [{"story_index": 0}]}
-        result = _expand_dashboard_card(props, content)
-        assert result["entries"][0]["original_title"] == "Story 0"
-        assert result["entries"][0]["score"] == 100
+        result = _expand_highlight_entries([{"story_index": 0}], content)
+        assert result[0]["original_title"] == "Story 0"
+        assert result[0]["score"] == 100
 
     def test_empty_entries(self):
         content = _make_content_package()
-        result = _expand_dashboard_card({"entries": []}, content)
-        assert result == {"entries": []}
+        result = _expand_highlight_entries([], content)
+        assert result == []
 
     def test_invalid_story_index_in_entry(self):
         content = _make_content_package()
-        props = {"entries": [{"story_index": 99, "original_title": "keep"}]}
-        result = _expand_dashboard_card(props, content)
-        assert result["entries"][0]["original_title"] == "keep"
+        result = _expand_highlight_entries([{"story_index": 99, "original_title": "keep"}], content)
+        assert result[0]["original_title"] == "keep"
 
 
 # ── _expand_event_card ───────────────────────────────────────────────
@@ -235,6 +233,8 @@ class TestExpandEventCard:
         content = _make_content_package()
         result = _expand_event_card({"story_index": 0}, content)
         assert result["story_title"] == "Story 0"
+        assert result["score"] == 100
+        assert result["comment_count"] == 2
 
     def test_image_injection(self):
         content = _make_content_package()
@@ -630,3 +630,49 @@ class TestScriptToProps:
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert "cues" in result["segments"][0]
         assert len(result["segments"][0]["cues"]) >= 1
+
+    def test_story_audio_markers_are_audio_only_and_drive_transitions(self):
+        seg = ScriptSegment(
+            segment_type="story_scan",
+            audio_text="第一条。正文一。第二条。正文二。",
+            estimated_duration=24.0,
+            actual_duration=24.0,
+            start_time=10.0,
+            end_time=34.0,
+            scene_elements=[
+                SceneElement(
+                    element_type="story_audio_marker",
+                    start_time=0.0,
+                    end_time=2.0,
+                    props={"is_audio_marker": True, "story_index": 0},
+                ),
+                SceneElement(
+                    element_type="event_card",
+                    start_time=2.0,
+                    end_time=10.0,
+                    props={"story_index": 0},
+                ),
+                SceneElement(
+                    element_type="story_audio_marker",
+                    start_time=11.0,
+                    end_time=13.0,
+                    props={"is_audio_marker": True, "story_index": 1},
+                ),
+                SceneElement(
+                    element_type="event_card",
+                    start_time=13.0,
+                    end_time=24.0,
+                    props={"story_index": 1},
+                ),
+            ],
+        )
+        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=34.0)
+
+        result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
+
+        assert _story_transition_times(script) == [20.0]
+        assert result["transitionTimes"] == [20.0]
+        assert [
+            elem["element_type"]
+            for elem in result["segments"][0]["scene_elements"]
+        ] == ["event_card", "event_card"]

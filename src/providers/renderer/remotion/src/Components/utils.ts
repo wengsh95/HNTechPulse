@@ -28,8 +28,8 @@ const ENTITY_MAP: Record<string, string> = {
 };
 
 export const UI_TEXT = {
-  topStories: "今日热点",
-  top10: "热榜前十",
+  topStories: "今日亮点",
+  top10: "Top 3",
   title: "标题",
   heat: "热度",
   comments: "评论",

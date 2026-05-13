@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import json
 
 import pytest
 
@@ -69,12 +70,61 @@ class TestProcessAudio:
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_01.mp3").write_bytes(b"\x00" * 100)
+        (audio_dir / "segment_00.mp3.json").write_text(
+            json.dumps({"text_hash": processor._text_hash("Hello"), "text": "Hello"}),
+            encoding="utf-8",
+        )
+        (audio_dir / "segment_01.mp3.json").write_text(
+            json.dumps({"text_hash": processor._text_hash("Goodbye"), "text": "Goodbye"}),
+            encoding="utf-8",
+        )
 
         script = _make_script()
         with patch("src.pipeline.tts_processor.get_audio_duration", return_value=5.0):
             processor.process_audio(script, "2026-04-26")
 
         mock_provider.synthesize.assert_not_called()
+
+    def test_rebuilds_stale_cached_segments_without_matching_manifest(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        mock_provider = _make_provider()
+        with patch("src.pipeline.tts_processor.setup_logger"):
+            processor = TTSProcessor(mock_provider, _make_config())
+
+        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
+        (audio_dir / "segment_01.mp3").write_bytes(b"\x00" * 100)
+
+        script = _make_script()
+        with patch("src.pipeline.tts_processor.get_audio_duration", return_value=5.0):
+            processor.process_audio(script, "2026-04-26")
+
+        assert mock_provider.synthesize.call_count == 2
+        manifest = json.loads((audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8"))
+        assert manifest["text_hash"] == processor._text_hash("Hello")
+
+    def test_rebuilds_cached_segment_when_text_hash_changes(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        mock_provider = _make_provider()
+        with patch("src.pipeline.tts_processor.setup_logger"):
+            processor = TTSProcessor(mock_provider, _make_config())
+
+        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
+        (audio_dir / "segment_00.mp3.json").write_text(
+            json.dumps({"text_hash": processor._text_hash("Old text"), "text": "Old text"}),
+            encoding="utf-8",
+        )
+
+        script = _make_script([
+            ScriptSegment(segment_type="opening", audio_text="New text", estimated_duration=5.0),
+        ])
+        with patch("src.pipeline.tts_processor.get_audio_duration", return_value=5.0):
+            processor.process_audio(script, "2026-04-26")
+
+        mock_provider.synthesize.assert_called_once()
 
     def test_calls_synthesize_for_pending(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

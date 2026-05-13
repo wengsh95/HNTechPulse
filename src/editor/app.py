@@ -64,7 +64,6 @@ def render_sidebar():
         segments = state.script.get("segments", [])
         seg_labels = {
             "opening": "开场",
-            "dashboard": "热度榜",
             "story_scan": "新闻速览",
             "closing": "结尾",
         }
@@ -142,38 +141,6 @@ def render_opening_editor(state: EditorState):
                 st.session_state.dirty = True
 
 
-def render_dashboard_editor(state: EditorState):
-    seg = state.get_segment("dashboard")
-    if not seg:
-        st.info("无热度榜段落")
-        return
-
-    st.header("热度榜")
-    new_text = st.text_area("旁白文字", value=seg.get("audio_text", ""), height=68, key="dash_text")
-    if new_text != seg.get("audio_text", ""):
-        seg["audio_text"] = new_text
-        st.session_state.dirty = True
-
-    # Dashboard entries
-    for elem in seg.get("scene_elements", []):
-        if elem.get("element_type") == "dashboard_card":
-            entries = elem.get("props", {}).get("entries", [])
-            if not entries:
-                continue
-            st.subheader("榜单条目")
-            for entry in entries:
-                rank = entry.get("rank", "?")
-                orig = entry.get("original_title", "")
-                with st.expander(f"#{rank} {orig[:60]}", expanded=False):
-                    new_t = st.text_input(
-                        "翻译标题", value=entry.get("title_translation", ""),
-                        key=f"dash_t_{rank}"
-                    )
-                    if new_t != entry.get("title_translation"):
-                        entry["title_translation"] = new_t
-                        st.session_state.dirty = True
-
-
 def render_story_scan_editor(state: EditorState):
     seg = state.get_segment("story_scan")
     if not seg:
@@ -239,7 +206,6 @@ def render_closing_editor(state: EditorState):
 
 EDITORS = {
     "opening": render_opening_editor,
-    "dashboard": render_dashboard_editor,
     "story_scan": render_story_scan_editor,
     "closing": render_closing_editor,
 }

@@ -72,11 +72,19 @@ export const LAYOUT = {
   subtitleBottom: grid(7),
   subtitleBottomMinimal: grid(6),
   cardRadius: 14,
+  panelRadius: 10,
+  chipRadius: 6,
   cardPaddingX: grid(4),
   cardPaddingY: grid(3),
   contentMaxWidth: grid(102),
+  contentWideMaxWidth: grid(128),
   subtitleMaxWidth: grid(130),
 };
+
+export const getCardMaxHeight = (height: number) =>
+  Math.max(grid(40), height - LAYOUT.topInset - LAYOUT.bottomSafe);
+
+export const isCompactHeight = (height: number) => height <= 760;
 
 export const GRID_DEBUG = {
   unit: GRID_UNIT,
@@ -93,6 +101,12 @@ export const glassCard: React.CSSProperties = {
 };
 
 export const glassCardShadow = "0 4px 24px rgba(0,0,0,0.40), 0 1px 6px rgba(0,0,0,0.25)";
+
+export const innerPanel: React.CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: LAYOUT.panelRadius,
+};
 
 export const SHADOWS = {
   card: glassCardShadow,

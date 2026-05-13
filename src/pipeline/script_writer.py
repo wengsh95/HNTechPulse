@@ -22,6 +22,9 @@ from src.utils.logger import setup_logger
 from src.core.models import SceneElement, Cue
 
 
+CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六"]
+
+
 class ScriptWriter:
     def __init__(
         self,
@@ -56,12 +59,33 @@ class ScriptWriter:
             "keywords": props.get("keywords") or (item.keywords if item else None) or [],
         }
 
+    @classmethod
+    def _highlight_audio_text(cls, entries: list[dict]) -> str:
+        """Summarize the lineup for listeners who are not watching the screen."""
+        labels = []
+        for idx, entry in enumerate(entries[:3]):
+            title = (
+                entry.get("title_translation")
+                or entry.get("editor_angle")
+                or entry.get("original_title")
+                or ""
+            )
+            title = str(title).strip()
+            if len(title) > 18:
+                title = title[:18].rstrip("，。！？；：,.!?;:") + "…"
+            ordinal = CHINESE_ORDINALS[idx] if idx < len(CHINESE_ORDINALS) else str(idx + 1)
+            labels.append(f"第{ordinal}，{title}" if title else f"第{ordinal}条")
+        if not labels:
+            return "来看今天的三个技术信号，我们一条条听。"
+        return f"今天看{len(labels)}条：" + "；".join(labels) + "。我们一条条听。"
+
     def _generate_fixed_opening(
         self,
         date: str,
         selection: Optional[SelectionResult] = None,
         content: Optional[ContentPackage] = None,
         story_scan_segs: Optional[list[ScriptSegment]] = None,
+        highlight_entries: Optional[list[dict]] = None,
     ) -> ScriptSegment:
         """Generate a short positioning line before the first story."""
         from datetime import datetime
@@ -73,6 +97,10 @@ class ScriptWriter:
 
         audio_text = "早上好，这里是 HN TechPulse，带你看昨天HN发生了什么。"
         duration = 5
+        highlight_entries = highlight_entries or []
+        if highlight_entries:
+            audio_text = audio_text + self._highlight_audio_text(highlight_entries)
+            duration = 13
 
         keywords: list[str] = []
         if story_scan_segs:
@@ -98,13 +126,16 @@ class ScriptWriter:
                         "headline": "每日技术速览",
                         "subtitle": date_display,
                         "keywords": keywords[:3],
-                    }
+                    } | ({
+                        "highlight_entries": highlight_entries[:3],
+                        "focus_count": min(3, len(highlight_entries)),
+                    } if highlight_entries else {})
                 )
             ],
             cues=[
                 Cue(text=audio_text, start_time=0.0, end_time=float(duration))
             ],
-            meta={}
+            meta={"highlights": {"entries": highlight_entries[:3]}} if highlight_entries else {}
         )
 
     def _opening_needs_refresh(self, segment: ScriptSegment) -> bool:
@@ -157,13 +188,13 @@ class ScriptWriter:
             meta={}
         )
 
-    def _generate_dashboard_segment(
+    def _build_highlight_entries(
         self,
         selection: SelectionResult,
         content: ContentPackage,
         story_scan_segs: Optional[list[ScriptSegment]] = None,
-    ) -> ScriptSegment:
-        """Generate the dashboard as a video guide, not a dense ranking table."""
+    ) -> list[dict]:
+        """Build the opening highlight list from selected stories."""
         entries = []
         angle_by_story = {}
         for idx, seg in enumerate(story_scan_segs or []):
@@ -198,39 +229,14 @@ class ScriptWriter:
                     "comment_count": item.comment_count,
                 })
 
-        dashboard_duration = 8.0
-        focus_count = min(3, len(entries))
-        audio_text = "来看今天的热度排行。对于感兴趣的话题，可以通过下方进度条快速跳转。"
-
-        return ScriptSegment(
-            segment_type="dashboard",
-            audio_text=audio_text,
-            estimated_duration=dashboard_duration,
-            emotion="neutral",
-            scene_elements=[
-                SceneElement(
-                    element_type="dashboard_card",
-                    start_time=0.0,
-                    end_time=dashboard_duration,
-                    props={
-                        "entries": entries,
-                        "mode": "guide",
-                        "focus_count": focus_count,
-                    }
-                )
-            ],
-            cues=[
-                Cue(text=audio_text, start_time=0.0, end_time=dashboard_duration)
-            ],
-            meta={"dashboard": {"entries": entries}}
-        )
+        return entries[:3]
 
     def _generate_script_split(self, content: ContentPackage, selection: SelectionResult, date: str) -> Script:
         """生成每日快讯脚本（拆分模式）"""
 
         segments = []
 
-        # Generate story scans first so opening/dashboard can lead with concrete angles.
+        # Generate story scans first so opening highlights can lead with concrete angles.
         story_indices = [
             bi.get("story_index")
             for bi in selection.brief_items
@@ -287,10 +293,14 @@ class ScriptWriter:
             )
 
         # 固定开场
-        segments.append(self._generate_fixed_opening(date, selection, content, story_scan_segs))
-
-        # Dashboard
-        segments.append(self._generate_dashboard_segment(selection, content, story_scan_segs))
+        highlight_entries = self._build_highlight_entries(selection, content, story_scan_segs)
+        segments.append(self._generate_fixed_opening(
+            date,
+            selection,
+            content,
+            story_scan_segs,
+            highlight_entries=highlight_entries,
+        ))
 
         # Story scan
         if not story_scan_segs:
@@ -307,6 +317,8 @@ class ScriptWriter:
             SPEECH_CPS = 3.5  # approximate Chinese chars per second
 
             for story_i, s in enumerate(story_scan_segs):
+                story_idx = story_indices[story_i] if story_i < len(story_indices) else story_i
+
                 card_narrations = s.meta.get("card_narrations", [])
                 if not card_narrations:
                     card_audio = (s.audio_text or "").strip()
@@ -461,6 +473,12 @@ class ScriptWriter:
                     "forcing regeneration"
                 )
                 script_path.unlink()
+            elif self._cache_needs_audio_only_refresh(script):
+                self.logger.info(
+                    "Cached script lacks audio-only story anchors — "
+                    "forcing regeneration"
+                )
+                script_path.unlink()
             elif not self._validate_cache_metadata(script, content):
                 self.logger.info(
                     "Cached script is missing timing metadata — "
@@ -511,6 +529,19 @@ class ScriptWriter:
 
     def load_script(self, date: str) -> Script:
         return _load_script(date)
+
+    @staticmethod
+    def _cache_needs_audio_only_refresh(script: Script) -> bool:
+        story_scan = next(
+            (s for s in script.segments if s.segment_type == "story_scan"), None
+        )
+        if story_scan and any(
+            elem.props.get("is_audio_marker")
+            for elem in story_scan.scene_elements
+        ):
+            return True
+
+        return False
 
     def _validate_cache_metadata(self, script: Script, content) -> bool:
         """Check cached script has timing metadata needed for card/cue alignment.

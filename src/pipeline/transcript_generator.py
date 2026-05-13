@@ -20,15 +20,12 @@ def generate_brief_transcript(
     lines.append("")
 
     opening_segment = None
-    dashboard_segment = None
     scan_segment = None
     closing_segment = None
 
     for seg in script.segments:
         if seg.segment_type == "opening":
             opening_segment = seg
-        elif seg.segment_type == "dashboard":
-            dashboard_segment = seg
         elif seg.segment_type == "story_scan":
             scan_segment = seg
         elif seg.segment_type == "closing":
@@ -43,21 +40,22 @@ def generate_brief_transcript(
         lines.append(opening_segment.audio_text)
         lines.append("")
 
-    # Dashboard (top10 list)
-    if dashboard_segment:
-        dashboard_entries = []
-        for elem in dashboard_segment.scene_elements:
-            if elem.element_type == "dashboard_card":
-                dashboard_entries = elem.props.get("entries", [])
+    highlight_entries = []
+    if opening_segment:
+        for elem in opening_segment.scene_elements:
+            if elem.element_type == "cover_card":
+                highlight_entries = elem.props.get("highlight_entries", [])
                 break
+
+    if highlight_entries or content:
 
         lines.append("---")
         lines.append("")
-        lines.append("## 热度仪表盘")
+        lines.append("## 今日亮点")
         lines.append("")
 
-        if dashboard_entries:
-            for entry in dashboard_entries:
+        if highlight_entries:
+            for entry in highlight_entries:
                 rank = entry.get("rank", "")
                 title = entry.get("original_title", "") or entry.get("title", "")
                 title_cn = entry.get("title_translation", "") or entry.get("title_cn", "")
@@ -70,7 +68,7 @@ def generate_brief_transcript(
                 else:
                     lines.append(f"{rank}. **{title}**{score_str}{comments_str}")
         elif content:
-            for i, item in enumerate(content.items[:10], 1):
+            for i, item in enumerate(content.items[:3], 1):
                 score_str = f" ▲ {item.score}" if item.score else ""
                 comments_str = f" · 💬 {item.comment_count}" if item.comment_count else ""
                 title_cn = item.title_cn

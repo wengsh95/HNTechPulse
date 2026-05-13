@@ -75,13 +75,13 @@ class ReportGenerator:
             lines.append("")
             lines.append("| 片段类型 | 数量 | 预计时长 | 实际时长 | 差异 |")
             lines.append("|----------|------|----------|----------|------|")
-            for st in ["opening", "dashboard", "story_scan", "closing"]:
+            for st in ["opening", "story_scan", "closing"]:
                 if st in seg_stats:
                     s = seg_stats[st]
                     diff = s["act"] - s["est"]
                     lines.append(f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |")
             for st, s in seg_stats.items():
-                if st not in ("opening", "dashboard", "story_scan", "closing"):
+                if st not in ("opening", "story_scan", "closing"):
                     diff = s["act"] - s["est"]
                     lines.append(f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |")
             total_est = sum(seg.estimated_duration for seg in script.segments)
@@ -106,7 +106,7 @@ class ReportGenerator:
             for idx, seg in enumerate(script.segments):
                 if seg.actual_duration and seg.estimated_duration and seg.estimated_duration > 0:
                     ratio = seg.actual_duration / seg.estimated_duration
-                    if ratio < 0.6 and seg.segment_type not in ("opening", "closing", "dashboard"):
+                    if ratio < 0.6 and seg.segment_type not in ("opening", "closing"):
                         issues.append(
                             f"- [时长偏短] 片段 {idx} [{seg.segment_type}] "
                             f"实际{seg.actual_duration:.1f}s / 预计{seg.estimated_duration:.1f}s (比率{ratio:.2f})"

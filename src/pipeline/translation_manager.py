@@ -187,15 +187,16 @@ class TranslationManager:
 
     @staticmethod
     def apply_translations_to_script(script, content, translations: dict) -> None:
-        """Apply translations to script: dashboard title_cn and quote translations."""
+        """Apply title and quote translations to generated script props."""
         for seg in script.segments:
-            if seg.segment_type == "dashboard":
+            if seg.segment_type == "opening":
                 for elem in seg.scene_elements:
-                    if elem.element_type == "dashboard_card":
-                        for entry in elem.props.get("entries", []):
-                            story_idx = entry.get("story_index")
-                            if story_idx is not None and story_idx < len(content.items):
-                                entry["title_translation"] = content.items[story_idx].title_cn
+                    if elem.element_type != "cover_card":
+                        continue
+                    for entry in elem.props.get("highlight_entries", []):
+                        story_idx = entry.get("story_index")
+                        if story_idx is not None and story_idx < len(content.items):
+                            entry["title_translation"] = content.items[story_idx].title_cn
             elif seg.segment_type == "story_scan":
                 for elem in seg.scene_elements:
                     if elem.element_type == "quote_card":

@@ -1,7 +1,7 @@
 import React from "react";
 import { interpolate, Easing, staticFile, useCurrentFrame } from "remotion";
 
-import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, innerPanel, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
 import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
 
 interface KeyPoint {
@@ -60,9 +60,7 @@ const InfoPoint: React.FC<{
         alignItems: "center",
         minHeight: 48,
         padding: "8px 12px",
-        borderRadius: 10,
-        backgroundColor: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        ...innerPanel,
         boxSizing: "border-box",
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [8, 0])}px)`,
@@ -75,7 +73,7 @@ const InfoPoint: React.FC<{
           justifyContent: "center",
           width: 44,
           height: 24,
-          borderRadius: 6,
+          borderRadius: LAYOUT.chipRadius,
           backgroundColor: COLORS.accentBg,
           border: "1px solid rgba(0,122,255,0.25)",
           boxSizing: "border-box",
@@ -140,7 +138,51 @@ const KeywordTag: React.FC<{
   );
 };
 
-export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
+const MetricPill: React.FC<{
+  label: string;
+  value: number;
+  accent?: boolean;
+}> = ({ label, value, accent = false }) => (
+  <div
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      height: 28,
+      padding: "0 10px",
+      borderRadius: LAYOUT.chipRadius,
+      backgroundColor: accent ? COLORS.accentBg : "rgba(255,255,255,0.045)",
+      border: accent ? "1px solid rgba(0,122,255,0.22)" : "1px solid rgba(255,255,255,0.08)",
+      boxSizing: "border-box",
+      fontFamily: FONTS.sans,
+      whiteSpace: "nowrap",
+    }}
+  >
+    <span
+      style={{
+        fontSize: 12,
+        fontWeight: FW.bold,
+        color: accent ? COLORS.accent : COLORS.textTertiary,
+        lineHeight: 1,
+      }}
+    >
+      {label}
+    </span>
+    <span
+      style={{
+        fontFamily: FONTS.mono,
+        fontSize: 14,
+        fontWeight: FW.heavy,
+        color: COLORS.text,
+        lineHeight: 1,
+      }}
+    >
+      {Math.max(0, Math.round(value)).toLocaleString("en-US")}
+    </span>
+  </div>
+);
+
+export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
 
   const storyTitle = cleanText(p(elementProps, "story_title", ""));
@@ -163,10 +205,15 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const displayIndex = Number(p(elementProps, "display_index", 0));
   const storyCount = Number(p(elementProps, "story_count", 0));
   const showChapterWatermark = displayIndex > 0 && storyCount > 0;
+  const heatScore = Number(p(elementProps, "score", 0)) || 0;
+  const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
+  const showMetrics = heatScore > 0 || commentCount > 0;
 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
+  const compact = isCompactHeight(height);
   const cardW = width - LAYOUT.pageInset * 2;
+  const cardMaxH = getCardMaxHeight(height);
   const topY = LAYOUT.topInset;
 
   const dividerStyle: React.CSSProperties = {
@@ -182,13 +229,15 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
     extrapolateRight: "clamp",
   });
 
-  const mediaW = hasImage ? (isLogo ? 330 : Math.round(cardW * 0.35)) : 0;
+  const mediaW = hasImage ? (isLogo ? 320 : Math.min(500, Math.round(cardW * 0.42))) : 0;
   const mediaH = isLogo ? 280 : Math.round(mediaW * 9 / 16);
-  const gap = hasImage ? 40 : 0;
-  const horizontalPadding = hasImage ? 72 : 88;
+  const gap = hasImage ? (compact ? 24 : 36) : 0;
+  const horizontalPadding = hasImage ? (compact ? 56 : 68) : (compact ? 64 : 72);
   const textColW = hasImage
     ? cardW - mediaW - gap - horizontalPadding
-    : Math.min(cardW - horizontalPadding, LAYOUT.contentMaxWidth);
+    : Math.min(cardW - horizontalPadding, LAYOUT.contentWideMaxWidth);
+  const titleLines = hasImage || compact ? 2 : 3;
+  const dekLines = compact ? 2 : (hasStructuredBody ? 3 : 4);
 
   return (
     <div
@@ -197,8 +246,11 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         left: LAYOUT.pageInset,
         top: topY,
         width: cardW,
+        maxHeight: cardMaxH,
         ...glassCard,
-        padding: hasImage ? "24px 32px" : "28px 36px",
+        padding: hasImage
+          ? compact ? "20px 28px" : "26px 34px"
+          : compact ? "24px 32px" : "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -230,7 +282,16 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
       )}
 
       <div style={{ flex: hasImage ? `0 0 ${textColW}px` : 1, maxWidth: textColW, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: compact ? 12 : 16,
+            maxWidth: textColW,
+          }}
+        >
           <div style={{ ...sectionLabel, marginBottom: 0 }}>{UI_TEXT.eventDetail}</div>
           {category && (
             <div
@@ -248,21 +309,27 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
               {category}
             </div>
           )}
+          {showMetrics && (
+            <>
+              <MetricPill label={UI_TEXT.heat} value={heatScore} accent />
+              <MetricPill label={UI_TEXT.comments} value={commentCount} />
+            </>
+          )}
         </div>
 
         <div
           style={{
             fontFamily: FONTS.bold,
             fontWeight: FW.heavy,
-            fontSize: 30,
+            fontSize: compact ? 28 : 30,
             color: COLORS.text,
             lineHeight: 1.18,
             letterSpacing: 0,
-            marginBottom: 14,
+            marginBottom: compact ? 10 : 14,
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             maxWidth: textColW,
-            ...lineClamp(2),
+            ...lineClamp(titleLines),
           }}
         >
           {mainTitle}
@@ -275,9 +342,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
               fontWeight: FW.medium,
               fontSize: 16,
               color: COLORS.textTertiary,
-              marginBottom: 16,
+              marginBottom: compact ? 12 : 16,
               lineHeight: 1.4,
-              maxWidth: LAYOUT.contentMaxWidth,
+              maxWidth: textColW,
               overflowWrap: "anywhere",
               wordBreak: "break-word",
               ...lineClamp(1),
@@ -288,22 +355,22 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         )}
 
         {(dek || keyPoints.length > 0) && (
-          <div style={dividerStyle} />
+          <div style={{ ...dividerStyle, marginBottom: compact ? 14 : dividerStyle.marginBottom }} />
         )}
 
         {dek && (
           <div
             style={{
               fontFamily: FONTS.sans,
-              fontSize: 18,
+              fontSize: compact ? 17 : 18,
               color: COLORS.textSecondary,
-              lineHeight: 1.55,
+              lineHeight: compact ? 1.48 : 1.55,
               fontWeight: FW.regular,
-              marginBottom: hasStructuredBody ? 18 : 20,
-              maxWidth: LAYOUT.contentMaxWidth,
+              marginBottom: hasStructuredBody ? (compact ? 14 : 18) : (compact ? 16 : 20),
+              maxWidth: textColW,
               overflowWrap: "anywhere",
               wordBreak: "break-word",
-              ...lineClamp(hasStructuredBody ? 2 : 4),
+              ...lineClamp(dekLines),
             }}
           >
             {dek}
@@ -313,11 +380,11 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         {keyPoints.length > 0 && (
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginBottom: keywords.length > 0 ? 16 : 0,
-              maxWidth: LAYOUT.contentMaxWidth,
+              display: "grid",
+              gridTemplateColumns: "1fr",
+              gap: compact ? 8 : 10,
+              marginBottom: keywords.length > 0 ? (compact ? 12 : 16) : 0,
+              maxWidth: textColW,
             }}
           >
             {keyPoints.map((point, i) => (
@@ -328,14 +395,14 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
 
         {keywords.length > 0 && (
           <>
-            <div style={{ ...dividerStyle, marginTop: 4 }} />
+            <div style={{ ...dividerStyle, marginTop: compact ? 0 : 4, marginBottom: compact ? 12 : dividerStyle.marginBottom }} />
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
                 gap: 8,
                 marginBottom: 0,
-                maxWidth: LAYOUT.contentMaxWidth,
+                maxWidth: textColW,
               }}
             >
               {keywords.map((kw, i) => (
@@ -352,7 +419,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             flex: `0 0 ${mediaW}px`,
             height: mediaH,
             aspectRatio: isLogo ? undefined : "16 / 9",
-            marginTop: isLogo ? 44 : 54,
+            marginTop: isLogo ? (compact ? 26 : 34) : (compact ? 34 : 42),
             borderRadius: LAYOUT.cardRadius,
             overflow: "hidden",
             display: "flex",

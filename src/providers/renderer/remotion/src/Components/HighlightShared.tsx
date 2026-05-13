@@ -3,7 +3,7 @@ import { interpolate, Easing } from "remotion";
 
 import { COLORS, FONTS, FW } from "./design";
 
-export interface DashboardEntry {
+export interface HighlightEntry {
   rank?: number;
   original_title?: string;
   title?: string;

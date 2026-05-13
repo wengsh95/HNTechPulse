@@ -200,6 +200,27 @@ class TestPreview:
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
 
 
+class TestChunkCacheDir:
+    def test_scoped_by_date_and_props(self):
+        renderer = _make_renderer()
+
+        may_11 = renderer._chunk_cache_dir("2026-05-11", '{"title": "May 11"}')
+        may_13 = renderer._chunk_cache_dir("2026-05-13", '{"title": "May 13"}')
+
+        assert may_11 != may_13
+        assert may_11.parent == renderer.remotion_dir / "out" / "chunks"
+        assert may_11.name.startswith("2026-05-11_")
+        assert may_13.name.startswith("2026-05-13_")
+
+    def test_same_input_reuses_cache_dir(self):
+        renderer = _make_renderer()
+
+        first = renderer._chunk_cache_dir("2026-05-13", '{"title": "May 13"}')
+        second = renderer._chunk_cache_dir("2026-05-13", '{"title": "May 13"}')
+
+        assert first == second
+
+
 # ── compute_segment_chunks ────────────────────────────────────────────
 
 class TestComputeSegmentChunks:
@@ -208,24 +229,21 @@ class TestComputeSegmentChunks:
             title="Test",
             description="",
             tags=[],
-            total_duration=17.0,
+            total_duration=12.0,
             segments=[
                 ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
                               actual_duration=4.0, start_time=0.0, end_time=4.0),
-                ScriptSegment(segment_type="dashboard", audio_text="", estimated_duration=5.0,
-                              actual_duration=5.0, start_time=4.0, end_time=9.0),
                 ScriptSegment(segment_type="closing", audio_text="", estimated_duration=8.0,
-                              actual_duration=8.0, start_time=9.0, end_time=17.0),
+                              actual_duration=8.0, start_time=4.0, end_time=12.0),
             ],
         )
-        chunks = compute_segment_chunks(script, fps=24, total_frames=408)
-        assert len(chunks) == 3
+        chunks = compute_segment_chunks(script, fps=24, total_frames=288)
+        assert len(chunks) == 2
         assert chunks[0][2] == "opening"
-        assert chunks[1][2] == "dashboard"
-        assert chunks[2][2] == "closing"
+        assert chunks[1][2] == "closing"
         # Frames should be contiguous and cover full range
         assert chunks[0][0] == 0
-        assert chunks[-1][1] == 407
+        assert chunks[-1][1] == 287
         for i in range(len(chunks) - 1):
             assert chunks[i][1] + 1 == chunks[i + 1][0]
 

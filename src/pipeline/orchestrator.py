@@ -274,7 +274,7 @@ class Orchestrator:
 
         The editor saves uploaded images to enrichment.json only. Without this merge,
         _prepare_image_assets won't copy them to Remotion's public/ dir and
-        _expand_image_card won't generate the correct image_src in props.
+        event cards won't receive the correct image_src in props.
         """
         if content is None:
             return
@@ -321,7 +321,7 @@ class Orchestrator:
         if chunk_dir.exists():
             import shutil
             shutil.rmtree(chunk_dir)
-            self.logger.info(f"Cleared chunk cache: {chunk_dir}")
+            self.logger.info(f"Cleared all chunk caches: {chunk_dir}")
 
         output_path = Path(f"data/{date}/output.mp4")
         if output_path.exists():

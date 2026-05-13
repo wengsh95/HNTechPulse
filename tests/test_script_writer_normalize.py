@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+﻿from unittest.mock import MagicMock
 
 import pytest
 
@@ -111,14 +111,14 @@ class TestNormalizeAtmosphereCard:
 
         judgement = {
             "debate_focus": ["API design", "performance"],
-            "stance_distribution": {"支持": 0.6, "质疑": 0.4},
+            "stance_distribution": {"鏀寔": 0.6, "璐ㄧ枒": 0.4},
         }
 
         ScriptWriter._normalize_atmosphere_card(segment, judgement)
 
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["API design", "performance"]
-        assert props["stance_distribution"] == {"支持": 0.6, "质疑": 0.4}
+        assert props["stance_distribution"] == {"鏀寔": 0.6, "璐ㄧ枒": 0.4}
 
     def test_no_op_when_empty_judgement(self):
         original_props = {"story_index": 0, "existing_key": "value"}
@@ -163,3 +163,37 @@ class TestNormalizeAtmosphereCard:
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["security"]
         assert "stance_distribution" not in props
+
+
+class TestAudioOnlyScriptHelpers:
+    def test_highlight_audio_text_lists_topics_without_visual_navigation(self):
+        text = ScriptWriter._highlight_audio_text([
+            {"title_translation": "Bambu Lab open source contract"},
+            {"title_translation": "TanStack NPM supply chain"},
+            {"title_translation": "AI coding shifts language choice"},
+        ])
+
+        assert "progress" not in text.lower()
+        assert "Bambu Lab" in text
+        assert "TanStack" in text
+
+
+    def test_cache_refreshes_story_scan_with_legacy_audio_markers(self):
+        segment = ScriptSegment(
+            segment_type="story_scan",
+            audio_text="Story one. Body.",
+            estimated_duration=8.0,
+            scene_elements=[
+                SceneElement(
+                    element_type="story_audio_marker",
+                    start_time=0,
+                    end_time=1,
+                    props={"story_index": 0, "is_audio_marker": True},
+                ),
+                SceneElement(element_type="event_card", start_time=1, end_time=8, props={"story_index": 0}),
+            ],
+        )
+
+        assert ScriptWriter._cache_needs_audio_only_refresh(
+            type("ScriptLike", (), {"segments": [segment]})()
+        )

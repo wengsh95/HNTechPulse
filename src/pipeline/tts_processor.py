@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -15,9 +16,10 @@ class TTSProcessor:
         self.config = config
         timing_cfg = config.get("timing", {})
         self.subtitle_gap = float(timing_cfg.get("subtitle_gap", 0.0))
+        self.story_gap = float(timing_cfg.get("story_gap", 0.0))
         self.timing_engine = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
-            story_gap=float(timing_cfg.get("story_gap", 0.0)),
+            story_gap=self.story_gap,
             debug=debug, level=level,
         )
         self.logger = setup_logger(__name__, debug=debug, level=level)
@@ -99,19 +101,54 @@ class TTSProcessor:
         )
 
     def _prepare_task(self, *, text, audio_path, emotion, seg_idx, elem_idx, sub_idx) -> dict:
+        text_hash = self._text_hash(text)
+        cache_valid = self._is_cache_valid(audio_path, text_hash)
         task = {
             "text": text,
+            "text_hash": text_hash,
             "audio_path": audio_path,
             "emotion": emotion,
             "seg_idx": seg_idx,
             "elem_idx": elem_idx,
             "sub_idx": sub_idx,
             "result": None,
-            "needs_synthesis": not Path(audio_path).exists(),
+            "needs_synthesis": not cache_valid,
         }
         if not task["needs_synthesis"]:
             task["result"] = TTSResult(duration=get_audio_duration(audio_path))
         return task
+
+    @staticmethod
+    def _text_hash(text: str) -> str:
+        return sha256((text or "").encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _manifest_path(audio_path: str) -> Path:
+        return Path(audio_path).with_suffix(Path(audio_path).suffix + ".json")
+
+    def _is_cache_valid(self, audio_path: str, text_hash: str) -> bool:
+        audio_file = Path(audio_path)
+        if not audio_file.exists():
+            return False
+        manifest_path = self._manifest_path(audio_path)
+        if not manifest_path.exists():
+            return False
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        return manifest.get("text_hash") == text_hash
+
+    def _write_manifest(self, task: dict) -> None:
+        manifest_path = self._manifest_path(task["audio_path"])
+        manifest = {
+            "text_hash": task["text_hash"],
+            "text": task["text"],
+        }
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     # ── Phase 2: execute synthesis in parallel ──
 
@@ -134,6 +171,7 @@ class TTSProcessor:
                 task = futures[future]
                 try:
                     task["result"] = future.result()
+                    self._write_manifest(task)
                 except Exception as e:
                     self.logger.error(f"TTS synthesis failed for task [{task['seg_idx']}]: {e}")
                     raise
@@ -171,6 +209,10 @@ class TTSProcessor:
         sub_idx = 0
 
         for elem_idx, elem in enumerate(segment.scene_elements):
+            if elem_idx > 0 and self.story_gap > 0 and elem.props.get("is_audio_marker"):
+                total_duration += self.story_gap
+                elem.props["pre_gap_duration"] = self.story_gap
+
             elem_tasks = tasks_by_elem.get(elem_idx, [])
             elem_duration = 0.0
             for task in elem_tasks:
@@ -203,6 +245,4 @@ class TTSProcessor:
         if result is None:
             return
         segment.actual_duration = result.duration
-        if segment.segment_type == "dashboard":
-            segment.actual_duration = max(segment.estimated_duration, result.duration)
         segment.audio_path = task["audio_path"]

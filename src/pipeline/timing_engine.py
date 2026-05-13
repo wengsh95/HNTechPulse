@@ -33,15 +33,6 @@ class TimingEngine:
         Falls back to proportional layout using sub_segment_estimated_durations.
         """
         for seg in script.segments:
-            if seg.segment_type == "dashboard":
-                # Dashboard has a single dashboard_card spanning the full segment duration.
-                # No per-element timing needed — the card uses segment start/end directly.
-                duration = seg.actual_duration or seg.estimated_duration
-                for elem in seg.scene_elements:
-                    elem.start_time = 0.0
-                    elem.end_time = duration
-                continue
-
             if seg.segment_type == "story_scan":
                 elem_durations = [
                     elem.props.get("audio_duration")
@@ -50,7 +41,15 @@ class TimingEngine:
                 if any(d is not None for d in elem_durations):
                     current = 0.0
                     for elem, dur in zip(seg.scene_elements, elem_durations):
+                        pre_gap = float(elem.props.get("pre_gap_duration") or 0.0)
+                        current += pre_gap
                         d = dur if dur is not None else 0.0
+                        if elem.props.get("is_audio_marker") and d <= 0:
+                            d = sum(
+                                max(0.0, cue.end_time - cue.start_time)
+                                for cue in seg.cues
+                                if cue.start_time >= current
+                            )
                         elem.start_time = current
                         elem.end_time = current + d
                         current += d
@@ -93,7 +92,7 @@ class TimingEngine:
             if seg.actual_duration and seg.estimated_duration and seg.estimated_duration > 0:
                 ratio = seg.actual_duration / seg.estimated_duration
                 seg.meta["duration_ratio"] = round(ratio, 2)
-                if ratio < RATIO_THRESHOLD and seg.segment_type not in ("opening", "closing", "dashboard"):
+                if ratio < RATIO_THRESHOLD and seg.segment_type not in ("opening", "closing"):
                     self.logger.info(
                         f"  Duration check: segment {idx} [{seg.segment_type}] "
                         f"actual={seg.actual_duration:.1f}s vs estimated={seg.estimated_duration:.1f}s "

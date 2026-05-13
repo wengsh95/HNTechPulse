@@ -125,12 +125,12 @@ class SegmentMeta(TypedDict, total=False):
 
     Keys:
         brief_items:     List of brief items surfaced in a story-scan segment.
-        dashboard:       Dashboard element payload (overall summary card).
+        highlights:      Opening highlight entries.
         story_title:     Human-readable story title, cached for display.
         duration_ratio:  actual_duration / estimated_duration, computed post-TTS.
     """
     brief_items: List[Dict[str, Any]]
-    dashboard: Any
+    highlights: Any
     story_title: str
     duration_ratio: float
 

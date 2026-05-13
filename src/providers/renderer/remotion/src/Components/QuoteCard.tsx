@@ -2,7 +2,7 @@ import React from "react";
 import { interpolate, Easing, useCurrentFrame } from "remotion";
 
 import { STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S, sectionLabel } from "./design";
+import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
 import { cleanText, ElementProps, stanceLabel, UI_TEXT } from "./utils";
 
 interface Quote {
@@ -42,7 +42,7 @@ const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, feat
           color: stanceColor,
           backgroundColor: stanceColor + (featured ? "22" : "18"),
           border: `1px solid ${stanceColor}${featured ? "38" : "24"}`,
-          borderRadius: 6,
+          borderRadius: LAYOUT.chipRadius,
           padding: featured ? "5px 12px" : "4px 9px",
           letterSpacing: 0,
         }}
@@ -77,7 +77,8 @@ const QuoteEntry: React.FC<{
   index: number;
   frame: number;
   featuredProgress: number;
-}> = ({ quote, index, frame, featuredProgress }) => {
+  compact: boolean;
+}> = ({ quote, index, frame, featuredProgress, compact }) => {
   const quoteProgress = index === 0
     ? featuredProgress
     : interpolate(frame, [14 + index * 9, 14 + index * 9 + 18], [0, 1], {
@@ -98,13 +99,13 @@ const QuoteEntry: React.FC<{
         transform: `translateY(${interpolate(quoteProgress, [0, 1], [16, 0])}px)`,
         position: "relative",
         overflow: "hidden",
-        borderRadius: 10,
+        borderRadius: LAYOUT.panelRadius,
         background: isFeatured
           ? `${stanceColor}0A`
           : "rgba(255,255,255,0.04)",
         border: `1px solid ${isFeatured ? stanceColor + "25" : "rgba(255,255,255,0.08)"}`,
         borderLeft: `${borderReveal}px solid ${stanceColor}`,
-        padding: "16px 24px",
+        padding: compact ? "12px 20px" : isFeatured ? "18px 24px" : "14px 22px",
         boxSizing: "border-box",
       }}
     >
@@ -112,15 +113,15 @@ const QuoteEntry: React.FC<{
       <div
         style={{
           fontFamily: FONTS.sans,
-          fontSize: 18,
+          fontSize: compact ? 16 : 18,
           color: COLORS.text,
-          lineHeight: 1.5,
+          lineHeight: compact ? 1.42 : 1.5,
           fontWeight: FW.semibold,
           letterSpacing: 0,
           maxWidth: "100%",
           overflowWrap: "anywhere",
           wordBreak: "break-word",
-          ...lineClamp(3),
+          ...lineClamp(isFeatured ? (compact ? 2 : 3) : 2),
         }}
       >
         "{primaryText}"
@@ -129,11 +130,13 @@ const QuoteEntry: React.FC<{
   );
 };
 
-export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
+export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
 
   const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
+  const compact = isCompactHeight(height);
   const cardW = width - LAYOUT.pageInset * 2;
+  const cardMaxH = getCardMaxHeight(height);
   const topY = LAYOUT.topInset;
 
   const cardProgress = interpolate(frame, [4, 22], [0, 1], {
@@ -160,10 +163,12 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         left: LAYOUT.pageInset,
         top: topY,
         width: cardW,
+        maxHeight: cardMaxH,
         ...glassCard,
-        padding: "28px 36px",
+        padding: compact ? "24px 32px" : "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
+        overflow: "hidden",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
@@ -173,7 +178,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 20,
+          marginBottom: compact ? 14 : 18,
           gap: 24,
         }}
       >
@@ -199,7 +204,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
                   color: i === 0 ? COLORS.text : COLORS.textSecondary,
                   backgroundColor: i === 0 ? stanceColor + "15" : "rgba(255,255,255,0.06)",
                   border: `1px solid ${i === 0 ? stanceColor + "25" : "rgba(255,255,255,0.10)"}`,
-                  borderRadius: 6,
+                  borderRadius: LAYOUT.chipRadius,
                   padding: "5px 10px",
                   whiteSpace: "nowrap",
                 }}
@@ -215,7 +220,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 16,
+          gap: compact ? 12 : 14,
         }}
       >
         {quotes.map((quote, i) => (
@@ -225,6 +230,7 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width }) => {
             index={i}
             frame={frame}
             featuredProgress={featuredProgress}
+            compact={compact}
           />
         ))}
       </div>

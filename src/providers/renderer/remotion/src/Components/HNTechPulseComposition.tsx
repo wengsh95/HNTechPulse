@@ -12,8 +12,6 @@ import {
   Subtitle,
   ClosingCard,
   CoverCard,
-  DashboardCard,
-  ImageCard,
   EventCard,
   AtmosphereCard,
   QuoteCard,
@@ -30,6 +28,62 @@ type StoryChapter = {
   total: number;
 };
 
+type StoryEvent = {
+  startTime: number;
+  segmentEndTime: number;
+  props: Record<string, unknown>;
+};
+
+const STORY_MARKER_TYPES = new Set([
+  "event_card",
+  "story_header",
+  "news_carousel_card",
+  "story_scan_card",
+]);
+
+const asNumber = (value: unknown): number | undefined => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const titleFromProps = (props: Record<string, unknown>): string => {
+  return String(
+    props.editor_angle
+    ?? props.title_cn
+    ?? props.story_title
+    ?? props.source_title
+    ?? ""
+  );
+};
+
+const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
+  const events: StoryEvent[] = [];
+  const seen = new Set<string>();
+
+  segments.forEach((seg) => {
+    seg.scene_elements.forEach((elem) => {
+      if (!STORY_MARKER_TYPES.has(elem.element_type)) return;
+
+      const props = elem.props as Record<string, unknown>;
+      const storyIndex = asNumber(props.story_index ?? props.display_index);
+      const absoluteStart = seg.start_time + elem.start_time;
+      const key = storyIndex !== undefined
+        ? `story-${storyIndex}`
+        : `time-${absoluteStart.toFixed(3)}`;
+
+      if (seen.has(key)) return;
+      seen.add(key);
+      events.push({
+        startTime: absoluteStart,
+        segmentEndTime: seg.end_time,
+        props,
+      });
+    });
+  });
+
+  return events.sort((a, b) => a.startTime - b.startTime);
+};
+
 /** 元素类型 → React 组件映射 */
 const ELEMENT_RENDERERS: Record<
   string,
@@ -37,8 +91,6 @@ const ELEMENT_RENDERERS: Record<
 > = {
   closing_card: (props) => <ClosingCard {...props} />,
   cover_card: (props) => <CoverCard {...props} />,
-  image_card: (props) => <ImageCard {...props} />,
-  dashboard_card: (props) => <DashboardCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
   quote_card: (props) => <QuoteCard {...props} />,
@@ -278,27 +330,16 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
     [segments]
   );
 
-  const { storyEvents, storyBoundaries, storyChapters, dateLabel } = useMemo(() => {
-    const events = segments.flatMap((seg) =>
-      seg.scene_elements
-        .filter((elem) => elem.element_type === "event_card")
-        .map((elem) => {
-          const props = elem.props as Record<string, unknown>;
-          return {
-            startTime: seg.start_time + elem.start_time,
-            segmentEndTime: seg.end_time,
-            props,
-          };
-        })
-    ).sort((a, b) => a.startTime - b.startTime);
+  const { storyBoundaries, storyChapters, dateLabel } = useMemo(() => {
+    const events = collectStoryEvents(segments);
     const boundaries = events.map((event) => event.startTime);
     const chapters: StoryChapter[] = events.map((event, i) => {
-      const index = Number(event.props.display_index ?? event.props.story_index ?? i) || i;
-      const total = Number(event.props.story_count ?? events.length) || events.length;
+      const index = asNumber(event.props.display_index ?? event.props.story_index) ?? i;
+      const total = asNumber(event.props.story_count) ?? events.length;
       return {
         startTime: event.startTime,
         endTime: events[i + 1]?.startTime ?? event.segmentEndTime,
-        title: String(event.props.editor_angle ?? event.props.title_cn ?? event.props.story_title ?? ""),
+        title: titleFromProps(event.props),
         category: String(event.props.category ?? ""),
         index,
         total,
@@ -310,7 +351,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
     const label = firstTitle
       ? String((firstTitle.props as Record<string, unknown>).subtitle ?? "")
       : "";
-    return { storyEvents: events, storyBoundaries: boundaries, storyChapters: chapters, dateLabel: label };
+    return { storyBoundaries: boundaries, storyChapters: chapters, dateLabel: label };
   }, [segments]);
   const currentTime = frame / fps;
   const activeStoryIndex = storyChapters.findIndex((chapter) => {

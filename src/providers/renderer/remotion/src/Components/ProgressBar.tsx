@@ -18,12 +18,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const { fps } = useVideoConfig();
 
   const currentTime = frame / fps;
-  const progress = totalDuration > 0 ? Math.min(currentTime / totalDuration, 1) : 0;
-  const easedProgress = interpolate(progress, [0, 1], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const progress = totalDuration > 0 ? Math.min(Math.max(currentTime / totalDuration, 0), 1) : 0;
 
   const fadeIn = interpolate(frame, [0, 12], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -73,7 +68,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             left: 0,
             top: 0,
             height: BAR_HEIGHT,
-            width: `${easedProgress * 100}%`,
+            width: `${progress * 100}%`,
             background: "linear-gradient(90deg, #007AFF, #4DA6FF)",
             borderRadius: BAR_HEIGHT / 2,
           }}
@@ -81,7 +76,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
         {/* Story boundary ticks */}
         {storyBoundaries.map((t, i) => {
-          const pos = totalDuration > 0 ? t / totalDuration : 0;
+          const pos = totalDuration > 0 ? Math.min(Math.max(t / totalDuration, 0), 1) : 0;
           return (
             <div
               key={i}

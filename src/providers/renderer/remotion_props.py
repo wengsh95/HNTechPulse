@@ -113,10 +113,10 @@ def _expand_news_carousel_card(props, content):
     return result
 
 
-def _expand_dashboard_card(props, content):
-    """Trust LLM entries, but overwrite per-entry title/score from content."""
+def _expand_highlight_entries(entries, content):
+    """Trust generated highlight entries, but overwrite title/score from content."""
     expanded_entries = []
-    for entry in props.get("entries", []):
+    for entry in entries or []:
         expanded = dict(entry)
         item = _safe_get_item(content, entry.get("story_index"))
         if item is not None:
@@ -125,7 +125,16 @@ def _expand_dashboard_card(props, content):
             expanded["score"] = item.score or 0
             expanded["comment_count"] = item.comment_count or 0
         expanded_entries.append(expanded)
-    return {"entries": expanded_entries}
+    return expanded_entries
+
+
+def _expand_cover_card(props, content):
+    """Expand opening highlight entries with content-backed fields."""
+    result = dict(props)
+    highlight_entries = props.get("highlight_entries", [])
+    if highlight_entries:
+        result["highlight_entries"] = _expand_highlight_entries(highlight_entries, content)
+    return result
 
 
 def _expand_perspective_compare(props, content):
@@ -166,6 +175,8 @@ def _expand_event_card(props, content):
     result["key_points"] = result.get("key_points") or item.key_points or []
     result["why_it_matters"] = result.get("why_it_matters") or ""
     result["next_watch"] = result.get("next_watch") or ""
+    result["score"] = item.score or 0
+    result["comment_count"] = item.comment_count or 0
 
     if "keywords" not in result or not result["keywords"]:
         result["keywords"] = item.keywords or []
@@ -278,11 +289,11 @@ def _expand_quote_card(props, content):
 # Dispatch table: element_type -> expander function.
 # Each expander returns an expanded props dict, or None to signal "leave props unchanged".
 ELEMENT_EXPANDERS = {
+    "cover_card": _expand_cover_card,
     "story_header": _expand_story_header,
     "comment_card": _expand_comment_card,
     "comment_bubble": _expand_comment_bubble,
     "news_carousel_card": _expand_news_carousel_card,
-    "dashboard_card": _expand_dashboard_card,
     "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
     "atmosphere_card": _expand_atmosphere_card,
@@ -330,6 +341,41 @@ def sanitize_props(props: Dict[str, Any]) -> Dict[str, Any]:
         else:
             cleaned[k] = str(v)
     return cleaned
+
+
+def _story_transition_times(script: Script) -> list[float]:
+    """Return transition sound starts for story boundaries inside story_scan."""
+    times: list[float] = []
+    for segment in script.segments:
+        if segment.segment_type != "story_scan":
+            continue
+        base = float(segment.start_time or 0)
+        markers = [
+            elem for elem in segment.scene_elements
+            if elem.props.get("is_audio_marker")
+        ]
+        if markers:
+            for marker in markers[1:]:
+                story_start = base + float(marker.start_time or 0)
+                previous_end = max(
+                    (
+                        base + float(elem.end_time or 0)
+                        for elem in segment.scene_elements
+                        if not elem.props.get("is_audio_marker")
+                        and float(elem.end_time or 0) <= float(marker.start_time or 0)
+                    ),
+                    default=story_start,
+                )
+                times.append(previous_end)
+            continue
+
+        event_cards = [
+            elem for elem in segment.scene_elements
+            if elem.element_type == "event_card"
+        ]
+        for event in event_cards[1:]:
+            times.append(base + float(event.start_time or 0))
+    return times
 
 
 # ── Main serialization entry point ──────────────────────────────────
@@ -390,6 +436,8 @@ def script_to_props(
         # 2. Expand element props and use times set by orchestrator
         expanded_count = 0
         for elem in segment.scene_elements:
+            if elem.props.get("is_audio_marker"):
+                continue
             if elem.end_time <= elem.start_time:
                 continue
 
@@ -411,16 +459,7 @@ def script_to_props(
 
         segments_data.append(seg_dict)
 
-    # Transition sound times: for each story_scan segment, when the transition
-    # whoosh should play. First story: at its start. Subsequent stories: at the
-    # PREVIOUS story's end (gap start), so the sound fills the gap.
-    story_segments = [s for s in script.segments if s.segment_type == "story_scan"]
-    transition_times = []
-    for i, seg in enumerate(story_segments):
-        if i == 0:
-            transition_times.append(float(seg.start_time or 0))
-        else:
-            transition_times.append(float(story_segments[i - 1].end_time or 0))
+    transition_times = _story_transition_times(script)
 
     return {
         "width": width,
