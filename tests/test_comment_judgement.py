@@ -1,9 +1,7 @@
-from src.core.models import ContentComment, ContentItem, ContentPackage
+from src.core.models import ContentComment, ContentItem
 from src.pipeline.comment_judgement import (
     candidate_ids_for_story,
     normalize_story_judgement,
-    selected_ids_from_judgements,
-    save_comment_judgements,
 )
 from src.pipeline.comment_selection import select_quote_comments
 
@@ -76,24 +74,6 @@ def test_select_quote_comments_uses_judgement_before_heuristic_fallback():
         judgement=judgement,
     )
     assert [c.source_id for c in selected] == ["skeptic", "support", "ops"]
-
-
-def test_selected_ids_from_judgements_loads_stable_cache(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    content = ContentPackage(date="2026-05-11", items=[_item()])
-    save_comment_judgements(
-        content.date,
-        {
-            "story": {
-                "story_id": "story",
-                "quote_candidates": [
-                    {"comment_id": "skeptic", "quote_score": 0.9, "has_viewpoint": True},
-                    {"comment_id": "ops", "quote_score": 0.8, "has_viewpoint": True},
-                ],
-            }
-        },
-    )
-    assert selected_ids_from_judgements(content.date, content) == {0: ["skeptic", "ops"]}
 
 
 def test_candidate_ids_skip_rejected_candidates():

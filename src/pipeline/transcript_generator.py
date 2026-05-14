@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from src.core.models import Script, ScriptSegment, ContentPackage
+from src.core.models import Script, ContentPackage
 
 
 def generate_brief_transcript(
@@ -48,7 +48,6 @@ def generate_brief_transcript(
                 break
 
     if highlight_entries or content:
-
         lines.append("---")
         lines.append("")
         lines.append("## 今日亮点")
@@ -58,22 +57,30 @@ def generate_brief_transcript(
             for entry in highlight_entries:
                 rank = entry.get("rank", "")
                 title = entry.get("original_title", "") or entry.get("title", "")
-                title_cn = entry.get("title_translation", "") or entry.get("title_cn", "")
+                title_cn = entry.get("title_translation", "") or entry.get(
+                    "title_cn", ""
+                )
                 score = entry.get("score", "")
                 comments = entry.get("comment_count", "")
                 score_str = f" ▲ {score}" if score else ""
                 comments_str = f" · 💬 {comments}" if comments else ""
                 if title_cn:
-                    lines.append(f"{rank}. **{title_cn}** / {title}{score_str}{comments_str}")
+                    lines.append(
+                        f"{rank}. **{title_cn}** / {title}{score_str}{comments_str}"
+                    )
                 else:
                     lines.append(f"{rank}. **{title}**{score_str}{comments_str}")
         elif content:
             for i, item in enumerate(content.items[:3], 1):
                 score_str = f" ▲ {item.score}" if item.score else ""
-                comments_str = f" · 💬 {item.comment_count}" if item.comment_count else ""
+                comments_str = (
+                    f" · 💬 {item.comment_count}" if item.comment_count else ""
+                )
                 title_cn = item.title_cn
                 if title_cn:
-                    lines.append(f"{i}. **{title_cn}** / {item.title}{score_str}{comments_str}")
+                    lines.append(
+                        f"{i}. **{title_cn}** / {item.title}{score_str}{comments_str}"
+                    )
                 else:
                     lines.append(f"{i}. **{item.title}**{score_str}{comments_str}")
         lines.append("")
@@ -88,7 +95,11 @@ def generate_brief_transcript(
                 story_elems.setdefault(si, []).append(elem)
 
         # Split audio_text per card using sub_segment_subtitle_texts
-        subtitle_texts_list = scan_segment.meta.get("sub_segment_subtitle_texts", []) if scan_segment.meta else []
+        subtitle_texts_list = (
+            scan_segment.meta.get("sub_segment_subtitle_texts", [])
+            if scan_segment.meta
+            else []
+        )
         card_texts = []
         for texts in subtitle_texts_list:
             card_texts.append(" ".join(t for t in texts if t))
@@ -98,30 +109,45 @@ def generate_brief_transcript(
         lines.append("## 逐条速览")
         lines.append("")
 
-        def _fmt_time(seconds):
-            if seconds is None:
-                return ""
-            m = int(seconds) // 60
-            s = int(seconds) % 60
-            return f"{m}:{s:02d}"
-
         card_idx = 0
         for i in sorted(story_elems.keys()):
             elems = story_elems[i]
             item = content.items[i] if content and i < len(content.items) else None
 
-            event_elem = next((e for e in elems if e.element_type == "event_card"), None)
-            atmosphere_elem = next((e for e in elems if e.element_type == "atmosphere_card"), None)
-            quote_elem = next((e for e in elems if e.element_type == "quote_card"), None)
+            event_elem = next(
+                (e for e in elems if e.element_type == "event_card"), None
+            )
+            atmosphere_elem = next(
+                (e for e in elems if e.element_type == "atmosphere_card"), None
+            )
+            quote_elem = next(
+                (e for e in elems if e.element_type == "quote_card"), None
+            )
 
-            event_summary = event_elem.props.get("dek", "") or event_elem.props.get("event_summary", "") if event_elem else ""
+            event_summary = (
+                event_elem.props.get("dek", "")
+                or event_elem.props.get("event_summary", "")
+                if event_elem
+                else ""
+            )
             display_idx = event_elem.props.get("display_index", i) if event_elem else i
 
-            lines.append(f"### {display_idx + 1}. {event_summary or (item.title if item else '')}")
+            lines.append(
+                f"### {display_idx + 1}. {event_summary or (item.title if item else '')}"
+            )
             lines.append("")
 
             # Card-by-card narration
-            for _ in range(len([e for e in elems if e.element_type in ("event_card", "atmosphere_card", "quote_card")])):
+            for _ in range(
+                len(
+                    [
+                        e
+                        for e in elems
+                        if e.element_type
+                        in ("event_card", "atmosphere_card", "quote_card")
+                    ]
+                )
+            ):
                 if card_idx < len(card_texts):
                     lines.append(card_texts[card_idx])
                     lines.append("")
@@ -156,7 +182,9 @@ def generate_brief_transcript(
                 dist = atmosphere_elem.props.get("stance_distribution", {})
                 if dist:
                     sorted_dist = sorted(dist.items(), key=lambda x: x[1], reverse=True)
-                    dist_str = " · ".join(f"{k} {int(v * 100)}%" for k, v in sorted_dist if v > 0)
+                    dist_str = " · ".join(
+                        f"{k} {int(v * 100)}%" for k, v in sorted_dist if v > 0
+                    )
                     if dist_str:
                         lines.append(f"**社区观点**  {dist_str}")
                         lines.append("")
@@ -177,7 +205,7 @@ def generate_brief_transcript(
                         author = q.get("author", "")
                         text = q.get("text", "")
                         stance_str = f"**[{stance}]** " if stance else ""
-                        lines.append(f"- {stance_str}{author}: \"{text[:120]}\"")
+                        lines.append(f'- {stance_str}{author}: "{text[:120]}"')
                     lines.append("")
         else:
             if not story_elems and scan_segment.audio_text:

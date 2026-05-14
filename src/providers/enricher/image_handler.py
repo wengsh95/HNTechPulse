@@ -40,10 +40,15 @@ class ImageHandler:
         self.bing_max_queries = bing_max_queries
         self.request_timeout = request_timeout
 
-    def extract_text(self, html: str, base_url: str, max_text_length: int = 8000) -> Optional[str]:
+    def extract_text(
+        self, html: str, base_url: str, max_text_length: int = 8000
+    ) -> Optional[str]:
         import trafilatura
+
         try:
-            text = trafilatura.extract(html, include_comments=False, include_tables=True, favor_precision=True)
+            text = trafilatura.extract(
+                html, include_comments=False, include_tables=True, favor_precision=True
+            )
             if text and len(text.strip()) > 100:
                 return text.strip()[:max_text_length]
             return None
@@ -109,7 +114,9 @@ class ImageHandler:
                 add_image(og_img.get("content"))
 
             # 2. twitter:image
-            for tw_img in soup.find_all("meta", attrs={"name": re.compile(r"twitter:image", re.I)}):
+            for tw_img in soup.find_all(
+                "meta", attrs={"name": re.compile(r"twitter:image", re.I)}
+            ):
                 add_image(tw_img.get("content"))
 
             # 3. Article/body images, including lazy-loaded and responsive images
@@ -118,7 +125,9 @@ class ImageHandler:
                 found = soup.select_one(selector)
                 if found:
                     containers.append(found)
-            class_container = soup.find(class_=re.compile(r"article|post|content|entry", re.I))
+            class_container = soup.find(
+                class_=re.compile(r"article|post|content|entry", re.I)
+            )
             if class_container:
                 containers.append(class_container)
             if not containers:
@@ -129,7 +138,9 @@ class ImageHandler:
                 if id(container) in seen_container_ids:
                     continue
                 seen_container_ids.add(id(container))
-                for img in container.find_all(["img", "source", "video"], limit=self.max_images * 4):
+                for img in container.find_all(
+                    ["img", "source", "video"], limit=self.max_images * 4
+                ):
                     raw_url = self._image_url_from_tag(img)
                     if not raw_url:
                         continue
@@ -145,7 +156,17 @@ class ImageHandler:
 
             # Filter out common non-content patterns
             filtered = []
-            skip_patterns = ["avatar", "logo", "icon", "badge", "pixel", "spacer", "tracking", "analytics", "camo.githubusercontent.com"]
+            skip_patterns = [
+                "avatar",
+                "logo",
+                "icon",
+                "badge",
+                "pixel",
+                "spacer",
+                "tracking",
+                "analytics",
+                "camo.githubusercontent.com",
+            ]
             for img_url in images:
                 lower = img_url.lower()
                 if lower.endswith(".svg") or ".svg?" in lower:
@@ -154,10 +175,14 @@ class ImageHandler:
                 if not any(p in lower for p in skip_patterns):
                     filtered.append(img_url)
                 else:
-                    self.logger.debug(f"Image filtered out (matched pattern): {img_url}")
+                    self.logger.debug(
+                        f"Image filtered out (matched pattern): {img_url}"
+                    )
 
-            result = filtered[:self.max_images]
-            self.logger.debug(f"Extracted {len(result)} image URLs from {base_url}: {result}")
+            result = filtered[: self.max_images]
+            self.logger.debug(
+                f"Extracted {len(result)} image URLs from {base_url}: {result}"
+            )
             return result
         except Exception as e:
             self.logger.debug(f"Image extraction failed: {e}")
@@ -175,13 +200,17 @@ class ImageHandler:
         candidates: List[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
         for candidate in candidates:
-            if candidate.get("source") == "page" and self.candidate_has_suitable_size(candidate):
+            if candidate.get("source") == "page" and self.candidate_has_suitable_size(
+                candidate
+            ):
                 return candidate
         for candidate in candidates:
             if candidate.get("source") == "screenshot" and candidate.get("path"):
                 return candidate
         for candidate in candidates:
-            if candidate.get("source") == "bing" and self.candidate_has_suitable_size(candidate):
+            if candidate.get("source") == "bing" and self.candidate_has_suitable_size(
+                candidate
+            ):
                 return candidate
 
         for source in ("page", "bing", "screenshot"):
@@ -193,15 +222,25 @@ class ImageHandler:
     def selection_reason(self, candidate: Dict[str, Any]) -> str:
         source = candidate.get("source")
         if source == "page":
-            return "article_image_suitable" if self.candidate_has_suitable_size(candidate) else "article_image_fallback"
+            return (
+                "article_image_suitable"
+                if self.candidate_has_suitable_size(candidate)
+                else "article_image_fallback"
+            )
         if source == "screenshot":
             return "page_screenshot"
         if source == "bing":
-            return "bing_image_suitable" if self.candidate_has_suitable_size(candidate) else "bing_image_fallback"
+            return (
+                "bing_image_suitable"
+                if self.candidate_has_suitable_size(candidate)
+                else "bing_image_fallback"
+            )
         return "fallback"
 
     @staticmethod
-    def candidate_paths(candidates: List[Dict[str, Any]], preferred_path: Optional[str] = None) -> List[str]:
+    def candidate_paths(
+        candidates: List[Dict[str, Any]], preferred_path: Optional[str] = None
+    ) -> List[str]:
         paths = []
         seen = set()
         if preferred_path:
@@ -232,19 +271,25 @@ class ImageHandler:
 
         for candidate in item.image_candidates or []:
             path = candidate.get("path")
-            if path and path not in seen and self.image_cache_path_exists(image_dir, path):
+            if (
+                path
+                and path not in seen
+                and self.image_cache_path_exists(image_dir, path)
+            ):
                 candidates.append(dict(candidate))
                 seen.add(path)
 
         for rank, path in enumerate(item.article_images or []):
             if path in seen or not self.image_cache_path_exists(image_dir, path):
                 continue
-            candidates.append({
-                "path": path,
-                "source": "cached",
-                "label": "Cached image",
-                "rank": rank,
-            })
+            candidates.append(
+                {
+                    "path": path,
+                    "source": "cached",
+                    "label": "Cached image",
+                    "rank": rank,
+                }
+            )
             seen.add(path)
 
         screenshot_image = item.screenshot_image
@@ -253,26 +298,18 @@ class ImageHandler:
             and screenshot_image not in seen
             and self.image_cache_path_exists(image_dir, screenshot_image)
         ):
-            candidates.append({
-                "path": screenshot_image,
-                "source": "screenshot",
-                "label": "Page screenshot",
-                "rank": len(candidates),
-                "width": 1280,
-                "height": 720,
-            })
+            candidates.append(
+                {
+                    "path": screenshot_image,
+                    "source": "screenshot",
+                    "label": "Page screenshot",
+                    "rank": len(candidates),
+                    "width": 1280,
+                    "height": 720,
+                }
+            )
 
         return candidates
-
-    async def download_images(self, urls: List[str], image_dir: Path, source_id: str) -> List[str]:
-        candidates = await self.download_image_candidates(
-            urls,
-            image_dir,
-            source_id,
-            source="image",
-            label="Image",
-        )
-        return self.candidate_paths(candidates)
 
     async def download_image_candidates(
         self,
@@ -287,7 +324,9 @@ class ImageHandler:
         candidates: List[Dict[str, Any]] = []
         timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
 
-        async def _fetch_one(session: aiohttp.ClientSession, url: str) -> Optional[bytes]:
+        async def _fetch_one(
+            session: aiohttp.ClientSession, url: str
+        ) -> Optional[bytes]:
             headers = _make_headers()
             headers["Accept"] = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
             async with session.get(url, headers=headers) as resp:
@@ -302,7 +341,9 @@ class ImageHandler:
 
                 data = await resp.read()
                 if len(data) > self.max_image_size:
-                    self.logger.warning(f"Image read too large ({len(data)} bytes) for {url}")
+                    self.logger.warning(
+                        f"Image read too large ({len(data)} bytes) for {url}"
+                    )
                     return None
 
                 # Skip short-read check for compressed responses:
@@ -321,13 +362,15 @@ class ImageHandler:
                     filename = f"{source_id}_{idx}.jpg"
                     dest = image_dir / filename
                     if dest.exists():
-                        candidates.append({
-                            "path": f"images/{filename}",
-                            "source": source,
-                            "label": label,
-                            "origin_url": url,
-                            "rank": idx,
-                        })
+                        candidates.append(
+                            {
+                                "path": f"images/{filename}",
+                                "source": source,
+                                "label": label,
+                                "origin_url": url,
+                                "rank": idx,
+                            }
+                        )
                         continue
 
                     data = await _fetch_one(session, url)
@@ -338,29 +381,32 @@ class ImageHandler:
                         self.logger.warning(f"Image fetch failed after retry: {url}")
                         continue
 
-                    self.logger.debug(
-                        f"Image fetched {len(data)} bytes from {url}"
-                    )
+                    self.logger.debug(f"Image fetched {len(data)} bytes from {url}")
                     try:
                         img = Image.open(io.BytesIO(data))
                         img = img.convert("RGB")
 
-                        if img.width > self.image_target_width or img.height > self.image_target_height:
+                        if (
+                            img.width > self.image_target_width
+                            or img.height > self.image_target_height
+                        ):
                             img.thumbnail(
                                 (self.image_target_width, self.image_target_height),
                                 Image.Resampling.LANCZOS,
                             )
 
                         img.save(dest, "JPEG", quality=85)
-                        candidates.append({
-                            "path": f"images/{filename}",
-                            "source": source,
-                            "label": label,
-                            "origin_url": url,
-                            "rank": idx,
-                            "width": img.width,
-                            "height": img.height,
-                        })
+                        candidates.append(
+                            {
+                                "path": f"images/{filename}",
+                                "source": source,
+                                "label": label,
+                                "origin_url": url,
+                                "rank": idx,
+                                "width": img.width,
+                                "height": img.height,
+                            }
+                        )
                         self.logger.debug(
                             f"Image saved: {dest} ({img.width}x{img.height})"
                         )
@@ -389,8 +435,7 @@ class ImageHandler:
                 if not query:
                     continue
                 search_url = (
-                    "https://www.bing.com/images/search?"
-                    f"q={quote_plus(query)}&first=1"
+                    f"https://www.bing.com/images/search?q={quote_plus(query)}&first=1"
                 )
                 html = await fetcher.fetch_with_headless(search_url)
                 if not html:
@@ -408,7 +453,7 @@ class ImageHandler:
                     break
 
             candidates = await self.download_image_candidates(
-                image_urls[:self.bing_max_results],
+                image_urls[: self.bing_max_results],
                 image_dir,
                 f"{source_id}_bing",
                 source="bing",
@@ -428,7 +473,9 @@ class ImageHandler:
         try:
             soup = BeautifulSoup(html, "lxml")
             urls = []
-            for a_tag in soup.find_all("a", class_="iusc", limit=self.bing_max_results * 2):
+            for a_tag in soup.find_all(
+                "a", class_="iusc", limit=self.bing_max_results * 2
+            ):
                 m_attr = a_tag.get("m")
                 if m_attr:
                     try:
@@ -443,7 +490,7 @@ class ImageHandler:
                     src = img.get("src") or ""
                     if "bing.com/th" in src and src not in urls:
                         urls.append(src)
-            return urls[:self.bing_max_results]
+            return urls[: self.bing_max_results]
         except Exception as e:
             self.logger.debug(f"Bing image URL extraction failed: {e}")
             return []

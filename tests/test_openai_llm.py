@@ -1,12 +1,14 @@
 import json
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from src.providers.llm.openai import (
-    _strip_json_fence, _clamp_index_in_place, _floor_index_in_place,
-    OpenAILLMProvider,
+from src.providers.llm.llm_client import (
+    _strip_json_fence,
+    _clamp_index_in_place,
+    _floor_index_in_place,
 )
-from src.core.models import ContentItem, ContentComment, ContentPackage
+from src.providers.llm.openai import OpenAILLMProvider
+from src.core.models import ContentItem, ContentComment
 
 
 def _make_config():
@@ -19,8 +21,7 @@ def _make_config():
 
 def _make_content_item(index=0):
     comments = [
-        ContentComment(author=f"user_{j}", content=f"comment {j}")
-        for j in range(3)
+        ContentComment(author=f"user_{j}", content=f"comment {j}") for j in range(3)
     ]
     return ContentItem(
         source="hackernews",
@@ -42,6 +43,7 @@ def _make_provider():
 
 # ── _strip_json_fence ───────────────────────────────────────────────────
 
+
 class TestStripJsonFence:
     def test_no_fence(self):
         assert _strip_json_fence('{"key": "val"}') == '{"key": "val"}'
@@ -56,6 +58,7 @@ class TestStripJsonFence:
 
 
 # ── _clamp_index_in_place ───────────────────────────────────────────────
+
 
 class TestClampIndexInPlace:
     def test_in_range_no_change(self):
@@ -86,6 +89,7 @@ class TestClampIndexInPlace:
 
 # ── _floor_index_in_place ──────────────────────────────────────────────
 
+
 class TestFloorIndexInPlace:
     def test_negative_floored_to_zero(self):
         d = {"idx": -1}
@@ -109,6 +113,7 @@ class TestFloorIndexInPlace:
 
 
 # ── _extract_json ──────────────────────────────────────────────────────
+
 
 class TestExtractJson:
     def test_direct_json_object(self):
@@ -144,6 +149,7 @@ class TestExtractJson:
 
 # ── _repair_json ───────────────────────────────────────────────────────
 
+
 class TestRepairJson:
     def test_trailing_comma_before_brace(self):
         provider = _make_provider()
@@ -157,7 +163,7 @@ class TestRepairJson:
 
     def test_unquoted_keys(self):
         provider = _make_provider()
-        result = provider._client._repair_json('{a: 1}')
+        result = provider._client._repair_json("{a: 1}")
         assert result == {"a": 1}
 
     def test_double_quoted_keys(self):
@@ -177,6 +183,7 @@ class TestRepairJson:
 
 
 # ── _split_prompt ──────────────────────────────────────────────────────
+
 
 class TestSplitPrompt:
     def test_with_system_cut(self):
@@ -208,6 +215,7 @@ class TestSplitPrompt:
 
 
 # ── _single_story_to_json ──────────────────────────────────────────────
+
 
 class TestSingleStoryToJson:
     def test_basic_serialization(self):
@@ -261,7 +269,10 @@ class TestSingleStoryToJson:
         item = _make_content_item(0)
         item.editor_angle = "Google发布新模型"
         item.dek = "Google在IO大会上发布了Gemini 2.5 Pro，推理能力大幅提升"
-        item.key_points = [{"label": "背景", "text": "Google IO 2026大会"}, {"label": "影响", "text": "影响所有使用LLM的开发者"}]
+        item.key_points = [
+            {"label": "背景", "text": "Google IO 2026大会"},
+            {"label": "影响", "text": "影响所有使用LLM的开发者"},
+        ]
         item.keywords = ["Gemini", "LLM", "推理"]
         item.category = "AI工具"
         item.visual_hint = "产品发布页面截图"

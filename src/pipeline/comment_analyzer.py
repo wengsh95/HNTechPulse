@@ -53,7 +53,9 @@ class CommentAnalyzer:
         self._save_cache(content, cache_path)
         return content
 
-    def _rebuild_cache(self, content: ContentPackage, cache_path: Path) -> ContentPackage:
+    def _rebuild_cache(
+        self, content: ContentPackage, cache_path: Path
+    ) -> ContentPackage:
         self.logger.info(f"Rebuilding analysis cache: {cache_path}")
         for item in content.items:
             self._analyze_item(item)
@@ -64,22 +66,27 @@ class CommentAnalyzer:
         # 1. VADER sentiment
         for comment in item.comments:
             if comment.content:
-                scores = self._vader.polarity_scores(clean_comment_text(comment.content))
+                scores = self._vader.polarity_scores(
+                    clean_comment_text(comment.content)
+                )
                 comment.sentiment = round(scores["compound"], 4)
 
         # 2. Heuristic quality scoring
         for comment in item.comments:
             comment.quality_score = self._compute_quality_score(comment, item)
 
-    def _compute_quality_score(self, comment: ContentComment, item: ContentItem = None) -> float:
+    def _compute_quality_score(
+        self, comment: ContentComment, item: ContentItem = None
+    ) -> float:
         return compute_comment_quality(comment, item)
 
-    def get_top_comments(self, item: ContentItem, n: int = None) -> List[ContentComment]:
+    def get_top_comments(
+        self, item: ContentItem, n: int = None
+    ) -> List[ContentComment]:
         if n is None:
             n = self.max_comments_for_llm
         scored = [
-            c for c in item.comments
-            if (c.quality_score or 0) >= self.min_quality_score
+            c for c in item.comments if (c.quality_score or 0) >= self.min_quality_score
         ]
         scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
         return scored[:n]
@@ -124,11 +131,7 @@ class CommentAnalyzer:
             item = items_by_id.get(item_data["source_id"])
             if item is None:
                 continue
-            comments_by_id = {
-                c.source_id: c
-                for c in item.comments
-                if c.source_id
-            }
+            comments_by_id = {c.source_id: c for c in item.comments if c.source_id}
             for i, c_data in enumerate(item_data.get("comments", [])):
                 comment = None
                 source_id = c_data.get("source_id")

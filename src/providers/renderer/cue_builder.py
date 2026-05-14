@@ -1,8 +1,10 @@
 import re
 from typing import Any, Dict, List
 
+from src.core.models import ScriptSegment
 
-def build_cues(segment: "ScriptSegment", duration: float, logger) -> List[Dict[str, Any]]:
+
+def build_cues(segment: ScriptSegment, duration: float, logger) -> List[Dict[str, Any]]:
     """Build subtitle cues.
 
     Priority: per-card cues (story_scan segments) > auto-split by sentence length.
@@ -22,11 +24,11 @@ def _split_into_cues(text: str, duration: float) -> List[Dict[str, Any]]:
     if not text or duration <= 0:
         return []
 
-    text = re.sub(r'<[^>]+>', '', text).strip()
+    text = re.sub(r"<[^>]+>", "", text).strip()
     if not text:
         return []
 
-    sentences = re.split(r'(?<=[。！？；\.\!\?;])', text)
+    sentences = re.split(r"(?<=[。！？；\.\!\?;])", text)
     sentences = [s.strip() for s in sentences if s.strip()]
 
     if not sentences:
@@ -42,7 +44,7 @@ def _split_into_cues(text: str, duration: float) -> List[Dict[str, Any]]:
     final: List[str] = []
     for s in merged:
         if len(s) > 40:
-            parts = re.split(r'(?<=[，,、：:])', s)
+            parts = re.split(r"(?<=[，,、：:])", s)
             parts = [p.strip() for p in parts if p.strip()]
             buf = ""
             for part in parts:
@@ -65,11 +67,13 @@ def _split_into_cues(text: str, duration: float) -> List[Dict[str, Any]]:
     for s in final:
         char_ratio = len(s) / total_chars if total_chars > 0 else 1.0 / len(final)
         cue_duration = duration * char_ratio
-        cues.append({
-            "text": s,
-            "start_time": round(current_time, 3),
-            "end_time": round(current_time + cue_duration, 3),
-        })
+        cues.append(
+            {
+                "text": s,
+                "start_time": round(current_time, 3),
+                "end_time": round(current_time + cue_duration, 3),
+            }
+        )
         current_time += cue_duration
 
     if cues:

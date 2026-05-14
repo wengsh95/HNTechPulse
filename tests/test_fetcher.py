@@ -28,13 +28,13 @@ from src.utils.logger import setup_logger
 
 
 def step_connect(fetcher, args):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("[1] 连通性测试 — 获取 Top Stories ID 列表")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
-    has_proxy = fetcher._session.proxies if hasattr(fetcher, '_session') else None
+    has_proxy = fetcher._session.proxies if hasattr(fetcher, "_session") else None
     if not has_proxy:
-        print(f"  ⚠ 未配置代理")
+        print("  ⚠ 未配置代理")
         print(f"  当前超时: {fetcher.request_timeout} (connect, read) 秒")
         print()
 
@@ -69,27 +69,25 @@ def step_connect(fetcher, args):
 
 
 def step_story(fetcher, args):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("[2] Story 详情测试")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     story_id = args.id or getattr(args, "default_story_id", None)
     if not story_id:
         print("  ✗ 无可用 story_id，请用 --id <id> 指定，或先运行 --step connect")
         return False, 0.0
 
-    has_proxy = fetcher._session.proxies if hasattr(fetcher, '_session') else None
+    has_proxy = fetcher._session.proxies if hasattr(fetcher, "_session") else None
     if not has_proxy:
-        print(f"  ⚠ 未配置代理，直连 hacker-news.firebaseio.com 可能较慢或超时")
+        print("  ⚠ 未配置代理，直连 hacker-news.firebaseio.com 可能较慢或超时")
         print(f"    当前超时设置: {fetcher.request_timeout} (connect, read) 秒")
-        print(f"    如需代理，请在 config.yaml 中取消注释 hn.proxy")
+        print("    如需代理，请在 config.yaml 中取消注释 hn.proxy")
         print()
 
     t0 = time.monotonic()
     try:
-        stories = asyncio.run(
-            fetcher._async_fetch_stories([story_id])
-        )
+        stories = asyncio.run(fetcher._async_fetch_stories([story_id]))
         elapsed = time.monotonic() - t0
 
         if not stories:
@@ -98,6 +96,7 @@ def step_story(fetcher, args):
 
         story = stories[0]
         from src.providers.fetcher.models import HNStory
+
         assert isinstance(story, HNStory)
 
         print(f"  ✓ id={story.id}")
@@ -118,7 +117,11 @@ def step_story(fetcher, args):
         if "Timeout" in err_type or "timeout" in str(e).lower():
             print(f"  ✗ 请求超时 ({elapsed:.1f}s): {err_type}: {e}")
             print("    → 尝试: 1) 在 config.yaml 中启用代理  2) 增大 request_timeout")
-        elif "Connection" in err_type or "SSLError" in err_type or "ssl" in str(e).lower():
+        elif (
+            "Connection" in err_type
+            or "SSLError" in err_type
+            or "ssl" in str(e).lower()
+        ):
             print(f"  ✗ 连接/SSL 错误 ({elapsed:.1f}s): {err_type}: {e}")
             print("    → 建议: 在 config.yaml 中配置代理 (hn.proxy)")
         else:
@@ -127,9 +130,9 @@ def step_story(fetcher, args):
 
 
 def step_comments(fetcher, args):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("[3] 评论抓取测试")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     story_id = args.id or getattr(args, "default_story_id", None)
     if not story_id:
@@ -137,9 +140,7 @@ def step_comments(fetcher, args):
         return False, 0.0
 
     try:
-        stories = asyncio.run(
-            fetcher._async_fetch_stories([story_id])
-        )
+        stories = asyncio.run(fetcher._async_fetch_stories([story_id]))
         expected = stories[0].descendants if stories else 0
     except Exception:
         expected = 0
@@ -162,11 +163,11 @@ def step_comments(fetcher, args):
         print()
         print(f"  ✓ 完成！实际获取 {len(comments)} 条评论")
         if expected > 0:
-            print(f"  预期≈{expected}  达成率={len(comments)/expected*100:.1f}%")
+            print(f"  预期≈{expected}  达成率={len(comments) / expected * 100:.1f}%")
         print(f"  总耗时: {elapsed:.1f}s  平均速率: {rate:.1f}条/s")
 
         if comments:
-            print(f"\n  --- 前 3 条评论预览 ---")
+            print("\n  --- 前 3 条评论预览 ---")
             for i, c in enumerate(comments[:3], start=1):
                 text_preview = c.text[:80].replace("\n", " ")
                 if len(c.text) > 80:
@@ -199,10 +200,14 @@ def main():
         type=str,
         default="all",
         choices=["all", "connect", "story", "comments"],
-        help="测试哪个环节"
+        help="测试哪个环节",
     )
-    parser.add_argument("--id", type=int, default=None, help="指定 story ID (story/comments)")
-    parser.add_argument("--config", type=str, default="config/", help="配置文件目录或路径")
+    parser.add_argument(
+        "--id", type=int, default=None, help="指定 story ID (story/comments)"
+    )
+    parser.add_argument(
+        "--config", type=str, default="config/", help="配置文件目录或路径"
+    )
     parser.add_argument("--debug", action="store_true", help="DEBUG 日志级别")
     args = parser.parse_args()
 
@@ -215,6 +220,7 @@ def main():
     logger.info(f"[test] 日志级别: {log_level}")
 
     from src.providers.fetcher.hn_fetcher import HNFetcher
+
     fetcher = HNFetcher(config, debug=args.debug, log_level=log_level)
 
     hn_cfg = config.get("hn", {})
@@ -253,9 +259,9 @@ def main():
 
     total_elapsed = time.monotonic() - total_t0
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("汇总:")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     all_ok = True
     for name, (ok, elapsed) in results.items():
         status = "✓ PASS" if ok else "✗ FAIL"

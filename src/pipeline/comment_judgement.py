@@ -1,9 +1,9 @@
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
-from src.core.models import ContentComment, ContentItem, ContentPackage
+from src.core.models import ContentItem
 from src.pipeline.comment_selection import clean_comment_text, is_quotable_comment
 
 
@@ -75,16 +75,18 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         if comment_id not in valid_ids or comment_id in seen:
             continue
         note = notes_by_id.get(comment_id, {})
-        candidates.append({
-            "comment_id": comment_id,
-            "quote_score": round(max(0.0, 1.0 - rank * 0.08), 4),
-            "category": str(note.get("category") or "viewpoint"),
-            "stance": str(note.get("stance") or "neutral"),
-            "claim": "",
-            "has_viewpoint": True,
-            "reject_for_quote": False,
-            "reason": "LLM selected",
-        })
+        candidates.append(
+            {
+                "comment_id": comment_id,
+                "quote_score": round(max(0.0, 1.0 - rank * 0.08), 4),
+                "category": str(note.get("category") or "viewpoint"),
+                "stance": str(note.get("stance") or "neutral"),
+                "claim": "",
+                "has_viewpoint": True,
+                "reject_for_quote": False,
+                "reason": "LLM selected",
+            }
+        )
         seen.add(comment_id)
 
     for entry in raw.get("quote_candidates", []) or []:
@@ -115,7 +117,11 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
     stance_distribution = {}
     raw_stance = raw.get("stance_distribution", {}) or {}
     if isinstance(raw_stance, dict):
-        total = sum(float(v) for v in raw_stance.values() if isinstance(v, (int, float)) and v > 0)
+        total = sum(
+            float(v)
+            for v in raw_stance.values()
+            if isinstance(v, (int, float)) and v > 0
+        )
         if total > 0:
             stance_distribution = {
                 str(k): round(float(v) / total, 4)
@@ -138,16 +144,18 @@ def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> di
         if comment.source_id is None or not is_quotable_comment(comment):
             continue
         text = clean_comment_text(comment.content or "")
-        candidates.append({
-            "comment_id": str(comment.source_id),
-            "quote_score": round(float(comment.quality_score or 0.0), 4),
-            "category": "viewpoint",
-            "stance": "neutral",
-            "claim": text[:180],
-            "has_viewpoint": True,
-            "reject_for_quote": False,
-            "reason": "Heuristic fallback candidate",
-        })
+        candidates.append(
+            {
+                "comment_id": str(comment.source_id),
+                "quote_score": round(float(comment.quality_score or 0.0), 4),
+                "category": "viewpoint",
+                "stance": "neutral",
+                "claim": text[:180],
+                "has_viewpoint": True,
+                "reject_for_quote": False,
+                "reason": "Heuristic fallback candidate",
+            }
+        )
     candidates.sort(key=lambda c: c["quote_score"], reverse=True)
     return {
         "story_id": comment_judgement_key(item),
@@ -196,41 +204,3 @@ def candidate_ids_for_story(judgement: Optional[dict], max_n: int = 3) -> List[s
         if len(ids) >= max_n:
             break
     return ids
-
-
-def selected_ids_from_judgements(
-    date: str,
-    content: ContentPackage,
-    max_n: int = 3,
-) -> Dict[int, List[str]]:
-    judgements = load_comment_judgements(date)
-    selected: Dict[int, List[str]] = {}
-    for story_idx, item in enumerate(content.items):
-        ids = candidate_ids_for_story(
-            judgements.get(comment_judgement_key(item)),
-            max_n=max_n,
-        )
-        if ids:
-            selected[story_idx] = ids
-    return selected
-
-
-def select_comments_from_judgement(
-    comments: Iterable[ContentComment],
-    judgement: Optional[dict],
-    max_n: int = 3,
-) -> List[ContentComment]:
-    comments_by_id = {
-        str(c.source_id): c
-        for c in comments
-        if c.source_id is not None and is_quotable_comment(c)
-    }
-    selected = []
-    for comment_id in candidate_ids_for_story(judgement, max_n=max_n * 3):
-        comment = comments_by_id.get(str(comment_id))
-        if comment is None:
-            continue
-        selected.append(comment)
-        if len(selected) >= max_n:
-            break
-    return selected

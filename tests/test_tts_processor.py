@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import json
 
-import pytest
 
 from src.core.interfaces import TTSProvider, TTSResult
 from src.core.models import Script, ScriptSegment
@@ -28,8 +27,12 @@ def _make_provider():
 def _make_script(segments=None):
     if segments is None:
         segments = [
-            ScriptSegment(segment_type="opening", audio_text="Hello", estimated_duration=5.0),
-            ScriptSegment(segment_type="closing", audio_text="Goodbye", estimated_duration=5.0),
+            ScriptSegment(
+                segment_type="opening", audio_text="Hello", estimated_duration=5.0
+            ),
+            ScriptSegment(
+                segment_type="closing", audio_text="Goodbye", estimated_duration=5.0
+            ),
         ]
     return Script(title="Test", description="", tags=[], segments=segments)
 
@@ -37,12 +40,16 @@ def _make_script(segments=None):
 class TestInit:
     def test_max_workers_clamped_low(self):
         with patch("src.pipeline.tts_processor.setup_logger"):
-            processor = TTSProcessor(_make_provider(), _make_config(tts={"max_workers": 0}))
+            processor = TTSProcessor(
+                _make_provider(), _make_config(tts={"max_workers": 0})
+            )
         assert processor.max_workers == 1
 
     def test_max_workers_clamped_high(self):
         with patch("src.pipeline.tts_processor.setup_logger"):
-            processor = TTSProcessor(_make_provider(), _make_config(tts={"max_workers": 20}))
+            processor = TTSProcessor(
+                _make_provider(), _make_config(tts={"max_workers": 20})
+            )
         assert processor.max_workers == 8
 
 
@@ -75,7 +82,9 @@ class TestProcessAudio:
             encoding="utf-8",
         )
         (audio_dir / "segment_01.mp3.json").write_text(
-            json.dumps({"text_hash": processor._text_hash("Goodbye"), "text": "Goodbye"}),
+            json.dumps(
+                {"text_hash": processor._text_hash("Goodbye"), "text": "Goodbye"}
+            ),
             encoding="utf-8",
         )
 
@@ -85,7 +94,9 @@ class TestProcessAudio:
 
         mock_provider.synthesize.assert_not_called()
 
-    def test_rebuilds_stale_cached_segments_without_matching_manifest(self, tmp_path, monkeypatch):
+    def test_rebuilds_stale_cached_segments_without_matching_manifest(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         mock_provider = _make_provider()
         with patch("src.pipeline.tts_processor.setup_logger"):
@@ -101,10 +112,14 @@ class TestProcessAudio:
             processor.process_audio(script, "2026-04-26")
 
         assert mock_provider.synthesize.call_count == 2
-        manifest = json.loads((audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8")
+        )
         assert manifest["text_hash"] == processor._text_hash("Hello")
 
-    def test_rebuilds_cached_segment_when_text_hash_changes(self, tmp_path, monkeypatch):
+    def test_rebuilds_cached_segment_when_text_hash_changes(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         mock_provider = _make_provider()
         with patch("src.pipeline.tts_processor.setup_logger"):
@@ -114,13 +129,21 @@ class TestProcessAudio:
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_00.mp3.json").write_text(
-            json.dumps({"text_hash": processor._text_hash("Old text"), "text": "Old text"}),
+            json.dumps(
+                {"text_hash": processor._text_hash("Old text"), "text": "Old text"}
+            ),
             encoding="utf-8",
         )
 
-        script = _make_script([
-            ScriptSegment(segment_type="opening", audio_text="New text", estimated_duration=5.0),
-        ])
+        script = _make_script(
+            [
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="New text",
+                    estimated_duration=5.0,
+                ),
+            ]
+        )
         with patch("src.pipeline.tts_processor.get_audio_duration", return_value=5.0):
             processor.process_audio(script, "2026-04-26")
 

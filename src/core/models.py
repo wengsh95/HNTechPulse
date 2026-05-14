@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Any, Dict, TypedDict
+from typing import List, Optional, Any, Dict
 
 
 # ================= 数据源层 (特定于 HN) =================
@@ -8,9 +8,11 @@ from typing import List, Optional, Any, Dict, TypedDict
 
 # ================= 中间层：通用素材模型 =================
 
+
 @dataclass
 class ContentComment:
     """一条评论（通用）"""
+
     author: str
     content: str
     content_cn: Optional[str] = None
@@ -25,6 +27,7 @@ class ContentComment:
 @dataclass
 class ContentItem:
     """一条内容素材（通用，不依赖 HN）"""
+
     source: str
     source_id: str
     title: str
@@ -60,6 +63,7 @@ class ContentItem:
 @dataclass
 class ContentPackage:
     """给 LLM 的素材包（通用）"""
+
     date: str
     items: List[ContentItem]
     deep_dive_indices: List[int] = field(default_factory=list)
@@ -68,11 +72,6 @@ class ContentPackage:
 
 
 # ================= LLM 交互模型 =================
-
-@dataclass
-class StoryAnalysis:
-    story_index: int
-    raw_json: str = ""
 
 
 @dataclass
@@ -83,9 +82,11 @@ class SelectionResult:
 
 # ================= 灵活的视觉组件描述 =================
 
+
 @dataclass
 class SceneElement:
     """场景中的一个视觉元素（字幕、图片、气泡等）"""
+
     element_type: str
     start_time: float
     end_time: float
@@ -96,6 +97,7 @@ class SceneElement:
 @dataclass
 class Cue:
     """单个字幕提示"""
+
     text: str
     start_time: float
     end_time: float
@@ -116,23 +118,6 @@ class ScriptSegment:
     end_time: Optional[float] = None
     audio_path: Optional[str] = None
     cues: List[Cue] = field(default_factory=list)
-
-
-class SegmentMeta(TypedDict, total=False):
-    """Known keys stored on ScriptSegment.meta.
-
-    All keys are optional (total=False) — not every segment populates every key.
-
-    Keys:
-        brief_items:     List of brief items surfaced in a story-scan segment.
-        highlights:      Opening highlight entries.
-        story_title:     Human-readable story title, cached for display.
-        duration_ratio:  actual_duration / estimated_duration, computed post-TTS.
-    """
-    brief_items: List[Dict[str, Any]]
-    highlights: Any
-    story_title: str
-    duration_ratio: float
 
 
 @dataclass

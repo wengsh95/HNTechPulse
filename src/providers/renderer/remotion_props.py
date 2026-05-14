@@ -5,18 +5,20 @@ Converts Python Script dataclass → JSON props consumed by the React/Remotion
 composition.  Handles cue building and element props expansion.
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
-from src.core.models import Script, ScriptSegment
+from src.core.models import Script
 from src.pipeline.comment_selection import (
     clean_comment_text,
     classify_comment_stance,
     select_quote_comments,
 )
-from src.pipeline.comment_judgement import comment_judgement_key, load_comment_judgements
+from src.pipeline.comment_judgement import (
+    comment_judgement_key,
+    load_comment_judgements,
+)
 from src.providers.renderer.cue_builder import build_cues
 from src.utils.logger import setup_logger
 
@@ -51,6 +53,7 @@ def _safe_get_comment(item, idx):
 
 
 # ── Element props expanders ──────────────────────────────────────────
+
 
 def _expand_story_header(props, content):
     item = _safe_get_item(content, props.get("story_index"))
@@ -133,13 +136,19 @@ def _expand_cover_card(props, content):
     result = dict(props)
     highlight_entries = props.get("highlight_entries", [])
     if highlight_entries:
-        result["highlight_entries"] = _expand_highlight_entries(highlight_entries, content)
+        result["highlight_entries"] = _expand_highlight_entries(
+            highlight_entries, content
+        )
     return result
 
 
 def _expand_perspective_compare(props, content):
     def build_side(side):
-        if not isinstance(side, dict) or "story_index" not in side or "comment_index" not in side:
+        if (
+            not isinstance(side, dict)
+            or "story_index" not in side
+            or "comment_index" not in side
+        ):
             return side
         item = _safe_get_item(content, side.get("story_index"))
         if item is None:
@@ -169,8 +178,17 @@ def _expand_event_card(props, content):
     result["story_title"] = item.title
     result["source_title"] = result.get("source_title") or item.title
     result["title_cn"] = item.title_cn or ""
-    result["editor_angle"] = result.get("editor_angle") or item.editor_angle or item.title_cn or item.title
-    result["event_summary"] = result.get("event_summary") or item.dek or item.article_summary or item.summary or item.title_cn or item.title
+    result["editor_angle"] = (
+        result.get("editor_angle") or item.editor_angle or item.title_cn or item.title
+    )
+    result["event_summary"] = (
+        result.get("event_summary")
+        or item.dek
+        or item.article_summary
+        or item.summary
+        or item.title_cn
+        or item.title
+    )
     result["dek"] = result.get("dek") or item.dek or result["event_summary"]
     result["key_points"] = result.get("key_points") or item.key_points or []
     result["why_it_matters"] = result.get("why_it_matters") or ""
@@ -185,12 +203,15 @@ def _expand_event_card(props, content):
     if "visual_hint" not in result or not result["visual_hint"]:
         result["visual_hint"] = item.visual_hint or ""
 
-
     # Image: support manual image_index; fall back to first local image
     image_index = props.get("image_index", 0)
     local_images = [p for p in item.article_images if not _is_remote_url(p)]
     if local_images:
-        idx = max(0, min(image_index, len(local_images) - 1)) if isinstance(image_index, int) else 0
+        idx = (
+            max(0, min(image_index, len(local_images) - 1))
+            if isinstance(image_index, int)
+            else 0
+        )
         result["image_src"] = f"images/{_to_filename(local_images[idx])}"
         result["image_type"] = "article"
     elif item.screenshot_image and not _is_remote_url(item.screenshot_image):
@@ -274,12 +295,14 @@ def _expand_quote_card(props, content):
         stance = classify_comment_stance(c)
         text = clean_comment_text(c.content or "")[:300]
         text_cn = c.content_cn or orig_text_cn.get(text, "")
-        quotes.append({
-            "author": c.author,
-            "text": text,
-            "text_cn": text_cn,
-            "stance": stance,
-        })
+        quotes.append(
+            {
+                "author": c.author,
+                "text": text,
+                "text_cn": text_cn,
+                "stance": stance,
+            }
+        )
     result["quotes"] = quotes
     result["next_watch"] = props.get("next_watch", "")
 
@@ -301,7 +324,9 @@ ELEMENT_EXPANDERS = {
 }
 
 
-def expand_element_props(element_type: str, props: Dict[str, Any], content, logger) -> Dict[str, Any]:
+def expand_element_props(
+    element_type: str, props: Dict[str, Any], content, logger
+) -> Dict[str, Any]:
     """Dispatch to the per-type expander; fall back to raw props on failure or unknown type."""
     if content is None:
         return props
@@ -318,6 +343,7 @@ def expand_element_props(element_type: str, props: Dict[str, Any], content, logg
 
 # ── Props sanitization ───────────────────────────────────────────────
 
+
 def sanitize_props(props: Dict[str, Any]) -> Dict[str, Any]:
     cleaned: Dict[str, Any] = {}
     for k, v in props.items():
@@ -329,8 +355,10 @@ def sanitize_props(props: Dict[str, Any]) -> Dict[str, Any]:
             cleaned[k] = sanitize_props(v)
         elif isinstance(v, list):
             cleaned[k] = [
-                sanitize_props(item) if isinstance(item, dict)
-                else str(item) if not isinstance(item, (str, int, float, bool, type(None)))
+                sanitize_props(item)
+                if isinstance(item, dict)
+                else str(item)
+                if not isinstance(item, (str, int, float, bool, type(None)))
                 else item
                 for item in v
             ]
@@ -351,8 +379,7 @@ def _story_transition_times(script: Script) -> list[float]:
             continue
         base = float(segment.start_time or 0)
         markers = [
-            elem for elem in segment.scene_elements
-            if elem.props.get("is_audio_marker")
+            elem for elem in segment.scene_elements if elem.props.get("is_audio_marker")
         ]
         if markers:
             for marker in markers[1:]:
@@ -370,8 +397,7 @@ def _story_transition_times(script: Script) -> list[float]:
             continue
 
         event_cards = [
-            elem for elem in segment.scene_elements
-            if elem.element_type == "event_card"
+            elem for elem in segment.scene_elements if elem.element_type == "event_card"
         ]
         for event in event_cards[1:]:
             times.append(base + float(event.start_time or 0))
@@ -379,6 +405,7 @@ def _story_transition_times(script: Script) -> list[float]:
 
 
 # ── Main serialization entry point ──────────────────────────────────
+
 
 def script_to_props(
     script: Script,
@@ -427,11 +454,13 @@ def script_to_props(
                 src = Path(sa["audio_path"])
                 if not src.is_absolute():
                     src = audio_path_obj / src
-                seg_dict["subtitle_audios"].append({
-                    "audio_path": f"audio/{src.name}",
-                    "start_time": sa["start_time"],
-                    "end_time": sa["end_time"],
-                })
+                seg_dict["subtitle_audios"].append(
+                    {
+                        "audio_path": f"audio/{src.name}",
+                        "start_time": sa["start_time"],
+                        "end_time": sa["end_time"],
+                    }
+                )
 
         # 2. Expand element props and use times set by orchestrator
         expanded_count = 0
@@ -441,16 +470,20 @@ def script_to_props(
             if elem.end_time <= elem.start_time:
                 continue
 
-            expanded_props = expand_element_props(elem.element_type, elem.props.copy(), content, logger)
+            expanded_props = expand_element_props(
+                elem.element_type, elem.props.copy(), content, logger
+            )
             if expanded_props != elem.props:
                 expanded_count += 1
 
-            seg_dict["scene_elements"].append({
-                "element_type": elem.element_type,
-                "start_time": round(elem.start_time, 3),
-                "end_time": round(elem.end_time, 3),
-                "props": sanitize_props(expanded_props),
-            })
+            seg_dict["scene_elements"].append(
+                {
+                    "element_type": elem.element_type,
+                    "start_time": round(elem.start_time, 3),
+                    "end_time": round(elem.end_time, 3),
+                    "props": sanitize_props(expanded_props),
+                }
+            )
 
         if expanded_count > 0:
             logger.debug(

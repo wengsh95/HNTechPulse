@@ -21,8 +21,12 @@ class EdgeTTSProvider(TTSProvider):
         self.rate = tts_config.get("rate", "+10%")
         self.pitch = tts_config.get("pitch", "+0Hz")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def synthesize(self, text: str, output_path: str, emotion: Optional[str] = None) -> TTSResult:
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
+    def synthesize(
+        self, text: str, output_path: str, emotion: Optional[str] = None
+    ) -> TTSResult:
         self.logger.info(f"Synthesizing audio to {output_path}")
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -31,10 +35,7 @@ class EdgeTTSProvider(TTSProvider):
 
         async def _synthesize():
             communicate = edge_tts.Communicate(
-                text=text,
-                voice=self.voice,
-                rate=self.rate,
-                pitch=self.pitch
+                text=text, voice=self.voice, rate=self.rate, pitch=self.pitch
             )
             with open(output_path, "wb") as f:
                 async for chunk in communicate.stream():
@@ -47,6 +48,7 @@ class EdgeTTSProvider(TTSProvider):
             asyncio.run(_synthesize())
         else:
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 pool.submit(asyncio.run, _synthesize()).result()
 

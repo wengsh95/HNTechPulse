@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -24,7 +23,7 @@ def _make_provider():
 
 class TestSynthesizeDirectoryCreation:
     def test_output_dir_created(self, tmp_path):
-        provider = _make_provider()
+        _make_provider()
         output_path = str(tmp_path / "sub" / "out.mp3")
 
         mock_communicate = MagicMock()
@@ -34,7 +33,9 @@ class TestSynthesizeDirectoryCreation:
         mock_edge_tts.Communicate.return_value = mock_communicate
 
         with patch.dict("sys.modules", {"edge_tts": mock_edge_tts}):
-            with patch("src.providers.tts.edge_tts.get_audio_duration", return_value=1.0):
+            with patch(
+                "src.providers.tts.edge_tts.get_audio_duration", return_value=1.0
+            ):
                 with patch("src.providers.tts.edge_tts.asyncio") as mock_asyncio:
                     mock_asyncio.run = MagicMock()
                     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -81,10 +82,11 @@ class TestSynthesize:
         mock_edge_tts.Communicate.return_value = mock_communicate
 
         with patch.dict("sys.modules", {"edge_tts": mock_edge_tts}):
-            with patch("src.providers.tts.edge_tts.get_audio_duration", return_value=1.0):
+            with patch(
+                "src.providers.tts.edge_tts.get_audio_duration", return_value=1.0
+            ):
                 with patch("src.providers.tts.edge_tts.asyncio") as mock_asyncio:
                     # Simulate asyncio.run executing the coroutine
-                    original_run = asyncio_run = mock_asyncio.run
 
                     def run_side_effect(coro):
                         # The coro is _synthesize() which creates Communicate internally

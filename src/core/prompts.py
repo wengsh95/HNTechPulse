@@ -22,11 +22,20 @@ PH_TITLE = "title"
 PH_ARTICLE_TEXT = "article_text"
 PH_STORY_INDEX = "story_index"
 
-_KNOWN_PLACEHOLDERS = frozenset({
-    PH_PERSONA, PH_DATE, PH_STORY_JSON, PH_ANALYSES_JSON, PH_SELECTION_JSON,
-    PH_COMMENTS_JSON, PH_ITEMS_JSON, PH_TITLE, PH_ARTICLE_TEXT,
-    PH_STORY_INDEX,
-})
+_KNOWN_PLACEHOLDERS = frozenset(
+    {
+        PH_PERSONA,
+        PH_DATE,
+        PH_STORY_JSON,
+        PH_ANALYSES_JSON,
+        PH_SELECTION_JSON,
+        PH_COMMENTS_JSON,
+        PH_ITEMS_JSON,
+        PH_TITLE,
+        PH_ARTICLE_TEXT,
+        PH_STORY_INDEX,
+    }
+)
 
 
 def render_prompt(template: str, **values: str) -> str:

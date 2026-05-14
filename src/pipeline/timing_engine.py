@@ -3,9 +3,13 @@ from src.utils.logger import setup_logger
 
 
 class TimingEngine:
-
-    def __init__(self, segment_gap: float = 0.0, story_gap: float = 0.0,
-                 debug: bool = False, level=None):
+    def __init__(
+        self,
+        segment_gap: float = 0.0,
+        story_gap: float = 0.0,
+        debug: bool = False,
+        level=None,
+    ):
         self.segment_gap = segment_gap
         self.story_gap = story_gap
         self.logger = setup_logger(__name__, debug=debug, level=level)
@@ -17,7 +21,11 @@ class TimingEngine:
                 seg.actual_duration = seg.estimated_duration
 
             if i > 0:
-                gap = self.story_gap if seg.segment_type == "story_scan" else self.segment_gap
+                gap = (
+                    self.story_gap
+                    if seg.segment_type == "story_scan"
+                    else self.segment_gap
+                )
                 current_time += gap
 
             seg.start_time = current_time
@@ -35,8 +43,7 @@ class TimingEngine:
         for seg in script.segments:
             if seg.segment_type == "story_scan":
                 elem_durations = [
-                    elem.props.get("audio_duration")
-                    for elem in seg.scene_elements
+                    elem.props.get("audio_duration") for elem in seg.scene_elements
                 ]
                 if any(d is not None for d in elem_durations):
                     current = 0.0
@@ -89,10 +96,17 @@ class TimingEngine:
         short_segments = []
 
         for idx, seg in enumerate(script.segments):
-            if seg.actual_duration and seg.estimated_duration and seg.estimated_duration > 0:
+            if (
+                seg.actual_duration
+                and seg.estimated_duration
+                and seg.estimated_duration > 0
+            ):
                 ratio = seg.actual_duration / seg.estimated_duration
                 seg.meta["duration_ratio"] = round(ratio, 2)
-                if ratio < RATIO_THRESHOLD and seg.segment_type not in ("opening", "closing"):
+                if ratio < RATIO_THRESHOLD and seg.segment_type not in (
+                    "opening",
+                    "closing",
+                ):
                     self.logger.info(
                         f"  Duration check: segment {idx} [{seg.segment_type}] "
                         f"actual={seg.actual_duration:.1f}s vs estimated={seg.estimated_duration:.1f}s "

@@ -1,11 +1,12 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from src.core.models import (
-    ContentItem, ContentPackage,
-    Script, ScriptSegment,
+    ContentItem,
+    ContentPackage,
+    Script,
+    ScriptSegment,
 )
 from src.pipeline.report_generator import ReportGenerator
 
@@ -33,8 +34,18 @@ def _make_content_package(items=None):
 def _make_script(segments=None):
     if segments is None:
         segments = [
-            ScriptSegment(segment_type="opening", audio_text="Hello", estimated_duration=10.0, actual_duration=9.0),
-            ScriptSegment(segment_type="closing", audio_text="Bye", estimated_duration=8.0, actual_duration=7.0),
+            ScriptSegment(
+                segment_type="opening",
+                audio_text="Hello",
+                estimated_duration=10.0,
+                actual_duration=9.0,
+            ),
+            ScriptSegment(
+                segment_type="closing",
+                audio_text="Bye",
+                estimated_duration=8.0,
+                actual_duration=7.0,
+            ),
         ]
     return Script(title="Test", description="", tags=[], segments=segments)
 

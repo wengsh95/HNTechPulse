@@ -1,5 +1,4 @@
 import base64
-import os
 import subprocess
 import wave
 from pathlib import Path
@@ -17,6 +16,7 @@ from src.utils.logger import setup_logger
 
 try:
     from src.providers.renderer.binary_finder import find_ffmpeg as _find_ffmpeg
+
     _FFMPEG = _find_ffmpeg() or "ffmpeg"
 except Exception:
     _FFMPEG = "ffmpeg"
@@ -64,17 +64,27 @@ class MimoTTSProvider(TTSProvider):
             self.top_p = float(self.top_p)
         self.seed = tts_config.get("seed")
 
-        api_key = tts_config.get("api_key") or get_env("MIMO_API_KEY") or get_env("OPENAI_API_KEY")
+        api_key = (
+            tts_config.get("api_key")
+            or get_env("MIMO_API_KEY")
+            or get_env("OPENAI_API_KEY")
+        )
         if not api_key:
-            raise ValueError("MIMO TTS requires MIMO_API_KEY or OPENAI_API_KEY in environment or tts.api_key config")
+            raise ValueError(
+                "MIMO TTS requires MIMO_API_KEY or OPENAI_API_KEY in environment or tts.api_key config"
+            )
         self.client = OpenAI(
             api_key=api_key,
             base_url=self.base_url,
             timeout=httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=10.0),
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def synthesize(self, text: str, output_path: str, emotion: Optional[str] = None) -> TTSResult:
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
+    def synthesize(
+        self, text: str, output_path: str, emotion: Optional[str] = None
+    ) -> TTSResult:
         self.logger.info(f"Synthesizing audio to {output_path} (voice={self.voice})")
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +143,17 @@ class MimoTTSProvider(TTSProvider):
             wf.writeframes(np_pcm.tobytes())
 
         subprocess.run(
-            [_FFMPEG, "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-qscale:a", "2", output_path],
+            [
+                _FFMPEG,
+                "-y",
+                "-i",
+                wav_path,
+                "-codec:a",
+                "libmp3lame",
+                "-qscale:a",
+                "2",
+                output_path,
+            ],
             capture_output=True,
             check=True,
         )

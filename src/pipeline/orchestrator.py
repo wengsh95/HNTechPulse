@@ -26,7 +26,7 @@ class Orchestrator:
         renderer: Renderer,
         article_enricher=None,
         debug: bool = False,
-        dry_run: bool = False
+        dry_run: bool = False,
     ):
         self.config = config
         self.content_fetcher = content_fetcher
@@ -40,12 +40,20 @@ class Orchestrator:
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
         self.content_preparer = ContentPreparer(config, debug=debug)
-        self.script_writer = ScriptWriter(config, llm_provider, self.content_preparer, debug=debug)
-        self.tts_processor = TTSProcessor(tts_provider, config, debug=debug, level=log_level)
-        self.translation_manager = TranslationManager(llm_provider, self.content_preparer, config, debug=debug, level=log_level)
+        self.script_writer = ScriptWriter(
+            config, llm_provider, self.content_preparer, debug=debug
+        )
+        self.tts_processor = TTSProcessor(
+            tts_provider, config, debug=debug, level=log_level
+        )
+        self.translation_manager = TranslationManager(
+            llm_provider, self.content_preparer, config, debug=debug, level=log_level
+        )
         self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
-        self.comment_judge = CommentJudge(llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug)
+        self.comment_judge = CommentJudge(
+            llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug
+        )
         timing_cfg = config.get("timing", {})
         self._timing = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
@@ -53,12 +61,24 @@ class Orchestrator:
             debug=debug,
         )
 
-    def run(self, date: str, steps: Optional[List[str]] = None, force: bool = False) -> None:
+    def run(
+        self, date: str, steps: Optional[List[str]] = None, force: bool = False
+    ) -> None:
         if steps is None:
-            steps = ["fetch", "enrich", "analyze", "script", "translate", "tts", "render"]
+            steps = [
+                "fetch",
+                "enrich",
+                "analyze",
+                "script",
+                "translate",
+                "tts",
+                "render",
+            ]
 
         t_start = time.monotonic()
-        self.logger.info(f"Running pipeline, date={date}, steps={steps}, product=daily_brief")
+        self.logger.info(
+            f"Running pipeline, date={date}, steps={steps}, product=daily_brief"
+        )
 
         content = None
         script = None
@@ -117,17 +137,12 @@ class Orchestrator:
 
         self.logger.info("Pipeline completed")
 
-    def _compute_timeline(self, script: Script) -> Script:
-        return self._timing.compute_timeline(script)
-
-    def _set_scene_element_times(self, script: Script) -> None:
-        self._timing.set_scene_element_times(script)
-
     def _step_fetch(self, date: str):
         self.logger.info("Step: Fetch content")
         if self.dry_run:
             self.logger.info("Dry run: skipping fetch")
-            from src.core.models import ContentPackage, ContentItem
+            from src.core.models import ContentPackage
+
             return ContentPackage(date=date, items=[])
 
         pipeline_cfg = self.config.get("pipeline", {})
@@ -156,7 +171,8 @@ class Orchestrator:
 
         # Gate: check for items that need manual HTML download
         failed_items = [
-            item for item in content.items
+            item
+            for item in content.items
             if item.enrichment_source in ("fetch_failed", "extraction_failed")
         ]
         if failed_items:
@@ -227,9 +243,9 @@ class Orchestrator:
                         segment_type="opening",
                         audio_text="测试音频",
                         estimated_duration=10.0,
-                        emotion="energetic"
+                        emotion="energetic",
                     )
-                ]
+                ],
             )
 
         script = self.script_writer.write(content)
@@ -250,7 +266,7 @@ class Orchestrator:
         self.script_writer.save_script(script, date)
         return script
 
-    def _step_preview(self, script: Script, date: str, content = None) -> None:
+    def _step_preview(self, script: Script, date: str, content=None) -> None:
         self.logger.info("Step: Preview (Remotion Studio)")
         if self.dry_run:
             self.logger.info("Dry run: skipping preview")
@@ -260,13 +276,17 @@ class Orchestrator:
             try:
                 content = self.content_preparer.load_content(date)
             except FileNotFoundError:
-                self.logger.info("Content not found for preview, scene elements may be incomplete")
+                self.logger.info(
+                    "Content not found for preview, scene elements may be incomplete"
+                )
 
         self._merge_enrichment_images(content, date)
 
         audio_dir = f"data/{date}/audio"
         self.logger.info("Opening Remotion Studio at http://localhost:3000")
-        self.logger.info("Check the preview, then press Ctrl+C to stop and proceed to render.")
+        self.logger.info(
+            "Check the preview, then press Ctrl+C to stop and proceed to render."
+        )
         self.renderer.preview(script, audio_dir, content, date=date)
 
     def _merge_enrichment_images(self, content: ContentPackage, date: str) -> None:
@@ -293,7 +313,9 @@ class Orchestrator:
                 if img not in existing:
                     item.article_images.append(img)
 
-    def _step_render(self, script: Script, date: str, content = None, force: bool = False) -> None:
+    def _step_render(
+        self, script: Script, date: str, content=None, force: bool = False
+    ) -> None:
         self.logger.info("Step: Render video")
         if self.dry_run:
             self.logger.info("Dry run: skipping render")
@@ -303,7 +325,9 @@ class Orchestrator:
             try:
                 content = self.content_preparer.load_content(date)
             except FileNotFoundError:
-                self.logger.info("Content not found for render, scene elements may be incomplete")
+                self.logger.info(
+                    "Content not found for render, scene elements may be incomplete"
+                )
 
         self._merge_enrichment_images(content, date)
 
@@ -320,6 +344,7 @@ class Orchestrator:
         chunk_dir = remotion_dir / "out" / "chunks"
         if chunk_dir.exists():
             import shutil
+
             shutil.rmtree(chunk_dir)
             self.logger.info(f"Cleared all chunk caches: {chunk_dir}")
 

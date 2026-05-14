@@ -1,5 +1,10 @@
 import pytest
-from src.providers.factory import create_fetcher, create_llm_provider, create_tts_provider, create_renderer
+from src.providers.factory import (
+    create_fetcher,
+    create_llm_provider,
+    create_tts_provider,
+    create_renderer,
+)
 
 
 class TestProviderFactory:
@@ -7,6 +12,7 @@ class TestProviderFactory:
         config = {"logging": {"level": "WARNING"}, "hn": {}}
         fetcher = create_fetcher("hn", config, debug=True)
         from src.providers.fetcher.hn_fetcher import HNFetcher
+
         assert isinstance(fetcher, HNFetcher)
 
     def test_create_fetcher_unknown_raises(self):
@@ -20,6 +26,7 @@ class TestProviderFactory:
             "llm": {"model": "test"},
         }
         import os
+
         key = os.environ.pop("OPENAI_API_KEY", None)
         try:
             with pytest.raises(ValueError, match="OPENAI_API_KEY"):
@@ -40,6 +47,7 @@ class TestProviderFactory:
         }
         provider = create_tts_provider("edge-tts", config, debug=True)
         from src.providers.tts.edge_tts import EdgeTTSProvider
+
         assert isinstance(provider, EdgeTTSProvider)
 
     def test_create_tts_provider_unknown_raises(self):
@@ -56,6 +64,7 @@ class TestProviderFactory:
         try:
             renderer = create_renderer("remotion", config)
             from src.providers.renderer.remotion_renderer import RemotionRenderer
+
             assert isinstance(renderer, RemotionRenderer)
         except (RuntimeError, FileNotFoundError):
             pass

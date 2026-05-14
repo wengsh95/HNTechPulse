@@ -1,7 +1,7 @@
 import json
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.core.models import ScriptSegment, SceneElement
 
@@ -13,7 +13,9 @@ class LLMCache:
         self.logger = logger
         self.cache_schema_version = cache_schema_version
 
-    def get_segment_cache_path(self, date: str, segment_type: str, story_index: int) -> Path:
+    def get_segment_cache_path(
+        self, date: str, segment_type: str, story_index: int
+    ) -> Path:
         cache_dir = Path(f"data/{date}/segments")
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{segment_type}_{story_index}.json"
@@ -42,7 +44,7 @@ class LLMCache:
                     element_type=e["element_type"],
                     start_time=e.get("start_time", 0.0),
                     end_time=e.get("end_time", 0.0),
-                    props=e["props"]
+                    props=e["props"],
                 )
                 for e in seg_dict.get("scene_elements", [])
             ]
@@ -79,11 +81,11 @@ class LLMCache:
                     "element_type": e.element_type,
                     "start_time": e.start_time,
                     "end_time": e.end_time,
-                    "props": e.props
+                    "props": e.props,
                 }
                 for e in segment.scene_elements
             ],
-            "meta": segment.meta
+            "meta": segment.meta,
         }
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(seg_dict, f, ensure_ascii=False, indent=2)

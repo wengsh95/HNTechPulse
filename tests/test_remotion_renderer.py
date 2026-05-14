@@ -1,13 +1,16 @@
-import json
 import math
 import sys
-import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from src.core.models import Script, ScriptSegment, SceneElement
 from src.providers.renderer.remotion_renderer import RemotionRenderer
-from src.providers.renderer.binary_finder import find_node, find_npm, find_npx, find_chrome
+from src.providers.renderer.binary_finder import (
+    find_node,
+    find_npm,
+    find_npx,
+    find_chrome,
+)
 from src.providers.renderer.chunk_planner import compute_segment_chunks
 
 
@@ -44,14 +47,20 @@ def _make_renderer():
 
 # ── find_node ────────────────────────────────────────────────────────
 
+
 class TestFindNode:
     def test_found_in_path(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/node"):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which",
+            return_value="/usr/bin/node",
+        ):
             result = find_node()
             assert result == "/usr/bin/node"
 
     def test_not_found(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which", return_value=None
+        ):
             with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 mp = MagicMock()
                 mp.exists.return_value = False
@@ -64,14 +73,20 @@ class TestFindNode:
 
 # ── find_npm ─────────────────────────────────────────────────────────
 
+
 class TestFindNpm:
     def test_found_in_path(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/npm"):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which",
+            return_value="/usr/bin/npm",
+        ):
             result = find_npm()
             assert result == "/usr/bin/npm"
 
     def test_found_next_to_node(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which", return_value=None
+        ):
             with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 node_dir = MagicMock()
                 npm_candidate = MagicMock()
@@ -82,35 +97,49 @@ class TestFindNpm:
                 assert isinstance(result, str)  # found npm.cmd or npm next to node
 
     def test_not_found(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which", return_value=None
+        ):
             result = find_npm(node_path=None)
             assert result is None
 
 
 # ── find_npx ─────────────────────────────────────────────────────────
 
+
 class TestFindNpx:
     def test_found_in_path(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value="/usr/bin/npx"):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which",
+            return_value="/usr/bin/npx",
+        ):
             result = find_npx()
             assert result == "/usr/bin/npx"
 
     def test_not_found_no_node(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which", return_value=None
+        ):
             result = find_npx(node_path=None)
             assert result is None
 
 
 # ── find_chrome ──────────────────────────────────────────────────────
 
+
 class TestFindChrome:
     def test_found_via_which(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", side_effect=lambda x: "/usr/bin/chromium" if x == "chromium" else None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which",
+            side_effect=lambda x: "/usr/bin/chromium" if x == "chromium" else None,
+        ):
             result = find_chrome()
             assert result == "/usr/bin/chromium"
 
     def test_not_found(self):
-        with patch("src.providers.renderer.binary_finder.shutil.which", return_value=None):
+        with patch(
+            "src.providers.renderer.binary_finder.shutil.which", return_value=None
+        ):
             with patch("src.providers.renderer.binary_finder.Path") as MockPath:
                 mp = MagicMock()
                 mp.exists.return_value = False
@@ -121,6 +150,7 @@ class TestFindChrome:
 
 
 # ── _build_env ────────────────────────────────────────────────────────
+
 
 class TestBuildEnv:
     def test_node_path_prepended(self):
@@ -149,20 +179,29 @@ class TestBuildEnv:
 
 # ── _write_props_file ─────────────────────────────────────────────────
 
+
 class TestWritePropsFile:
     def test_with_date(self, tmp_path):
         renderer = _make_renderer()
         with patch.object(Path, "mkdir"):
             with patch.object(Path, "write_text"):
-                with patch.object(Path, "resolve", return_value=Path("/data/2024-01-15/cli_props.json")):
-                    result = renderer._write_props_file('{"key": "val"}', date="2024-01-15")
+                with patch.object(
+                    Path,
+                    "resolve",
+                    return_value=Path("/data/2024-01-15/cli_props.json"),
+                ):
+                    result = renderer._write_props_file(
+                        '{"key": "val"}', date="2024-01-15"
+                    )
                     assert "cli_props.json" in result
 
     def test_without_date(self, tmp_path):
         renderer = _make_renderer()
         with patch.object(Path, "mkdir"):
             with patch.object(Path, "write_text"):
-                with patch.object(Path, "resolve", return_value=Path("/data/cli_props.json")):
+                with patch.object(
+                    Path, "resolve", return_value=Path("/data/cli_props.json")
+                ):
                     result = renderer._write_props_file('{"key": "val"}')
                     assert "cli_props.json" in result
 
@@ -187,15 +226,31 @@ class TestPreview:
             ],
         )
 
-        with patch.object(renderer, "_prepare_render_data", return_value=(Path("public/props.json"), '{"ok": true}')):
+        with patch.object(
+            renderer,
+            "_prepare_render_data",
+            return_value=(Path("public/props.json"), '{"ok": true}'),
+        ):
             with patch.object(renderer, "_ensure_dependencies_installed"):
-                with patch.object(renderer, "_write_props_file", return_value="data/2024-01-15/cli_props.json") as write_props:
-                    with patch.object(renderer, "_get_remotion_cli_path", return_value="remotion-cli.js"):
+                with patch.object(
+                    renderer,
+                    "_write_props_file",
+                    return_value="data/2024-01-15/cli_props.json",
+                ) as write_props:
+                    with patch.object(
+                        renderer,
+                        "_get_remotion_cli_path",
+                        return_value="remotion-cli.js",
+                    ):
                         with patch.object(renderer, "_build_env", return_value={}):
-                            with patch("src.providers.renderer.remotion_renderer.subprocess.run") as run:
+                            with patch(
+                                "src.providers.renderer.remotion_renderer.subprocess.run"
+                            ) as run:
                                 run.return_value.returncode = 0
 
-                                renderer.preview(script, "data/2024-01-15/audio", date="2024-01-15")
+                                renderer.preview(
+                                    script, "data/2024-01-15/audio", date="2024-01-15"
+                                )
 
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
 
@@ -223,6 +278,7 @@ class TestChunkCacheDir:
 
 # ── compute_segment_chunks ────────────────────────────────────────────
 
+
 class TestComputeSegmentChunks:
     def test_basic_segments(self):
         script = Script(
@@ -231,10 +287,22 @@ class TestComputeSegmentChunks:
             tags=[],
             total_duration=12.0,
             segments=[
-                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
-                              actual_duration=4.0, start_time=0.0, end_time=4.0),
-                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=8.0,
-                              actual_duration=8.0, start_time=4.0, end_time=12.0),
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="",
+                    estimated_duration=4.0,
+                    actual_duration=4.0,
+                    start_time=0.0,
+                    end_time=4.0,
+                ),
+                ScriptSegment(
+                    segment_type="closing",
+                    audio_text="",
+                    estimated_duration=8.0,
+                    actual_duration=8.0,
+                    start_time=4.0,
+                    end_time=12.0,
+                ),
             ],
         )
         chunks = compute_segment_chunks(script, fps=24, total_frames=288)
@@ -254,19 +322,50 @@ class TestComputeSegmentChunks:
             tags=[],
             total_duration=30.0,
             segments=[
-                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
-                              actual_duration=4.0, start_time=0.0, end_time=4.0),
                 ScriptSegment(
-                    segment_type="story_scan", audio_text="", estimated_duration=20.0,
-                    actual_duration=20.0, start_time=4.0, end_time=24.0,
+                    segment_type="opening",
+                    audio_text="",
+                    estimated_duration=4.0,
+                    actual_duration=4.0,
+                    start_time=0.0,
+                    end_time=4.0,
+                ),
+                ScriptSegment(
+                    segment_type="story_scan",
+                    audio_text="",
+                    estimated_duration=20.0,
+                    actual_duration=20.0,
+                    start_time=4.0,
+                    end_time=24.0,
                     scene_elements=[
-                        SceneElement(element_type="event_card", props={}, start_time=0.0, end_time=7.0),
-                        SceneElement(element_type="event_card", props={}, start_time=7.0, end_time=14.0),
-                        SceneElement(element_type="event_card", props={}, start_time=14.0, end_time=20.0),
+                        SceneElement(
+                            element_type="event_card",
+                            props={},
+                            start_time=0.0,
+                            end_time=7.0,
+                        ),
+                        SceneElement(
+                            element_type="event_card",
+                            props={},
+                            start_time=7.0,
+                            end_time=14.0,
+                        ),
+                        SceneElement(
+                            element_type="event_card",
+                            props={},
+                            start_time=14.0,
+                            end_time=20.0,
+                        ),
                     ],
                 ),
-                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=6.0,
-                              actual_duration=6.0, start_time=24.0, end_time=30.0),
+                ScriptSegment(
+                    segment_type="closing",
+                    audio_text="",
+                    estimated_duration=6.0,
+                    actual_duration=6.0,
+                    start_time=24.0,
+                    end_time=30.0,
+                ),
             ],
         )
         chunks = compute_segment_chunks(script, fps=24, total_frames=720)
@@ -286,12 +385,30 @@ class TestComputeSegmentChunks:
             tags=[],
             total_duration=24.0,
             segments=[
-                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.0,
-                              actual_duration=4.0, start_time=0.0, end_time=4.0),
-                ScriptSegment(segment_type="story_scan", audio_text="", estimated_duration=16.0,
-                              actual_duration=16.0, start_time=4.0, end_time=20.0),
-                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=4.0,
-                              actual_duration=4.0, start_time=20.0, end_time=24.0),
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="",
+                    estimated_duration=4.0,
+                    actual_duration=4.0,
+                    start_time=0.0,
+                    end_time=4.0,
+                ),
+                ScriptSegment(
+                    segment_type="story_scan",
+                    audio_text="",
+                    estimated_duration=16.0,
+                    actual_duration=16.0,
+                    start_time=4.0,
+                    end_time=20.0,
+                ),
+                ScriptSegment(
+                    segment_type="closing",
+                    audio_text="",
+                    estimated_duration=4.0,
+                    actual_duration=4.0,
+                    start_time=20.0,
+                    end_time=24.0,
+                ),
             ],
         )
         chunks = compute_segment_chunks(script, fps=24, total_frames=576)
@@ -305,10 +422,22 @@ class TestComputeSegmentChunks:
             tags=[],
             total_duration=10.5,
             segments=[
-                ScriptSegment(segment_type="opening", audio_text="", estimated_duration=4.5,
-                              actual_duration=4.5, start_time=0.0, end_time=4.5),
-                ScriptSegment(segment_type="closing", audio_text="", estimated_duration=6.0,
-                              actual_duration=6.0, start_time=4.5, end_time=10.5),
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="",
+                    estimated_duration=4.5,
+                    actual_duration=4.5,
+                    start_time=0.0,
+                    end_time=4.5,
+                ),
+                ScriptSegment(
+                    segment_type="closing",
+                    audio_text="",
+                    estimated_duration=6.0,
+                    actual_duration=6.0,
+                    start_time=4.5,
+                    end_time=10.5,
+                ),
             ],
         )
         total_frames = math.ceil(10.5 * 24)

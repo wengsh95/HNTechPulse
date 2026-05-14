@@ -2,12 +2,14 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.core.interfaces import LLMProvider
 from src.core.models import (
-    ContentComment, ContentItem, ContentPackage,
-    Script, ScriptSegment, SceneElement,
+    ContentComment,
+    ContentItem,
+    ContentPackage,
+    Script,
+    ScriptSegment,
 )
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.translation_manager import TranslationManager
@@ -22,7 +24,12 @@ def _make_config():
 
 
 def _make_comment(content="Test comment with enough length", **kwargs):
-    defaults = {"author": "user", "content": content, "source_id": "c1", "quality_score": 0.5}
+    defaults = {
+        "author": "user",
+        "content": content,
+        "source_id": "c1",
+        "quality_score": 0.5,
+    }
     defaults.update(kwargs)
     return ContentComment(**defaults)
 
@@ -88,7 +95,9 @@ class TestTranslate:
         manager.content_preparer.save_content(content, "2026-04-26")
 
         with patch.object(manager, "collect_comment_refs", return_value={}):
-            result_content, result_script = manager.translate(content, script, "2026-04-26")
+            result_content, result_script = manager.translate(
+                content, script, "2026-04-26"
+            )
 
         assert result_content.items[0].title_cn == "测试标题"
         mock_llm.translate_titles.assert_not_called()

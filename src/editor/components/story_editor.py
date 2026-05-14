@@ -20,7 +20,9 @@ def render_story_editor(state: EditorState, story: dict):
     quote_card = story.get("quote_card") or {}
 
     title = state.get_story_title(source_id)
-    st.subheader(f"#{story_index + 1} {title}" if title else f"Story #{story_index + 1}")
+    st.subheader(
+        f"#{story_index + 1} {title}" if title else f"Story #{story_index + 1}"
+    )
 
     tab_event, tab_atmo, tab_quote = st.tabs(["事件", "氛围", "原声"])
 
@@ -37,7 +39,9 @@ def render_story_editor(state: EditorState, story: dict):
 STANCE_LABELS = ["支持", "质疑", "中立", "调侃", "担忧"]
 
 
-def _render_event_tab(state: EditorState, source_id: str, event_card: dict, story_index: int):
+def _render_event_tab(
+    state: EditorState, source_id: str, event_card: dict, story_index: int
+):
     """Edit event summary, keywords, and image."""
     props = event_card.get("props", {}) if event_card else {}
 
@@ -51,7 +55,7 @@ def _render_event_tab(state: EditorState, source_id: str, event_card: dict, stor
         value=props.get("event_summary", ""),
         height=120,
         key=f"summary_{story_index}",
-        help="LLM 生成的摘要，可修改"
+        help="LLM 生成的摘要，可修改",
     )
     if event_summary != props.get("event_summary", ""):
         props["event_summary"] = event_summary
@@ -64,14 +68,16 @@ def _render_event_tab(state: EditorState, source_id: str, event_card: dict, stor
         "关键词",
         value=", ".join(keywords) if keywords else "",
         key=f"keywords_{story_index}",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
     new_keywords = [k.strip() for k in kw_text.split(",") if k.strip()]
     if new_keywords != keywords:
         props["keywords"] = new_keywords
 
 
-def _render_image_picker(state: EditorState, source_id: str, props: dict, story_index: int):
+def _render_image_picker(
+    state: EditorState, source_id: str, props: dict, story_index: int
+):
     """Image grid + upload for event_card."""
     candidates = state.get_image_candidates(source_id)
     current_index = props.get("image_index", 0)
@@ -99,7 +105,7 @@ def _render_image_picker(state: EditorState, source_id: str, props: dict, story_
                     if img_path.exists():
                         st.image(str(img_path), use_container_width=True)
                     else:
-                        st.caption(f"[缺失]")
+                        st.caption("[缺失]")
                     st.caption(f"{c.get('source', '')} · #{idx}")
                     if idx == current_index:
                         st.success("✓ 当前")
@@ -111,17 +117,19 @@ def _render_image_picker(state: EditorState, source_id: str, props: dict, story_
     st.divider()
     upload_key = f"upload_{story_index}"
     uploaded = st.file_uploader(
-        "上传新图片", type=["png", "jpg", "jpeg", "webp"],
-        key=upload_key
+        "上传新图片", type=["png", "jpg", "jpeg", "webp"], key=upload_key
     )
     if uploaded is not None:
         process_key = f"_processed_{upload_key}"
         if st.session_state.get(process_key) != uploaded.name:
             st.session_state[process_key] = uploaded.name
-            ext = uploaded.name.split(".")[-1].lower() if "." in uploaded.name else "jpg"
+            ext = (
+                uploaded.name.split(".")[-1].lower() if "." in uploaded.name else "jpg"
+            )
             if ext not in {"png", "jpg", "jpeg", "webp"}:
                 ext = "jpg"
             import tempfile
+
             tmp_path = None
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
@@ -152,8 +160,11 @@ def _render_atmosphere_tab(atmosphere_card: dict, story_index: int):
         val = stance_dist.get(label, 0.0)
         new_val = st.slider(
             label,
-            min_value=0.0, max_value=1.0, value=float(val), step=0.05,
-            key=f"stance_{story_index}_{label}"
+            min_value=0.0,
+            max_value=1.0,
+            value=float(val),
+            step=0.05,
+            key=f"stance_{story_index}_{label}",
         )
         new_stance[label] = round(new_val, 2)
 
@@ -171,14 +182,22 @@ def _render_quote_tab(quote_card: dict, story_index: int):
         return
 
     for qi, q in enumerate(quotes):
-        with st.expander(f"{q.get('stance', '?')} — {q.get('text', '')[:60]}", expanded=(qi == 0)):
+        with st.expander(
+            f"{q.get('stance', '?')} — {q.get('text', '')[:60]}", expanded=(qi == 0)
+        ):
             st.caption(f"立场: {q.get('stance', '?')}")
             st.caption(f"质量分: {q.get('quality_score', '?')}")
             st.text_area(
-                "原文", value=q.get("text", ""), height=68,
-                key=f"qtext_{story_index}_{qi}", disabled=True
+                "原文",
+                value=q.get("text", ""),
+                height=68,
+                key=f"qtext_{story_index}_{qi}",
+                disabled=True,
             )
             st.text_area(
-                "中文翻译", value=q.get("text_cn", ""), height=68,
-                key=f"qtextcn_{story_index}_{qi}", disabled=True
+                "中文翻译",
+                value=q.get("text_cn", ""),
+                height=68,
+                key=f"qtextcn_{story_index}_{qi}",
+                disabled=True,
             )

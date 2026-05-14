@@ -1,10 +1,13 @@
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.core.models import (
-    ContentItem, ContentComment, ContentPackage,
-    Script, ScriptSegment, SceneElement, Cue,
+    ContentItem,
+    ContentComment,
+    ContentPackage,
+    Script,
+    ScriptSegment,
+    SceneElement,
     SelectionResult,
 )
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
@@ -30,19 +33,20 @@ def _make_content_package():
     items = []
     for i in range(9):
         comments = [
-            ContentComment(author=f"user_{j}", content=f"comment {j}")
-            for j in range(3)
+            ContentComment(author=f"user_{j}", content=f"comment {j}") for j in range(3)
         ]
-        items.append(ContentItem(
-            source="hackernews",
-            source_id=str(100 + i),
-            title=f"Story {i}",
-            url=f"https://example.com/{i}",
-            score=100 - i * 10,
-            comment_count=3,
-            published_at=1700000000 + i * 100,
-            comments=comments,
-        ))
+        items.append(
+            ContentItem(
+                source="hackernews",
+                source_id=str(100 + i),
+                title=f"Story {i}",
+                url=f"https://example.com/{i}",
+                score=100 - i * 10,
+                comment_count=3,
+                published_at=1700000000 + i * 100,
+                comments=comments,
+            )
+        )
     return ContentPackage(
         date="2026-04-26",
         items=items,
@@ -87,13 +91,6 @@ def _make_script():
 
 
 class TestContentPreparer:
-    def test_prepare_returns_content_unchanged(self):
-        config = _make_config()
-        preparer = ContentPreparer(config, debug=True)
-        content = _make_content_package()
-        result = preparer.prepare(content)
-        assert result is content
-
     def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
         """Save a ContentPackage, load it back, verify all fields match."""
         monkeypatch.chdir(tmp_path)
@@ -140,10 +137,14 @@ class TestScriptWriter:
 
         script = writer.write(content)
 
-        assert mock_llm.generate_single_story_segment.call_count == 6  # num_brief_items default
+        assert (
+            mock_llm.generate_single_story_segment.call_count == 6
+        )  # num_brief_items default
         assert len(script.segments) >= 2  # at least opening + closing
 
-    def test_write_passes_comment_judgement_to_story_generation(self, tmp_path, monkeypatch):
+    def test_write_passes_comment_judgement_to_story_generation(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         config = _make_config()
         mock_llm = MagicMock()
@@ -186,7 +187,10 @@ class TestScriptWriter:
         writer.write(content)
 
         first_call = mock_llm.generate_single_story_segment.call_args_list[0]
-        assert first_call.kwargs["comments_data"]["quote_candidates"][0]["comment_id"] == "c1"
+        assert (
+            first_call.kwargs["comments_data"]["quote_candidates"][0]["comment_id"]
+            == "c1"
+        )
 
 
 class TestOrchestrator:
@@ -255,10 +259,12 @@ class TestOrchestrator:
             tags=[],
             segments=[
                 ScriptSegment(segment_type="a", audio_text="x", estimated_duration=5.0),
-                ScriptSegment(segment_type="b", audio_text="y", estimated_duration=10.0),
+                ScriptSegment(
+                    segment_type="b", audio_text="y", estimated_duration=10.0
+                ),
             ],
         )
-        result = orch._compute_timeline(script)
+        result = orch._timing.compute_timeline(script)
         assert result.segments[0].start_time == 0.0
         assert result.segments[0].end_time == 5.0
         assert result.segments[1].start_time == 5.0
@@ -269,10 +275,12 @@ class TestOrchestrator:
 class TestLLMProviderInterface:
     def test_selection_result_importable_from_core(self):
         from src.core.models import SelectionResult
+
         assert SelectionResult is not None
 
     def test_llm_provider_interface_references_core_types(self):
         import inspect
+
         sig = inspect.signature(LLMProvider.generate_single_story_segment)
         assert "content" in sig.parameters
         assert "story_index" in sig.parameters
@@ -310,18 +318,32 @@ class TestSubtitleVisualAlignment:
                     audio_text="Hello",
                     estimated_duration=7.0,
                     actual_duration=6.5,
-                    scene_elements=[SceneElement(element_type="cover_card", start_time=0, end_time=0, props={})],
+                    scene_elements=[
+                        SceneElement(
+                            element_type="cover_card",
+                            start_time=0,
+                            end_time=0,
+                            props={},
+                        )
+                    ],
                 ),
                 ScriptSegment(
                     segment_type="closing",
                     audio_text="Bye",
                     estimated_duration=8.0,
                     actual_duration=7.2,
-                    scene_elements=[SceneElement(element_type="closing_card", start_time=0, end_time=0, props={})],
+                    scene_elements=[
+                        SceneElement(
+                            element_type="closing_card",
+                            start_time=0,
+                            end_time=0,
+                            props={},
+                        )
+                    ],
                 ),
             ],
         )
-        orch._set_scene_element_times(script)
+        orch._timing.set_scene_element_times(script)
         for seg in script.segments:
             duration = seg.actual_duration
             for elem in seg.scene_elements:
@@ -342,14 +364,19 @@ class TestSubtitleVisualAlignment:
                     estimated_duration=40.0,
                     actual_duration=50.0,
                     scene_elements=[
-                        SceneElement(element_type="story_scan_card", start_time=0, end_time=0, props={"story_index": i})
+                        SceneElement(
+                            element_type="story_scan_card",
+                            start_time=0,
+                            end_time=0,
+                            props={"story_index": i},
+                        )
                         for i in range(3)
                     ],
                     meta={"sub_segment_estimated_durations": [10.0, 20.0, 10.0]},
                 ),
             ],
         )
-        orch._set_scene_element_times(script)
+        orch._timing.set_scene_element_times(script)
         seg = script.segments[0]
         assert seg.scene_elements[0].start_time == 0.0
         assert seg.scene_elements[0].end_time == pytest.approx(12.5)
@@ -372,14 +399,24 @@ class TestSubtitleVisualAlignment:
                     estimated_duration=20.0,
                     actual_duration=18.0,
                     scene_elements=[
-                        SceneElement(element_type="story_scan_card", start_time=0, end_time=0, props={}),
-                        SceneElement(element_type="story_scan_card", start_time=0, end_time=0, props={}),
+                        SceneElement(
+                            element_type="story_scan_card",
+                            start_time=0,
+                            end_time=0,
+                            props={},
+                        ),
+                        SceneElement(
+                            element_type="story_scan_card",
+                            start_time=0,
+                            end_time=0,
+                            props={},
+                        ),
                     ],
                     meta={"sub_segment_estimated_durations": [10.0, 10.0]},
                 ),
             ],
         )
-        orch._set_scene_element_times(script)
+        orch._timing.set_scene_element_times(script)
         seg = script.segments[0]
         for elem in seg.scene_elements:
             assert 0.0 <= elem.start_time <= seg.actual_duration
@@ -400,14 +437,19 @@ class TestSubtitleVisualAlignment:
                     estimated_duration=30.0,
                     actual_duration=28.0,
                     scene_elements=[
-                        SceneElement(element_type="story_scan_card", start_time=0, end_time=0, props={})
+                        SceneElement(
+                            element_type="story_scan_card",
+                            start_time=0,
+                            end_time=0,
+                            props={},
+                        )
                         for _ in range(3)
                     ],
                     meta={"sub_segment_estimated_durations": [8.0, 15.0, 7.0]},
                 ),
             ],
         )
-        orch._set_scene_element_times(script)
+        orch._timing.set_scene_element_times(script)
         seg = script.segments[0]
         prev_end = 0.0
         for elem in seg.scene_elements:

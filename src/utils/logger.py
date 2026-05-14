@@ -7,6 +7,7 @@ from typing import Optional, Union
 
 class FlushStreamHandler(logging.StreamHandler):
     """强制 flush 的控制台 Handler，解决 PowerShell 输出缓冲问题"""
+
     def emit(self, record):
         super().emit(record)
         self.flush()
@@ -21,20 +22,24 @@ class LogFormatter(logging.Formatter):
 
     def format(self, record):
         # 确保 message 是字符串
-        record.message = record.getMessage() if hasattr(record, 'getMessage') else str(record.msg)
+        record.message = (
+            record.getMessage() if hasattr(record, "getMessage") else str(record.msg)
+        )
 
         # 格式化时间
         record.asctime = self.formatTime(record, self.datefmt)
 
         # 组装最终输出 - 简洁格式：时间 [级别] 名称: 消息
-        return f"{record.asctime} [{record.levelname:>8}] {record.name}: {record.message}"
+        return (
+            f"{record.asctime} [{record.levelname:>8}] {record.name}: {record.message}"
+        )
 
 
 def setup_logger(
     name: str = "hn_techpulse",
     log_file: Optional[str] = None,
     debug: bool = False,
-    level: Optional[Union[str, int]] = None
+    level: Optional[Union[str, int]] = None,
 ) -> logging.Logger:
     """
     配置并获取 logger 实例。
@@ -59,11 +64,11 @@ def setup_logger(
         level = logging.DEBUG if debug else logging.INFO
     elif isinstance(level, str):
         level_map = {
-            'DEBUG': logging.DEBUG,
-            'INFO': logging.INFO,
-            'WARNING': logging.WARNING,
-            'ERROR': logging.ERROR,
-            'CRITICAL': logging.CRITICAL
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL,
         }
         level = level_map.get(level.upper(), logging.INFO)
 

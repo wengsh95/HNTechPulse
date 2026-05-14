@@ -1,5 +1,3 @@
-import json
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -7,7 +5,7 @@ import pytest
 from src.core.interfaces import LLMProvider
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment_judge import CommentJudge
-from src.pipeline.comment_judgement import comment_judgement_key, heuristic_story_judgement
+from src.pipeline.comment_judgement import comment_judgement_key
 
 
 def _make_config(**overrides):
@@ -24,8 +22,15 @@ def _make_config(**overrides):
     return cfg
 
 
-def _make_comment(content="This is a test comment with enough length to score well", **kwargs):
-    defaults = {"author": "user", "content": content, "source_id": "c1", "quality_score": 0.5}
+def _make_comment(
+    content="This is a test comment with enough length to score well", **kwargs
+):
+    defaults = {
+        "author": "user",
+        "content": content,
+        "source_id": "c1",
+        "quality_score": 0.5,
+    }
     defaults.update(kwargs)
     return ContentComment(**defaults)
 
@@ -81,7 +86,9 @@ class TestJudge:
         mock_llm = MagicMock(spec=LLMProvider)
         mock_llm.judge_story_comments.return_value = {
             "selected_comment_ids": ["c1"],
-            "quote_candidates": [{"comment_id": "c1", "quote_score": 0.9, "has_viewpoint": True}],
+            "quote_candidates": [
+                {"comment_id": "c1", "quote_score": 0.9, "has_viewpoint": True}
+            ],
             "rejected": [],
             "debate_focus": [],
             "stance_distribution": {},
@@ -106,7 +113,9 @@ class TestJudge:
         mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
 
         with patch("src.pipeline.comment_judge.setup_logger"):
-            judge = CommentJudge(mock_llm, _make_config(comment_judge_fallback_on_error=True))
+            judge = CommentJudge(
+                mock_llm, _make_config(comment_judge_fallback_on_error=True)
+            )
         result = judge.judge(content, "2026-04-26")
 
         key = comment_judgement_key(item)
@@ -123,9 +132,12 @@ class TestJudge:
         mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
 
         with patch("src.pipeline.comment_judge.setup_logger"):
-            judge = CommentJudge(mock_llm, _make_config(
-                comment_judge_fallback_on_error=False,
-                comment_judge_enabled=True,
-            ))
+            judge = CommentJudge(
+                mock_llm,
+                _make_config(
+                    comment_judge_fallback_on_error=False,
+                    comment_judge_enabled=True,
+                ),
+            )
         with pytest.raises(RuntimeError):
             judge.judge(content, "2026-04-26")

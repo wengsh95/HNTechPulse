@@ -1,11 +1,11 @@
 import asyncio
-import pytest
 import json
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from src.core.models import ContentItem, ContentPackage
-from src.providers.enricher.article_enricher import _make_headers, _find_chrome, ArticleEnricher
+from src.providers.enricher.page_fetcher import _make_headers
+from src.providers.enricher.article_enricher import _find_chrome, ArticleEnricher
 
 
 def _make_config(**overrides):
@@ -35,13 +35,15 @@ def _make_enricher(**config_overrides):
 
 # ── _make_headers ─────────────────────────────────────────────────────
 
+
 class TestMakeHeaders:
     def test_returns_dict(self):
         h = _make_headers()
         assert isinstance(h, dict)
 
     def test_user_agent_from_pool(self):
-        from src.providers.enricher.article_enricher import _USER_AGENTS
+        from src.providers.enricher.page_fetcher import _USER_AGENTS
+
         h = _make_headers()
         assert h["User-Agent"] in _USER_AGENTS
 
@@ -52,17 +54,29 @@ class TestMakeHeaders:
 
 # ── _find_chrome ──────────────────────────────────────────────────────
 
+
 class TestFindChrome:
     def test_fallback_which(self):
-        with patch("src.providers.enricher.page_fetcher.shutil.which", return_value="/usr/bin/chromium"):
-            with patch("src.providers.enricher.page_fetcher.platform.system", return_value="Linux"):
+        with patch(
+            "src.providers.enricher.page_fetcher.shutil.which",
+            return_value="/usr/bin/chromium",
+        ):
+            with patch(
+                "src.providers.enricher.page_fetcher.platform.system",
+                return_value="Linux",
+            ):
                 result = _find_chrome()
                 # _find_chrome checks candidate paths first, then falls back to which
                 assert result is not None
 
     def test_none_found(self):
-        with patch("src.providers.enricher.page_fetcher.shutil.which", return_value=None):
-            with patch("src.providers.enricher.page_fetcher.platform.system", return_value="Linux"):
+        with patch(
+            "src.providers.enricher.page_fetcher.shutil.which", return_value=None
+        ):
+            with patch(
+                "src.providers.enricher.page_fetcher.platform.system",
+                return_value="Linux",
+            ):
                 with patch("src.providers.enricher.page_fetcher.Path") as MockPath:
                     # Make all Path.exists() return False
                     mp = MagicMock()
@@ -75,10 +89,13 @@ class TestFindChrome:
 
 # ── _extract_text ─────────────────────────────────────────────────────
 
+
 class TestExtractText:
     def test_valid_html_returns_text(self):
         enricher = _make_enricher()
-        with patch.object(enricher.image_handler, "extract_text", return_value="A" * 200):
+        with patch.object(
+            enricher.image_handler, "extract_text", return_value="A" * 200
+        ):
             result = enricher._extract_text("<html></html>", "https://example.com")
             assert result is not None
             assert len(result) > 0
@@ -98,12 +115,15 @@ class TestExtractText:
     def test_truncation(self):
         enricher = _make_enricher(max_text_length=500)
         long_text = "A" * 1000
-        with patch.object(enricher.image_handler, "extract_text", return_value=long_text[:500]):
+        with patch.object(
+            enricher.image_handler, "extract_text", return_value=long_text[:500]
+        ):
             result = enricher._extract_text("<html></html>", "https://example.com")
             assert len(result) == 500
 
 
 # ── _extract_images ───────────────────────────────────────────────────
+
 
 class TestExtractImages:
     def test_og_image(self):
@@ -127,10 +147,10 @@ class TestExtractImages:
     def test_max_images_limit(self):
         enricher = _make_enricher(max_images=1)
         html = (
-            '<html><head>'
+            "<html><head>"
             '<meta property="og:image" content="https://x.com/a.jpg">'
             '<meta name="twitter:image" content="https://x.com/b.jpg">'
-            '</head><body></body></html>'
+            "</head><body></body></html>"
         )
         result = enricher.image_handler.extract_images(html, "https://x.com")
         assert len(result) <= 1
@@ -138,9 +158,9 @@ class TestExtractImages:
     def test_srcset_uses_largest_image(self):
         enricher = _make_enricher()
         html = (
-            '<html><body><article>'
+            "<html><body><article>"
             '<img srcset="/small.jpg 320w, /large.jpg 1280w">'
-            '</article></body></html>'
+            "</article></body></html>"
         )
         result = enricher.image_handler.extract_images(html, "https://x.com/post")
         assert "https://x.com/large.jpg" in result
@@ -148,10 +168,10 @@ class TestExtractImages:
     def test_lazy_and_poster_images(self):
         enricher = _make_enricher(max_images=3)
         html = (
-            '<html><body><main>'
+            "<html><body><main>"
             '<img data-lazy-src="/lazy.jpg">'
             '<video poster="/poster.jpg"></video>'
-            '</main></body></html>'
+            "</main></body></html>"
         )
         result = enricher.image_handler.extract_images(html, "https://x.com/post")
         assert "https://x.com/lazy.jpg" in result
@@ -159,12 +179,16 @@ class TestExtractImages:
 
     def test_exception_returns_empty(self):
         enricher = _make_enricher()
-        with patch("src.providers.enricher.image_handler.BeautifulSoup", side_effect=Exception("boom")):
+        with patch(
+            "src.providers.enricher.image_handler.BeautifulSoup",
+            side_effect=Exception("boom"),
+        ):
             result = enricher.image_handler.extract_images("html", "https://x.com")
             assert result == []
 
 
 # ── Skip domains ──────────────────────────────────────────────────────
+
 
 class TestSkipDomains:
     def test_exact_match(self):
@@ -172,8 +196,9 @@ class TestSkipDomains:
         assert "twitter.com" in enricher.skip_domains
 
     def test_subdomain_match(self):
-        enricher = _make_enricher(skip_domains=["twitter.com"])
+        _make_enricher(skip_domains=["twitter.com"])
         from urllib.parse import urlparse
+
         host = urlparse("https://mobile.twitter.com/something").hostname
         assert host.endswith(".twitter.com")
 
@@ -182,8 +207,9 @@ class TestSkipDomains:
         assert "twitter.com" in enricher.skip_domains
 
     def test_no_match(self):
-        enricher = _make_enricher(skip_domains=["twitter.com"])
+        _make_enricher(skip_domains=["twitter.com"])
         from urllib.parse import urlparse
+
         host = urlparse("https://github.com/something").hostname
         assert not (host == "twitter.com" or host.endswith(".twitter.com"))
 
@@ -194,20 +220,35 @@ class TestImageSelection:
         candidates = [
             {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
             {"path": "images/good.jpg", "source": "page", "width": 900, "height": 500},
-            {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
+            {
+                "path": "images/shot.jpg",
+                "source": "screenshot",
+                "width": 1280,
+                "height": 720,
+            },
             {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
         ]
 
         selected = enricher.image_handler.choose_auto_image_candidate(candidates)
 
         assert selected["path"] == "images/good.jpg"
-        assert enricher.image_handler.candidate_paths(candidates, preferred_path=selected["path"])[0] == "images/good.jpg"
+        assert (
+            enricher.image_handler.candidate_paths(
+                candidates, preferred_path=selected["path"]
+            )[0]
+            == "images/good.jpg"
+        )
 
     def test_auto_select_uses_screenshot_before_bing_when_page_is_too_small(self):
         enricher = _make_enricher()
         candidates = [
             {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
-            {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
+            {
+                "path": "images/shot.jpg",
+                "source": "screenshot",
+                "width": 1280,
+                "height": 720,
+            },
             {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
         ]
 
@@ -226,7 +267,9 @@ class TestImageSelection:
 
         assert selected["path"] == "images/bing.jpg"
 
-    def test_merge_preserves_selected_image_and_adds_new_candidates(self, tmp_path, monkeypatch):
+    def test_merge_preserves_selected_image_and_adds_new_candidates(
+        self, tmp_path, monkeypatch
+    ):
         enricher = _make_enricher()
         monkeypatch.chdir(tmp_path)
         date = "2026-05-11"
@@ -234,17 +277,21 @@ class TestImageSelection:
         sel_dir.mkdir(parents=True)
         sel_path = sel_dir / "image_selection.json"
         sel_path.write_text(
-            json.dumps({
-                "date": date,
-                "items": {
-                    "42": {
-                        "title": "Old",
-                        "url": "https://x.com/old",
-                        "candidates": [{"path": "images/old.jpg", "source": "page"}],
-                        "selected_image": "images/old.jpg",
-                    }
-                },
-            }),
+            json.dumps(
+                {
+                    "date": date,
+                    "items": {
+                        "42": {
+                            "title": "Old",
+                            "url": "https://x.com/old",
+                            "candidates": [
+                                {"path": "images/old.jpg", "source": "page"}
+                            ],
+                            "selected_image": "images/old.jpg",
+                        }
+                    },
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -255,15 +302,24 @@ class TestImageSelection:
             url="https://x.com/new",
             image_candidates=[
                 {"path": "images/old.jpg", "source": "page"},
-                {"path": "images/new.jpg", "source": "bing", "origin_url": "https://img/new.jpg"},
+                {
+                    "path": "images/new.jpg",
+                    "source": "bing",
+                    "origin_url": "https://img/new.jpg",
+                },
             ],
         )
-        enricher._generate_image_selection(ContentPackage(date=date, items=[item]), date)
+        enricher._generate_image_selection(
+            ContentPackage(date=date, items=[item]), date
+        )
 
         merged = json.loads(sel_path.read_text(encoding="utf-8"))
         entry = merged["items"]["42"]
         assert entry["selected_image"] == "images/old.jpg"
-        assert [c["path"] for c in entry["candidates"]] == ["images/old.jpg", "images/new.jpg"]
+        assert [c["path"] for c in entry["candidates"]] == [
+            "images/old.jpg",
+            "images/new.jpg",
+        ]
 
     def test_generate_selection_uses_auto_selected_default(self, tmp_path, monkeypatch):
         enricher = _make_enricher()
@@ -275,15 +331,34 @@ class TestImageSelection:
             title="Story",
             url="https://x.com/story",
             image_candidates=[
-                {"path": "images/small.jpg", "source": "page", "width": 320, "height": 180},
-                {"path": "images/shot.jpg", "source": "screenshot", "width": 1280, "height": 720},
-                {"path": "images/bing.jpg", "source": "bing", "width": 900, "height": 500},
+                {
+                    "path": "images/small.jpg",
+                    "source": "page",
+                    "width": 320,
+                    "height": 180,
+                },
+                {
+                    "path": "images/shot.jpg",
+                    "source": "screenshot",
+                    "width": 1280,
+                    "height": 720,
+                },
+                {
+                    "path": "images/bing.jpg",
+                    "source": "bing",
+                    "width": 900,
+                    "height": 500,
+                },
             ],
         )
 
-        enricher._generate_image_selection(ContentPackage(date=date, items=[item]), date)
+        enricher._generate_image_selection(
+            ContentPackage(date=date, items=[item]), date
+        )
 
-        data = json.loads((Path("data") / date / "image_selection.json").read_text(encoding="utf-8"))
+        data = json.loads(
+            (Path("data") / date / "image_selection.json").read_text(encoding="utf-8")
+        )
         entry = data["items"]["42"]
         assert entry["selected_image"] == "images/shot.jpg"
         selected = [c for c in entry["candidates"] if c.get("auto_selected")]
@@ -297,7 +372,10 @@ class TestImageSelection:
         image_dir = Path("data") / date / "images"
         pages_dir.mkdir(parents=True)
         image_dir.mkdir(parents=True)
-        (pages_dir / "42.html").write_text("<html><body><p>article</p><img src='/new.jpg'></body></html>", encoding="utf-8")
+        (pages_dir / "42.html").write_text(
+            "<html><body><p>article</p><img src='/new.jpg'></body></html>",
+            encoding="utf-8",
+        )
         (image_dir / "42_0.jpg").write_bytes(b"cached")
         (image_dir / "42_screenshot.jpg").write_bytes(b"shot")
 
@@ -330,8 +408,12 @@ class TestImageSelection:
             raise AssertionError("cached screenshots should skip recapture")
 
         enricher._extract_text = MagicMock(return_value="A" * 300)
-        enricher.image_handler.extract_images = MagicMock(return_value=["https://x.com/new.jpg"])
-        enricher._enrich_content = MagicMock(return_value={"article_summary": "summary"})
+        enricher.image_handler.extract_images = MagicMock(
+            return_value=["https://x.com/new.jpg"]
+        )
+        enricher._enrich_content = MagicMock(
+            return_value={"article_summary": "summary"}
+        )
         enricher.image_handler.download_image_candidates = fail_download
         enricher.image_handler.search_bing_images = fail_bing
         enricher.fetcher.capture_screenshot = fail_screenshot

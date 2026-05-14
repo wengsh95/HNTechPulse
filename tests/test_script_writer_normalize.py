@@ -1,7 +1,3 @@
-﻿from unittest.mock import MagicMock
-
-import pytest
-
 from src.core.models import ContentComment, ContentItem, ScriptSegment, SceneElement
 from src.pipeline.script_writer import ScriptWriter
 
@@ -167,16 +163,17 @@ class TestNormalizeAtmosphereCard:
 
 class TestAudioOnlyScriptHelpers:
     def test_highlight_audio_text_lists_topics_without_visual_navigation(self):
-        text = ScriptWriter._highlight_audio_text([
-            {"title_translation": "Bambu Lab open source contract"},
-            {"title_translation": "TanStack NPM supply chain"},
-            {"title_translation": "AI coding shifts language choice"},
-        ])
+        text = ScriptWriter._highlight_audio_text(
+            [
+                {"title_translation": "Bambu Lab open source contract"},
+                {"title_translation": "TanStack NPM supply chain"},
+                {"title_translation": "AI coding shifts language choice"},
+            ]
+        )
 
         assert "progress" not in text.lower()
         assert "Bambu Lab" in text
         assert "TanStack" in text
-
 
     def test_cache_refreshes_story_scan_with_legacy_audio_markers(self):
         segment = ScriptSegment(
@@ -190,7 +187,12 @@ class TestAudioOnlyScriptHelpers:
                     end_time=1,
                     props={"story_index": 0, "is_audio_marker": True},
                 ),
-                SceneElement(element_type="event_card", start_time=1, end_time=8, props={"story_index": 0}),
+                SceneElement(
+                    element_type="event_card",
+                    start_time=1,
+                    end_time=8,
+                    props={"story_index": 0},
+                ),
             ],
         )
 

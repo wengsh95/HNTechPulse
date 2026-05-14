@@ -1,25 +1,15 @@
 import json
-import pytest
 from dataclasses import asdict
 from src.core.models import (
-    ContentComment, ContentItem, ContentPackage,
-    SceneElement, Cue, ScriptSegment, Script,
-    StoryAnalysis, SelectionResult,
+    ContentComment,
+    ContentItem,
+    ContentPackage,
+    SceneElement,
+    Cue,
+    ScriptSegment,
+    Script,
+    SelectionResult,
 )
-
-
-class TestStoryAnalysis:
-    def test_creation(self):
-        sa = StoryAnalysis(
-            story_index=0,
-            raw_json='{"test": true}',
-        )
-        assert sa.story_index == 0
-        assert sa.raw_json == '{"test": true}'
-
-    def test_defaults(self):
-        sa = StoryAnalysis(story_index=1)
-        assert sa.raw_json == ""
 
 
 class TestSelectionResult:

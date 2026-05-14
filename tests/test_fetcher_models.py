@@ -1,4 +1,3 @@
-import pytest
 from src.providers.fetcher.models import HNStory, HNComment
 
 
@@ -44,5 +43,6 @@ class TestFetcherModels:
 
     def test_hn_story_importable_from_fetcher(self):
         from src.providers.fetcher.models import HNStory, HNComment
+
         assert HNStory is not None
         assert HNComment is not None

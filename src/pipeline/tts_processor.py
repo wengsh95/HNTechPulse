@@ -11,7 +11,9 @@ from src.utils.logger import setup_logger
 
 
 class TTSProcessor:
-    def __init__(self, tts_provider: TTSProvider, config: dict, debug: bool = False, level=None):
+    def __init__(
+        self, tts_provider: TTSProvider, config: dict, debug: bool = False, level=None
+    ):
         self.tts_provider = tts_provider
         self.config = config
         timing_cfg = config.get("timing", {})
@@ -20,7 +22,8 @@ class TTSProcessor:
         self.timing_engine = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
             story_gap=self.story_gap,
-            debug=debug, level=level,
+            debug=debug,
+            level=level,
         )
         self.logger = setup_logger(__name__, debug=debug, level=level)
         tts_config = config.get("tts", {})
@@ -49,8 +52,12 @@ class TTSProcessor:
     def _collect_tasks(self, script: Script, audio_dir: Path) -> list[dict]:
         tasks = []
         for seg_idx, segment in enumerate(script.segments):
-            if segment.segment_type == "story_scan" and self._has_per_card_audio(segment):
-                tasks.extend(self._collect_story_scan_tasks(segment, seg_idx, audio_dir))
+            if segment.segment_type == "story_scan" and self._has_per_card_audio(
+                segment
+            ):
+                tasks.extend(
+                    self._collect_story_scan_tasks(segment, seg_idx, audio_dir)
+                )
             else:
                 task = self._collect_segment_task(segment, seg_idx, audio_dir)
                 if task is not None:
@@ -59,11 +66,11 @@ class TTSProcessor:
 
     @staticmethod
     def _has_per_card_audio(segment: ScriptSegment) -> bool:
-        return any(
-            elem.props.get("subtitle_texts") for elem in segment.scene_elements
-        )
+        return any(elem.props.get("subtitle_texts") for elem in segment.scene_elements)
 
-    def _collect_story_scan_tasks(self, segment: ScriptSegment, seg_idx: int, audio_dir: Path) -> list[dict]:
+    def _collect_story_scan_tasks(
+        self, segment: ScriptSegment, seg_idx: int, audio_dir: Path
+    ) -> list[dict]:
         tasks = []
         for elem_idx, elem in enumerate(segment.scene_elements):
             subtitle_texts = elem.props.get("subtitle_texts", []) or []
@@ -71,18 +78,25 @@ class TTSProcessor:
                 sub_text = (sub_text or "").strip()
                 if not sub_text:
                     continue
-                audio_path = str(audio_dir / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}_sub_{sub_idx:02d}.mp3")
-                tasks.append(self._prepare_task(
-                    text=sub_text,
-                    audio_path=audio_path,
-                    emotion=segment.emotion,
-                    seg_idx=seg_idx,
-                    elem_idx=elem_idx,
-                    sub_idx=sub_idx,
-                ))
+                audio_path = str(
+                    audio_dir
+                    / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}_sub_{sub_idx:02d}.mp3"
+                )
+                tasks.append(
+                    self._prepare_task(
+                        text=sub_text,
+                        audio_path=audio_path,
+                        emotion=segment.emotion,
+                        seg_idx=seg_idx,
+                        elem_idx=elem_idx,
+                        sub_idx=sub_idx,
+                    )
+                )
         return tasks
 
-    def _collect_segment_task(self, segment: ScriptSegment, idx: int, audio_dir: Path) -> dict | None:
+    def _collect_segment_task(
+        self, segment: ScriptSegment, idx: int, audio_dir: Path
+    ) -> dict | None:
         if not (segment.audio_text or "").strip():
             audio_path = str(audio_dir / f"segment_{idx:02d}.mp3")
             Path(audio_path).unlink(missing_ok=True)
@@ -100,7 +114,9 @@ class TTSProcessor:
             sub_idx=None,
         )
 
-    def _prepare_task(self, *, text, audio_path, emotion, seg_idx, elem_idx, sub_idx) -> dict:
+    def _prepare_task(
+        self, *, text, audio_path, emotion, seg_idx, elem_idx, sub_idx
+    ) -> dict:
         text_hash = self._text_hash(text)
         cache_valid = self._is_cache_valid(audio_path, text_hash)
         task = {
@@ -158,12 +174,17 @@ class TTSProcessor:
             self.logger.info("All TTS tasks cached, nothing to synthesize.")
             return
 
-        self.logger.info(f"Synthesizing {len(pending)} TTS tasks (workers={self.max_workers})...")
+        self.logger.info(
+            f"Synthesizing {len(pending)} TTS tasks (workers={self.max_workers})..."
+        )
         completed = 0
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {
                 executor.submit(
-                    self.tts_provider.synthesize, t["text"], t["audio_path"], t.get("emotion")
+                    self.tts_provider.synthesize,
+                    t["text"],
+                    t["audio_path"],
+                    t.get("emotion"),
                 ): t
                 for t in pending
             }
@@ -173,7 +194,9 @@ class TTSProcessor:
                     task["result"] = future.result()
                     self._write_manifest(task)
                 except Exception as e:
-                    self.logger.error(f"TTS synthesis failed for task [{task['seg_idx']}]: {e}")
+                    self.logger.error(
+                        f"TTS synthesis failed for task [{task['seg_idx']}]: {e}"
+                    )
                     raise
                 completed += 1
                 if completed % 5 == 0 or completed == len(pending):
@@ -181,17 +204,24 @@ class TTSProcessor:
 
     # ── Phase 3: assemble results back into script ──
 
-    def _assemble_results(self, script: Script, tasks: list[dict], audio_dir: Path) -> None:
+    def _assemble_results(
+        self, script: Script, tasks: list[dict], audio_dir: Path
+    ) -> None:
         from itertools import groupby
+
         tasks.sort(key=lambda t: t["seg_idx"])
-        tasks_by_seg = {k: list(g) for k, g in groupby(tasks, key=lambda t: t["seg_idx"])}
+        tasks_by_seg = {
+            k: list(g) for k, g in groupby(tasks, key=lambda t: t["seg_idx"])
+        }
 
         for seg_idx, segment in enumerate(script.segments):
             seg_tasks = tasks_by_seg.get(seg_idx, [])
             if not seg_tasks:
                 continue
 
-            if segment.segment_type == "story_scan" and self._has_per_card_audio(segment):
+            if segment.segment_type == "story_scan" and self._has_per_card_audio(
+                segment
+            ):
                 self._assemble_story_scan(segment, seg_tasks)
             else:
                 self._assemble_simple_segment(segment, seg_tasks[0])
@@ -201,15 +231,22 @@ class TTSProcessor:
         all_cues = []
 
         from itertools import groupby
+
         tasks.sort(key=lambda t: t["elem_idx"])
-        tasks_by_elem = {k: list(g) for k, g in groupby(tasks, key=lambda t: t["elem_idx"])}
+        tasks_by_elem = {
+            k: list(g) for k, g in groupby(tasks, key=lambda t: t["elem_idx"])
+        }
 
         valid_tasks = [t for t in tasks if t["result"] is not None]
         total_subs = len(valid_tasks)
         sub_idx = 0
 
         for elem_idx, elem in enumerate(segment.scene_elements):
-            if elem_idx > 0 and self.story_gap > 0 and elem.props.get("is_audio_marker"):
+            if (
+                elem_idx > 0
+                and self.story_gap > 0
+                and elem.props.get("is_audio_marker")
+            ):
                 total_duration += self.story_gap
                 elem.props["pre_gap_duration"] = self.story_gap
 
@@ -219,12 +256,14 @@ class TTSProcessor:
                 result = task["result"]
                 if result is None:
                     continue
-                all_cues.append({
-                    "text": task["text"],
-                    "start_time": total_duration,
-                    "end_time": total_duration + result.duration,
-                    "audio_path": task["audio_path"],
-                })
+                all_cues.append(
+                    {
+                        "text": task["text"],
+                        "start_time": total_duration,
+                        "end_time": total_duration + result.duration,
+                        "audio_path": task["audio_path"],
+                    }
+                )
                 total_duration += result.duration
                 elem_duration += result.duration
                 sub_idx += 1

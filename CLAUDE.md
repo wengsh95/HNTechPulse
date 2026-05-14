@@ -18,6 +18,27 @@ uv run python -m pytest -v                         # Verbose
 uv run python -m pytest tests/test_article_enricher.py tests/test_remotion_renderer.py
 ```
 
+Code quality gate:
+
+```bash
+uv run python scripts/quality_check.py              # run all checks
+uv run python scripts/quality_check.py --fix         # auto-fix where possible
+uv run python scripts/quality_check.py --skip mypy,pip-audit  # skip specific checks
+```
+
+Individual tools:
+
+```bash
+uv run ruff check src/ tests/                       # lint
+uv run ruff format src/ tests/                      # format
+uv run vulture src/ --min-confidence 80             # dead code
+uv run mypy src/ --ignore-missing-imports           # type check
+uv run python -m coverage run -m pytest tests/ -q   # coverage
+uv run python -m coverage report                    # coverage report
+uv run pip-audit                                    # dependency audit
+uv run pre-commit run --all-files                   # pre-commit hooks
+```
+
 Script editor:
 
 ```bash
@@ -132,6 +153,8 @@ Known next priorities are tracked in [ROADMAP.md](ROADMAP.md):
 - **Image Selection**: Prefer strong article/page candidates and screenshots before weaker search images; enforce configured minimum dimensions where possible.
 - **Remotion Props**: Renderer writes/uses public props for Studio preview. Keep package scripts aligned with composition id `HNTechPulseComposition`.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). Use `render_prompt()` — typos raise `ValueError`.
+- **Dead Code Scan**: Use `vulture` (dead functions/classes/attributes) and `ruff --select F` (unused imports, unused variables, undefined names). Vulture false positives: provider classes auto-registered via factory (`Orchestrator`, `HNFetcher`, `RemotionRenderer`, `EdgeTTSProvider`, `MimoTTSProvider`), Streamlit `session_state` attributes (`dirty`, `active_segment`). Vulture 60% findings need manual review — some are real dead code, some are dynamic dispatch or test-only usage.
+- **Quality Gate Script**: [scripts/quality_check.py](scripts/quality_check.py) runs ruff, ruff-format, vulture, mypy, pytest, coverage, pip-audit, pre-commit in one pass. Use `--fix` to auto-fix, `--skip` to skip slow checks. Pre-commit hooks (ruff + vulture) installed via `.pre-commit-config.yaml`.
 
 ---
 

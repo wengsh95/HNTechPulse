@@ -34,7 +34,12 @@ class TestInit:
             with patch.dict("os.environ", {}, clear=False):
                 # Remove relevant env vars
                 import os
-                env = {k: v for k, v in os.environ.items() if k not in ("MIMO_API_KEY", "OPENAI_API_KEY")}
+
+                env = {
+                    k: v
+                    for k, v in os.environ.items()
+                    if k not in ("MIMO_API_KEY", "OPENAI_API_KEY")
+                }
                 with patch.dict("os.environ", env, clear=True):
                     with pytest.raises(ValueError, match="MIMO_API_KEY"):
                         MimoTTSProvider({"logging": {"level": "WARNING"}, "tts": {}})
@@ -43,7 +48,7 @@ class TestInit:
         with patch("src.providers.tts.mimo_tts.setup_logger"):
             with patch("src.providers.tts.mimo_tts.OpenAI") as mock_openai:
                 with patch.dict("os.environ", {"MIMO_API_KEY": "env-key"}, clear=False):
-                    provider = MimoTTSProvider({"logging": {"level": "WARNING"}, "tts": {}})
+                    MimoTTSProvider({"logging": {"level": "WARNING"}, "tts": {}})
         mock_openai.assert_called_once()
         call_kwargs = mock_openai.call_args
         assert call_kwargs[1]["api_key"] == "env-key"
@@ -53,10 +58,11 @@ class TestSynthesize:
     def test_builds_emotion_hint(self):
         with patch("src.providers.tts.mimo_tts.setup_logger"):
             with patch("src.providers.tts.mimo_tts.OpenAI"):
-                provider = MimoTTSProvider(_make_config())
+                MimoTTSProvider(_make_config())
 
         # Verify emotion map keys
         from src.providers.tts.mimo_tts import _EMOTION_MAP
+
         assert "warm" in _EMOTION_MAP
         assert "upbeat" in _EMOTION_MAP
         assert "neutral" in _EMOTION_MAP
@@ -68,6 +74,7 @@ class TestSynthesize:
 
         # Mock the client call chain with proper audio chunk
         import base64
+
         audio_data = base64.b64encode(b"\x00\x00" * 100).decode()
 
         mock_delta = MagicMock()
@@ -91,13 +98,19 @@ class TestSynthesize:
             with patch("src.providers.tts.mimo_tts.subprocess") as mock_subprocess:
                 mock_subprocess.run = MagicMock()
                 with patch("src.providers.tts.mimo_tts.wave") as mock_wave:
-                    mock_wave.open.return_value.__enter__ = MagicMock(return_value=mock_wav)
+                    mock_wave.open.return_value.__enter__ = MagicMock(
+                        return_value=mock_wav
+                    )
                     mock_wave.open.return_value.__exit__ = MagicMock(return_value=False)
                     with patch("src.providers.tts.mimo_tts.np") as mock_np:
                         mock_np.frombuffer.return_value = MagicMock()
-                        mock_np.frombuffer.return_value.tobytes.return_value = b"\x00" * 200
+                        mock_np.frombuffer.return_value.tobytes.return_value = (
+                            b"\x00" * 200
+                        )
                         with patch.object(Path, "unlink"):
-                            result = provider.synthesize("test text", output_path, emotion="upbeat")
+                            provider.synthesize(
+                                "test text", output_path, emotion="upbeat"
+                            )
 
         # Verify the messages include emotion hint
         call_kwargs = provider.client.chat.completions.create.call_args[1]

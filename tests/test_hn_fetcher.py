@@ -1,10 +1,8 @@
-import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from src.providers.fetcher.hn_fetcher import HNFetcher
 from src.providers.fetcher.models import HNStory, HNComment
-from src.core.models import ContentItem, ContentComment, ContentPackage
 
 
 def _make_config(**overrides):
@@ -22,8 +20,24 @@ def _make_config(**overrides):
     return cfg
 
 
-def _make_story(story_id=1, title="Test", score=100, descendants=50, ts=1700000000, url="https://example.com"):
-    return HNStory(id=story_id, title=title, url=url, score=score, descendants=descendants, time=ts, text=None, by="user")
+def _make_story(
+    story_id=1,
+    title="Test",
+    score=100,
+    descendants=50,
+    ts=1700000000,
+    url="https://example.com",
+):
+    return HNStory(
+        id=story_id,
+        title=title,
+        url=url,
+        score=score,
+        descendants=descendants,
+        time=ts,
+        text=None,
+        by="user",
+    )
 
 
 def _make_comment(cid=1, author="user", text="comment text", ts=1700000000):
@@ -36,6 +50,7 @@ def _make_fetcher(**config_overrides):
 
 
 # ── Timeout parsing ───────────────────────────────────────────────────
+
 
 class TestTimeoutParsing:
     def test_list_timeout(self):
@@ -52,6 +67,7 @@ class TestTimeoutParsing:
 
 
 # ── _filter_stories_by_time ───────────────────────────────────────────
+
 
 class TestFilterStoriesByTime:
     def test_stories_within_range(self):
@@ -76,7 +92,9 @@ class TestFilterStoriesByTime:
         target_date = datetime.strptime("2024-01-15", "%Y-%m-%d")
         yesterday = target_date - timedelta(days=1)
         beijing_tz = timezone(timedelta(hours=8))
-        start = datetime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0, tzinfo=beijing_tz)
+        start = datetime(
+            yesterday.year, yesterday.month, yesterday.day, 0, 0, 0, tzinfo=beijing_tz
+        )
         ts = int(start.timestamp())
         stories = [_make_story(ts=ts)]
         result = fetcher._filter_stories_by_time(stories, "2024-01-15")
@@ -87,7 +105,15 @@ class TestFilterStoriesByTime:
         target_date = datetime.strptime("2024-01-15", "%Y-%m-%d")
         yesterday = target_date - timedelta(days=1)
         beijing_tz = timezone(timedelta(hours=8))
-        end = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, tzinfo=beijing_tz)
+        end = datetime(
+            yesterday.year,
+            yesterday.month,
+            yesterday.day,
+            23,
+            59,
+            59,
+            tzinfo=beijing_tz,
+        )
         ts = int(end.timestamp())
         stories = [_make_story(ts=ts)]
         result = fetcher._filter_stories_by_time(stories, "2024-01-15")
@@ -95,6 +121,7 @@ class TestFilterStoriesByTime:
 
 
 # ── _select_top_stories ──────────────────────────────────────────────
+
 
 class TestSelectTopStories:
     def test_sorted_by_score_and_descendants(self):
@@ -122,10 +149,13 @@ class TestSelectTopStories:
 
 # ── _to_content_package ──────────────────────────────────────────────
 
+
 class TestToContentPackage:
     def test_basic_conversion(self):
         fetcher = _make_fetcher()
-        stories = [_make_story(story_id=42, title="Hello HN", score=500, descendants=30)]
+        stories = [
+            _make_story(story_id=42, title="Hello HN", score=500, descendants=30)
+        ]
         comments = {42: [_make_comment(cid=1, author="alice", text="nice")]}
         pkg = fetcher._to_content_package(stories, comments, "2024-01-15")
         assert pkg.date == "2024-01-15"
@@ -143,7 +173,14 @@ class TestToContentPackage:
         fetcher = _make_fetcher()
         stories = [_make_story(story_id=i) for i in range(5)]
         comments = {i: [] for i in range(5)}
-        pkg = fetcher._to_content_package(stories, comments, "2024-01-15", num_deep_dive=1, num_brief=2, num_quick_news=2)
+        pkg = fetcher._to_content_package(
+            stories,
+            comments,
+            "2024-01-15",
+            num_deep_dive=1,
+            num_brief=2,
+            num_quick_news=2,
+        )
         assert pkg.deep_dive_indices == [0]
         assert pkg.brief_indices == [1, 2]
         assert pkg.quick_news_indices == [3, 4]
@@ -152,16 +189,31 @@ class TestToContentPackage:
         fetcher = _make_fetcher()
         stories = [_make_story(story_id=i) for i in range(20)]
         comments = {i: [] for i in range(20)}
-        pkg = fetcher._to_content_package(stories, comments, "2024-01-15", num_deep_dive=1, num_brief=2, num_quick_news=7)
+        pkg = fetcher._to_content_package(
+            stories,
+            comments,
+            "2024-01-15",
+            num_deep_dive=1,
+            num_brief=2,
+            num_quick_news=7,
+        )
         assert len(pkg.items) == 10
 
 
 # ── _story_to_dict / _dict_to_story ──────────────────────────────────
 
+
 class TestStoryDictRoundTrip:
     def test_round_trip(self):
         fetcher = _make_fetcher()
-        story = _make_story(story_id=99, title="Round", score=42, descendants=7, ts=1700000000, url="https://x.com")
+        story = _make_story(
+            story_id=99,
+            title="Round",
+            score=42,
+            descendants=7,
+            ts=1700000000,
+            url="https://x.com",
+        )
         d = fetcher._story_to_dict(story)
         restored = fetcher._dict_to_story(d)
         assert restored.id == 99
@@ -172,6 +224,7 @@ class TestStoryDictRoundTrip:
 
 
 # ── _comment_to_dict / _dict_to_comment ──────────────────────────────
+
 
 class TestCommentDictRoundTrip:
     def test_round_trip(self):

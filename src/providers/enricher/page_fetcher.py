@@ -2,7 +2,6 @@ import asyncio
 import logging
 import platform
 import random
-import re
 import shutil
 import socket
 import struct
@@ -64,13 +63,15 @@ _CHROME_LAUNCH_ARGS = [
 
 # Third-party DNS servers for fallback resolution
 _DNS_SERVERS = [
-    ("1.1.1.1", 53),       # Cloudflare
-    ("8.8.8.8", 53),       # Google
-    ("208.67.222.222", 53), # OpenDNS
+    ("1.1.1.1", 53),  # Cloudflare
+    ("8.8.8.8", 53),  # Google
+    ("208.67.222.222", 53),  # OpenDNS
 ]
 
 
-def _dns_resolve_sync(hostname: str, dns_server: str = "1.1.1.1", port: int = 53, timeout: float = 3.0) -> Optional[str]:
+def _dns_resolve_sync(
+    hostname: str, dns_server: str = "1.1.1.1", port: int = 53, timeout: float = 3.0
+) -> Optional[str]:
     """Resolve hostname via a third-party DNS server (synchronous UDP).
 
     Returns the first A record IP, or None on failure.
@@ -122,7 +123,9 @@ def _dns_resolve_sync(hostname: str, dns_server: str = "1.1.1.1", port: int = 53
         return None
 
 
-async def _resolve_with_fallback(hostname: str, logger: logging.Logger) -> Optional[str]:
+async def _resolve_with_fallback(
+    hostname: str, logger: logging.Logger
+) -> Optional[str]:
     """Try system DNS first, then fallback to third-party DNS servers.
 
     Returns IP string, or None if all fail.
@@ -195,7 +198,11 @@ def _find_chrome() -> Optional[str]:
         ]
 
     for path in candidates:
-        if path and (Path(path).exists() if system == "Windows" else shutil.which(path) is not None):
+        if path and (
+            Path(path).exists()
+            if system == "Windows"
+            else shutil.which(path) is not None
+        ):
             return path
 
     # Fallback: search PATH
@@ -253,7 +260,9 @@ class PageFetcher:
                 trust_env=True,
             ) as session:
                 async with session.get(
-                    url, allow_redirects=True, max_redirects=5,
+                    url,
+                    allow_redirects=True,
+                    max_redirects=5,
                 ) as resp:
                     if resp.status == 429:
                         self.logger.debug(f"HTTP 429 (rate-limited) for {url}")
@@ -284,7 +293,9 @@ class PageFetcher:
             return None
 
         ip_url = f"{parsed.scheme}://{ip}{':' + str(parsed.port) if parsed.port else ''}{parsed.path or '/'}{('?' + parsed.query) if parsed.query else ''}"
-        self.logger.debug(f"Retrying with resolved IP: {ip_url} (Host: {parsed.hostname})")
+        self.logger.debug(
+            f"Retrying with resolved IP: {ip_url} (Host: {parsed.hostname})"
+        )
 
         try:
             headers = _make_headers()
@@ -296,7 +307,8 @@ class PageFetcher:
                 trust_env=True,
             ) as session:
                 async with session.get(
-                    ip_url, allow_redirects=False,
+                    ip_url,
+                    allow_redirects=False,
                 ) as resp:
                     if resp.status != 200:
                         return None
@@ -345,6 +357,7 @@ class PageFetcher:
                             page = await context.new_page()
                             try:
                                 from playwright_stealth import stealth_async
+
                                 await stealth_async(page)
                             except ImportError:
                                 pass
@@ -364,7 +377,9 @@ class PageFetcher:
                                 page, item.url, self.logger, max_wait=8
                             )
                             if not block_reason:
-                                block_reason = await check_anti_bot(page, item.url, self.logger)
+                                block_reason = await check_anti_bot(
+                                    page, item.url, self.logger
+                                )
                             if block_reason:
                                 self.logger.debug(
                                     f"[{strategy_name}] anti-bot: {block_reason} — {item.url}"
@@ -376,20 +391,27 @@ class PageFetcher:
                             if html and len(html) > 500:
                                 html_path = pages_dir / f"{item.source_id}.html"
                                 if self.save_fetched_html:
-                                    html_path.write_text(html, encoding="utf-8", errors="replace")
+                                    html_path.write_text(
+                                        html, encoding="utf-8", errors="replace"
+                                    )
                                 item.enrichment_source = strategy_name
                                 self.logger.debug(
                                     f"[{strategy_name}] {item.title[:50]} ({len(html)} bytes)"
                                 )
 
                                 if self.screenshot_enabled:
-                                    screenshot_dest = image_dir / f"{item.source_id}_screenshot.jpg"
+                                    screenshot_dest = (
+                                        image_dir / f"{item.source_id}_screenshot.jpg"
+                                    )
                                     try:
                                         await page.screenshot(
                                             path=str(screenshot_dest),
-                                            type="jpeg", quality=85,
+                                            type="jpeg",
+                                            quality=85,
                                         )
-                                        item.screenshot_image = f"images/{item.source_id}_screenshot.jpg"
+                                        item.screenshot_image = (
+                                            f"images/{item.source_id}_screenshot.jpg"
+                                        )
                                     except Exception:
                                         pass
                             else:
@@ -420,7 +442,9 @@ class PageFetcher:
                 failed.append(item)
         return failed
 
-    async def capture_screenshot(self, url: str, image_dir: Path, source_id: str) -> Optional[str]:
+    async def capture_screenshot(
+        self, url: str, image_dir: Path, source_id: str
+    ) -> Optional[str]:
         """Capture a webpage screenshot using headless Chrome (standalone, no text extraction)."""
         if not self.screenshot_enabled or not self.use_headless:
             return None
@@ -447,11 +471,16 @@ class PageFetcher:
                 page = await context.new_page()
                 try:
                     from playwright_stealth import stealth_async
+
                     await stealth_async(page)
                 except ImportError:
                     pass
                 try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
+                    await page.goto(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=self.request_timeout * 1000,
+                    )
                     await asyncio.sleep(1.5)
                     await page.screenshot(path=str(dest), type="jpeg", quality=85)
                     self.logger.debug(f"Screenshot captured: {dest}")
@@ -465,12 +494,16 @@ class PageFetcher:
             self.logger.debug(f"Headless Chrome failed for screenshot of {url}: {e}")
             return None
 
-    async def fetch_with_headless(self, url: str, screenshot_path: Optional[str] = None) -> Optional[str]:
+    async def fetch_with_headless(
+        self, url: str, screenshot_path: Optional[str] = None
+    ) -> Optional[str]:
         """Fetch page using Playwright headless Chrome with stealth anti-detection."""
         try:
             from playwright.async_api import async_playwright
         except ImportError:
-            self.logger.info("playwright not installed, run: uv add playwright && playwright install chromium")
+            self.logger.info(
+                "playwright not installed, run: uv add playwright && playwright install chromium"
+            )
             return None
 
         launch_kwargs = {"headless": True, "args": _CHROME_LAUNCH_ARGS}
@@ -488,15 +521,23 @@ class PageFetcher:
                 page = await context.new_page()
                 try:
                     from playwright_stealth import stealth_async
+
                     await stealth_async(page)
                 except ImportError:
                     pass
 
                 console_msgs = []
-                page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
+                page.on(
+                    "console",
+                    lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"),
+                )
 
                 try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=self.request_timeout * 1000)
+                    await page.goto(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=self.request_timeout * 1000,
+                    )
                     await asyncio.sleep(1.5)
 
                     block_reason = await check_anti_bot(page, url, self.logger)
@@ -508,7 +549,9 @@ class PageFetcher:
 
                     if screenshot_path and self.screenshot_enabled:
                         try:
-                            await page.screenshot(path=screenshot_path, type="jpeg", quality=85)
+                            await page.screenshot(
+                                path=screenshot_path, type="jpeg", quality=85
+                            )
                         except Exception as e:
                             self.logger.debug(f"Screenshot capture failed: {e}")
                     html = await page.content()
@@ -519,62 +562,6 @@ class PageFetcher:
                     await browser.close()
         except Exception as e:
             self.logger.debug(f"Headless Chrome failed for {url}: {e}")
-            return None
-
-    async def fetch_with_headed(self, url: str) -> Optional[str]:
-        """Fetch page using Playwright headed Chrome (visible browser window)."""
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError:
-            self.logger.info("playwright not installed, skipping headed Chrome")
-            return None
-
-        launch_kwargs = {"headless": False, "args": _CHROME_LAUNCH_ARGS}
-        if self.browser_executable:
-            launch_kwargs["executable_path"] = self.browser_executable
-
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
-                context = await browser.new_context(
-                    user_agent=random.choice(_USER_AGENTS),
-                    viewport={"width": 1280, "height": 720},
-                    locale="en-US",
-                )
-                page = await context.new_page()
-                try:
-                    from playwright_stealth import stealth_async
-                    await stealth_async(page)
-                except ImportError:
-                    pass
-
-                console_msgs = []
-                page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
-
-                try:
-                    await page.goto(url, wait_until="networkidle", timeout=self.request_timeout * 1000)
-                    await asyncio.sleep(2.0)
-
-                    # Auto-wait for Cloudflare challenge to resolve
-                    block_reason = await _wait_for_cloudflare(
-                        page, url, self.logger, max_wait=10
-                    )
-                    if not block_reason:
-                        block_reason = await check_anti_bot(page, url, self.logger)
-                    if block_reason:
-                        self.logger.debug(f"Headed anti-bot: {block_reason} — {url}")
-                        for msg in console_msgs[-5:]:
-                            self.logger.debug(f"  console: {msg}")
-                        return None
-
-                    html = await page.content()
-                    if html and len(html) > 500:
-                        return html
-                    return None
-                finally:
-                    await browser.close()
-        except Exception as e:
-            self.logger.debug(f"Headed Chrome failed for {url}: {e}")
             return None
 
 
@@ -624,7 +611,9 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
 
     try:
         async with aiohttp.ClientSession(headers=headers, trust_env=True) as session:
-            async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(
+                api_url, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
                 if resp.status != 200:
                     logger.debug(f"GitHub API {resp.status} for {api_url}")
                     return None
@@ -634,7 +623,10 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
                     encoding = data.get("encoding", "base64")
                     if content and encoding == "base64":
                         import base64
-                        return base64.b64decode(content).decode("utf-8", errors="replace")
+
+                        return base64.b64decode(content).decode(
+                            "utf-8", errors="replace"
+                        )
                     return None
                 # README HTML response
                 return await resp.text()
@@ -643,7 +635,9 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
         return None
 
 
-async def _wait_for_cloudflare(page, url: str, logger, max_wait: float = 8) -> Optional[str]:
+async def _wait_for_cloudflare(
+    page, url: str, logger, max_wait: float = 8
+) -> Optional[str]:
     """Wait for Cloudflare challenge to auto-resolve. Returns block reason or None."""
     try:
         title = (await page.title()).lower()
@@ -652,7 +646,9 @@ async def _wait_for_cloudflare(page, url: str, logger, max_wait: float = 8) -> O
 
     is_cf = "just a moment" in title or "checking your browser" in title
     if not is_cf:
-        cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
+        cf_iframe = await page.query_selector(
+            'iframe[src*="challenges.cloudflare.com"]'
+        )
         is_cf = cf_iframe is not None
 
     if not is_cf:
@@ -664,7 +660,9 @@ async def _wait_for_cloudflare(page, url: str, logger, max_wait: float = 8) -> O
         try:
             title = (await page.title()).lower()
             if "just a moment" not in title and "checking your browser" not in title:
-                cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
+                cf_iframe = await page.query_selector(
+                    'iframe[src*="challenges.cloudflare.com"]'
+                )
                 if not cf_iframe:
                     logger.debug(f"Cloudflare challenge resolved for {url}")
                     return None
@@ -684,12 +682,16 @@ async def check_anti_bot(page, url: str, logger) -> Optional[str]:
         if "just a moment" in title.lower() or "checking your browser" in title.lower():
             return "Cloudflare challenge page"
         # Check for common challenge frames
-        cf_iframe = await page.query_selector('iframe[src*="challenges.cloudflare.com"]')
+        cf_iframe = await page.query_selector(
+            'iframe[src*="challenges.cloudflare.com"]'
+        )
         if cf_iframe:
             return "Cloudflare Turnstile/Challenge iframe"
 
         # Generic CAPTCHA indicators
-        captcha = await page.query_selector('[class*="captcha"], [id*="captcha"], .g-recaptcha, .h-captcha')
+        captcha = await page.query_selector(
+            '[class*="captcha"], [id*="captcha"], .g-recaptcha, .h-captcha'
+        )
         if captcha:
             return "CAPTCHA detected"
 
@@ -698,7 +700,10 @@ async def check_anti_bot(page, url: str, logger) -> Optional[str]:
         parsed_after = urlparse(url_after)
         if parsed_after.hostname and parsed_before.hostname:
             if parsed_after.hostname != parsed_before.hostname:
-                if any(kw in parsed_after.hostname for kw in ("login", "auth", "signin", "subscribe", "paywall")):
+                if any(
+                    kw in parsed_after.hostname
+                    for kw in ("login", "auth", "signin", "subscribe", "paywall")
+                ):
                     return f"Redirected to {parsed_after.hostname}"
 
         # JS-rendered empty shell: very few DOM nodes

@@ -1,9 +1,8 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
-from src.core.models import ContentPackage, Script, ScriptSegment
+from src.core.models import ContentPackage, Script
 from src.pipeline.orchestrator import Orchestrator
 
 
@@ -69,7 +68,9 @@ class TestStepTranslate:
         orch = _make_orchestrator(dry_run=True)
         content = ContentPackage(date="2026-04-26", items=[])
         script = Script(title="T", description="", tags=[], segments=[])
-        result_content, result_script = orch._step_translate(content, script, "2026-04-26")
+        result_content, result_script = orch._step_translate(
+            content, script, "2026-04-26"
+        )
         assert result_content is content
         assert result_script is script
 

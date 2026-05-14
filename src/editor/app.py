@@ -22,6 +22,7 @@ st.set_page_config(page_title="HN TechPulse Editor", layout="wide")
 
 # ── session init ───────────────────────────────────────────────
 
+
 def init_state(date: str):
     if "editor" not in st.session_state or st.session_state.get("date") != date:
         s = EditorState(date)
@@ -36,6 +37,7 @@ def init_state(date: str):
 
 # ── sidebar ────────────────────────────────────────────────────
 
+
 def render_sidebar():
     with st.sidebar:
         st.title("HN TechPulse Editor")
@@ -43,7 +45,11 @@ def render_sidebar():
         # Date picker
         data_dir = Path("data")
         dates = sorted(
-            [d.name for d in data_dir.iterdir() if d.is_dir() and (d / "script.json").exists()],
+            [
+                d.name
+                for d in data_dir.iterdir()
+                if d.is_dir() and (d / "script.json").exists()
+            ],
             reverse=True,
         )
         if not dates:
@@ -96,6 +102,7 @@ def render_sidebar():
 
 # ── segment editors ────────────────────────────────────────────
 
+
 def render_opening_editor(state: EditorState):
     seg = state.get_segment("opening")
     if not seg:
@@ -103,16 +110,20 @@ def render_opening_editor(state: EditorState):
         return
 
     st.header("开场")
-    new_text = st.text_area("旁白文字", value=seg.get("audio_text", ""), height=120, key="opening_text")
+    new_text = st.text_area(
+        "旁白文字", value=seg.get("audio_text", ""), height=120, key="opening_text"
+    )
     if new_text != seg.get("audio_text", ""):
         seg["audio_text"] = new_text
         st.session_state.dirty = True
 
     emotion = st.selectbox(
-        "情绪", ["warm", "energetic", "neutral", "calm"],
+        "情绪",
+        ["warm", "energetic", "neutral", "calm"],
         index=["warm", "energetic", "neutral", "calm"].index(seg.get("emotion", "warm"))
-        if seg.get("emotion") in ["warm", "energetic", "neutral", "calm"] else 0,
-        key="opening_emotion"
+        if seg.get("emotion") in ["warm", "energetic", "neutral", "calm"]
+        else 0,
+        key="opening_emotion",
     )
     if emotion != seg.get("emotion"):
         seg["emotion"] = emotion
@@ -122,19 +133,29 @@ def render_opening_editor(state: EditorState):
     for elem in seg.get("scene_elements", []):
         if elem.get("element_type") == "cover_card":
             props = elem.get("props", {})
-            new_headline = st.text_input("主标题", value=props.get("headline", ""), key="cc_headline")
+            new_headline = st.text_input(
+                "主标题", value=props.get("headline", ""), key="cc_headline"
+            )
             if new_headline != props.get("headline"):
                 props["headline"] = new_headline
                 st.session_state.dirty = True
-            new_sub = st.text_input("副标题/日期", value=props.get("subtitle", ""), key="cc_sub")
+            new_sub = st.text_input(
+                "副标题/日期", value=props.get("subtitle", ""), key="cc_sub"
+            )
             if new_sub != props.get("subtitle"):
                 props["subtitle"] = new_sub
                 st.session_state.dirty = True
-            new_img = st.text_input("背景图片路径", value=props.get("cover_image", ""), key="cc_img")
+            new_img = st.text_input(
+                "背景图片路径", value=props.get("cover_image", ""), key="cc_img"
+            )
             if new_img != props.get("cover_image"):
                 props["cover_image"] = new_img
                 st.session_state.dirty = True
-            kw_str = st.text_input("关键词（逗号分隔）", value=", ".join(props.get("keywords", []) or []), key="cc_kw")
+            kw_str = st.text_input(
+                "关键词（逗号分隔）",
+                value=", ".join(props.get("keywords", []) or []),
+                key="cc_kw",
+            )
             new_kw = [k.strip() for k in kw_str.split(",") if k.strip()]
             if new_kw != props.get("keywords"):
                 props["keywords"] = new_kw
@@ -152,9 +173,11 @@ def render_story_scan_editor(state: EditorState):
     # Full audio text (one string for all stories)
     st.subheader("旁白文字（全文）")
     new_text = st.text_area(
-        "audio_text", value=seg.get("audio_text", ""),
-        height=200, key="scan_audio_text",
-        label_visibility="collapsed"
+        "audio_text",
+        value=seg.get("audio_text", ""),
+        height=200,
+        key="scan_audio_text",
+        label_visibility="collapsed",
     )
     if new_text != seg.get("audio_text", ""):
         seg["audio_text"] = new_text
@@ -170,9 +193,12 @@ def render_story_scan_editor(state: EditorState):
 
     st.subheader(f"逐条编辑（共 {len(stories)} 条）")
     story_idx = st.selectbox(
-        "选择新闻", range(len(stories)),
-        format_func=lambda i: f"#{i + 1} {state.get_story_title(stories[i].get('source_id', ''))}",
-        key="story_select"
+        "选择新闻",
+        range(len(stories)),
+        format_func=lambda i: (
+            f"#{i + 1} {state.get_story_title(stories[i].get('source_id', ''))}"
+        ),
+        key="story_select",
     )
 
     if story_idx < len(stories):
@@ -186,16 +212,20 @@ def render_closing_editor(state: EditorState):
         return
 
     st.header("结尾")
-    new_text = st.text_area("旁白文字", value=seg.get("audio_text", ""), height=120, key="closing_text")
+    new_text = st.text_area(
+        "旁白文字", value=seg.get("audio_text", ""), height=120, key="closing_text"
+    )
     if new_text != seg.get("audio_text", ""):
         seg["audio_text"] = new_text
         st.session_state.dirty = True
 
     emotion = st.selectbox(
-        "情绪", ["warm", "calm", "neutral", "upbeat"],
+        "情绪",
+        ["warm", "calm", "neutral", "upbeat"],
         index=["warm", "calm", "neutral", "upbeat"].index(seg.get("emotion", "warm"))
-        if seg.get("emotion") in ["warm", "calm", "neutral", "upbeat"] else 0,
-        key="closing_emotion"
+        if seg.get("emotion") in ["warm", "calm", "neutral", "upbeat"]
+        else 0,
+        key="closing_emotion",
     )
     if emotion != seg.get("emotion"):
         seg["emotion"] = emotion

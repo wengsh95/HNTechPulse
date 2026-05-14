@@ -13,14 +13,22 @@ from src.utils.logger import setup_logger
 
 
 class CommentJudge:
-    def __init__(self, llm_provider: LLMProvider, config: dict, comment_analyzer=None, debug: bool = False):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        config: dict,
+        comment_analyzer=None,
+        debug: bool = False,
+    ):
         self.llm_provider = llm_provider
         self.config = config
         self.comment_analyzer = comment_analyzer
         analyze_cfg = config.get("analyze", {})
         self.enabled = analyze_cfg.get("comment_judge_enabled", True)
         self.max_workers = int(analyze_cfg.get("comment_judge_max_workers", 2) or 1)
-        self.fallback_on_error = analyze_cfg.get("comment_judge_fallback_on_error", True)
+        self.fallback_on_error = analyze_cfg.get(
+            "comment_judge_fallback_on_error", True
+        )
         self.prompt_template_path = analyze_cfg.get(
             "comment_judge_prompt",
             "prompts/comment_analyze.md",
@@ -54,7 +62,9 @@ class CommentJudge:
             if comment_judgement_key(item) not in stories
         ]
         if not missing:
-            self.logger.info(f"Loading comment judgements from cache: data/{date}/comment_judgement.json")
+            self.logger.info(
+                f"Loading comment judgements from cache: data/{date}/comment_judgement.json"
+            )
             return stories
 
         self.logger.info(
@@ -65,7 +75,9 @@ class CommentJudge:
 
         def judge_one(idx_item):
             idx, item = idx_item
-            label = f"[{idx + 1}/{len(content.items)}] {item.source_id} {item.title[:80]}"
+            label = (
+                f"[{idx + 1}/{len(content.items)}] {item.source_id} {item.title[:80]}"
+            )
             if not item.comments:
                 self.logger.info(f"  {label}: no comments, using heuristic fallback")
                 return comment_judgement_key(item), heuristic_story_judgement(item)
@@ -98,8 +110,7 @@ class CommentJudge:
                     self.logger.error(f"  {label}: comment judge failed: {e}")
                     raise
                 self.logger.warning(
-                    f"  {label}: comment judge failed, "
-                    f"using heuristic fallback: {e}"
+                    f"  {label}: comment judge failed, using heuristic fallback: {e}"
                 )
                 fallback = heuristic_story_judgement(item)
                 self.logger.info(
@@ -119,7 +130,10 @@ class CommentJudge:
                 )
         else:
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {executor.submit(judge_one, idx_item): idx_item for idx_item in missing}
+                futures = {
+                    executor.submit(judge_one, idx_item): idx_item
+                    for idx_item in missing
+                }
                 for future in as_completed(futures):
                     key, judgement = future.result()
                     stories[key] = judgement

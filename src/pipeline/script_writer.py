@@ -4,7 +4,13 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
-from src.core.models import Script, ScriptSegment, ContentPackage, ContentItem, SelectionResult
+from src.core.models import (
+    Script,
+    ScriptSegment,
+    ContentPackage,
+    ContentItem,
+    SelectionResult,
+)
 from src.core.interfaces import LLMProvider
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.comment_judgement import (
@@ -13,9 +19,11 @@ from src.pipeline.comment_judgement import (
     load_comment_judgements,
 )
 from src.pipeline.comment_selection import select_quote_comments
-from src.pipeline.script_io import save_script as _save_script, load_script as _load_script
+from src.pipeline.script_io import (
+    save_script as _save_script,
+    load_script as _load_script,
+)
 from src.pipeline.transcript_generator import (
-    generate_brief_transcript as _generate_brief_transcript,
     save_transcript as _save_transcript,
 )
 from src.utils.logger import setup_logger
@@ -44,19 +52,33 @@ class ScriptWriter:
     def _story_angle_from_segment(segment: ScriptSegment, item=None) -> dict:
         """Extract the product-facing angle fields from an LLM story segment."""
         event_elem = next(
-            (elem for elem in segment.scene_elements if elem.element_type == "event_card"),
+            (
+                elem
+                for elem in segment.scene_elements
+                if elem.element_type == "event_card"
+            ),
             None,
         )
         props = event_elem.props if event_elem else {}
         return {
-            "editor_angle": props.get("editor_angle") or (item.editor_angle if item else None) or "",
+            "editor_angle": props.get("editor_angle")
+            or (item.editor_angle if item else None)
+            or "",
             "dek": props.get("dek") or (item.dek if item else None) or "",
-            "key_points": props.get("key_points") or (item.key_points if item else None) or [],
-            "event_summary": props.get("event_summary") or (item.dek if item else None) or "",
+            "key_points": props.get("key_points")
+            or (item.key_points if item else None)
+            or [],
+            "event_summary": props.get("event_summary")
+            or (item.dek if item else None)
+            or "",
             "why_it_matters": props.get("why_it_matters") or "",
             "next_watch": props.get("next_watch") or "",
-            "category": props.get("category") or (item.category if item else None) or "",
-            "keywords": props.get("keywords") or (item.keywords if item else None) or [],
+            "category": props.get("category")
+            or (item.category if item else None)
+            or "",
+            "keywords": props.get("keywords")
+            or (item.keywords if item else None)
+            or [],
         }
 
     @classmethod
@@ -73,7 +95,9 @@ class ScriptWriter:
             title = str(title).strip()
             if len(title) > 18:
                 title = title[:18].rstrip("，。！？；：,.!?;:") + "…"
-            ordinal = CHINESE_ORDINALS[idx] if idx < len(CHINESE_ORDINALS) else str(idx + 1)
+            ordinal = (
+                CHINESE_ORDINALS[idx] if idx < len(CHINESE_ORDINALS) else str(idx + 1)
+            )
             labels.append(f"第{ordinal}，{title}" if title else f"第{ordinal}条")
         if not labels:
             return "来看今天的三个技术信号，我们一条条听。"
@@ -89,6 +113,7 @@ class ScriptWriter:
     ) -> ScriptSegment:
         """Generate a short positioning line before the first story."""
         from datetime import datetime
+
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             date_display = date_obj.strftime("%Y年%m月%d日")
@@ -107,7 +132,11 @@ class ScriptWriter:
             for seg in story_scan_segs[:3]:
                 for elem in seg.scene_elements:
                     if elem.element_type == "event_card":
-                        kw = elem.props.get("editor_angle") or elem.props.get("title_cn") or ""
+                        kw = (
+                            elem.props.get("editor_angle")
+                            or elem.props.get("title_cn")
+                            or ""
+                        )
                         if kw:
                             keywords.append(str(kw))
                         break
@@ -126,22 +155,31 @@ class ScriptWriter:
                         "headline": "每日技术速览",
                         "subtitle": date_display,
                         "keywords": keywords[:3],
-                    } | ({
-                        "highlight_entries": highlight_entries[:3],
-                        "focus_count": min(3, len(highlight_entries)),
-                    } if highlight_entries else {})
+                    }
+                    | (
+                        {
+                            "highlight_entries": highlight_entries[:3],
+                            "focus_count": min(3, len(highlight_entries)),
+                        }
+                        if highlight_entries
+                        else {}
+                    ),
                 )
             ],
-            cues=[
-                Cue(text=audio_text, start_time=0.0, end_time=float(duration))
-            ],
-            meta={"highlights": {"entries": highlight_entries[:3]}} if highlight_entries else {}
+            cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
+            meta={"highlights": {"entries": highlight_entries[:3]}}
+            if highlight_entries
+            else {},
         )
 
     def _opening_needs_refresh(self, segment: ScriptSegment) -> bool:
         """Detect cached openings that still preview the top stories."""
         audio_text = segment.audio_text or ""
-        if "：" in audio_text or "这几件事" in audio_text or "几个技术信号" in audio_text:
+        if (
+            "：" in audio_text
+            or "这几件事" in audio_text
+            or "几个技术信号" in audio_text
+        ):
             return True
 
         for elem in segment.scene_elements:
@@ -153,6 +191,7 @@ class ScriptWriter:
     def _generate_fixed_closing(self, date: str) -> ScriptSegment:
         """生成每日快讯结尾"""
         from datetime import datetime
+
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             weekday = date_obj.weekday()
@@ -179,13 +218,11 @@ class ScriptWriter:
                     element_type="closing_card",
                     start_time=0.0,
                     end_time=float(duration),
-                    props={}
+                    props={},
                 )
             ],
-            cues=[
-                Cue(text=audio_text, start_time=0.0, end_time=float(duration))
-            ],
-            meta={}
+            cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
+            meta={},
         )
 
     def _build_highlight_entries(
@@ -205,7 +242,11 @@ class ScriptWriter:
                     break
             if story_index is None and idx < len(selection.brief_items):
                 story_index = selection.brief_items[idx].get("story_index")
-            item = content.items[story_index] if story_index is not None and story_index < len(content.items) else None
+            item = (
+                content.items[story_index]
+                if story_index is not None and story_index < len(content.items)
+                else None
+            )
             angle = self._story_angle_from_segment(seg, item=item)
             if story_index is not None:
                 angle_by_story[int(story_index)] = angle
@@ -215,23 +256,31 @@ class ScriptWriter:
             if story_idx is not None and story_idx < len(content.items):
                 item = content.items[story_idx]
                 angle = angle_by_story.get(story_idx, {})
-                entries.append({
-                    "rank": i + 1,
-                    "story_index": story_idx,
-                    "original_title": item.title,
-                    "title_translation": item.title_cn,
-                    "editor_angle": angle.get("editor_angle") or angle.get("dek") or angle.get("event_summary") or item.title_cn or item.title,
-                    "why_it_matters": angle.get("why_it_matters") or "",
-                    "next_watch": angle.get("next_watch") or "",
-                    "category": angle.get("category") or "",
-                    "keywords": angle.get("keywords") or [],
-                    "score": item.score,
-                    "comment_count": item.comment_count,
-                })
+                entries.append(
+                    {
+                        "rank": i + 1,
+                        "story_index": story_idx,
+                        "original_title": item.title,
+                        "title_translation": item.title_cn,
+                        "editor_angle": angle.get("editor_angle")
+                        or angle.get("dek")
+                        or angle.get("event_summary")
+                        or item.title_cn
+                        or item.title,
+                        "why_it_matters": angle.get("why_it_matters") or "",
+                        "next_watch": angle.get("next_watch") or "",
+                        "category": angle.get("category") or "",
+                        "keywords": angle.get("keywords") or [],
+                        "score": item.score,
+                        "comment_count": item.comment_count,
+                    }
+                )
 
         return entries[:3]
 
-    def _generate_script_split(self, content: ContentPackage, selection: SelectionResult, date: str) -> Script:
+    def _generate_script_split(
+        self, content: ContentPackage, selection: SelectionResult, date: str
+    ) -> Script:
         """生成每日快讯脚本（拆分模式）"""
 
         segments = []
@@ -256,7 +305,7 @@ class ScriptWriter:
                 segment_type="story_scan_item",
                 prompt_template_path="prompts/story_script.md",
                 date=date,
-                comments_data=judgement or None
+                comments_data=judgement or None,
             )
 
         if max_workers == 1 or len(story_indices) <= 1:
@@ -281,7 +330,9 @@ class ScriptWriter:
             if story_idx in story_scan_segs_by_index
         ]
         for story_idx, seg in zip(story_indices, story_scan_segs):
-            judgement = comment_judgements.get(comment_judgement_key(content.items[story_idx]), {})
+            judgement = comment_judgements.get(
+                comment_judgement_key(content.items[story_idx]), {}
+            )
             self._normalize_quote_card_selection(
                 seg,
                 content.items[story_idx],
@@ -293,14 +344,18 @@ class ScriptWriter:
             )
 
         # 固定开场
-        highlight_entries = self._build_highlight_entries(selection, content, story_scan_segs)
-        segments.append(self._generate_fixed_opening(
-            date,
-            selection,
-            content,
-            story_scan_segs,
-            highlight_entries=highlight_entries,
-        ))
+        highlight_entries = self._build_highlight_entries(
+            selection, content, story_scan_segs
+        )
+        segments.append(
+            self._generate_fixed_opening(
+                date,
+                selection,
+                content,
+                story_scan_segs,
+                highlight_entries=highlight_entries,
+            )
+        )
 
         # Story scan
         if not story_scan_segs:
@@ -317,7 +372,9 @@ class ScriptWriter:
             SPEECH_CPS = 3.5  # approximate Chinese chars per second
 
             for story_i, s in enumerate(story_scan_segs):
-                story_idx = story_indices[story_i] if story_i < len(story_indices) else story_i
+                story_idx = (
+                    story_indices[story_i] if story_i < len(story_indices) else story_i
+                )
 
                 card_narrations = s.meta.get("card_narrations", [])
                 if not card_narrations:
@@ -356,7 +413,10 @@ class ScriptWriter:
 
                     matched = False
                     for elem in s.scene_elements:
-                        if elem.element_type == card_type and elem.sub_segment_index is None:
+                        if (
+                            elem.element_type == card_type
+                            and elem.sub_segment_index is None
+                        ):
                             elem.sub_segment_index = sub_idx
                             if elem.element_type == "event_card":
                                 elem.props["display_index"] = story_i
@@ -396,10 +456,13 @@ class ScriptWriter:
             title="HN TechPulse 每日快讯",
             description=f"每日快讯 - {date}",
             tags=[],
-            segments=segments)
+            segments=segments,
+        )
 
     @staticmethod
-    def _normalize_quote_card_selection(segment: ScriptSegment, item: ContentItem, judgement: dict) -> None:
+    def _normalize_quote_card_selection(
+        segment: ScriptSegment, item: ContentItem, judgement: dict
+    ) -> None:
         preferred_ids = candidate_ids_for_story(judgement, max_n=12)
         for elem in segment.scene_elements:
             if elem.element_type != "quote_card":
@@ -416,9 +479,7 @@ class ScriptWriter:
                 max_n=3,
             )
             props["selected_comment_ids"] = [
-                str(c.source_id)
-                for c in selected_comments
-                if c.source_id is not None
+                str(c.source_id) for c in selected_comments if c.source_id is not None
             ]
             # Fallback: if all selected comments lack source_id, keep original LLM ids
             if not props["selected_comment_ids"] and combined_ids:
@@ -455,7 +516,9 @@ class ScriptWriter:
                 None,
             )
             if opening_segment and self._opening_needs_refresh(opening_segment):
-                self.logger.info("Cached opening uses topic preview, refreshing opening only")
+                self.logger.info(
+                    "Cached opening uses topic preview, refreshing opening only"
+                )
                 refreshed_opening = self._generate_fixed_opening(content.date)
                 script.segments = [
                     refreshed_opening if seg.segment_type == "opening" else seg
@@ -469,8 +532,7 @@ class ScriptWriter:
             )
             if content.items and not has_story_scan:
                 self.logger.info(
-                    "Cached script is missing story_scan segment — "
-                    "forcing regeneration"
+                    "Cached script is missing story_scan segment — forcing regeneration"
                 )
                 script_path.unlink()
             elif self._cache_needs_audio_only_refresh(script):
@@ -481,8 +543,7 @@ class ScriptWriter:
                 script_path.unlink()
             elif not self._validate_cache_metadata(script, content):
                 self.logger.info(
-                    "Cached script is missing timing metadata — "
-                    "forcing regeneration"
+                    "Cached script is missing timing metadata — forcing regeneration"
                 )
                 script_path.unlink()
             else:
@@ -506,14 +567,14 @@ class ScriptWriter:
         self.logger.info(f"Selection: {len(brief_items)} stories by score ranking")
         self.logger.info("Round 2: Script generation (split mode)")
         script = self._generate_script_split(
-            content=content,
-            selection=selection,
-            date=content.date
+            content=content, selection=selection, date=content.date
         )
 
         elapsed = time.monotonic() - t_total
         self.logger.info("=" * 60)
-        self.logger.info(f"Pipeline complete in {elapsed:.1f}s (with checkpoint recovery)")
+        self.logger.info(
+            f"Pipeline complete in {elapsed:.1f}s (with checkpoint recovery)"
+        )
         self.logger.info("=" * 60)
 
         return script
@@ -521,10 +582,9 @@ class ScriptWriter:
     def save_script(self, script: Script, date: str) -> None:
         _save_script(script, date, logger=self.logger)
 
-    def generate_transcript(self, script: Script, date: str, content: Optional[ContentPackage] = None) -> str:
-        return _generate_brief_transcript(script, date, content)
-
-    def save_transcript(self, script: Script, date: str, content: Optional[ContentPackage] = None) -> Path:
+    def save_transcript(
+        self, script: Script, date: str, content: Optional[ContentPackage] = None
+    ) -> Path:
         return _save_transcript(script, date, content, logger=self.logger)
 
     def load_script(self, date: str) -> Script:
@@ -536,8 +596,7 @@ class ScriptWriter:
             (s for s in script.segments if s.segment_type == "story_scan"), None
         )
         if story_scan and any(
-            elem.props.get("is_audio_marker")
-            for elem in story_scan.scene_elements
+            elem.props.get("is_audio_marker") for elem in story_scan.scene_elements
         ):
             return True
 
@@ -563,10 +622,22 @@ class ScriptWriter:
         for elem in story_scan.scene_elements:
             if elem.element_type == "event_card":
                 si = elem.props.get("story_index")
-                item = content.items[si] if si is not None and si < len(content.items) else None
-                has_angle = elem.props.get("editor_angle") or (item.editor_angle if item else None)
-                has_dek = elem.props.get("dek") or elem.props.get("event_summary") or (item.dek if item else None)
-                has_kp = elem.props.get("key_points") or (item.key_points if item else None)
+                item = (
+                    content.items[si]
+                    if si is not None and si < len(content.items)
+                    else None
+                )
+                has_angle = elem.props.get("editor_angle") or (
+                    item.editor_angle if item else None
+                )
+                has_dek = (
+                    elem.props.get("dek")
+                    or elem.props.get("event_summary")
+                    or (item.dek if item else None)
+                )
+                has_kp = elem.props.get("key_points") or (
+                    item.key_points if item else None
+                )
                 if not has_angle:
                     return False
                 if not has_dek:

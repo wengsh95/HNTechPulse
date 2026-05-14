@@ -1,8 +1,7 @@
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-import pytest
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment_analyzer import CommentAnalyzer, ANALYSIS_SCHEMA_VERSION
@@ -11,13 +10,19 @@ from src.pipeline.comment_analyzer import CommentAnalyzer, ANALYSIS_SCHEMA_VERSI
 def _make_config(**overrides):
     cfg = {
         "logging": {"level": "WARNING"},
-        "analyze": {"enabled": True, "min_quality_score": 0.1, "max_comments_for_llm": 10},
+        "analyze": {
+            "enabled": True,
+            "min_quality_score": 0.1,
+            "max_comments_for_llm": 10,
+        },
     }
     cfg["analyze"].update(overrides)
     return cfg
 
 
-def _make_comment(content="This is a test comment with enough length to score well", **kwargs):
+def _make_comment(
+    content="This is a test comment with enough length to score well", **kwargs
+):
     defaults = {
         "author": "user",
         "content": content,
@@ -83,14 +88,18 @@ class TestAnalyze:
         cache_data = {
             "schema_version": ANALYSIS_SCHEMA_VERSION,
             "date": "2026-04-26",
-            "items": [{
-                "source_id": "100",
-                "comments": [{
-                    "source_id": "c1",
-                    "sentiment": 0.99,
-                    "quality_score": 0.88,
-                }],
-            }],
+            "items": [
+                {
+                    "source_id": "100",
+                    "comments": [
+                        {
+                            "source_id": "c1",
+                            "sentiment": 0.99,
+                            "quality_score": 0.88,
+                        }
+                    ],
+                }
+            ],
         }
         cache_path.write_text(json.dumps(cache_data), encoding="utf-8")
 
@@ -107,9 +116,19 @@ class TestGetTopComments:
         with patch("src.pipeline.comment_analyzer.setup_logger"):
             analyzer = CommentAnalyzer(_make_config(min_quality_score=0.0))
         comments = [
-            _make_comment(content="Low quality short", source_id="c1", quality_score=0.1),
-            _make_comment(content="High quality comment with enough length to score well", source_id="c2", quality_score=0.9),
-            _make_comment(content="Medium quality comment with enough length to score well", source_id="c3", quality_score=0.5),
+            _make_comment(
+                content="Low quality short", source_id="c1", quality_score=0.1
+            ),
+            _make_comment(
+                content="High quality comment with enough length to score well",
+                source_id="c2",
+                quality_score=0.9,
+            ),
+            _make_comment(
+                content="Medium quality comment with enough length to score well",
+                source_id="c3",
+                quality_score=0.5,
+            ),
         ]
         item = _make_item(comments=comments)
 
@@ -121,7 +140,11 @@ class TestGetTopComments:
         with patch("src.pipeline.comment_analyzer.setup_logger"):
             analyzer = CommentAnalyzer(_make_config())
         comments = [
-            _make_comment(content=f"Comment {i} with enough length", source_id=f"c{i}", quality_score=0.5)
+            _make_comment(
+                content=f"Comment {i} with enough length",
+                source_id=f"c{i}",
+                quality_score=0.5,
+            )
             for i in range(10)
         ]
         item = _make_item(comments=comments)
@@ -133,8 +156,14 @@ class TestGetTopComments:
         with patch("src.pipeline.comment_analyzer.setup_logger"):
             analyzer = CommentAnalyzer(_make_config(min_quality_score=0.5))
         comments = [
-            _make_comment(content="Low quality short", source_id="c1", quality_score=0.1),
-            _make_comment(content="High quality comment with enough length to score well", source_id="c2", quality_score=0.8),
+            _make_comment(
+                content="Low quality short", source_id="c1", quality_score=0.1
+            ),
+            _make_comment(
+                content="High quality comment with enough length to score well",
+                source_id="c2",
+                quality_score=0.8,
+            ),
         ]
         item = _make_item(comments=comments)
 

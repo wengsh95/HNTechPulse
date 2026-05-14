@@ -2,20 +2,32 @@ import pytest
 from unittest.mock import MagicMock
 
 from src.core.models import (
-    ContentItem, ContentComment, ContentPackage,
-    Script, ScriptSegment, SceneElement,
+    ContentItem,
+    ContentComment,
+    ContentPackage,
+    Script,
+    ScriptSegment,
+    SceneElement,
 )
 from src.providers.renderer.remotion_props import (
-    _safe_get_item, _safe_get_comment,
-    _expand_story_header, _expand_comment_card, _expand_comment_bubble,
-    _expand_news_carousel_card, _expand_highlight_entries,
-    _expand_perspective_compare,
-    _expand_event_card, _expand_atmosphere_card, _expand_quote_card,
-    expand_element_props, ELEMENT_EXPANDERS, _story_transition_times,
-    sanitize_props, script_to_props,
+    _safe_get_item,
+    _safe_get_comment,
+    _expand_story_header,
+    _expand_comment_card,
+    _expand_comment_bubble,
+    _expand_news_carousel_card,
+    _expand_highlight_entries,
+    _expand_event_card,
+    _expand_atmosphere_card,
+    _expand_quote_card,
+    expand_element_props,
+    _story_transition_times,
+    sanitize_props,
+    script_to_props,
 )
 from src.providers.renderer.cue_builder import (
-    build_cues, _split_into_cues,
+    build_cues,
+    _split_into_cues,
 )
 from src.pipeline.comment_selection import (
     compute_comment_quality,
@@ -29,21 +41,27 @@ def _make_content_package():
     items = []
     for i in range(3):
         comments = [
-            ContentComment(author=f"user_{j}", content=f"comment {j}", content_cn=f"评论 {j}" if j == 0 else None)
+            ContentComment(
+                author=f"user_{j}",
+                content=f"comment {j}",
+                content_cn=f"评论 {j}" if j == 0 else None,
+            )
             for j in range(2)
         ]
-        items.append(ContentItem(
-            source="hackernews",
-            source_id=str(100 + i),
-            title=f"Story {i}",
-            title_cn=f"故事 {i}" if i == 0 else None,
-            url=f"https://example.com/{i}",
-            score=100 - i * 10,
-            comment_count=2,
-            published_at=1700000000 + i * 100,
-            comments=comments,
-            article_images=["img1.png", "img2.png"] if i == 0 else [],
-        ))
+        items.append(
+            ContentItem(
+                source="hackernews",
+                source_id=str(100 + i),
+                title=f"Story {i}",
+                title_cn=f"故事 {i}" if i == 0 else None,
+                url=f"https://example.com/{i}",
+                score=100 - i * 10,
+                comment_count=2,
+                published_at=1700000000 + i * 100,
+                comments=comments,
+                article_images=["img1.png", "img2.png"] if i == 0 else [],
+            )
+        )
     return ContentPackage(
         date="2026-04-26",
         items=items,
@@ -53,7 +71,9 @@ def _make_content_package():
     )
 
 
-def _make_script_segment(segment_type="opening", audio_text="Hello world.", duration=10.0):
+def _make_script_segment(
+    segment_type="opening", audio_text="Hello world.", duration=10.0
+):
     return ScriptSegment(
         segment_type=segment_type,
         audio_text=audio_text,
@@ -65,6 +85,7 @@ def _make_script_segment(segment_type="opening", audio_text="Hello world.", dura
 
 
 # ── _safe_get_item ─────────────────────────────────────────────────────
+
 
 class TestSafeGetItem:
     def test_valid_index(self):
@@ -89,11 +110,18 @@ class TestSafeGetItem:
         assert _safe_get_item(content, 99) is None
 
     def test_empty_items(self):
-        content = ContentPackage(date="2026-04-26", items=[], deep_dive_indices=[], brief_indices=[], quick_news_indices=[])
+        content = ContentPackage(
+            date="2026-04-26",
+            items=[],
+            deep_dive_indices=[],
+            brief_indices=[],
+            quick_news_indices=[],
+        )
         assert _safe_get_item(content, 0) is None
 
 
 # ── _safe_get_comment ──────────────────────────────────────────────────
+
 
 class TestSafeGetComment:
     def test_valid_index(self):
@@ -113,11 +141,14 @@ class TestSafeGetComment:
         assert _safe_get_comment(item, 99) is None
 
     def test_empty_comments(self):
-        item = ContentItem(source="hn", source_id="1", title="T", url=None, published_at=0, comments=[])
+        item = ContentItem(
+            source="hn", source_id="1", title="T", url=None, published_at=0, comments=[]
+        )
         assert _safe_get_comment(item, 0) is None
 
 
 # ── _expand_story_header ───────────────────────────────────────────────
+
 
 class TestExpandStoryHeader:
     def test_valid_story_index(self):
@@ -150,6 +181,7 @@ class TestExpandStoryHeader:
 
 # ── _expand_comment_card ───────────────────────────────────────────────
 
+
 class TestExpandCommentCard:
     def test_valid_indices(self):
         content = _make_content_package()
@@ -170,6 +202,7 @@ class TestExpandCommentCard:
 
 # ── _expand_comment_bubble ─────────────────────────────────────────────
 
+
 class TestExpandCommentBubble:
     def test_valid_indices(self):
         content = _make_content_package()
@@ -179,16 +212,21 @@ class TestExpandCommentBubble:
 
     def test_missing_item(self):
         content = _make_content_package()
-        result = _expand_comment_bubble({"story_index": 99, "comment_index": 0}, content)
+        result = _expand_comment_bubble(
+            {"story_index": 99, "comment_index": 0}, content
+        )
         assert result is None
 
 
 # ── _expand_news_carousel_card ─────────────────────────────────────────
 
+
 class TestExpandNewsCarouselCard:
     def test_with_comment(self):
         content = _make_content_package()
-        result = _expand_news_carousel_card({"story_index": 0, "comment_index": 0}, content)
+        result = _expand_news_carousel_card(
+            {"story_index": 0, "comment_index": 0}, content
+        )
         assert result["story_title"] == "Story 0"
         assert result["author"] == "user_0"
         assert result["comment_text"] == "comment 0"
@@ -208,6 +246,7 @@ class TestExpandNewsCarouselCard:
 
 # ── _expand_highlight_entries ──────────────────────────────────────────
 
+
 class TestExpandHighlightEntries:
     def test_expands_entries(self):
         content = _make_content_package()
@@ -222,11 +261,14 @@ class TestExpandHighlightEntries:
 
     def test_invalid_story_index_in_entry(self):
         content = _make_content_package()
-        result = _expand_highlight_entries([{"story_index": 99, "original_title": "keep"}], content)
+        result = _expand_highlight_entries(
+            [{"story_index": 99, "original_title": "keep"}], content
+        )
         assert result[0]["original_title"] == "keep"
 
 
 # ── _expand_event_card ───────────────────────────────────────────────
+
 
 class TestExpandEventCard:
     def test_overwrites_story_meta(self):
@@ -249,7 +291,9 @@ class TestExpandEventCard:
 
     def test_passes_through_keywords(self):
         content = _make_content_package()
-        result = _expand_event_card({"story_index": 0, "keywords": ["AI", "开源"]}, content)
+        result = _expand_event_card(
+            {"story_index": 0, "keywords": ["AI", "开源"]}, content
+        )
         assert result["keywords"] == ["AI", "开源"]
 
     def test_default_keywords(self):
@@ -259,6 +303,7 @@ class TestExpandEventCard:
 
 
 # ── _expand_atmosphere_card ────────────────────────────────────────────
+
 
 class TestExpandAtmosphereCard:
     def test_injects_stance_distribution(self):
@@ -287,6 +332,7 @@ class TestExpandAtmosphereCard:
 
 
 # ── _expand_quote_card ─────────────────────────────────────────────────
+
 
 class TestExpandQuoteCard:
     def test_injects_quotes(self):
@@ -317,9 +363,12 @@ class TestExpandQuoteCard:
 
 # ── expand_element_props ───────────────────────────────────────────────
 
+
 def test_quote_selection_filters_resource_pointer_comments():
     text = "Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/"
-    comment = ContentComment(author="linker", content=text, source_id="link", quality_score=0.95)
+    comment = ContentComment(
+        author="linker", content=text, source_id="link", quality_score=0.95
+    )
     assert is_resource_pointer_comment(text)
     assert select_representative_comments([comment]) == []
 
@@ -457,7 +506,9 @@ class TestExpandElementProps:
     def test_known_type_dispatches(self):
         content = _make_content_package()
         logger = MagicMock()
-        result = expand_element_props("story_header", {"story_index": 0}, content, logger)
+        result = expand_element_props(
+            "story_header", {"story_index": 0}, content, logger
+        )
         assert result["story_title"] == "Story 0"
 
     def test_unknown_type_returns_raw_props(self):
@@ -483,6 +534,7 @@ class TestExpandElementProps:
 
 # ── build_cues ─────────────────────────────────────────────────────────
 
+
 class TestBuildCues:
     def test_auto_split_fallback(self):
         seg = _make_script_segment(audio_text="Hello world. Goodbye.", duration=5.0)
@@ -492,6 +544,7 @@ class TestBuildCues:
 
 
 # ── _split_into_cues ───────────────────────────────────────────────────
+
 
 class TestSplitIntoCues:
     def test_empty_text(self):
@@ -536,9 +589,15 @@ class TestSplitIntoCues:
 
 # ── sanitize_props ─────────────────────────────────────────────────────
 
+
 class TestSanitizeProps:
     def test_primitives_unchanged(self):
-        assert sanitize_props({"a": "hi", "b": 1, "c": 2.0, "d": True}) == {"a": "hi", "b": 1, "c": 2.0, "d": True}
+        assert sanitize_props({"a": "hi", "b": 1, "c": 2.0, "d": True}) == {
+            "a": "hi",
+            "b": 1,
+            "c": 2.0,
+            "d": True,
+        }
 
     def test_none_preserved(self):
         assert sanitize_props({"a": None}) == {"a": None}
@@ -555,6 +614,7 @@ class TestSanitizeProps:
         class FakeNumpy:
             def item(self):
                 return 42
+
         result = sanitize_props({"a": FakeNumpy()})
         assert result["a"] == 42
 
@@ -562,6 +622,7 @@ class TestSanitizeProps:
         class Custom:
             def __str__(self):
                 return "custom"
+
         result = sanitize_props({"a": Custom()})
         assert result["a"] == "custom"
 
@@ -569,20 +630,26 @@ class TestSanitizeProps:
         class FakeNumpy:
             def item(self):
                 return 7
-        result = sanitize_props({
-            "items": [{"val": FakeNumpy()}, "text"],
-            "nested": {"x": None},
-        })
+
+        result = sanitize_props(
+            {
+                "items": [{"val": FakeNumpy()}, "text"],
+                "nested": {"x": None},
+            }
+        )
         assert result["items"][0]["val"] == 7
         assert result["nested"]["x"] is None
 
 
 # ── script_to_props ────────────────────────────────────────────────────
 
+
 class TestScriptToProps:
     def test_basic_structure(self):
         script = Script(
-            title="Test", description="Desc", tags=["t"],
+            title="Test",
+            description="Desc",
+            tags=["t"],
             segments=[_make_script_segment(duration=10.0)],
             total_duration=10.0,
         )
@@ -598,35 +665,51 @@ class TestScriptToProps:
 
     def test_segment_duration_uses_actual(self):
         seg = ScriptSegment(
-            segment_type="opening", audio_text="Hi",
-            estimated_duration=5.0, actual_duration=10.0,
+            segment_type="opening",
+            audio_text="Hi",
+            estimated_duration=5.0,
+            actual_duration=10.0,
         )
-        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=10.0)
+        script = Script(
+            title="T", description="", tags=[], segments=[seg], total_duration=10.0
+        )
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert result["segments"][0]["duration"] == 10.0
 
     def test_segment_duration_fallback_to_estimated(self):
         seg = ScriptSegment(
-            segment_type="opening", audio_text="Hi",
-            estimated_duration=5.0, actual_duration=None,
+            segment_type="opening",
+            audio_text="Hi",
+            estimated_duration=5.0,
+            actual_duration=None,
         )
-        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=5.0)
+        script = Script(
+            title="T", description="", tags=[], segments=[seg], total_duration=5.0
+        )
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert result["segments"][0]["duration"] == 5.0
 
     def test_scene_element_skipped_when_zero_duration(self):
         seg = _make_script_segment(duration=10.0)
         seg.scene_elements = [
-            SceneElement(element_type="subtitle", start_time=0.0, end_time=0.0, props={}),
-            SceneElement(element_type="subtitle", start_time=0.0, end_time=5.0, props={}),
+            SceneElement(
+                element_type="subtitle", start_time=0.0, end_time=0.0, props={}
+            ),
+            SceneElement(
+                element_type="subtitle", start_time=0.0, end_time=5.0, props={}
+            ),
         ]
-        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=10.0)
+        script = Script(
+            title="T", description="", tags=[], segments=[seg], total_duration=10.0
+        )
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert len(result["segments"][0]["scene_elements"]) == 1
 
     def test_cues_included(self):
         seg = _make_script_segment(audio_text="Hello world.", duration=5.0)
-        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=5.0)
+        script = Script(
+            title="T", description="", tags=[], segments=[seg], total_duration=5.0
+        )
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert "cues" in result["segments"][0]
         assert len(result["segments"][0]["cues"]) >= 1
@@ -666,13 +749,14 @@ class TestScriptToProps:
                 ),
             ],
         )
-        script = Script(title="T", description="", tags=[], segments=[seg], total_duration=34.0)
+        script = Script(
+            title="T", description="", tags=[], segments=[seg], total_duration=34.0
+        )
 
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
 
         assert _story_transition_times(script) == [20.0]
         assert result["transitionTimes"] == [20.0]
         assert [
-            elem["element_type"]
-            for elem in result["segments"][0]["scene_elements"]
+            elem["element_type"] for elem in result["segments"][0]["scene_elements"]
         ] == ["event_card", "event_card"]

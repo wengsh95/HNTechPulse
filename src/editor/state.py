@@ -26,7 +26,9 @@ class EditorState:
 
         self.script = _read_json(script_path)
         self.content = _read_json(content_path) if content_path.exists() else {}
-        self.enrichment = _read_json(enrichment_path) if enrichment_path.exists() else {}
+        self.enrichment = (
+            _read_json(enrichment_path) if enrichment_path.exists() else {}
+        )
         self._loaded = True
         return True
 
@@ -86,7 +88,9 @@ class EditorState:
             for p in item.get("article_images", []):
                 candidates.append({"path": p, "source": "page"})
             if item.get("screenshot_image"):
-                candidates.append({"path": item["screenshot_image"], "source": "screenshot"})
+                candidates.append(
+                    {"path": item["screenshot_image"], "source": "screenshot"}
+                )
         return candidates
 
     def get_story_title(self, source_id: str) -> str:
@@ -154,4 +158,5 @@ def _write_json(path: Path, data: dict):
 
 def _timestamp() -> str:
     from datetime import datetime
+
     return datetime.now().strftime("%Y%m%d_%H%M%S")

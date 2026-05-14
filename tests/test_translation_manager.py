@@ -1,6 +1,13 @@
 from unittest.mock import MagicMock
 
-from src.core.models import ContentComment, ContentItem, ContentPackage, SceneElement, Script, ScriptSegment
+from src.core.models import (
+    ContentComment,
+    ContentItem,
+    ContentPackage,
+    SceneElement,
+    Script,
+    ScriptSegment,
+)
 from src.pipeline.translation_manager import TranslationManager
 
 

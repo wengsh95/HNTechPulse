@@ -20,12 +20,18 @@ import re
 from hashlib import sha256
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict
 
 from src.core.models import Script
 from src.core.interfaces import Renderer
 from src.providers.renderer.remotion_props import script_to_props
-from src.providers.renderer.binary_finder import find_node, find_npm, find_npx, find_chrome, find_ffmpeg
+from src.providers.renderer.binary_finder import (
+    find_node,
+    find_npm,
+    find_npx,
+    find_chrome,
+    find_ffmpeg,
+)
 from src.providers.renderer.chunk_planner import compute_segment_chunks
 from src.utils.logger import setup_logger
 
@@ -65,29 +71,32 @@ class RemotionRenderer(Renderer):
         self._npx_path = find_npx(self._node_path)
         self._ffmpeg_path = find_ffmpeg()
 
-        self.chrome_path = (
-            remotion_config.get("browser_executable")
-            or find_chrome()
-        )
+        self.chrome_path = remotion_config.get("browser_executable") or find_chrome()
         if self.chrome_path:
             self.logger.info(f"Using browser: {self.chrome_path}")
         else:
             self.logger.info(
-                "System Chrome not found, "
-                "Remotion will download/use its own Chromium"
+                "System Chrome not found, Remotion will download/use its own Chromium"
             )
 
         self._ensure_dependencies_installed()
 
-    def _prepare_render_data(self, script: Script, audio_dir: str, content=None, date: str = "") -> tuple[Path, str]:
+    def _prepare_render_data(
+        self, script: Script, audio_dir: str, content=None, date: str = ""
+    ) -> tuple[Path, str]:
         self._prepare_audio_assets(script, audio_dir)
         if content and date:
             self._prepare_image_assets(content, date)
 
         props_data = script_to_props(
-            script, audio_dir,
-            self.width, self.height, self.fps, self.bg_color,
-            content=content, logger=self.logger,
+            script,
+            audio_dir,
+            self.width,
+            self.height,
+            self.fps,
+            self.bg_color,
+            content=content,
+            logger=self.logger,
         )
         props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
@@ -99,7 +108,9 @@ class RemotionRenderer(Renderer):
 
         return props_file, props_json
 
-    def preview(self, script: Script, audio_dir: str, content=None, date: str = "") -> None:
+    def preview(
+        self, script: Script, audio_dir: str, content=None, date: str = ""
+    ) -> None:
         self.logger.info("Starting Remotion Studio for preview...")
         self.logger.info("Press Ctrl+C to stop the preview server.")
 
@@ -115,14 +126,15 @@ class RemotionRenderer(Renderer):
             str(self._node_path),
             self._get_remotion_cli_path(),
             "studio",
-            "--port", "3000",
+            "--port",
+            "3000",
             f"--props={props_file}",
         ]
 
         if self.chrome_path:
             cmd.append(f"--browser-executable={self.chrome_path}")
 
-        self.logger.info(f"Studio URL: http://localhost:3000")
+        self.logger.info("Studio URL: http://localhost:3000")
         cmd_summary = []
         for part in cmd:
             if part.startswith("--props="):
@@ -147,7 +159,14 @@ class RemotionRenderer(Renderer):
         finally:
             pass
 
-    def render(self, script: Script, audio_dir: str, output_path: str, content=None, date: str = "") -> None:
+    def render(
+        self,
+        script: Script,
+        audio_dir: str,
+        output_path: str,
+        content=None,
+        date: str = "",
+    ) -> None:
         self.logger.info(f"Rendering video to {output_path}")
         self.logger.info(f"Resolution: {self.width}x{self.height} @ {self.fps}fps")
 
@@ -158,22 +177,24 @@ class RemotionRenderer(Renderer):
             )
         if not self._npm_path:
             raise RuntimeError(
-                "npm not found! It should come with Node.js. "
-                "Try reinstalling Node.js."
+                "npm not found! It should come with Node.js. Try reinstalling Node.js."
             )
         if not self._npx_path:
             raise RuntimeError(
-                "npx not found! It should come with Node.js. "
-                "Try: npm install -g npx"
+                "npx not found! It should come with Node.js. Try: npm install -g npx"
             )
         if not self._ffmpeg_path and self.resume_enabled:
-            self.logger.warning("ffmpeg not found, falling back to full render without resume support.")
+            self.logger.warning(
+                "ffmpeg not found, falling back to full render without resume support."
+            )
             self.resume_enabled = False
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        props_file, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
+        props_file, props_json = self._prepare_render_data(
+            script, audio_dir, content, date=date
+        )
 
         self._ensure_dependencies_installed()
 
@@ -238,7 +259,9 @@ class RemotionRenderer(Renderer):
                 chunk_files.append(chunk_file)
 
                 if chunk_file.exists():
-                    self.logger.info(f"Chunk {idx+1}/{len(chunks)} already exists, skipping ({label})")
+                    self.logger.info(
+                        f"Chunk {idx + 1}/{len(chunks)} already exists, skipping ({label})"
+                    )
                     continue
 
                 pending.append((idx, start, end, label, chunk_file))
@@ -246,13 +269,17 @@ class RemotionRenderer(Renderer):
             # Render pending chunks in parallel
             if pending:
                 workers = min(self.render_workers, len(pending))
-                self.logger.info(f"Rendering {len(pending)} chunks with {workers} workers")
+                self.logger.info(
+                    f"Rendering {len(pending)} chunks with {workers} workers"
+                )
 
                 def _render_chunk(idx, start, end, label, chunk_file):
-                    self.logger.info(f"Rendering chunk {idx+1}/{len(chunks)} [{label}]: frames {start}-{end}")
+                    self.logger.info(
+                        f"Rendering chunk {idx + 1}/{len(chunks)} [{label}]: frames {start}-{end}"
+                    )
                     cmd = base_cmd + [
                         f"--output={chunk_file}",
-                        f"--frames={start}-{end}"
+                        f"--frames={start}-{end}",
                     ]
                     self._run_render_cmd(cmd)
                     return idx
@@ -267,7 +294,9 @@ class RemotionRenderer(Renderer):
                             idx = futures[future]
                             future.result()  # raises on failure
                             label = chunks[idx][2]
-                            self.logger.info(f"Chunk {idx+1}/{len(chunks)} done ({label})")
+                            self.logger.info(
+                                f"Chunk {idx + 1}/{len(chunks)} done ({label})"
+                            )
                 except Exception:
                     # Clean up partial outputs so re-run doesn't skip them
                     for _, _, _, _, chunk_file in pending:
@@ -289,18 +318,24 @@ class RemotionRenderer(Renderer):
             concat_cmd = [
                 self._ffmpeg_path,
                 "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_list),
-                "-c", "copy",
-                str(output_file.absolute())
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list),
+                "-c",
+                "copy",
+                str(output_file.absolute()),
             ]
 
             try:
                 subprocess.run(concat_cmd, check=True, capture_output=True)
                 self.logger.info(f"Video complete: {output_path}")
             except subprocess.CalledProcessError as e:
-                self.logger.error(f"ffmpeg concat failed: {e.stderr.decode('utf-8', errors='ignore')}")
+                self.logger.error(
+                    f"ffmpeg concat failed: {e.stderr.decode('utf-8', errors='ignore')}"
+                )
                 raise RuntimeError("ffmpeg concat failed")
 
         self.logger.info("Rendering complete")
@@ -324,7 +359,9 @@ class RemotionRenderer(Renderer):
                 env=self._build_env(),
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Remotion render failed with code {result.returncode}")
+                raise RuntimeError(
+                    f"Remotion render failed with code {result.returncode}"
+                )
         except subprocess.TimeoutExpired:
             self.logger.error("Render timed out after 10 minutes!")
             raise
@@ -347,6 +384,7 @@ class RemotionRenderer(Renderer):
 
     def _build_env(self) -> Dict[str, str]:
         import os
+
         env = dict(os.environ)
 
         node_modules = str(self.remotion_dir / "node_modules")
@@ -460,7 +498,8 @@ class RemotionRenderer(Renderer):
         install_cmd = [
             str(self._npm_path),
             "install",
-            "--prefix", str(self.remotion_dir),
+            "--prefix",
+            str(self.remotion_dir),
         ]
 
         try:
@@ -494,11 +533,7 @@ class RemotionRenderer(Renderer):
 
     def _get_remotion_cli_path(self) -> str:
         cli_path = (
-            self.remotion_dir
-            / "node_modules"
-            / "@remotion"
-            / "cli"
-            / "remotion-cli.js"
+            self.remotion_dir / "node_modules" / "@remotion" / "cli" / "remotion-cli.js"
         )
         if not cli_path.exists():
             raise FileNotFoundError(

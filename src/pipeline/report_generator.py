@@ -40,7 +40,9 @@ class ReportGenerator:
                 comments = item.comment_count if item.comment_count is not None else "-"
                 source = item.enrichment_source or "未富化"
                 imgs = len(item.article_images) if item.article_images else 0
-                lines.append(f"| {i} | {title} | {score} | {comments} | {source} | {imgs} |")
+                lines.append(
+                    f"| {i} | {title} | {score} | {comments} | {source} | {imgs} |"
+                )
 
         # ── 富化统计 ──
         source_counts = Counter()
@@ -55,7 +57,20 @@ class ReportGenerator:
             lines.append("")
             lines.append("| 策略 | 数量 | 占比 |")
             lines.append("|------|------|------|")
-            for strategy in ["aiohttp", "headless", "headed", "downloaded_page", "fetch_failed", "extraction_failed", "skipped", "error", "manual_override", "none", "legacy", "未富化"]:
+            for strategy in [
+                "aiohttp",
+                "headless",
+                "headed",
+                "downloaded_page",
+                "fetch_failed",
+                "extraction_failed",
+                "skipped",
+                "error",
+                "manual_override",
+                "none",
+                "legacy",
+                "未富化",
+            ]:
                 cnt = source_counts.get(strategy, 0)
                 if cnt > 0:
                     pct = cnt / total * 100 if total > 0 else 0
@@ -79,13 +94,19 @@ class ReportGenerator:
                 if st in seg_stats:
                     s = seg_stats[st]
                     diff = s["act"] - s["est"]
-                    lines.append(f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |")
+                    lines.append(
+                        f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |"
+                    )
             for st, s in seg_stats.items():
                 if st not in ("opening", "story_scan", "closing"):
                     diff = s["act"] - s["est"]
-                    lines.append(f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |")
+                    lines.append(
+                        f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |"
+                    )
             total_est = sum(seg.estimated_duration for seg in script.segments)
-            total_act = sum(seg.actual_duration or seg.estimated_duration for seg in script.segments)
+            total_act = sum(
+                seg.actual_duration or seg.estimated_duration for seg in script.segments
+            )
             lines.append(f"- 视频总时长: {total_act:.1f}s (预计: {total_est:.1f}s)")
 
         # ── 问题列表 ──
@@ -93,18 +114,29 @@ class ReportGenerator:
         manual_override_items = []
         if content:
             for i, item in enumerate(content.items, 1):
-                if item.enrichment_source in ("fetch_failed", "extraction_failed", "error"):
+                if item.enrichment_source in (
+                    "fetch_failed",
+                    "extraction_failed",
+                    "error",
+                ):
                     title = (item.title or "")[:40]
                     url = (item.url or "")[:60]
                     reason = item.enrichment_source
                     issues.append(f"- [需手动处理] #{i} {title} — {reason}")
                     manual_override_items.append(f"  - #{i} {title}: {url}")
-                if item.enrichment_source in ("aiohttp", "headless", "headed") and not item.article_images:
+                if (
+                    item.enrichment_source in ("aiohttp", "headless", "headed")
+                    and not item.article_images
+                ):
                     title = (item.title or "")[:40]
                     issues.append(f"- [缺少图片] #{i} {title} — 富化成功但无图片")
         if script:
             for idx, seg in enumerate(script.segments):
-                if seg.actual_duration and seg.estimated_duration and seg.estimated_duration > 0:
+                if (
+                    seg.actual_duration
+                    and seg.estimated_duration
+                    and seg.estimated_duration > 0
+                ):
                     ratio = seg.actual_duration / seg.estimated_duration
                     if ratio < 0.6 and seg.segment_type not in ("opening", "closing"):
                         issues.append(
@@ -128,7 +160,9 @@ class ReportGenerator:
             lines.append("")
             lines.extend(manual_override_items)
             lines.append("")
-            lines.append(f"用浏览器打开对应 URL，保存网页为 HTML 文件到 `data/{date}/downloaded_pages/{{source_id}}.html`。")
+            lines.append(
+                f"用浏览器打开对应 URL，保存网页为 HTML 文件到 `data/{date}/downloaded_pages/{{source_id}}.html`。"
+            )
             lines.append("完成后重新运行 pipeline，将从断点继续。")
 
         report_path = Path(f"data/{date}/report.md")

@@ -5,25 +5,29 @@ from src.core.interfaces import LLMProvider
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.comment_selection import (
     clean_comment_text,
-    classify_comment_stance,
     comment_key,
     select_quote_comments,
 )
-from src.pipeline.comment_judgement import comment_judgement_key, load_comment_judgements
+from src.pipeline.comment_judgement import (
+    comment_judgement_key,
+    load_comment_judgements,
+)
 from src.utils.logger import setup_logger
 
 
 class TranslationManager:
-    def __init__(self, llm_provider: LLMProvider, content_preparer: ContentPreparer, config: dict, debug: bool = False, level=None):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        content_preparer: ContentPreparer,
+        config: dict,
+        debug: bool = False,
+        level=None,
+    ):
         self.llm_provider = llm_provider
         self.content_preparer = content_preparer
         self.config = config
         self.logger = setup_logger(__name__, debug=debug, level=level)
-
-    @staticmethod
-    def _classify_stance(comment) -> str:
-        """Classify comment stance from VADER sentiment, matching _expand_quote_card."""
-        return classify_comment_stance(comment)
 
     @staticmethod
     def _selected_ids_by_story(script) -> dict:
@@ -43,7 +47,9 @@ class TranslationManager:
         return selected
 
     @staticmethod
-    def _pick_quote_comments(comments: list, selected_ids=None, max_n: int = 3, judgement: dict | None = None) -> list:
+    def _pick_quote_comments(
+        comments: list, selected_ids=None, max_n: int = 3, judgement: dict | None = None
+    ) -> list:
         """Pick the same comments the renderer will inject into QuoteCard."""
         return select_quote_comments(
             comments,
@@ -69,7 +75,9 @@ class TranslationManager:
             with open(translations_path, "r", encoding="utf-8") as f:
                 translations = json.load(f)
             # Apply title translations by source_id, falling back to index for legacy caches
-            items_by_source_id = {item.source_id: item for item in content.items if item.source_id}
+            items_by_source_id = {
+                item.source_id: item for item in content.items if item.source_id
+            }
             for key, value in translations.items():
                 if key.startswith("title_"):
                     parts = key.split("_", 1)
@@ -89,7 +97,9 @@ class TranslationManager:
                     if item is not None:
                         item.title_cn = value
             selected_ids_by_story = self._selected_ids_by_story(script)
-            self._apply_comment_translations(content, translations, selected_ids_by_story, judgements)
+            self._apply_comment_translations(
+                content, translations, selected_ids_by_story, judgements
+            )
         else:
             # 1. Translate all titles
             content = self.llm_provider.translate_titles(content, "translate.md")
@@ -102,24 +112,30 @@ class TranslationManager:
 
         # 2. Collect and translate stance-diverse comments (if not cached)
         selected_ids_by_story = self._selected_ids_by_story(script)
-        comment_refs = self.collect_comment_refs(content, selected_ids_by_story, judgements)
+        comment_refs = self.collect_comment_refs(
+            content, selected_ids_by_story, judgements
+        )
         missing_comment_refs = {
-            key: value
-            for key, value in comment_refs.items()
-            if key not in translations
+            key: value for key, value in comment_refs.items() if key not in translations
         }
 
         if missing_comment_refs:
-            comment_translations = self.llm_provider.translate_comments(content, missing_comment_refs)
+            comment_translations = self.llm_provider.translate_comments(
+                content, missing_comment_refs
+            )
             translations.update(comment_translations)
-            self._apply_comment_translations(content, translations, selected_ids_by_story, judgements)
+            self._apply_comment_translations(
+                content, translations, selected_ids_by_story, judgements
+            )
 
         # 3. Save checkpoint
         if translations:
             translations_path.parent.mkdir(parents=True, exist_ok=True)
             with open(translations_path, "w", encoding="utf-8") as f:
                 json.dump(translations, f, ensure_ascii=False, indent=2)
-            self.logger.info(f"  Saved {len(translations)} translations to {translations_path}")
+            self.logger.info(
+                f"  Saved {len(translations)} translations to {translations_path}"
+            )
 
         self.apply_translations_to_script(script, content, translations)
         self.content_preparer.save_content(content, date)
@@ -132,14 +148,21 @@ class TranslationManager:
         return clean_comment_text(text)
 
     @staticmethod
-    def _comment_translation_key(story_idx: int, item, comment, selected_idx: int) -> str:
+    def _comment_translation_key(
+        story_idx: int, item, comment, selected_idx: int
+    ) -> str:
         return comment_key(story_idx, item.source_id, comment, selected_idx)
 
     @staticmethod
     def _legacy_comment_translation_key(story_idx: int, selected_idx: int) -> str:
         return f"comment_{story_idx}_{selected_idx}"
 
-    def collect_comment_refs(self, content, selected_ids_by_story: dict | None = None, judgements: dict | None = None) -> dict:
+    def collect_comment_refs(
+        self,
+        content,
+        selected_ids_by_story: dict | None = None,
+        judgements: dict | None = None,
+    ) -> dict:
         """Collect the exact comments QuoteCard will display for translation.
 
         LLM-selected ids are honored first, then the shared fallback selector fills
@@ -179,8 +202,12 @@ class TranslationManager:
                 judgement=judgements.get(comment_judgement_key(item), {}),
             )
             for selected_idx, comment in enumerate(selected):
-                stable_key = self._comment_translation_key(story_idx, item, comment, selected_idx)
-                legacy_key = self._legacy_comment_translation_key(story_idx, selected_idx)
+                stable_key = self._comment_translation_key(
+                    story_idx, item, comment, selected_idx
+                )
+                legacy_key = self._legacy_comment_translation_key(
+                    story_idx, selected_idx
+                )
                 value = translations.get(stable_key) or translations.get(legacy_key)
                 if value:
                     comment.content_cn = value
@@ -196,14 +223,20 @@ class TranslationManager:
                     for entry in elem.props.get("highlight_entries", []):
                         story_idx = entry.get("story_index")
                         if story_idx is not None and story_idx < len(content.items):
-                            entry["title_translation"] = content.items[story_idx].title_cn
+                            entry["title_translation"] = content.items[
+                                story_idx
+                            ].title_cn
             elif seg.segment_type == "story_scan":
                 for elem in seg.scene_elements:
                     if elem.element_type == "quote_card":
                         story_idx = elem.props.get("story_index")
                         for i, q in enumerate(elem.props.get("quotes", [])):
                             if story_idx is not None:
-                                item = content.items[story_idx] if story_idx < len(content.items) else None
+                                item = (
+                                    content.items[story_idx]
+                                    if story_idx < len(content.items)
+                                    else None
+                                )
                                 if item is None:
                                     continue
                                 selected = TranslationManager._pick_quote_comments(
@@ -212,8 +245,16 @@ class TranslationManager:
                                 )
                                 if i >= len(selected):
                                     continue
-                                stable_key = TranslationManager._comment_translation_key(story_idx, item, selected[i], i)
-                                legacy_key = TranslationManager._legacy_comment_translation_key(story_idx, i)
+                                stable_key = (
+                                    TranslationManager._comment_translation_key(
+                                        story_idx, item, selected[i], i
+                                    )
+                                )
+                                legacy_key = (
+                                    TranslationManager._legacy_comment_translation_key(
+                                        story_idx, i
+                                    )
+                                )
                                 if stable_key in translations:
                                     q["text_cn"] = translations[stable_key]
                                 elif legacy_key in translations:

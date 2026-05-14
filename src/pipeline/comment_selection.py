@@ -48,7 +48,12 @@ def classify_comment_stance(comment: ContentComment) -> str:
     return "中立"
 
 
-def comment_key(story_idx: int, story_source_id: Optional[str], comment: ContentComment, fallback_idx: int) -> str:
+def comment_key(
+    story_idx: int,
+    story_source_id: Optional[str],
+    comment: ContentComment,
+    fallback_idx: int,
+) -> str:
     """Build a stable translation key when source ids are available."""
     story_part = story_source_id or str(story_idx)
     comment_part = comment.source_id or str(fallback_idx)
@@ -106,8 +111,7 @@ def is_quotable_comment(comment: ContentComment, min_quality: float = 0.22) -> b
 
 def _quote_heavy_penalty(raw_text: str, clean_text: str) -> float:
     quote_lines = [
-        line for line in raw_text.splitlines()
-        if line.strip().startswith((">", "&gt;"))
+        line for line in raw_text.splitlines() if line.strip().startswith((">", "&gt;"))
     ]
     if not quote_lines:
         return 0.0
@@ -135,7 +139,8 @@ def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
     if item is None:
         return 0.0
     context = " ".join(
-        part for part in [
+        part
+        for part in [
             item.title,
             item.title_cn or "",
             item.article_summary or "",
@@ -151,7 +156,9 @@ def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
     return min(0.2, overlap * 0.04)
 
 
-def compute_comment_quality(comment: ContentComment, item: Optional[ContentItem] = None) -> float:
+def compute_comment_quality(
+    comment: ContentComment, item: Optional[ContentItem] = None
+) -> float:
     raw_text = comment.content or ""
     text = clean_comment_text(raw_text)
     text_len = len(text)
@@ -177,11 +184,13 @@ def compute_comment_quality(comment: ContentComment, item: Optional[ContentItem]
         structure_score += 0.04
     structure_score = min(structure_score, 0.15)
 
-    explanation_markers = len(re.findall(
-        r"\b(because|since|therefore|however|example|means|actually|why|how|but|if|when)\b",
-        text,
-        flags=re.IGNORECASE,
-    ))
+    explanation_markers = len(
+        re.findall(
+            r"\b(because|since|therefore|however|example|means|actually|why|how|but|if|when)\b",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
     info_score = min(0.2, explanation_markers * 0.04)
     if re.search(r"\b\d+(?:\.\d+)?%?\b", text):
         info_score = min(0.2, info_score + 0.04)
@@ -217,7 +226,11 @@ def _similarity(a: str, b: str) -> float:
 
 
 def _ranked_comments(comments: Iterable[ContentComment]) -> List[ContentComment]:
-    scored = [c for c in comments if (c.quality_score or 0) > 0 and clean_comment_text(c.content or "")]
+    scored = [
+        c
+        for c in comments
+        if (c.quality_score or 0) > 0 and clean_comment_text(c.content or "")
+    ]
     scored.sort(
         key=lambda c: (
             c.quality_score or 0,
@@ -235,14 +248,17 @@ def select_representative_comments(
     similarity_threshold: float = 0.58,
 ) -> List[ContentComment]:
     """Pick high-quality, stance-diverse comments while avoiding near-duplicates."""
-    ranked = [c for c in _ranked_comments(comments) if is_quotable_comment(c, min_quality)]
+    ranked = [
+        c for c in _ranked_comments(comments) if is_quotable_comment(c, min_quality)
+    ]
     selected: List[ContentComment] = []
     seen_stances = set()
 
     def can_add(candidate: ContentComment) -> bool:
         text = clean_comment_text(candidate.content or "")
         return all(
-            _similarity(text, clean_comment_text(existing.content or "")) < similarity_threshold
+            _similarity(text, clean_comment_text(existing.content or ""))
+            < similarity_threshold
             for existing in selected
         )
 
@@ -280,7 +296,9 @@ def select_comments_by_ids(
     min_quality: float = 0.22,
 ) -> List[ContentComment]:
     """Pick explicitly requested quotable comments by source_id, preserving id order."""
-    id_order = [str(comment_id) for comment_id in selected_ids if comment_id is not None]
+    id_order = [
+        str(comment_id) for comment_id in selected_ids if comment_id is not None
+    ]
     if not id_order:
         return []
     comments_by_id = {
@@ -332,7 +350,9 @@ def select_quote_comments(
             if c.source_id is not None and is_quotable_comment(c, min_quality)
         }
         for candidate in judgement.get("quote_candidates", []) or []:
-            if candidate.get("reject_for_quote") or not candidate.get("has_viewpoint", True):
+            if candidate.get("reject_for_quote") or not candidate.get(
+                "has_viewpoint", True
+            ):
                 continue
             comment_id = candidate.get("comment_id")
             if comment_id is None:

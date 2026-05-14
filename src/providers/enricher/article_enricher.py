@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from urllib.parse import urlparse
 
 from openai import OpenAI
@@ -11,8 +11,6 @@ from openai import OpenAI
 from src.core.models import ContentPackage
 from src.core.prompts import render_prompt
 from src.providers.enricher.page_fetcher import (
-    _USER_AGENTS,
-    _make_headers,
     _find_chrome,
     PageFetcher,
     fetch_github_readme,
@@ -52,8 +50,7 @@ class ArticleEnricher:
             self.logger.debug(f"Using browser: {self.browser_executable}")
 
         self.skip_domains = {
-            d.lower().lstrip(".")
-            for d in enrich_cfg.get("skip_domains", []) or []
+            d.lower().lstrip(".") for d in enrich_cfg.get("skip_domains", []) or []
         }
 
         _target = enrich_cfg.get("image_target_size", [1280, 720])
@@ -94,6 +91,7 @@ class ArticleEnricher:
         llm_temperature = fast_cfg.get("temperature", 0.5)
 
         from src.utils.config import get_env
+
         api_key = get_env("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set in environment")
@@ -150,10 +148,13 @@ class ArticleEnricher:
             return content
 
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, self._enrich_items(content, date, classified))
+                future = pool.submit(
+                    asyncio.run, self._enrich_items(content, date, classified)
+                )
                 future.result()
         except RuntimeError:
             asyncio.run(self._enrich_items(content, date, classified))
@@ -231,7 +232,7 @@ class ArticleEnricher:
 
     async def _phase1_fetch_all(self, content: ContentPackage, date: str, items: list):
         pages_dir = self._pages_dir(date)
-        total = len(items)
+        len(items)
 
         # Strategy 0: GitHub API (for github.com URLs)
         github_ok, remaining = [], list(items)
@@ -249,7 +250,9 @@ class ArticleEnricher:
                         remaining.remove(item)
                         self.logger.debug(f"[github_api] {item.title[:50]}")
                         continue
-                self.logger.debug(f"[github_api] failed, will try aiohttp: {item.title[:50]}")
+                self.logger.debug(
+                    f"[github_api] failed, will try aiohttp: {item.title[:50]}"
+                )
 
         # Strategy 1: aiohttp (concurrent)
         aiohttp_failed = []
@@ -259,7 +262,9 @@ class ArticleEnricher:
             async with sem:
                 return item, await self._phase1_fetch_one_aiohttp(item, pages_dir)
 
-        results = await asyncio.gather(*[_fetch_one(item) for item in remaining], return_exceptions=True)
+        results = await asyncio.gather(
+            *[_fetch_one(item) for item in remaining], return_exceptions=True
+        )
         for r in results:
             if isinstance(r, Exception):
                 self.logger.debug(f"[aiohttp] concurrent fetch error: {r}")
@@ -335,7 +340,9 @@ class ArticleEnricher:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for i, r in enumerate(results):
             if isinstance(r, Exception):
-                self.logger.info(f"Phase 2 extraction failed for item {items[i].source_id}: {r}")
+                self.logger.info(
+                    f"Phase 2 extraction failed for item {items[i].source_id}: {r}"
+                )
 
     async def _phase2_extract_one(self, item, date: str, semaphore: asyncio.Semaphore):
         async with semaphore:
@@ -350,7 +357,9 @@ class ArticleEnricher:
                 html = html_path.read_text(encoding="utf-8", errors="replace")
                 image_dir = Path(f"data/{date}/images")
                 image_dir.mkdir(parents=True, exist_ok=True)
-                cached_image_candidates = self.image_handler.cached_image_candidates(item, image_dir)
+                cached_image_candidates = self.image_handler.cached_image_candidates(
+                    item, image_dir
+                )
 
                 article_text = self._extract_text(html, item.url or "")
                 if not article_text:
@@ -376,18 +385,28 @@ class ArticleEnricher:
                         f"for {item.source_id}"
                     )
                 elif image_urls:
-                    page_candidates = await self.image_handler.download_image_candidates(
-                        image_urls,
-                        image_dir,
-                        str(item.source_id),
-                        source="page",
-                        label="Article image",
+                    page_candidates = (
+                        await self.image_handler.download_image_candidates(
+                            image_urls,
+                            image_dir,
+                            str(item.source_id),
+                            source="page",
+                            label="Article image",
+                        )
                     )
 
                 bing_candidates = []
-                if not cached_image_candidates and self.bing_image_search and item.title:
+                if (
+                    not cached_image_candidates
+                    and self.bing_image_search
+                    and item.title
+                ):
                     bing_candidates = await self.image_handler.search_bing_images(
-                        item.title, item.url or "", image_dir, str(item.source_id), self.fetcher
+                        item.title,
+                        item.url or "",
+                        image_dir,
+                        str(item.source_id),
+                        self.fetcher,
                     )
 
                 screenshot_image = item.screenshot_image
@@ -402,7 +421,9 @@ class ArticleEnricher:
                     item.screenshot_image = screenshot_image
 
                 enrich_result = self._enrich_content(article_text, item.title)
-                article_summary = enrich_result.get("article_summary") if enrich_result else None
+                article_summary = (
+                    enrich_result.get("article_summary") if enrich_result else None
+                )
 
                 image_candidates = list(cached_image_candidates)
                 if not image_candidates:
@@ -414,25 +435,37 @@ class ArticleEnricher:
                     if candidate.get("path")
                 }
                 if screenshot_image and screenshot_image not in existing_paths:
-                    image_candidates.append({
-                        "path": screenshot_image,
-                        "source": "screenshot",
-                        "label": "Page screenshot",
-                        "rank": len(image_candidates),
-                        "width": 1280,
-                        "height": 720,
-                    })
+                    image_candidates.append(
+                        {
+                            "path": screenshot_image,
+                            "source": "screenshot",
+                            "label": "Page screenshot",
+                            "rank": len(image_candidates),
+                            "width": 1280,
+                            "height": 720,
+                        }
+                    )
 
-                selected_candidate = self.image_handler.choose_auto_image_candidate(image_candidates)
-                selected_path = selected_candidate.get("path") if selected_candidate else None
+                selected_candidate = self.image_handler.choose_auto_image_candidate(
+                    image_candidates
+                )
+                selected_path = (
+                    selected_candidate.get("path") if selected_candidate else None
+                )
                 if selected_path:
                     for candidate in image_candidates:
-                        candidate["auto_selected"] = candidate.get("path") == selected_path
+                        candidate["auto_selected"] = (
+                            candidate.get("path") == selected_path
+                        )
                     if selected_candidate is not None:
-                        selected_candidate["selection_reason"] = self.image_handler.selection_reason(selected_candidate)
+                        selected_candidate["selection_reason"] = (
+                            self.image_handler.selection_reason(selected_candidate)
+                        )
 
-                item.article_text = article_text[:self.max_text_length]
-                item.article_images = self.image_handler.candidate_paths(image_candidates, preferred_path=selected_path)
+                item.article_text = article_text[: self.max_text_length]
+                item.article_images = self.image_handler.candidate_paths(
+                    image_candidates, preferred_path=selected_path
+                )
                 item.article_summary = article_summary
                 if enrich_result:
                     item.editor_angle = enrich_result.get("editor_angle")
@@ -441,7 +474,10 @@ class ArticleEnricher:
                     item.keywords = enrich_result.get("keywords")
                     item.category = enrich_result.get("category")
                     item.visual_hint = enrich_result.get("visual_hint")
-                if not item.enrichment_source or item.enrichment_source == "fetch_failed":
+                if (
+                    not item.enrichment_source
+                    or item.enrichment_source == "fetch_failed"
+                ):
                     item.enrichment_source = "downloaded_page"
 
                 item.image_candidates = image_candidates
@@ -469,9 +505,13 @@ class ArticleEnricher:
                 item.screenshot_image = None
 
     def _extract_text(self, html: str, base_url: str) -> Optional[str]:
-        return self.image_handler.extract_text(html, base_url, max_text_length=self.max_text_length)
+        return self.image_handler.extract_text(
+            html, base_url, max_text_length=self.max_text_length
+        )
 
-    def _enrich_content(self, article_text: str, title: str) -> Optional[Dict[str, Any]]:
+    def _enrich_content(
+        self, article_text: str, title: str
+    ) -> Optional[Dict[str, Any]]:
         if not self._enrich_prompt:
             self.logger.info("Enrich prompt not loaded, skipping LLM enrichment")
             return None
@@ -480,7 +520,7 @@ class ArticleEnricher:
             prompt = render_prompt(
                 self._enrich_prompt,
                 title=title,
-                article_text=article_text[:self.max_text_length],
+                article_text=article_text[: self.max_text_length],
             )
 
             if "<!-- SYSTEM_CUT -->" in prompt:
@@ -509,7 +549,7 @@ class ArticleEnricher:
             text = raw.strip()
             if text.startswith("```"):
                 lines = text.split("\n")
-                lines = [l for l in lines if not l.strip().startswith("```")]
+                lines = [line for line in lines if not line.strip().startswith("```")]
                 text = "\n".join(lines)
 
             result = json.loads(text)
@@ -541,7 +581,9 @@ class ArticleEnricher:
                     existing = [p for p in item.article_images if p != chosen]
                     item.article_images = [chosen] + existing
                     selected.add(str(item.source_id))
-                    self.logger.debug(f"Image selection loaded for {item.source_id}: {chosen}")
+                    self.logger.debug(
+                        f"Image selection loaded for {item.source_id}: {chosen}"
+                    )
             return selected
         except Exception as e:
             self.logger.info(f"Failed to load image selection: {e}")
@@ -573,13 +615,19 @@ class ArticleEnricher:
             )
             selected = existing_entry.get("selected_image")
             if not selected:
-                selected_candidate = self.image_handler.choose_auto_image_candidate(candidates)
-                selected = selected_candidate.get("path") if selected_candidate else None
+                selected_candidate = self.image_handler.choose_auto_image_candidate(
+                    candidates
+                )
+                selected = (
+                    selected_candidate.get("path") if selected_candidate else None
+                )
                 if selected:
                     for candidate in candidates:
                         candidate["auto_selected"] = candidate.get("path") == selected
                     if selected_candidate is not None:
-                        selected_candidate["selection_reason"] = self.image_handler.selection_reason(selected_candidate)
+                        selected_candidate["selection_reason"] = (
+                            self.image_handler.selection_reason(selected_candidate)
+                        )
 
             new_entry = {
                 "title": item.title,
@@ -604,10 +652,7 @@ class ArticleEnricher:
 
     def _save_to_cache(self, content: ContentPackage, cache_path: Path):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "date": content.date,
-            "items": {}
-        }
+        data = {"date": content.date, "items": {}}
         for item in content.items:
             if item.article_text is not None or item.article_summary is not None:
                 data["items"][str(item.source_id)] = {
@@ -657,7 +702,11 @@ class ArticleEnricher:
                     item.logo_image = cached.get("logo_image")
                     item.screenshot_image = cached.get("screenshot_image")
                     item.image_candidates = cached.get("image_candidates", [])
-            loaded = sum(1 for item in content.items if item.article_text is not None or item.article_summary is not None)
+            loaded = sum(
+                1
+                for item in content.items
+                if item.article_text is not None or item.article_summary is not None
+            )
             self.logger.debug(f"Loaded {loaded} cached enrichments from {cache_path}")
         except Exception as e:
             self.logger.info(f"Failed to load enrichment cache: {e}")

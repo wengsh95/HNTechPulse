@@ -4,11 +4,16 @@ import logging
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union
 
 import aiohttp
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from src.providers.fetcher.models import HNStory, HNComment
 from src.core.models import ContentItem, ContentComment, ContentPackage
@@ -24,6 +29,7 @@ def _run_async(coro):
         return asyncio.run(coro)
     # Already inside a running loop — create a new one in a separate thread
     import concurrent.futures
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
 
@@ -42,7 +48,9 @@ class HNFetcher(ContentFetcher):
             log_level = logging.DEBUG
 
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
-        self.base_url = config.get("hn", {}).get("base_url", "https://hacker-news.firebaseio.com/v0")
+        self.base_url = config.get("hn", {}).get(
+            "base_url", "https://hacker-news.firebaseio.com/v0"
+        )
         self.top_stories_count = config.get("hn", {}).get("top_stories_count", 100)
         self.target_stories_count = config.get("hn", {}).get("target_stories_count", 10)
 
@@ -56,7 +64,9 @@ class HNFetcher(ContentFetcher):
 
         self.comment_log_interval = config.get("hn", {}).get("comment_log_interval", 50)
         self.max_comment_depth = config.get("hn", {}).get("max_comment_depth", 5)
-        self.max_concurrent_requests = config.get("hn", {}).get("max_concurrent_requests", 20)
+        self.max_concurrent_requests = config.get("hn", {}).get(
+            "max_concurrent_requests", 20
+        )
         self.max_retries = config.get("hn", {}).get("max_retries", 3)
         self.granular_cache = config.get("hn", {}).get("granular_cache", True)
 
@@ -69,7 +79,13 @@ class HNFetcher(ContentFetcher):
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
-    def fetch(self, date: str, num_deep_dive: int = 1, num_brief: int = 2, num_quick_news: int = 7) -> ContentPackage:
+    def fetch(
+        self,
+        date: str,
+        num_deep_dive: int = 1,
+        num_brief: int = 2,
+        num_quick_news: int = 7,
+    ) -> ContentPackage:
         import time as _time
 
         t0 = _time.monotonic()
@@ -80,11 +96,15 @@ class HNFetcher(ContentFetcher):
         raw_data_path = Path(f"data/{date}/raw.json")
         if raw_data_path.exists():
             self.logger.info(f"Cache hit, loading from {raw_data_path}")
-            result = self._load_from_cache(raw_data_path, date, num_deep_dive, num_brief, num_quick_news)
+            result = self._load_from_cache(
+                raw_data_path, date, num_deep_dive, num_brief, num_quick_news
+            )
             self.logger.info(f"Loaded from cache in {_time.monotonic() - t0:.1f}s")
             return result
 
-        self.logger.info(f"[1/4] Fetching top stories IDs (max {self.top_stories_count})...")
+        self.logger.info(
+            f"[1/4] Fetching top stories IDs (max {self.top_stories_count})..."
+        )
         t1 = _time.monotonic()
         top_story_ids = self._fetch_top_stories()
         self.logger.info(
@@ -92,7 +112,9 @@ class HNFetcher(ContentFetcher):
         )
 
         total_ids = len(top_story_ids)
-        self.logger.info(f"[2/4] Fetching story details, total {total_ids} (concurrent={self.max_concurrent_requests})...")
+        self.logger.info(
+            f"[2/4] Fetching story details, total {total_ids} (concurrent={self.max_concurrent_requests})..."
+        )
         t2 = _time.monotonic()
         stories = self._fetch_stories_concurrent(top_story_ids)
         valid_count = len(stories)
@@ -102,7 +124,9 @@ class HNFetcher(ContentFetcher):
             f" in {_time.monotonic() - t2:.1f}s"
         )
 
-        self.logger.info(f"[3/4] Filtering by time and selecting top {self.target_stories_count}...")
+        self.logger.info(
+            f"[3/4] Filtering by time and selecting top {self.target_stories_count}..."
+        )
         t3 = _time.monotonic()
         filtered_stories = self._filter_stories_by_time(stories, date)
         self.logger.info(
@@ -130,7 +154,9 @@ class HNFetcher(ContentFetcher):
         raw_data = {
             "date": date,
             "stories": [self._story_to_dict(s) for s in top_stories],
-            "comments": {k: [self._comment_to_dict(c) for c in v] for k, v in comments.items()}
+            "comments": {
+                k: [self._comment_to_dict(c) for c in v] for k, v in comments.items()
+            },
         }
         raw_data_path.parent.mkdir(parents=True, exist_ok=True)
         with open(raw_data_path, "w", encoding="utf-8") as f:
@@ -145,14 +171,16 @@ class HNFetcher(ContentFetcher):
         )
         self.logger.info("=" * 60)
 
-        return self._to_content_package(top_stories, comments, date, num_deep_dive, num_brief, num_quick_news)
+        return self._to_content_package(
+            top_stories, comments, date, num_deep_dive, num_brief, num_quick_news
+        )
 
     def _fetch_top_stories(self) -> List[int]:
         url = f"{self.base_url}/topstories.json"
         response = self._session.get(url, timeout=self.request_timeout)
         response.raise_for_status()
         ids = response.json()
-        return ids[:self.top_stories_count]
+        return ids[: self.top_stories_count]
 
     def _fetch_stories_concurrent(self, story_ids: List[int]) -> List[HNStory]:
         return _run_async(self._async_fetch_stories(story_ids))
@@ -163,11 +191,12 @@ class HNFetcher(ContentFetcher):
             sock_connect=self.request_timeout[0],
             sock_read=self.request_timeout[1],
         )
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout
+        ) as session:
             semaphore = asyncio.Semaphore(self.max_concurrent_requests)
             tasks = [
-                self._async_fetch_story(session, semaphore, sid)
-                for sid in story_ids
+                self._async_fetch_story(session, semaphore, sid) for sid in story_ids
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -218,13 +247,17 @@ class HNFetcher(ContentFetcher):
             descendants=data.get("descendants", 0),
             time=data.get("time", 0),
             text=data.get("text"),
-            by=data.get("by")
+            by=data.get("by"),
         )
 
-    def _fetch_comments_concurrent(self, stories: List[HNStory]) -> Dict[int, List[HNComment]]:
+    def _fetch_comments_concurrent(
+        self, stories: List[HNStory]
+    ) -> Dict[int, List[HNComment]]:
         return _run_async(self._async_fetch_comments(stories))
 
-    async def _async_fetch_comments(self, stories: List[HNStory]) -> Dict[int, List[HNComment]]:
+    async def _async_fetch_comments(
+        self, stories: List[HNStory]
+    ) -> Dict[int, List[HNComment]]:
         import time as _time
 
         connector = aiohttp.TCPConnector(limit=self.max_concurrent_requests)
@@ -232,7 +265,9 @@ class HNFetcher(ContentFetcher):
             sock_connect=self.request_timeout[0],
             sock_read=self.request_timeout[1],
         )
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout
+        ) as session:
             semaphore = asyncio.Semaphore(self.max_concurrent_requests)
             result: Dict[int, List[HNComment]] = {}
             total_stories = len(stories)
@@ -275,7 +310,9 @@ class HNFetcher(ContentFetcher):
                     else:
                         eta_str = f"{eta_seconds:.0f}s"
 
-                    title_short = story.title[:45] + ("..." if len(story.title) > 45 else "")
+                    title_short = story.title[:45] + (
+                        "..." if len(story.title) > 45 else ""
+                    )
                     self.logger.info(
                         f"  Story {s_idx}/{total_stories}: id={story.id}"
                         f"  comments={len(story_comments):>4}  time={t_story_elapsed:.1f}s"
@@ -334,7 +371,9 @@ class HNFetcher(ContentFetcher):
 
             for (item_id, depth), result in zip(batch, results):
                 if isinstance(result, Exception):
-                    self.logger.debug(f"  [L{depth}] item={item_id} fetch failed: {result}")
+                    self.logger.debug(
+                        f"  [L{depth}] item={item_id} fetch failed: {result}"
+                    )
                     continue
                 if result is None:
                     continue
@@ -363,7 +402,9 @@ class HNFetcher(ContentFetcher):
                 if interval > 0 and fetched_count - last_log_count >= interval:
                     elapsed = _time.monotonic() - t_start
                     rate = fetched_count / elapsed if elapsed > 0 else 0.0
-                    pct = (fetched_count / expected_total * 100) if expected_total else 0
+                    pct = (
+                        (fetched_count / expected_total * 100) if expected_total else 0
+                    )
                     self.logger.info(
                         f"  Comments for story={story_id}"
                         f"  fetched={fetched_count:>5}"
@@ -408,32 +449,50 @@ class HNFetcher(ContentFetcher):
             sock_connect=self.request_timeout[0],
             sock_read=self.request_timeout[1],
         )
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout
+        ) as session:
             semaphore = asyncio.Semaphore(self.max_concurrent_requests)
             return await self._async_fetch_all_story_comments(
                 session, semaphore, story_id, expected_total
             )
 
-    def _filter_stories_by_time(self, stories: List[HNStory], date_str: str) -> List[HNStory]:
+    def _filter_stories_by_time(
+        self, stories: List[HNStory], date_str: str
+    ) -> List[HNStory]:
         target_date = datetime.strptime(date_str, "%Y-%m-%d")
         yesterday_beijing = target_date - timedelta(days=1)
 
         beijing_tz = timezone(timedelta(hours=8))
 
         start_beijing = datetime(
-            yesterday_beijing.year, yesterday_beijing.month, yesterday_beijing.day,
-            0, 0, 0, tzinfo=beijing_tz
+            yesterday_beijing.year,
+            yesterday_beijing.month,
+            yesterday_beijing.day,
+            0,
+            0,
+            0,
+            tzinfo=beijing_tz,
         )
         end_beijing = datetime(
-            yesterday_beijing.year, yesterday_beijing.month, yesterday_beijing.day,
-            23, 59, 59, tzinfo=beijing_tz
+            yesterday_beijing.year,
+            yesterday_beijing.month,
+            yesterday_beijing.day,
+            23,
+            59,
+            59,
+            tzinfo=beijing_tz,
         )
 
         start_timestamp = int(start_beijing.timestamp())
         end_timestamp = int(end_beijing.timestamp())
 
-        self.logger.debug(f"  Filter time range (Beijing): {start_beijing} ~ {end_beijing}")
-        self.logger.debug(f"  Filter timestamp range: {start_timestamp} ~ {end_timestamp}")
+        self.logger.debug(
+            f"  Filter time range (Beijing): {start_beijing} ~ {end_beijing}"
+        )
+        self.logger.debug(
+            f"  Filter timestamp range: {start_timestamp} ~ {end_timestamp}"
+        )
 
         filtered = []
         for story in stories:
@@ -443,8 +502,10 @@ class HNFetcher(ContentFetcher):
         return filtered
 
     def _select_top_stories(self, stories: List[HNStory]) -> List[HNStory]:
-        stories_sorted = sorted(stories, key=lambda s: (s.score, s.descendants), reverse=True)
-        return stories_sorted[:self.target_stories_count]
+        stories_sorted = sorted(
+            stories, key=lambda s: (s.score, s.descendants), reverse=True
+        )
+        return stories_sorted[: self.target_stories_count]
 
     def _load_granular_comment_cache(self, story_id: int) -> Optional[List[HNComment]]:
         import time as _time
@@ -465,7 +526,9 @@ class HNFetcher(ContentFetcher):
                 return None
 
             comments = [self._dict_to_comment(c) for c in data.get("comments", [])]
-            self.logger.debug(f"  Comment cache hit for story={story_id}: {len(comments)} comments")
+            self.logger.debug(
+                f"  Comment cache hit for story={story_id}: {len(comments)} comments"
+            )
             return comments
         except Exception as e:
             self.logger.debug(f"  Comment cache load failed for story={story_id}: {e}")
@@ -482,15 +545,25 @@ class HNFetcher(ContentFetcher):
             data = {
                 "story_id": story_id,
                 "cached_at": _time.time(),
-                "comments": [self._comment_to_dict(c) for c in comments]
+                "comments": [self._comment_to_dict(c) for c in comments],
             }
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            self.logger.debug(f"  Comment cache saved for story={story_id}: {len(comments)} comments")
+            self.logger.debug(
+                f"  Comment cache saved for story={story_id}: {len(comments)} comments"
+            )
         except Exception as e:
             self.logger.debug(f"  Comment cache save failed for story={story_id}: {e}")
 
-    def _to_content_package(self, stories: List[HNStory], comments: Dict[int, List[HNComment]], date: str, num_deep_dive: int = 1, num_brief: int = 2, num_quick_news: int = 7) -> ContentPackage:
+    def _to_content_package(
+        self,
+        stories: List[HNStory],
+        comments: Dict[int, List[HNComment]],
+        date: str,
+        num_deep_dive: int = 1,
+        num_brief: int = 2,
+        num_quick_news: int = 7,
+    ) -> ContentPackage:
         items: List[ContentItem] = []
 
         for story in stories:
@@ -502,18 +575,20 @@ class HNFetcher(ContentFetcher):
                 score=story.score,
                 comment_count=story.descendants,
                 published_at=story.time,
-                raw=self._story_to_dict(story)
+                raw=self._story_to_dict(story),
             )
 
             for hn_comment in comments.get(story.id, []):
-                item.comments.append(ContentComment(
-                    author=hn_comment.author,
-                    content=hn_comment.text,
-                    source_id=str(hn_comment.id),
-                    upvotes=hn_comment.score,
-                    depth=hn_comment.depth,
-                    published_at=hn_comment.time,
-                ))
+                item.comments.append(
+                    ContentComment(
+                        author=hn_comment.author,
+                        content=hn_comment.text,
+                        source_id=str(hn_comment.id),
+                        upvotes=hn_comment.score,
+                        depth=hn_comment.depth,
+                        published_at=hn_comment.time,
+                    )
+                )
 
             items.append(item)
 
@@ -524,18 +599,32 @@ class HNFetcher(ContentFetcher):
             date=date,
             items=items,
             deep_dive_indices=list(range(min(num_deep_dive, len(items)))),
-            brief_indices=list(range(num_deep_dive, min(num_deep_dive + num_brief, len(items)))),
-            quick_news_indices=list(range(num_deep_dive + num_brief, len(items)))
+            brief_indices=list(
+                range(num_deep_dive, min(num_deep_dive + num_brief, len(items)))
+            ),
+            quick_news_indices=list(range(num_deep_dive + num_brief, len(items))),
         )
 
-    def _load_from_cache(self, path: Path, date: str, num_deep_dive: int = 1, num_brief: int = 2, num_quick_news: int = 7) -> ContentPackage:
+    def _load_from_cache(
+        self,
+        path: Path,
+        date: str,
+        num_deep_dive: int = 1,
+        num_brief: int = 2,
+        num_quick_news: int = 7,
+    ) -> ContentPackage:
         with open(path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
         stories = [self._dict_to_story(d) for d in raw_data["stories"]]
-        comments = {int(k): [self._dict_to_comment(c) for c in v] for k, v in raw_data["comments"].items()}
+        comments = {
+            int(k): [self._dict_to_comment(c) for c in v]
+            for k, v in raw_data["comments"].items()
+        }
 
-        return self._to_content_package(stories, comments, date, num_deep_dive, num_brief, num_quick_news)
+        return self._to_content_package(
+            stories, comments, date, num_deep_dive, num_brief, num_quick_news
+        )
 
     def _story_to_dict(self, story: HNStory) -> dict:
         return {
@@ -546,7 +635,7 @@ class HNFetcher(ContentFetcher):
             "descendants": story.descendants,
             "time": story.time,
             "text": story.text,
-            "by": story.by
+            "by": story.by,
         }
 
     def _dict_to_story(self, d: dict) -> HNStory:
@@ -558,7 +647,7 @@ class HNFetcher(ContentFetcher):
             descendants=d["descendants"],
             time=d["time"],
             text=d.get("text"),
-            by=d.get("by")
+            by=d.get("by"),
         )
 
     def _comment_to_dict(self, comment: HNComment) -> dict:
@@ -566,7 +655,7 @@ class HNFetcher(ContentFetcher):
             "id": comment.id,
             "author": comment.author,
             "text": comment.text,
-            "time": comment.time
+            "time": comment.time,
         }
         if comment.score is not None:
             d["score"] = comment.score

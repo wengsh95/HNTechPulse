@@ -6,27 +6,40 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
 
-from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, InternalServerError
+from openai import (
+    OpenAI,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+    InternalServerError,
+)
 import httpx
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from src.utils.logger import setup_logger
 from src.utils.config import get_env
 
 
-_JSON_FENCE_START_RE = re.compile(r'^```(?:json)?\s*\n?')
-_JSON_FENCE_END_RE = re.compile(r'\n?```\s*$')
+_JSON_FENCE_START_RE = re.compile(r"^```(?:json)?\s*\n?")
+_JSON_FENCE_END_RE = re.compile(r"\n?```\s*$")
 
 
 def _strip_json_fence(text: str) -> str:
     """Remove leading/trailing markdown code fences around JSON payloads."""
     text = text.strip()
-    text = _JSON_FENCE_START_RE.sub('', text)
-    text = _JSON_FENCE_END_RE.sub('', text)
+    text = _JSON_FENCE_START_RE.sub("", text)
+    text = _JSON_FENCE_END_RE.sub("", text)
     return text.strip()
 
 
-def _clamp_index_in_place(d: dict, key: str, max_val: int, label: str, logger=None) -> None:
+def _clamp_index_in_place(
+    d: dict, key: str, max_val: int, label: str, logger=None
+) -> None:
     """If d[key] is an int outside [0, max_val), clamp it in place and warn."""
     v = d.get(key)
     if not isinstance(v, int):
@@ -86,14 +99,16 @@ class LLMClient:
     @retry(
         stop=stop_after_attempt(4),
         wait=wait_exponential_jitter(initial=1, max=20),
-        retry=retry_if_exception_type((
-            APIConnectionError,
-            APITimeoutError,
-            RateLimitError,
-            InternalServerError,
-            httpx.TimeoutException,
-            httpx.TransportError,
-        )),
+        retry=retry_if_exception_type(
+            (
+                APIConnectionError,
+                APITimeoutError,
+                RateLimitError,
+                InternalServerError,
+                httpx.TimeoutException,
+                httpx.TransportError,
+            )
+        ),
         reraise=True,
     )
     def _create_chat_completion(
@@ -126,12 +141,16 @@ class LLMClient:
         current_messages = list(messages)
         effective_max_tokens = max_tokens or self.max_tokens
         effective_model = model or self.model
-        effective_temperature = temperature if temperature is not None else self.temperature
+        effective_temperature = (
+            temperature if temperature is not None else self.temperature
+        )
 
         for attempt in range(1, self.json_parse_max_retries + 1):
             t0 = time.monotonic()
 
-            with self._spinner(f"[{label}] API response pending (attempt {attempt})..."):
+            with self._spinner(
+                f"[{label}] API response pending (attempt {attempt})..."
+            ):
                 response = self._create_chat_completion(
                     messages=current_messages,
                     model=effective_model,
@@ -173,7 +192,9 @@ class LLMClient:
                 if not cached:
                     cached = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
                 miss = usage.prompt_tokens - cached
-                hit_pct = (cached / usage.prompt_tokens * 100) if usage.prompt_tokens else 0
+                hit_pct = (
+                    (cached / usage.prompt_tokens * 100) if usage.prompt_tokens else 0
+                )
 
                 self.logger.info(
                     f"  [{label}] Done in {elapsed:.1f}s "
@@ -207,9 +228,7 @@ class LLMClient:
                     ]
                     continue
                 if label.startswith("comment_judge_"):
-                    raise ValueError(
-                        f"[{label}] Truncated comment judge response"
-                    )
+                    raise ValueError(f"[{label}] Truncated comment judge response")
                 if effective_max_tokens >= self.max_completion_tokens_cap:
                     raise ValueError(
                         f"[{label}] Response truncated at max token cap "
@@ -244,27 +263,31 @@ class LLMClient:
                     )
                     current_messages = list(messages) + [
                         {"role": "assistant", "content": response_text},
-                        {"role": "user", "content": error_feedback}
+                        {"role": "user", "content": error_feedback},
                     ]
-                    self.logger.info(f"  [{label}] Re-requesting with error feedback...")
+                    self.logger.info(
+                        f"  [{label}] Re-requesting with error feedback..."
+                    )
                 else:
                     self.logger.error(
                         f"  [{label}] JSON parse failed after {self.json_parse_max_retries} attempts"
                     )
                     raise
 
-        raise ValueError(f"[{label}] Failed to get valid JSON after {self.json_parse_max_retries} retries")
+        raise ValueError(
+            f"[{label}] Failed to get valid JSON after {self.json_parse_max_retries} retries"
+        )
 
     def extract_json(self, text: str) -> dict:
         text = _strip_json_fence(text)
 
-        if text.startswith('{') and text.endswith('}'):
+        if text.startswith("{") and text.endswith("}"):
             try:
                 return json.loads(text)
             except json.JSONDecodeError:
                 pass
 
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text)
         if json_match:
             json_str = json_match.group(0)
             try:
@@ -277,20 +300,28 @@ class LLMClient:
             except json.JSONDecodeError:
                 pass
 
-        array_match = re.search(r'\[[^\[\]]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^\[\]]*)*\]', text)
+        array_match = re.search(
+            r"\[[^\[\]]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^\[\]]*)*\]", text
+        )
         if array_match:
             try:
                 result = json.loads(array_match.group(0))
-                if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+                if (
+                    isinstance(result, list)
+                    and len(result) > 0
+                    and isinstance(result[0], dict)
+                ):
                     return {"items": result}
             except json.JSONDecodeError:
                 pass
 
-        self.logger.error(f"Failed to extract JSON from response (first 500 chars): {text[:500]}")
+        self.logger.error(
+            f"Failed to extract JSON from response (first 500 chars): {text[:500]}"
+        )
         raise ValueError("No valid JSON found in response")
 
     def _repair_json(self, json_str: str) -> dict:
-        repaired = re.sub(r',\s*([}\]])', r'\1', json_str)
+        repaired = re.sub(r",\s*([}\]])", r"\1", json_str)
 
         repaired = re.sub(r'(?<=[{,])\s*(?<!")(\w+)(?!":)\s*:', r' "\1":', repaired)
         repaired = re.sub(r'""(\w+)"":', r'"\1":', repaired)
@@ -308,7 +339,7 @@ class LLMClient:
             if escape:
                 escape = False
                 continue
-            if ch == '\\':
+            if ch == "\\":
                 escape = True
                 continue
             if ch == '"' and not escape:
@@ -316,12 +347,12 @@ class LLMClient:
                 continue
             if in_string:
                 continue
-            if ch == '{':
+            if ch == "{":
                 depth += 1
-            elif ch == '}':
+            elif ch == "}":
                 depth -= 1
                 if depth == 0:
-                    candidate = json_str[:i + 1]
+                    candidate = json_str[: i + 1]
                     try:
                         return json.loads(candidate)
                     except json.JSONDecodeError:
@@ -389,9 +420,10 @@ class LLMClient:
                 "max_tokens": max_tokens,
                 "visible_content_length": len(response_text or ""),
                 "message_attrs": sorted(
-                    k for k in dir(message)
-                    if not k.startswith("_")
-                ) if message is not None else [],
+                    k for k in dir(message) if not k.startswith("_")
+                )
+                if message is not None
+                else [],
                 "message_dump": message_dump,
                 "choice_dump": choice_dump,
                 "response_dump": response_dump,
@@ -420,7 +452,9 @@ class LLMClient:
         except Exception as e:
             self.logger.info(f"  [{label}] Failed to save response diagnostics: {e}")
 
-    def _log_truncated_response(self, label: str, attempt: int, response_text: str) -> None:
+    def _log_truncated_response(
+        self, label: str, attempt: int, response_text: str
+    ) -> None:
         preview = (response_text or "")[:4000]
         self.logger.info(
             f"  [{label}] Truncated raw response preview "
@@ -450,8 +484,7 @@ class LLMClient:
                 while not stop_event.wait(5.0):
                     elapsed_sec = int(time.monotonic() - t0)
                     self.logger.info(
-                        f"  {label} elapsed {elapsed_sec}s "
-                        f"(thread={thread_name})"
+                        f"  {label} elapsed {elapsed_sec}s (thread={thread_name})"
                     )
 
             reporter = threading.Thread(target=_log_elapsed, daemon=True)
