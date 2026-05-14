@@ -40,9 +40,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         height: TICK_HEIGHT + 8,
         opacity: fadeIn,
       }}
-      >
-        {/* Track container */}
-        <div
+    >
+      {/* Track container */}
+      <div
         style={{
           position: "absolute",
           left: PAD,
@@ -91,8 +91,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                   i === activeStoryIndex
                     ? COLORS.text
                     : progress >= pos
-                    ? COLORS.accentLight
-                    : "rgba(255,255,255,0.10)",
+                      ? COLORS.accentLight
+                      : "rgba(255,255,255,0.10)",
               }}
             />
           );

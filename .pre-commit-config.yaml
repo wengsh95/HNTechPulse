@@ -11,3 +11,26 @@ repos:
     hooks:
       - id: vulture
         args: [--min-confidence, "80", src/]
+
+  - repo: local
+    hooks:
+      - id: ts-prettier
+        name: TS Prettier
+        language: system
+        entry: bash scripts/ts_quality_check.sh --skip eslint,tsc,vitest,knip,audit
+        files: ^src/providers/renderer/remotion/
+        pass_filenames: false
+
+      - id: ts-eslint
+        name: TS ESLint
+        language: system
+        entry: bash scripts/ts_quality_check.sh --skip prettier,tsc,vitest,knip,audit
+        files: ^src/providers/renderer/remotion/
+        pass_filenames: false
+
+      - id: ts-typecheck
+        name: TS Type Check
+        language: system
+        entry: bash scripts/ts_quality_check.sh --skip prettier,eslint,vitest,knip,audit
+        files: ^src/providers/renderer/remotion/
+        pass_filenames: false

@@ -38,9 +38,7 @@ const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
   const p = validateScriptProps(props);
   const fps = p.fps;
   const totalDuration =
-    p.totalDuration
-    || p.segments.reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0)
-    || 10;
+    p.totalDuration || p.segments.reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0) || 10;
 
   return {
     durationInFrames: Math.ceil(totalDuration * fps),

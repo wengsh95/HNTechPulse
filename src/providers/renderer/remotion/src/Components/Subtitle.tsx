@@ -5,7 +5,7 @@ import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
 import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
 
-export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }) => {
+export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: _height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const cues = (elementProps.cues as CueData[]) ?? [];
@@ -20,7 +20,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
   if (cues.length > 0) {
     // Find the active cue whose time range contains currentTime
     let activeCue = cues.find(
-      (c) => currentTime >= c.start_time - 0.05 && currentTime <= c.end_time + 0.05
+      (c) => currentTime >= c.start_time - 0.05 && currentTime <= c.end_time + 0.05,
     );
     if (!activeCue) {
       // No active cue — check if we're in a gap between cues
@@ -71,37 +71,41 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height }
   const subMaxWidth = Math.min(width - LAYOUT.pageInset * 2.4, 720);
 
   return (
-    <div style={{
-      ...S,
-      left: "50%",
-      bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
-      transform: `translateX(-50%) translateY(${slideY}px)`,
-      background: isMinimal
-        ? "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.75) 16%, rgba(13,13,15,0.75) 84%, rgba(13,13,15,0))"
-        : "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.88) 14%, rgba(13,13,15,0.88) 86%, rgba(13,13,15,0))",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "10px 28px",
-      width: subMaxWidth,
-      minHeight: isMinimal ? 40 : 48,
-      opacity: opacity * (isMinimal ? 0.85 : 0.95),
-      borderRadius: 10,
-    }}>
-      <span style={{
-        fontFamily: FONTS.sans,
-        fontSize: 22,
-        color: COLORS.text,
-        textAlign: "center",
-        lineHeight: 1.45,
-        fontWeight: FW.semibold,
-        letterSpacing: 0,
-        maxWidth: "100%",
-        overflow: "hidden",
-        display: "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical" as const,
-      }}>
+    <div
+      style={{
+        ...S,
+        left: "50%",
+        bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
+        transform: `translateX(-50%) translateY(${slideY}px)`,
+        background: isMinimal
+          ? "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.75) 16%, rgba(13,13,15,0.75) 84%, rgba(13,13,15,0))"
+          : "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.88) 14%, rgba(13,13,15,0.88) 86%, rgba(13,13,15,0))",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "10px 28px",
+        width: subMaxWidth,
+        minHeight: isMinimal ? 40 : 48,
+        opacity: opacity * (isMinimal ? 0.85 : 0.95),
+        borderRadius: 10,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: 22,
+          color: COLORS.text,
+          textAlign: "center",
+          lineHeight: 1.45,
+          fontWeight: FW.semibold,
+          letterSpacing: 0,
+          maxWidth: "100%",
+          overflow: "hidden",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical" as const,
+        }}
+      >
         {displayText}
       </span>
     </div>

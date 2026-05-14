@@ -1,7 +1,19 @@
 import React from "react";
 import { interpolate, Easing, staticFile, useCurrentFrame } from "remotion";
 
-import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, innerPanel, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
+import {
+  COLORS,
+  FONTS,
+  FW,
+  getCardMaxHeight,
+  glassCard,
+  glassCardShadow,
+  innerPanel,
+  isCompactHeight,
+  LAYOUT,
+  S,
+  sectionLabel,
+} from "./design";
 import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
 
 interface KeyPoint {
@@ -195,8 +207,11 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const imageSrc = p(elementProps, "image_src", "");
   const imageType = p<string>(elementProps, "image_type", "");
   const keywords = limitList(
-    Array.isArray(elementProps.keywords) ? elementProps.keywords.filter((k): k is string => typeof k === "string") : [],
-    3, 16
+    Array.isArray(elementProps.keywords)
+      ? elementProps.keywords.filter((k): k is string => typeof k === "string")
+      : [],
+    3,
+    16,
   );
   const category = cleanText(p(elementProps, "category", ""));
   const mainTitle = editorAngle || titleCn || storyTitle;
@@ -230,14 +245,14 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
   });
 
   const mediaW = hasImage ? (isLogo ? 320 : Math.min(500, Math.round(cardW * 0.42))) : 0;
-  const mediaH = isLogo ? 280 : Math.round(mediaW * 9 / 16);
+  const mediaH = isLogo ? 280 : Math.round((mediaW * 9) / 16);
   const gap = hasImage ? (compact ? 24 : 36) : 0;
-  const horizontalPadding = hasImage ? (compact ? 56 : 68) : (compact ? 64 : 72);
+  const horizontalPadding = hasImage ? (compact ? 56 : 68) : compact ? 64 : 72;
   const textColW = hasImage
     ? cardW - mediaW - gap - horizontalPadding
     : Math.min(cardW - horizontalPadding, LAYOUT.contentWideMaxWidth);
   const titleLines = hasImage || compact ? 2 : 3;
-  const dekLines = compact ? 2 : (hasStructuredBody ? 3 : 4);
+  const dekLines = compact ? 2 : hasStructuredBody ? 3 : 4;
 
   return (
     <div
@@ -249,8 +264,12 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         maxHeight: cardMaxH,
         ...glassCard,
         padding: hasImage
-          ? compact ? "20px 28px" : "26px 34px"
-          : compact ? "24px 32px" : "28px 36px",
+          ? compact
+            ? "20px 28px"
+            : "26px 34px"
+          : compact
+            ? "24px 32px"
+            : "28px 36px",
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
@@ -355,7 +374,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         )}
 
         {(dek || keyPoints.length > 0) && (
-          <div style={{ ...dividerStyle, marginBottom: compact ? 14 : dividerStyle.marginBottom }} />
+          <div
+            style={{ ...dividerStyle, marginBottom: compact ? 14 : dividerStyle.marginBottom }}
+          />
         )}
 
         {dek && (
@@ -366,7 +387,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               color: COLORS.textSecondary,
               lineHeight: compact ? 1.48 : 1.55,
               fontWeight: FW.regular,
-              marginBottom: hasStructuredBody ? (compact ? 14 : 18) : (compact ? 16 : 20),
+              marginBottom: hasStructuredBody ? (compact ? 14 : 18) : compact ? 16 : 20,
               maxWidth: textColW,
               overflowWrap: "anywhere",
               wordBreak: "break-word",
@@ -388,14 +409,25 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             }}
           >
             {keyPoints.map((point, i) => (
-              <InfoPoint key={`${point.label}-${i}`} point={point} delay={10 + i * 5} frame={frame} />
+              <InfoPoint
+                key={`${point.label}-${i}`}
+                point={point}
+                delay={10 + i * 5}
+                frame={frame}
+              />
             ))}
           </div>
         )}
 
         {keywords.length > 0 && (
           <>
-            <div style={{ ...dividerStyle, marginTop: compact ? 0 : 4, marginBottom: compact ? 12 : dividerStyle.marginBottom }} />
+            <div
+              style={{
+                ...dividerStyle,
+                marginTop: compact ? 0 : 4,
+                marginBottom: compact ? 12 : dividerStyle.marginBottom,
+              }}
+            />
             <div
               style={{
                 display: "flex",
@@ -419,7 +451,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             flex: `0 0 ${mediaW}px`,
             height: mediaH,
             aspectRatio: isLogo ? undefined : "16 / 9",
-            marginTop: isLogo ? (compact ? 26 : 34) : (compact ? 34 : 42),
+            marginTop: isLogo ? (compact ? 26 : 34) : compact ? 34 : 42,
             borderRadius: LAYOUT.cardRadius,
             overflow: "hidden",
             display: "flex",

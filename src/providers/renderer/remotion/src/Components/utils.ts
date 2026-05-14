@@ -10,7 +10,8 @@ export interface ElementProps {
 export function p<T = string>(props: Record<string, unknown>, key: string, fallback: T): T {
   const val = props[key];
   if (val === undefined || val === null) return fallback;
-  if (typeof fallback === "number") return (typeof val === "number" ? val : Number(val) || fallback) as T;
+  if (typeof fallback === "number")
+    return (typeof val === "number" ? val : Number(val) || fallback) as T;
   if (typeof fallback === "string") return (typeof val === "string" ? val : String(val)) as T;
   if (typeof fallback === "boolean") return (typeof val === "boolean" ? val : Boolean(val)) as T;
   return val as T;
@@ -66,7 +67,10 @@ export function stripHtml(text: string): string {
 
 export function decodeHtmlEntities(text: string): string {
   if (!text) return "";
-  return String(text).replace(/&(quot|#34|#x27|#39|gt|lt|amp|nbsp);/g, (entity) => ENTITY_MAP[entity] ?? entity);
+  return String(text).replace(
+    /&(quot|#34|#x27|#39|gt|lt|amp|nbsp);/g,
+    (entity) => ENTITY_MAP[entity] ?? entity,
+  );
 }
 
 export function cleanText(text: string): string {
@@ -79,7 +83,9 @@ export function cleanText(text: string): string {
 export function truncate(text: string, maxLen: number): string {
   const cleaned = cleanText(text);
   if (!cleaned || maxLen <= 0) return "";
-  return cleaned.length <= maxLen ? cleaned : cleaned.slice(0, Math.max(0, maxLen - 3)).trimEnd() + "...";
+  return cleaned.length <= maxLen
+    ? cleaned
+    : cleaned.slice(0, Math.max(0, maxLen - 3)).trimEnd() + "...";
 }
 
 export function limitList(items: string[], maxItems: number, maxLenEach: number): string[] {

@@ -5,17 +5,19 @@
  * Remotion 的优势：浏览器原生渲染文字（GPU 加速），并行帧渲染。
  */
 import React, { useMemo } from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, Easing, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  Audio,
+  Sequence,
+  interpolate,
+  Easing,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
-import {
-  Subtitle,
-  ClosingCard,
-  CoverCard,
-  EventCard,
-  AtmosphereCard,
-  QuoteCard,
-} from "./Elements";
+import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard, QuoteCard } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
 
@@ -48,11 +50,7 @@ const asNumber = (value: unknown): number | undefined => {
 
 const titleFromProps = (props: Record<string, unknown>): string => {
   return String(
-    props.editor_angle
-    ?? props.title_cn
-    ?? props.story_title
-    ?? props.source_title
-    ?? ""
+    props.editor_angle ?? props.title_cn ?? props.story_title ?? props.source_title ?? "",
   );
 };
 
@@ -67,9 +65,8 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
       const props = elem.props as Record<string, unknown>;
       const storyIndex = asNumber(props.story_index ?? props.display_index);
       const absoluteStart = seg.start_time + elem.start_time;
-      const key = storyIndex !== undefined
-        ? `story-${storyIndex}`
-        : `time-${absoluteStart.toFixed(3)}`;
+      const key =
+        storyIndex !== undefined ? `story-${storyIndex}` : `time-${absoluteStart.toFixed(3)}`;
 
       if (seen.has(key)) return;
       seen.add(key);
@@ -87,7 +84,12 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
 /** 元素类型 → React 组件映射 */
 const ELEMENT_RENDERERS: Record<
   string,
-  React.FC<{ elementProps: Record<string, unknown>; duration: number; width: number; height: number }>
+  React.FC<{
+    elementProps: Record<string, unknown>;
+    duration: number;
+    width: number;
+    height: number;
+  }>
 > = {
   closing_card: (props) => <ClosingCard {...props} />,
   cover_card: (props) => <CoverCard {...props} />,
@@ -120,11 +122,7 @@ const SceneElementRenderer: React.FC<{
   const durationFrames = Math.max(1, Math.ceil(duration * fps));
 
   return (
-    <Sequence
-      from={startFrame}
-      durationInFrames={durationFrames}
-      layout="none"
-    >
+    <Sequence from={startFrame} durationInFrames={durationFrames} layout="none">
       <div
         style={{
           position: "absolute",
@@ -158,12 +156,13 @@ const SegmentRenderer: React.FC<{
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
   const segmentDuration = segment.duration;
-  const hasTitleLikeCard = segment.scene_elements.some((elem) =>
-    elem.element_type === "cover_card" || elem.element_type === "closing_card"
+  const hasTitleLikeCard = segment.scene_elements.some(
+    (elem) => elem.element_type === "cover_card" || elem.element_type === "closing_card",
   );
-  const subtitleMode = hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
-    ? "minimal"
-    : "standard";
+  const subtitleMode =
+    hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
+      ? "minimal"
+      : "standard";
 
   const TRANSITION_FRAMES = 12;
   const segOpacity = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
@@ -180,7 +179,17 @@ const SegmentRenderer: React.FC<{
       premountFor={Math.min(8, durationFrames)}
     >
       {/* Scene wrapper with transition opacity */}
-      <div style={{ ...S, left: 0, top: 0, width: "100%", height: "100%", opacity: segOpacity, pointerEvents: "none" }}>
+      <div
+        style={{
+          ...S,
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
+          opacity: segOpacity,
+          pointerEvents: "none",
+        }}
+      >
         {/* 场景元素 */}
         {segment.scene_elements.map((elem, i) => (
           <SceneElementRenderer
@@ -214,7 +223,7 @@ const GlobalChrome: React.FC<{
   const currentTime = frame / fps;
 
   const activeChapter = chapters.find(
-    (chapter) => currentTime >= chapter.startTime && currentTime < chapter.endTime
+    (chapter) => currentTime >= chapter.startTime && currentTime < chapter.endTime,
   );
   const showChapter = Boolean(activeChapter);
   if (currentTime < startTime) {
@@ -290,7 +299,8 @@ const GlobalChrome: React.FC<{
               lineHeight: 1,
             }}
           >
-            {String(activeChapter.index + 1).padStart(2, "0")}/{String(activeChapter.total).padStart(2, "0")}
+            {String(activeChapter.index + 1).padStart(2, "0")}/
+            {String(activeChapter.total).padStart(2, "0")}
           </span>
           {activeChapter.category && (
             <span
@@ -321,13 +331,13 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   fps,
   bgColor,
   segments,
-  audioDir,
+  audioDir: _audioDir,
   transitionTimes,
 }) => {
   const frame = useCurrentFrame();
   const totalDuration = useMemo(
-    () => segments.length > 0 ? segments[segments.length - 1].end_time : 0,
-    [segments]
+    () => (segments.length > 0 ? segments[segments.length - 1].end_time : 0),
+    [segments],
   );
 
   const { storyBoundaries, storyChapters, dateLabel } = useMemo(() => {
@@ -396,7 +406,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
             absoluteStart: segment.start_time + sa.start_time,
             duration: sa.end_time - sa.start_time,
             audioPath: sa.audio_path,
-          }))
+          })),
         )
         .filter((item) => item.duration > 0)
         .map((item) => (

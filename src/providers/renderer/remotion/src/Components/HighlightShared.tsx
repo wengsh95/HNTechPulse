@@ -137,11 +137,7 @@ export const KeywordTags: React.FC<{
   </div>
 );
 
-export const rowEntryAnimation = (
-  frame: number,
-  rowStart: number,
-  duration: number = 20,
-) =>
+export const rowEntryAnimation = (frame: number, rowStart: number, duration: number = 20) =>
   interpolate(frame, [rowStart, rowStart + duration], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",

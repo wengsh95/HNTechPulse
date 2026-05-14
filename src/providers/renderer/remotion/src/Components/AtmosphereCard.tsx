@@ -3,7 +3,18 @@ import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
 import { StancePie, STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
+import {
+  COLORS,
+  FONTS,
+  FW,
+  getCardMaxHeight,
+  glassCard,
+  glassCardShadow,
+  isCompactHeight,
+  LAYOUT,
+  S,
+  sectionLabel,
+} from "./design";
 
 const CONTROVERSY_COLORS = {
   green: "#34C759",
@@ -31,9 +42,10 @@ function getMoodSummary(distribution: Record<string, number>, debateFocus: strin
   if (entries.length === 0) {
     return {
       title: "社区反应仍在形成",
-      detail: debateFocus.length > 0
-        ? `争议焦点：${debateFocus.join(" · ")}`
-        : "评论区还没有形成清晰的观点分布。",
+      detail:
+        debateFocus.length > 0
+          ? `争议焦点：${debateFocus.join(" · ")}`
+          : "评论区还没有形成清晰的观点分布。",
       dominant: "",
       percent: 0,
     };
@@ -44,9 +56,10 @@ function getMoodSummary(distribution: Record<string, number>, debateFocus: strin
 
   return {
     title: `${dominantLabel}是当前主调`,
-    detail: debateFocus.length > 0
-      ? `核心分歧：${debateFocus.join(" · ")}`
-      : "评论区观点已经出现明显倾向。",
+    detail:
+      debateFocus.length > 0
+        ? `核心分歧：${debateFocus.join(" · ")}`
+        : "评论区观点已经出现明显倾向。",
     dominant: dominantLabel,
     percent: Math.round(value * 100),
   };
@@ -70,79 +83,84 @@ const MetricBar: React.FC<{
   color: string;
   animProgress: number;
 }> = ({ label, valueLabel, helper, progress, color, animProgress }) => {
-  const fillWidth = interpolate(animProgress, [0, 1], [0, Math.max(0, Math.min(1, progress)) * 100], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const fillWidth = interpolate(
+    animProgress,
+    [0, 1],
+    [0, Math.max(0, Math.min(1, progress)) * 100],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
 
   return (
-  <div style={{ width: "100%" }}>
-    <div
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 16,
-        marginBottom: 8,
-      }}
-    >
+    <div style={{ width: "100%" }}>
       <div
         style={{
-          fontFamily: FONTS.sans,
-          fontSize: 12,
-          fontWeight: FW.bold,
-          color: COLORS.textTertiary,
-          textTransform: "uppercase",
-          letterSpacing: 0.6,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 8,
         }}
       >
-        {label}
-      </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span
+        <div
           style={{
-            fontFamily: FONTS.mono,
-            fontSize: 26,
-            fontWeight: FW.heavy,
-            color: COLORS.text,
+            fontFamily: FONTS.sans,
+            fontSize: 12,
+            fontWeight: FW.bold,
+            color: COLORS.textTertiary,
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
           }}
         >
-          {valueLabel}
-        </span>
-        {helper && (
+          {label}
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span
             style={{
-              fontFamily: FONTS.sans,
-              fontSize: 13,
-              fontWeight: FW.bold,
-              color,
+              fontFamily: FONTS.mono,
+              fontSize: 26,
+              fontWeight: FW.heavy,
+              color: COLORS.text,
             }}
           >
-            {helper}
+            {valueLabel}
           </span>
-        )}
+          {helper && (
+            <span
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: 13,
+                fontWeight: FW.bold,
+                color,
+              }}
+            >
+              {helper}
+            </span>
+          )}
+        </div>
       </div>
-    </div>
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: 8,
-        borderRadius: 4,
-        overflow: "hidden",
-        background: "rgba(255,255,255,0.08)",
-      }}
-    >
       <div
         style={{
-          width: `${fillWidth}%`,
-          height: "100%",
+          position: "relative",
+          width: "100%",
+          height: 8,
           borderRadius: 4,
-          background: color,
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.08)",
         }}
-      />
+      >
+        <div
+          style={{
+            width: `${fillWidth}%`,
+            height: "100%",
+            borderRadius: 4,
+            background: color,
+          }}
+        />
+      </div>
     </div>
-  </div>
   );
 };
 
@@ -200,7 +218,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
       }}
     >
-      <div style={{ display: "grid", gridTemplateColumns: compact ? "minmax(0, 1fr) 260px" : "minmax(0, 1fr) 300px", gap: compact ? 28 : 36, alignItems: "center" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: compact ? "minmax(0, 1fr) 260px" : "minmax(0, 1fr) 300px",
+          gap: compact ? 28 : 36,
+          alignItems: "center",
+        }}
+      >
         <div style={{ minWidth: 0 }}>
           <div style={sectionLabel}>{UI_TEXT.discussionMood}</div>
           {mood.dominant && (

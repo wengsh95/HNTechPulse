@@ -4,11 +4,11 @@ import { useCurrentFrame, interpolate, Easing } from "remotion";
 import { COLORS, FONTS, FW } from "./design";
 
 export const STANCE_COLORS: Record<string, string> = {
-  "支持": "#34C759",
-  "质疑": "#FF453A",
-  "中立": "rgba(245,245,247,0.50)",
-  "调侃": "#FFD60A",
-  "担忧": "#BF5AF2",
+  支持: "#34C759",
+  质疑: "#FF453A",
+  中立: "rgba(245,245,247,0.50)",
+  调侃: "#FFD60A",
+  担忧: "#BF5AF2",
 };
 
 export const StancePie: React.FC<{
@@ -37,7 +37,7 @@ export const StancePie: React.FC<{
 
     // Arc reveal: each arc sweeps from its startAngle to a progressively revealed endAngle
     const revealedEndAngle = startAngle + (endAngle - startAngle) * pieProgress;
-    const largeArc = (revealedEndAngle - startAngle) > Math.PI ? 1 : 0;
+    const largeArc = revealedEndAngle - startAngle > Math.PI ? 1 : 0;
 
     const outerX1 = cx + outerR * Math.cos(startAngle - Math.PI / 2);
     const outerY1 = cy + outerR * Math.sin(startAngle - Math.PI / 2);

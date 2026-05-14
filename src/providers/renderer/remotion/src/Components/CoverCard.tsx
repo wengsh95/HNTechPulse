@@ -3,7 +3,13 @@ import { useCurrentFrame, useVideoConfig, interpolate, Easing, staticFile } from
 
 import { ElementProps, p } from "./utils";
 import { COLORS, FONTS, FW, glassCard, glassCardShadow, LAYOUT, S } from "./design";
-import { HighlightEntry, CategoryBadge, KeywordTags, medalSets, rowEntryAnimation } from "./HighlightShared";
+import {
+  HighlightEntry,
+  CategoryBadge,
+  KeywordTags,
+  medalSets,
+  rowEntryAnimation,
+} from "./HighlightShared";
 
 export const CoverCard: React.FC<ElementProps> = ({ elementProps, duration }) => {
   const frame = useCurrentFrame();
@@ -248,7 +254,13 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, duration }) =>
               {highlightEntries.map((entry, i) => {
                 const rowProgress = rowEntryAnimation(frame, 24 + i * 6, 22);
                 const rank = entry.rank || i + 1;
-                const angle = entry.editor_angle || entry.title_translation || entry.title_cn || entry.original_title || entry.title || "";
+                const angle =
+                  entry.editor_angle ||
+                  entry.title_translation ||
+                  entry.title_cn ||
+                  entry.original_title ||
+                  entry.title ||
+                  "";
                 const why = entry.why_it_matters || entry.next_watch || entry.original_title || "";
                 const category = entry.category || "";
                 const keywordsForEntry = entry.keywords ?? [];
@@ -325,9 +337,27 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, duration }) =>
                       )}
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 7, minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 7,
+                        minWidth: 0,
+                      }}
+                    >
                       {category && <CategoryBadge category={category} maxWidth={144} />}
-                      <div style={{ display: "flex", gap: 7, color: COLORS.textTertiary, fontFamily: FONTS.mono, fontSize: 12, fontWeight: FW.medium, whiteSpace: "nowrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 7,
+                          color: COLORS.textTertiary,
+                          fontFamily: FONTS.mono,
+                          fontSize: 12,
+                          fontWeight: FW.medium,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         <span style={{ color: COLORS.text }}>{entry.score || 0}</span>
                         <span>分</span>
                         <span>{entry.comment_count || 0}评</span>

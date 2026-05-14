@@ -2,7 +2,18 @@ import React from "react";
 import { interpolate, Easing, useCurrentFrame } from "remotion";
 
 import { STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, FW, getCardMaxHeight, glassCard, glassCardShadow, isCompactHeight, LAYOUT, S, sectionLabel } from "./design";
+import {
+  COLORS,
+  FONTS,
+  FW,
+  getCardMaxHeight,
+  glassCard,
+  glassCardShadow,
+  isCompactHeight,
+  LAYOUT,
+  S,
+  sectionLabel,
+} from "./design";
 import { cleanText, ElementProps, stanceLabel, UI_TEXT } from "./utils";
 
 interface Quote {
@@ -19,7 +30,6 @@ function getQuoteText(quote: Quote) {
     primaryText: hasChinese ? cleanText(quote.text_cn!.trim()) : cleanText(quote.text),
   };
 }
-
 
 const QuoteMeta: React.FC<{ quote: Quote; featured?: boolean }> = ({ quote, featured = false }) => {
   const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
@@ -79,13 +89,14 @@ const QuoteEntry: React.FC<{
   featuredProgress: number;
   compact: boolean;
 }> = ({ quote, index, frame, featuredProgress, compact }) => {
-  const quoteProgress = index === 0
-    ? featuredProgress
-    : interpolate(frame, [14 + index * 9, 14 + index * 9 + 18], [0, 1], {
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      });
+  const quoteProgress =
+    index === 0
+      ? featuredProgress
+      : interpolate(frame, [14 + index * 9, 14 + index * 9 + 18], [0, 1], {
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
   const stanceColor = STANCE_COLORS[quote.stance] || COLORS.textSecondary;
   const { primaryText } = getQuoteText(quote);
   const isFeatured = index === 0;
@@ -100,9 +111,7 @@ const QuoteEntry: React.FC<{
         position: "relative",
         overflow: "hidden",
         borderRadius: LAYOUT.panelRadius,
-        background: isFeatured
-          ? `${stanceColor}0A`
-          : "rgba(255,255,255,0.04)",
+        background: isFeatured ? `${stanceColor}0A` : "rgba(255,255,255,0.04)",
         border: `1px solid ${isFeatured ? stanceColor + "25" : "rgba(255,255,255,0.08)"}`,
         borderLeft: `${borderReveal}px solid ${stanceColor}`,
         padding: compact ? "12px 20px" : isFeatured ? "18px 24px" : "14px 22px",
@@ -124,7 +133,7 @@ const QuoteEntry: React.FC<{
           ...lineClamp(isFeatured ? (compact ? 2 : 3) : 2),
         }}
       >
-        "{primaryText}"
+        &ldquo;{primaryText}&rdquo;
       </div>
     </div>
   );
@@ -154,7 +163,6 @@ export const QuoteCard: React.FC<ElementProps> = ({ elementProps, width, height 
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
 
   return (
     <div
