@@ -247,12 +247,14 @@ def select_representative_comments(
     min_quality: float = 0.22,
     similarity_threshold: float = 0.58,
 ) -> List[ContentComment]:
-    """Pick high-quality, stance-diverse comments while avoiding near-duplicates."""
+    """Pick high-quality, stance-diverse comments while avoiding near-duplicates.
+
+    Prefers the trio 支持/反对/中立 when max_n >= 3.
+    """
     ranked = [
         c for c in _ranked_comments(comments) if is_quotable_comment(c, min_quality)
     ]
     selected: List[ContentComment] = []
-    seen_stances = set()
 
     def can_add(candidate: ContentComment) -> bool:
         text = clean_comment_text(candidate.content or "")
@@ -262,15 +264,22 @@ def select_representative_comments(
             for existing in selected
         )
 
-    for c in ranked:
-        stance = classify_comment_stance(c)
-        if stance in seen_stances or not can_add(c):
-            continue
-        selected.append(c)
-        seen_stances.add(stance)
+    # First pass: try to get one of each stance (支持, 质疑, 中立)
+    target_stances = ["支持", "质疑", "中立"]
+    seen_stances: set[str] = set()
+    for stance in target_stances:
+        for c in ranked:
+            if classify_comment_stance(c) != stance:
+                continue
+            if not can_add(c):
+                continue
+            selected.append(c)
+            seen_stances.add(stance)
+            break
         if len(selected) >= max_n:
             return selected
 
+    # Second pass: fill remaining slots with any stance
     for c in ranked:
         if c in selected or not can_add(c):
             continue
@@ -339,37 +348,55 @@ def select_quote_comments(
     )
     selected_object_ids = {id(c) for c in selected}
     selected_stances = {classify_comment_stance(c) for c in selected}
-    if len(selected) >= max_n:
-        return selected[:max_n]
 
-    judged_fillers = []
-    if judgement:
-        comments_by_id = {
-            str(c.source_id): c
-            for c in comments_list
-            if c.source_id is not None and is_quotable_comment(c, min_quality)
-        }
-        for candidate in judgement.get("quote_candidates", []) or []:
-            if candidate.get("reject_for_quote") or not candidate.get(
-                "has_viewpoint", True
-            ):
+    # Try to fill to 3 with 支持/质疑/中立 coverage
+    target_stances = ["支持", "质疑", "中立"]
+    if len(selected) < max_n:
+        judged_fillers = []
+        if judgement:
+            comments_by_id = {
+                str(c.source_id): c
+                for c in comments_list
+                if c.source_id is not None and is_quotable_comment(c, min_quality)
+            }
+            for candidate in judgement.get("quote_candidates", []) or []:
+                if candidate.get("reject_for_quote") or not candidate.get(
+                    "has_viewpoint", True
+                ):
+                    continue
+                comment_id = candidate.get("comment_id")
+                if comment_id is None:
+                    continue
+                comment = comments_by_id.get(str(comment_id))
+                if comment is not None:
+                    judged_fillers.append(comment)
+                if len(judged_fillers) >= max_n * 2:
+                    break
+
+        # First, fill missing target stances
+        for stance in target_stances:
+            if stance in selected_stances:
                 continue
-            comment_id = candidate.get("comment_id")
-            if comment_id is None:
+            for comment in judged_fillers:
+                if id(comment) in selected_object_ids:
+                    continue
+                if classify_comment_stance(comment) == stance:
+                    selected.append(comment)
+                    selected_object_ids.add(id(comment))
+                    selected_stances.add(stance)
+                    break
+            if len(selected) >= max_n:
+                return selected[:max_n]
+
+        # Then fill any remaining slots
+        for comment in judged_fillers:
+            if id(comment) in selected_object_ids:
                 continue
-            comment = comments_by_id.get(str(comment_id))
-            if comment is not None:
-                judged_fillers.append(comment)
-            if len(judged_fillers) >= max_n:
-                break
-    for comment in judged_fillers:
-        if id(comment) in selected_object_ids:
-            continue
-        selected.append(comment)
-        selected_object_ids.add(id(comment))
-        selected_stances.add(classify_comment_stance(comment))
-        if len(selected) >= max_n:
-            return selected[:max_n]
+            selected.append(comment)
+            selected_object_ids.add(id(comment))
+            selected_stances.add(classify_comment_stance(comment))
+            if len(selected) >= max_n:
+                return selected[:max_n]
 
     fillers = select_representative_comments(
         comments_list,
@@ -377,20 +404,25 @@ def select_quote_comments(
         min_quality=min_quality,
         similarity_threshold=similarity_threshold,
     )
-    neutral_stance = classify_comment_stance(ContentComment(author="", content=""))
-    fillers.sort(
-        key=lambda c: (
-            classify_comment_stance(c) in selected_stances,
-            classify_comment_stance(c) == neutral_stance,
-            -(c.quality_score or 0),
-        )
-    )
+    for stance in target_stances:
+        if stance in selected_stances:
+            continue
+        for comment in fillers:
+            if id(comment) in selected_object_ids:
+                continue
+            if classify_comment_stance(comment) == stance:
+                selected.append(comment)
+                selected_object_ids.add(id(comment))
+                selected_stances.add(stance)
+                break
+        if len(selected) >= max_n:
+            return selected[:max_n]
+
     for comment in fillers:
         if id(comment) in selected_object_ids:
             continue
         selected.append(comment)
         selected_object_ids.add(id(comment))
-        selected_stances.add(classify_comment_stance(comment))
         if len(selected) >= max_n:
             break
     return selected[:max_n]

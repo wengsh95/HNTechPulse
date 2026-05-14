@@ -7,8 +7,8 @@ export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRI
 
 export const FONTS = {
   mono: '"SF Mono", "Menlo", "Source Code Pro", monospace',
-  sans: '-apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
-  bold: '-apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
+  sans: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
+  bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
 };
 
 /** Standard font weights — use only these values for predictable rendering. */
@@ -48,6 +48,7 @@ export const COLORS = {
   green: "#34C759",
   yellow: "#FFD60A",
   red: "#FF453A",
+  orangeRed: "#FF5A5F",
   purple: "#BF5AF2",
   orange: "#FF9F0A",
 
@@ -107,6 +108,9 @@ export const innerPanel: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: LAYOUT.panelRadius,
 };
+
+export const glassGlow =
+  "0 0 48px rgba(0,122,255,0.12), 0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)";
 
 export const SHADOWS = {
   card: glassCardShadow,

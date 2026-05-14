@@ -448,7 +448,13 @@ def test_quote_card_rejects_llm_selected_resource_pointer_and_falls_back():
         content,
     )
     assert len(result["quotes"]) == 3
-    assert result["quotes"][0]["author"] == "skeptic"
+    # Stances are ordered 支持, 质疑, 中立
+    assert result["quotes"][0]["author"] == "supporter"
+    assert result["quotes"][0]["stance"] == "支持"
+    assert result["quotes"][1]["author"] == "skeptic"
+    assert result["quotes"][1]["stance"] == "质疑"
+    assert result["quotes"][2]["author"] == "operator"
+    assert result["quotes"][2]["stance"] == "中立"
 
 
 def test_select_quote_comments_honors_ids_then_fills_to_three():

@@ -193,6 +193,8 @@ def _expand_event_card(props, content):
     result["key_points"] = result.get("key_points") or item.key_points or []
     result["why_it_matters"] = result.get("why_it_matters") or ""
     result["next_watch"] = result.get("next_watch") or ""
+    result["url"] = item.url or ""
+    result["published_at"] = item.published_at or 0
     result["score"] = item.score or 0
     result["comment_count"] = item.comment_count or 0
 
@@ -301,10 +303,13 @@ def _expand_quote_card(props, content):
                 "text": text,
                 "text_cn": text_cn,
                 "stance": stance,
+                "upvotes": c.upvotes or 0,
             }
         )
     result["quotes"] = quotes
     result["next_watch"] = props.get("next_watch", "")
+    result["stance_distribution"] = judgement.get("stance_distribution", {})
+    result["debate_focus"] = judgement.get("debate_focus") or []
 
     return result
 

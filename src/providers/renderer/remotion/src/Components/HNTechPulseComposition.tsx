@@ -441,7 +441,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
       <GlobalChrome
         dateLabel={dateLabel}
         chapters={storyChapters}
-        startTime={segments.find((seg) => seg.segment_type !== "opening")?.start_time ?? 0}
+        startTime={0}
       />
     </AbsoluteFill>
   );
