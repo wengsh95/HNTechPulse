@@ -49,7 +49,7 @@ class LLMProvider(ABC):
         prompt_template_path: str = "prompts/comment_analyze.md",
         candidates=None,
     ) -> dict:
-        """Rank comments suitable for QuoteCard display. Return {} if unsupported."""
+        """Rank comments suitable for quote display. Return {} if unsupported."""
         pass
 
 

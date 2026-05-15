@@ -17,9 +17,10 @@ import {
 } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
-import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard, QuoteCard } from "./Elements";
+import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
-import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
+import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
+import { COLORS, FONTS, FW, FS, LAYOUT, S } from "./design";
 
 type StoryChapter = {
   startTime: number;
@@ -95,7 +96,6 @@ const ELEMENT_RENDERERS: Record<
   cover_card: (props) => <CoverCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
-  quote_card: (props) => <QuoteCard {...props} />,
 };
 
 /** 渲染单个元素
@@ -151,7 +151,8 @@ const SegmentRenderer: React.FC<{
   width: number;
   height: number;
   fps: number;
-}> = ({ segment, index, width, height, fps }) => {
+  isLastSegment: boolean;
+}> = ({ segment, index, width, height, fps, isLastSegment }) => {
   const frame = useCurrentFrame();
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
@@ -165,18 +166,27 @@ const SegmentRenderer: React.FC<{
       : "standard";
 
   const TRANSITION_FRAMES = 12;
-  const segOpacity = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
+  const fadeIn = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const framesRemaining = durationFrames - frame;
+  const fadeOut = isLastSegment
+    ? 1
+    : interpolate(framesRemaining, [0, TRANSITION_FRAMES], [0, 1], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+  const segOpacity = fadeIn * fadeOut;
 
   return (
     <Sequence
       from={startFrame}
       durationInFrames={durationFrames}
       name={`segment-${index}-${segment.segment_type}`}
-      premountFor={Math.min(8, durationFrames)}
+      premountFor={Math.min(TRANSITION_FRAMES, durationFrames)}
     >
       {/* Scene wrapper with transition opacity */}
       <div
@@ -258,7 +268,7 @@ const GlobalChrome: React.FC<{
           gap: 10,
           fontFamily: FONTS.sans,
           color: COLORS.textSecondary,
-          fontSize: 15,
+          fontSize: FS.bodySmall,
           fontWeight: FW.heavy,
           letterSpacing: 0,
         }}
@@ -281,8 +291,8 @@ const GlobalChrome: React.FC<{
             height: 30,
             padding: "0 12px",
             borderRadius: 999,
-            background: "rgba(0, 122, 255, 0.12)",
-            border: "1px solid rgba(0, 122, 255, 0.25)",
+            background: COLORS.accentBg,
+            border: `1px solid ${COLORS.accentBorderMid}`,
             boxShadow: "0 2px 8px rgba(0,0,0,0.30)",
             boxSizing: "border-box",
           }}
@@ -293,7 +303,7 @@ const GlobalChrome: React.FC<{
               alignItems: "center",
               height: 16,
               fontFamily: FONTS.mono,
-              fontSize: 12,
+              fontSize: FS.caption,
               fontWeight: FW.heavy,
               color: COLORS.accentLight,
               lineHeight: 1,
@@ -309,7 +319,7 @@ const GlobalChrome: React.FC<{
                 alignItems: "center",
                 height: 16,
                 fontFamily: FONTS.sans,
-                fontSize: 12,
+                fontSize: FS.caption,
                 fontWeight: FW.bold,
                 color: COLORS.textSecondary,
                 lineHeight: 1,
@@ -370,6 +380,9 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
 
   return (
     <AbsoluteFill style={{ background: bgColor || COLORS.bg }}>
+      {/* Background atmosphere: glow spots + micro grid */}
+      <BackgroundAtmosphere width={width} height={height} />
+
       {/* 遍历所有 segments，按时间线排列视觉内容 */}
       {segments.map((segment, index) => (
         <SegmentRenderer
@@ -379,6 +392,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
           width={width}
           height={height}
           fps={fps}
+          isLastSegment={index === segments.length - 1}
         />
       ))}
 
@@ -438,11 +452,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
         storyBoundaries={storyBoundaries}
         activeStoryIndex={activeStoryIndex}
       />
-      <GlobalChrome
-        dateLabel={dateLabel}
-        chapters={storyChapters}
-        startTime={0}
-      />
+      <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
     </AbsoluteFill>
   );
 };

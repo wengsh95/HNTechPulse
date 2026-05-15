@@ -96,7 +96,7 @@ def is_resource_pointer_comment(text: str) -> bool:
 
 
 def is_quotable_comment(comment: ContentComment, min_quality: float = 0.22) -> bool:
-    """Whether a comment is suitable for QuoteCard display, not merely useful context."""
+    """Whether a comment is suitable for quote display, not merely useful context."""
     text = clean_comment_text(comment.content or "")
     if not text:
         return False
@@ -338,7 +338,7 @@ def select_quote_comments(
     min_quality: float = 0.22,
     similarity_threshold: float = 0.58,
 ) -> List[ContentComment]:
-    """Select QuoteCard comments: honor LLM ids, then fill with strong fallbacks."""
+    """Select quote comments: honor LLM ids, then fill with strong fallbacks."""
     comments_list = list(comments)
     selected = select_comments_by_ids(
         comments_list,

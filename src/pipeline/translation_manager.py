@@ -38,7 +38,7 @@ class TranslationManager:
             if seg.segment_type != "story_scan":
                 continue
             for elem in seg.scene_elements:
-                if elem.element_type != "quote_card":
+                if elem.element_type != "atmosphere_card":
                     continue
                 story_idx = elem.props.get("story_index")
                 if story_idx is None:
@@ -50,7 +50,7 @@ class TranslationManager:
     def _pick_quote_comments(
         comments: list, selected_ids=None, max_n: int = 3, judgement: dict | None = None
     ) -> list:
-        """Pick the same comments the renderer will inject into QuoteCard."""
+        """Pick the same comments the renderer will inject into AtmosphereCard."""
         return select_quote_comments(
             comments,
             selected_ids=selected_ids or [],
@@ -62,7 +62,7 @@ class TranslationManager:
         """Translate titles + referenced comments. Checkpointed.
 
         Translates titles and one top-quality comment per stance per story
-        (the same comments _expand_quote_card injects at render time).
+        (the same comments _expand_atmosphere_card injects at render time).
         Updates content (title_cn, comment.content_cn) in place.
         """
         translations_path = Path(f"data/{date}/translations.json")
@@ -163,7 +163,7 @@ class TranslationManager:
         selected_ids_by_story: dict | None = None,
         judgements: dict | None = None,
     ) -> dict:
-        """Collect the exact comments QuoteCard will display for translation.
+        """Collect the exact comments AtmosphereCard will display for translation.
 
         LLM-selected ids are honored first, then the shared fallback selector fills
         to three quotable comments.
@@ -191,7 +191,7 @@ class TranslationManager:
         selected_ids_by_story: dict | None = None,
         judgements: dict | None = None,
     ) -> None:
-        """Set content_cn on the same comments QuoteCard will display."""
+        """Set content_cn on the same comments AtmosphereCard will display."""
         selected_ids_by_story = selected_ids_by_story or {}
         if judgements is None:
             judgements = load_comment_judgements(content.date)
@@ -228,7 +228,7 @@ class TranslationManager:
                             ].title_cn
             elif seg.segment_type == "story_scan":
                 for elem in seg.scene_elements:
-                    if elem.element_type == "quote_card":
+                    if elem.element_type == "atmosphere_card":
                         story_idx = elem.props.get("story_index")
                         for i, q in enumerate(elem.props.get("quotes", [])):
                             if story_idx is not None:

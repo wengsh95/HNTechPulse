@@ -333,13 +333,9 @@ class ScriptWriter:
             judgement = comment_judgements.get(
                 comment_judgement_key(content.items[story_idx]), {}
             )
-            self._normalize_quote_card_selection(
-                seg,
-                content.items[story_idx],
-                judgement,
-            )
             self._normalize_atmosphere_card(
                 seg,
+                content.items[story_idx],
                 judgement,
             )
 
@@ -460,39 +456,14 @@ class ScriptWriter:
         )
 
     @staticmethod
-    def _normalize_quote_card_selection(
+    def _normalize_atmosphere_card(
         segment: ScriptSegment, item: ContentItem, judgement: dict
     ) -> None:
-        preferred_ids = candidate_ids_for_story(judgement, max_n=12)
-        for elem in segment.scene_elements:
-            if elem.element_type != "quote_card":
-                continue
-            props = elem.props or {}
-            selected_ids = props.get("selected_comment_ids") or []
-            combined_ids = list(selected_ids)
-            for comment_id in preferred_ids:
-                if comment_id not in combined_ids:
-                    combined_ids.append(comment_id)
-            selected_comments = select_quote_comments(
-                item.comments,
-                selected_ids=combined_ids,
-                max_n=3,
-            )
-            props["selected_comment_ids"] = [
-                str(c.source_id) for c in selected_comments if c.source_id is not None
-            ]
-            # Fallback: if all selected comments lack source_id, keep original LLM ids
-            if not props["selected_comment_ids"] and combined_ids:
-                props["selected_comment_ids"] = [str(cid) for cid in combined_ids[:3]]
-            elem.props = props
-
-    @staticmethod
-    def _normalize_atmosphere_card(segment: ScriptSegment, judgement: dict) -> None:
-        """Inject debate_focus and stance_distribution from comment judgement into atmosphere_card props."""
+        """Inject debate_focus, stance_distribution, and selected_comment_ids from comment judgement into atmosphere_card props."""
         debate_focus = judgement.get("debate_focus") or []
         stance_distribution = judgement.get("stance_distribution") or {}
-        if not debate_focus and not stance_distribution:
-            return
+        preferred_ids = candidate_ids_for_story(judgement, max_n=12)
+
         for elem in segment.scene_elements:
             if elem.element_type != "atmosphere_card":
                 continue
@@ -501,6 +472,24 @@ class ScriptWriter:
                 props["debate_focus"] = debate_focus
             if stance_distribution:
                 props["stance_distribution"] = stance_distribution
+
+            # Quote selection (merged from quote_card, max 2)
+            selected_ids = props.get("selected_comment_ids") or []
+            combined_ids = list(selected_ids)
+            for comment_id in preferred_ids:
+                if comment_id not in combined_ids:
+                    combined_ids.append(comment_id)
+            selected_comments = select_quote_comments(
+                item.comments,
+                selected_ids=combined_ids,
+                max_n=2,
+            )
+            props["selected_comment_ids"] = [
+                str(c.source_id) for c in selected_comments if c.source_id is not None
+            ]
+            if not props["selected_comment_ids"] and combined_ids:
+                props["selected_comment_ids"] = [str(cid) for cid in combined_ids[:2]]
+
             elem.props = props
 
     def write(self, content: ContentPackage) -> Script:

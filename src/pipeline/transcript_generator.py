@@ -120,9 +120,6 @@ def generate_brief_transcript(
             atmosphere_elem = next(
                 (e for e in elems if e.element_type == "atmosphere_card"), None
             )
-            quote_elem = next(
-                (e for e in elems if e.element_type == "quote_card"), None
-            )
 
             event_summary = (
                 event_elem.props.get("dek", "")
@@ -143,8 +140,7 @@ def generate_brief_transcript(
                     [
                         e
                         for e in elems
-                        if e.element_type
-                        in ("event_card", "atmosphere_card", "quote_card")
+                        if e.element_type in ("event_card", "atmosphere_card")
                     ]
                 )
             ):
@@ -196,9 +192,9 @@ def generate_brief_transcript(
                     lines.append(f"**争议焦点**  {' · '.join(debate_focus)}")
                     lines.append("")
 
-            # Quotes from quote_card
-            if quote_elem and quote_elem.props:
-                quotes = quote_elem.props.get("quotes", [])
+            # Quotes from atmosphere_card
+            if atmosphere_elem and atmosphere_elem.props:
+                quotes = atmosphere_elem.props.get("quotes", [])
                 if quotes:
                     for q in quotes:
                         stance = q.get("stance", "")

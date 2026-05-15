@@ -1,14 +1,14 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
-import { COLORS, FONTS, FW } from "./design";
+import { COLORS, FONTS, FW, FS } from "./design";
 
 export const STANCE_COLORS: Record<string, string> = {
-  支持: "#34C759",
+  支持: COLORS.green,
   质疑: COLORS.orangeRed,
-  中立: "#8E8E93",
-  调侃: "#FFD60A",
-  担忧: "#BF5AF2",
+  中立: COLORS.gray,
+  调侃: COLORS.yellow,
+  担忧: COLORS.purple,
 };
 
 /** Donut chart with outside labels. `size` is the total rendering area including labels. */
@@ -18,9 +18,11 @@ export const StancePie: React.FC<{
   centerLabel?: string;
 }> = ({ distribution, size, centerLabel }) => {
   const frame = useCurrentFrame();
-  const cx = size / 2;
-  const cy = size / 2;
-  const labelPad = 22;
+  const labelPad = 40;
+  const labelOverflow = 20;
+  const svgSize = size + labelOverflow * 2;
+  const cx = svgSize / 2;
+  const cy = svgSize / 2;
   const outerR = size / 2 - labelPad;
   const innerR = outerR * 0.55;
   const entries = Object.entries(distribution).filter(([, v]) => v > 0);
@@ -53,7 +55,7 @@ export const StancePie: React.FC<{
     const color = STANCE_COLORS[label] || COLORS.textSecondary;
 
     const midAngle = startAngle + (endAngle - startAngle) / 2 - Math.PI / 2;
-    const labelR = outerR + 14;
+    const labelR = outerR + 28;
     const labelX = cx + labelR * Math.cos(midAngle);
     const labelY = cy + labelR * Math.sin(midAngle);
     const onRight = Math.cos(midAngle) > -0.05;
@@ -73,14 +75,18 @@ export const StancePie: React.FC<{
         flexShrink: 0,
       }}
     >
-      <div style={{ position: "relative", width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <div style={{ position: "relative", width: svgSize, height: svgSize }}>
+        <svg
+          width={svgSize}
+          height={svgSize}
+          viewBox={`${-labelOverflow} ${-labelOverflow} ${svgSize} ${svgSize}`}
+        >
           {arcs.map((arc) => (
             <path
               key={arc.idx}
               d={arc.path}
               fill={arc.color}
-              stroke="rgba(13,13,15,0.6)"
+              stroke={COLORS.bgStroke}
               strokeWidth={1.5}
             />
           ))}
@@ -95,7 +101,7 @@ export const StancePie: React.FC<{
                   dominantBaseline="auto"
                   style={{
                     fontFamily: FONTS.mono,
-                    fontSize: 14,
+                    fontSize: FS.subtitle2,
                     fontWeight: FW.heavy,
                     fill: COLORS.text,
                     pointerEvents: "none",
@@ -110,7 +116,7 @@ export const StancePie: React.FC<{
                   dominantBaseline="auto"
                   style={{
                     fontFamily: FONTS.sans,
-                    fontSize: 12,
+                    fontSize: FS.caption,
                     fontWeight: FW.bold,
                     fill: COLORS.textSecondary,
                     pointerEvents: "none",
@@ -130,7 +136,7 @@ export const StancePie: React.FC<{
               left: "50%",
               transform: "translate(-50%, -50%)",
               fontFamily: FONTS.mono,
-              fontSize: 24,
+              fontSize: FS.subhead,
               fontWeight: FW.heavy,
               color: COLORS.text,
               textAlign: "center",
@@ -141,46 +147,6 @@ export const StancePie: React.FC<{
             {centerLabel}
           </div>
         )}
-      </div>
-      {/* Inline legend with colored dots */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "4px 14px",
-          marginTop: 12,
-          justifyContent: "center",
-        }}
-      >
-        {entries.map(([label, value]) => {
-          const color = STANCE_COLORS[label] || COLORS.textSecondary;
-          const pct = Math.round(value * 100);
-          return (
-            <span
-              key={label}
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                fontWeight: FW.medium,
-                color: COLORS.textSecondary,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  backgroundColor: color,
-                }}
-              />
-              {label} {pct}%
-            </span>
-          );
-        })}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
-import { COLORS, FONTS, FW, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, FS, GRADIENTS, LAYOUT, S } from "./design";
 
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: _height }) => {
   const frame = useCurrentFrame();
@@ -77,9 +77,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
         left: "50%",
         bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
         transform: `translateX(-50%) translateY(${slideY}px)`,
-        background: isMinimal
-          ? "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.75) 16%, rgba(13,13,15,0.75) 84%, rgba(13,13,15,0))"
-          : "linear-gradient(90deg, rgba(13,13,15,0), rgba(13,13,15,0.88) 14%, rgba(13,13,15,0.88) 86%, rgba(13,13,15,0))",
+        background: isMinimal ? GRADIENTS.subtitleMinimal : GRADIENTS.subtitleStandard,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -93,7 +91,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: 22,
+          fontSize: FS.subtitle,
           color: COLORS.text,
           textAlign: "center",
           lineHeight: 1.45,

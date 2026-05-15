@@ -5,6 +5,7 @@ import {
   COLORS,
   FONTS,
   FW,
+  FS,
   getCardMaxHeight,
   glassCard,
   glassCardShadow,
@@ -13,20 +14,23 @@ import {
   LAYOUT,
   S,
 } from "./design";
+import {
+  breathingOpacity,
+  CapsuleBadge,
+  dividerStyle,
+  GlassShimmer,
+  highlightKeywords,
+  KeywordTag,
+  lineClamp,
+  MetricPill,
+  overshootTranslateY,
+  SectionLabel,
+} from "./HighlightShared";
 import { cleanText, ElementProps, limitList, p } from "./utils";
 
 interface KeyPoint {
   label: string;
   text: string;
-}
-
-function lineClamp(lines: number): React.CSSProperties {
-  return {
-    overflow: "hidden",
-    display: "-webkit-box",
-    WebkitLineClamp: lines,
-    WebkitBoxOrient: "vertical" as const,
-  };
 }
 
 function cleanKeyPoints(value: unknown): KeyPoint[] {
@@ -50,92 +54,6 @@ function cleanKeyPoints(value: unknown): KeyPoint[] {
     .filter((item): item is KeyPoint => item !== null)
     .slice(0, 2);
 }
-
-function estimateReadingTime(dek: string, keyPoints: KeyPoint[]): number {
-  let chars = dek.length;
-  for (const kp of keyPoints) {
-    chars += kp.label.length + kp.text.length;
-  }
-  return Math.max(1, Math.round(chars / 400));
-}
-
-function formatDate(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}/${m}/${day}`;
-}
-
-function highlightKeywords(text: string, keywords: string[]): React.ReactNode {
-  if (!text || keywords.length === 0) return text;
-  const escaped = keywords
-    .filter((k) => k.length > 1)
-    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .sort((a, b) => b.length - a.length);
-  if (escaped.length === 0) return text;
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(pattern);
-  if (parts.length <= 1) return text;
-  return parts.map((part, i) => {
-    const isMatch = keywords.some((k) => k.toLowerCase() === part.toLowerCase());
-    if (isMatch) {
-      return (
-        <span key={i} style={{ color: COLORS.accentLight, fontWeight: FW.semibold }}>
-          {part}
-        </span>
-      );
-    }
-    return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
-}
-
-const SectionLabel: React.FC<{ text: string; delay: number; frame: number }> = ({
-  text,
-  delay,
-  frame,
-}) => {
-  const progress = interpolate(frame, [delay, delay + 14], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 8,
-        opacity: progress,
-        transform: `translateX(${interpolate(progress, [0, 1], [-6, 0])}px)`,
-      }}
-    >
-      <div
-        style={{
-          width: 3,
-          height: 12,
-          borderRadius: 2,
-          background: COLORS.accent,
-          flexShrink: 0,
-        }}
-      />
-      <span
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: 12,
-          fontWeight: FW.semibold,
-          color: COLORS.textTertiary,
-          letterSpacing: 0.6,
-        }}
-      >
-        {text}
-      </span>
-    </div>
-  );
-};
 
 const InfoPoint: React.FC<{
   point: KeyPoint;
@@ -161,9 +79,9 @@ const InfoPoint: React.FC<{
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: 13,
+          fontSize: FS.label,
           fontWeight: FW.bold,
-          color: COLORS.textTertiary,
+          color: COLORS.textSecondary,
           whiteSpace: "nowrap",
           lineHeight: 1.7,
         }}
@@ -173,9 +91,9 @@ const InfoPoint: React.FC<{
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: 15,
+          fontSize: FS.bodySmall,
           fontWeight: FW.medium,
-          color: COLORS.textSecondary,
+          color: COLORS.textBody,
           lineHeight: 1.7,
           overflowWrap: "anywhere",
           wordBreak: "break-word",
@@ -183,83 +101,6 @@ const InfoPoint: React.FC<{
         }}
       >
         {point.text}
-      </span>
-    </div>
-  );
-};
-
-const KeywordTag: React.FC<{
-  keyword: string;
-  delay: number;
-  frame: number;
-}> = ({ keyword, delay, frame }) => {
-  const tagProgress = interpolate(frame, [delay, delay + 16], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  return (
-    <span
-      style={{
-        fontFamily: FONTS.sans,
-        fontSize: 12,
-        fontWeight: FW.semibold,
-        color: COLORS.accentLight,
-        backgroundColor: "rgba(0,122,255,0.10)",
-        border: "1px solid rgba(0,122,255,0.18)",
-        borderRadius: 999,
-        padding: "5px 14px",
-        letterSpacing: 0.2,
-        opacity: tagProgress,
-        transform: `scale(${interpolate(tagProgress, [0, 1], [0.85, 1])})`,
-      }}
-    >
-      {keyword}
-    </span>
-  );
-};
-
-const MetricPill: React.FC<{
-  icon: string;
-  value: number;
-  delay: number;
-  frame: number;
-}> = ({ icon, value, delay, frame }) => {
-  const progress = interpolate(frame, [delay, delay + 14], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
-        height: 28,
-        padding: "0 12px",
-        borderRadius: 14,
-        backgroundColor: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        boxSizing: "border-box",
-        fontFamily: FONTS.mono,
-        whiteSpace: "nowrap",
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [4, 0])}px)`,
-      }}
-    >
-      <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
-      <span
-        style={{
-          fontSize: 13,
-          fontWeight: FW.heavy,
-          color: COLORS.textSecondary,
-          lineHeight: 1,
-        }}
-      >
-        {Math.max(0, Math.round(value)).toLocaleString("en-US")}
       </span>
     </div>
   );
@@ -294,10 +135,6 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const heatScore = Number(p(elementProps, "score", 0)) || 0;
   const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
   const showMetrics = heatScore > 0 || commentCount > 0;
-  const articleUrl = cleanText(p(elementProps, "url", ""));
-  const publishedAt = Number(p(elementProps, "published_at", 0)) || 0;
-  const dateDisplay = formatDate(publishedAt);
-  const readingTime = estimateReadingTime(dek, keyPoints);
 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
@@ -346,16 +183,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
     extrapolateRight: "clamp",
   });
 
-  const dividerStyle: React.CSSProperties = {
-    width: "100%",
-    height: 1,
-    background:
-      "linear-gradient(90deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 100%)",
-    marginTop: 12,
-    marginBottom: 14,
-  };
-
-  const titleFontSize = compact ? 34 : 38;
+  const titleFontSize = compact ? 34 : FS.headline;
 
   return (
     <div
@@ -364,19 +192,20 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         left: LAYOUT.pageInset,
         top: LAYOUT.topInset,
         width: cardW,
-        height: cardMaxH,
+        minHeight: cardMaxH,
         ...glassCard,
         padding: `${padY}px ${padX}px`,
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
-        transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
+        transform: `translateY(${overshootTranslateY(cardProgress, 28)}px)`,
         display: "flex",
         gap,
         alignItems: "stretch",
         overflow: "hidden",
       }}
     >
+      <GlassShimmer frame={frame} />
       {showChapterWatermark && (
         <div
           style={{
@@ -384,9 +213,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             right: padX,
             top: padY - 4,
             fontFamily: FONTS.mono,
-            fontSize: 64,
+            fontSize: FS.watermark,
             fontWeight: FW.heavy,
-            color: "rgba(255,255,255,0.04)",
+            color: `rgba(255,255,255,${breathingOpacity(frame)})`,
             lineHeight: 1,
             pointerEvents: "none",
             letterSpacing: -4,
@@ -421,63 +250,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
           }}
         >
-          <span
-            style={{
-              fontFamily: FONTS.sans,
-              fontSize: 12,
-              fontWeight: FW.heavy,
-              color: COLORS.brand,
-              backgroundColor: COLORS.brandBg,
-              border: "1px solid rgba(255,102,0,0.25)",
-              borderRadius: 999,
-              padding: "3px 10px",
-              letterSpacing: 0.3,
-            }}
-          >
-            HN
-          </span>
-          {category && (
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 11,
-                fontWeight: FW.bold,
-                color: "#ffffff",
-                background: `linear-gradient(135deg, ${COLORS.accent} 0%, ${COLORS.accentLight} 100%)`,
-                borderRadius: 999,
-                padding: "3px 12px",
-                letterSpacing: 0.3,
-              }}
-            >
-              {category}
-            </span>
-          )}
-          {readingTime > 0 && (
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 12,
-                fontWeight: FW.medium,
-                color: COLORS.textTertiary,
-                marginLeft: 4,
-              }}
-            >
-              阅读约 {readingTime} 分钟
-            </span>
-          )}
-          {dateDisplay && (
-            <span
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: 11,
-                fontWeight: FW.medium,
-                color: COLORS.textTertiary,
-                marginLeft: 2,
-              }}
-            >
-              {dateDisplay}
-            </span>
-          )}
+          <CapsuleBadge text="事件详情" />
         </div>
 
         {/* Main title — large, bold, the visual anchor */}
@@ -507,7 +280,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
             style={{
               fontFamily: FONTS.sans,
               fontWeight: FW.regular,
-              fontSize: 14,
+              fontSize: FS.subtitle2,
               color: COLORS.textTertiary,
               marginBottom: compact ? 14 : 18,
               lineHeight: 1.4,
@@ -532,9 +305,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               marginBottom: hasBody ? (compact ? 18 : 22) : 0,
             }}
           >
-            {heatScore > 0 && (
-              <MetricPill icon="🔥" value={heatScore} delay={12} frame={frame} />
-            )}
+            {heatScore > 0 && <MetricPill icon="🔥" value={heatScore} delay={12} frame={frame} />}
             {commentCount > 0 && (
               <MetricPill icon="💬" value={commentCount} delay={14} frame={frame} />
             )}
@@ -555,8 +326,8 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 <div
                   style={{
                     fontFamily: FONTS.sans,
-                    fontSize: compact ? 15 : 16,
-                    color: "rgba(245,245,247,0.70)",
+                    fontSize: compact ? FS.bodySmall : FS.body,
+                    color: COLORS.textBody,
                     lineHeight: 1.7,
                     fontWeight: FW.regular,
                     marginBottom:
@@ -575,7 +346,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     ...lineClamp(3),
                   }}
                 >
-                  {highlightKeywords(dek, keywords)}
+                  {highlightKeywords(dek, keywords, frame, 14)}
                 </div>
               </>
             )}
@@ -614,7 +385,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               style={{
                 display: "flex",
                 flexWrap: "wrap",
-                justifyContent: "center",
+                justifyContent: "flex-start",
                 gap: 8,
                 marginBottom: 0,
                 maxWidth: textColW,
@@ -628,35 +399,8 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           </>
         )}
 
-        {/* "阅读原文" link */}
-        {articleUrl && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              marginTop: keywords.length > 0 ? 14 : (hasBody ? 18 : 0),
-              opacity: footerProgress,
-              transform: `translateX(${interpolate(footerProgress, [0, 1], [8, 0])}px)`,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 13,
-                fontWeight: FW.semibold,
-                color: COLORS.accentLight,
-                letterSpacing: 0.3,
-              }}
-            >
-              查看原文 →
-            </span>
-          </div>
-        )}
-
         {/* Spacer when no body, no metrics, no keywords */}
-        {!hasBody && !showMetrics && keywords.length === 0 && (
-          <div style={{ flex: 1 }} />
-        )}
+        {!hasBody && !showMetrics && keywords.length === 0 && <div style={{ flex: 1 }} />}
       </div>
 
       {/* Right: image panel — no browser chrome, glass glow, 3D tilt */}
@@ -676,8 +420,8 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: COLORS.surfaceSubtle,
+              border: "1px solid " + COLORS.borderLow,
               boxShadow: glassGlow,
               width: mediaW,
               height: mediaH,

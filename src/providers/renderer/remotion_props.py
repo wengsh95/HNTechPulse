@@ -232,7 +232,7 @@ def _expand_event_card(props, content):
 
 
 def _expand_atmosphere_card(props, content):
-    """Expand atmosphere_card: inject controversy score, ensure stance/distribution fields exist."""
+    """Expand atmosphere_card: inject controversy score, stance/distribution, and representative quotes."""
     import math
 
     item = _safe_get_item(content, props.get("story_index"))
@@ -264,17 +264,7 @@ def _expand_atmosphere_card(props, content):
     else:
         result["controversy_score"] = 0.0
 
-    return result
-
-
-def _expand_quote_card(props, content):
-    """Expand quote_card: inject representative comments across different stances."""
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return props
-    result = dict(props)
-
-    # Preserve text_cn from original LLM props (set by translation_manager)
+    # Quotes (merged from quote_card, max 2)
     orig_text_cn = {}
     for q in props.get("quotes", []):
         cn = q.get("text_cn", "")
@@ -289,11 +279,11 @@ def _expand_quote_card(props, content):
         item.comments,
         selected_ids=props.get("selected_comment_ids") or [],
         judgement=judgement,
-        max_n=3,
+        max_n=2,
     )
 
     quotes = []
-    for c in selected[:3]:
+    for c in selected[:2]:
         stance = classify_comment_stance(c)
         text = clean_comment_text(c.content or "")[:300]
         text_cn = c.content_cn or orig_text_cn.get(text, "")
@@ -307,9 +297,12 @@ def _expand_quote_card(props, content):
             }
         )
     result["quotes"] = quotes
-    result["next_watch"] = props.get("next_watch", "")
-    result["stance_distribution"] = judgement.get("stance_distribution", {})
-    result["debate_focus"] = judgement.get("debate_focus") or []
+
+    # Override stance_distribution and debate_focus from judgement if available
+    if judgement.get("stance_distribution"):
+        result["stance_distribution"] = judgement["stance_distribution"]
+    if judgement.get("debate_focus"):
+        result["debate_focus"] = judgement["debate_focus"]
 
     return result
 
@@ -325,7 +318,6 @@ ELEMENT_EXPANDERS = {
     "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
     "atmosphere_card": _expand_atmosphere_card,
-    "quote_card": _expand_quote_card,
 }
 
 

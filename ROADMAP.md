@@ -1,7 +1,7 @@
 # HN TechPulse Roadmap
 
-> 最后更新：2026-05-11  
-> 当前依据：已合入 `7b954ff Improve story enrichment and remotion rendering`，并对 Remotion 组件、文章 enrich、评论筛选和测试补充后的现状重新整理。
+> 最后更新：2026-05-14
+> 当前依据：已合入 `7cdc30a Add TS quality gate: Prettier, ESLint, tsc, Vitest, Knip, audit`，并对管线模块拆分、TS 质量门禁和评论管线重构后的现状重新整理。
 
 ## 产品定位
 
@@ -26,9 +26,11 @@ HN TechPulse 是一个从 Hacker News 自动生成中文科技资讯视频的内
 
 - HN 热榜与评论抓取。
 - LLM 脚本生成，支持 JSON 解析重试、截断后自动扩展 token 上限和 segment 缓存版本控制。
-- TTS 语音合成。
-- Remotion 视频渲染，默认从 `public/props.json` 读取 props。
-- Dashboard、Event、Atmosphere、Quote、Closing 等基础卡片。
+- 评论管线：CommentAnalyzer 评分 → CommentJudge 预筛 → LLM 判断 → 脚本消费 `quote_candidates`，下游不再独立重选。
+- TTS 语音合成（Edge TTS / Mimo TTS），并校验缓存音频与脚本文本的一致性。
+- Remotion 视频渲染，包含 Dashboard、Event、Atmosphere、Quote、Closing 等卡片。
+- 管线模块拆分：content_preparer、timing_engine、tts_processor、report_generator、script_io、transcript_generator。
+- Python + TypeScript 双质量门禁（ruff/vulture/mypy/pytest + Prettier/ESLint/tsc/Vitest/Knip）。
 - “事件详情 - 讨论气氛 - 代表观点”的 story 结构。
 - 编辑角度、重要性、后续观察、观点分布、争议指数、代表评论等结构化字段。
 - 开场页已能展示今日技术信号，而不只是品牌标题。

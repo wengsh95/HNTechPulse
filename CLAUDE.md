@@ -59,11 +59,11 @@ npm run render
 
 - **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)
 - **Providers** ([src/providers/](src/providers/)): fetcher, llm, tts, renderer, enricher — auto-register via [factory.py](src/providers/factory.py)
-- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM comment judging), [comment_judgement.py](src/pipeline/comment_judgement.py) (judgement data model/normalization), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation + assembly), [translation_manager.py](src/pipeline/translation_manager.py)
+- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM comment judging), [comment_judgement.py](src/pipeline/comment_judgement.py) (judgement data model/normalization), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation + assembly), [translation_manager.py](src/pipeline/translation_manager.py), [content_preparer.py](src/pipeline/content_preparer.py) (ContentPackage I/O), [timing_engine.py](src/pipeline/timing_engine.py) (timing/timeline computation), [tts_processor.py](src/pipeline/tts_processor.py) (audio synthesis orchestration), [report_generator.py](src/pipeline/report_generator.py) (pipeline report), [script_io.py](src/pipeline/script_io.py) (script I/O), [transcript_generator.py](src/pipeline/transcript_generator.py) (transcript generation)
 - **Remotion** ([src/providers/renderer/remotion/](src/providers/renderer/remotion/)): React sub-project, receives script as JSON props via [remotion_props.py](src/providers/renderer/remotion_props.py). Dev preview reads `src/providers/renderer/remotion/public/props.json`.
 - **Editor** ([src/editor/](src/editor/)): Streamlit app for manual script editing and image selection.
 
-Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `preview` → `render`
+Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `render` (`preview` optional, not in default)
 
 Script structure (daily_brief): **opening** (fixed greeting) → **dashboard** (leaderboard) → **story_scan** (per-story LLM segments) → **closing** (fixed sign-off)
 
@@ -128,7 +128,10 @@ Recently completed:
 - AtmosphereCard now foregrounds community mood, compacts stance distribution to top 3 + "其他", and renders controversy as a labeled metric bar.
 - QuoteCard now prioritizes Chinese quote text, uses a featured quote plus secondary quotes, places stance labels near authors, and weakens English excerpts.
 - Comment selection extracted to [comment_selection.py](src/pipeline/comment_selection.py) with stable keys, quality scoring, quote-heavy penalties, and representative comment selection.
-- Tests added/expanded for article enrichment and Remotion renderer behavior.
+- Pipeline modules extracted: [content_preparer.py](src/pipeline/content_preparer.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [report_generator.py](src/pipeline/report_generator.py), [script_io.py](src/pipeline/script_io.py), [transcript_generator.py](src/pipeline/transcript_generator.py).
+- TS quality gate added: Prettier, ESLint, tsc, Vitest, Knip, audit for Remotion sub-project ([scripts/ts_quality_check.sh](scripts/ts_quality_check.sh)).
+- Dead code removed and pre-commit hooks updated (ruff + vulture + TS checks).
+- Tests added/expanded for article enrichment, Remotion renderer, TTS providers, comment pipeline, and translation.
 
 Known next priorities are tracked in [ROADMAP.md](ROADMAP.md):
 
@@ -154,7 +157,26 @@ Known next priorities are tracked in [ROADMAP.md](ROADMAP.md):
 - **Remotion Props**: Renderer writes/uses public props for Studio preview. Keep package scripts aligned with composition id `HNTechPulseComposition`.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). Use `render_prompt()` — typos raise `ValueError`.
 - **Dead Code Scan**: Use `vulture` (dead functions/classes/attributes) and `ruff --select F` (unused imports, unused variables, undefined names). Vulture false positives: provider classes auto-registered via factory (`Orchestrator`, `HNFetcher`, `RemotionRenderer`, `EdgeTTSProvider`, `MimoTTSProvider`), Streamlit `session_state` attributes (`dirty`, `active_segment`). Vulture 60% findings need manual review — some are real dead code, some are dynamic dispatch or test-only usage.
-- **Quality Gate Script**: [scripts/quality_check.py](scripts/quality_check.py) runs ruff, ruff-format, vulture, mypy, pytest, coverage, pip-audit, pre-commit in one pass. Use `--fix` to auto-fix, `--skip` to skip slow checks. Pre-commit hooks (ruff + vulture) installed via `.pre-commit-config.yaml`.
+- **Quality Gate Script**: [scripts/quality_check.py](scripts/quality_check.py) runs ruff, ruff-format, vulture, mypy, pytest, coverage, pip-audit, pre-commit in one pass. Use `--fix` to auto-fix, `--skip` to skip slow checks. Pre-commit hooks (ruff + vulture + TS checks) installed via `.pre-commit-config.yaml`. TS quality gate: [scripts/ts_quality_check.sh](scripts/ts_quality_check.sh) runs Prettier, ESLint, tsc, Vitest, Knip, audit for the Remotion sub-project.
+
+---
+
+## Tool & Environment Pitfalls
+
+### Windows + Git Bash path conventions
+
+This project runs on Windows with Git Bash (MSYS2). The `Bash` tool uses Git Bash, where drives mount as `/c/`, `/d/` etc. — **not** `C:\` or `D:\`.
+
+| Tool | Correct | Wrong |
+|------|---------|-------|
+| `Bash` | `cd /d/code/HNTechPulse/...` | `cd d:\code\HNTechPulse\...` |
+| `PowerShell` | `Set-Location "D:\code\..." ; cmd` | `cd "D:\..." && cmd` (PS 5.1 lacks `&&`) |
+
+**Rule:** When running cross-directory commands, prefer `Bash` with Unix-style paths. For PowerShell, use `;` instead of `&&` to chain commands.
+
+### Serial agents for shared files
+
+When multiple agents edit the same files (e.g., HighlightShared.tsx), run them **serially** to avoid edit conflicts. Parallel agents are safe only when they touch disjoint file sets.
 
 ---
 

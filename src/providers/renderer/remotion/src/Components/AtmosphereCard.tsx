@@ -1,26 +1,36 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
-import { ElementProps, p, stanceLabel, UI_TEXT } from "./utils";
 import { StancePie, STANCE_COLORS } from "./StancePie";
 import {
   COLORS,
   FONTS,
   FW,
+  FS,
   getCardMaxHeight,
   glassCard,
   glassCardShadow,
-  innerPanel,
   isCompactHeight,
   LAYOUT,
   S,
-  sectionLabel,
 } from "./design";
+import {
+  audioPulse,
+  CapsuleBadge,
+  dividerStyle,
+  GlassShimmer,
+  highlightKeywords,
+  KeywordTag,
+  lineClamp,
+  overshootTranslateY,
+  SectionLabel,
+} from "./HighlightShared";
+import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
 
 const CONTROVERSY_COLORS = {
-  green: "#34C759",
-  yellow: "#FFD60A",
-  red: "#FF5A5F",
+  green: COLORS.green,
+  yellow: COLORS.yellow,
+  red: COLORS.orangeRed,
 };
 
 function getControversyColor(score: number): string {
@@ -35,15 +45,6 @@ function getControversyLabel(score: number): string {
   return "高度争议";
 }
 
-function getMoodSummary(distribution: Record<string, number>) {
-  const entries = Object.entries(distribution)
-    .filter(([, value]) => value > 0)
-    .sort((a, b) => b[1] - a[1]);
-  if (entries.length === 0) return { dominant: "", percent: 0 };
-  const [dominant, value] = entries[0];
-  return { dominant: stanceLabel(dominant), percent: Math.round(value * 100) };
-}
-
 function compactDistribution(distribution: Record<string, number>): Record<string, number> {
   const entries = Object.entries(distribution)
     .filter(([, value]) => value > 0)
@@ -53,111 +54,194 @@ function compactDistribution(distribution: Record<string, number>): Record<strin
   return Object.fromEntries(rest > 0 ? [...top, ["其他", rest]] : top);
 }
 
-/** Small circular progress ring for controversy score. */
-const ProgressRing: React.FC<{ score: number; color: string }> = ({ score, color }) => {
-  const ringSize = 56;
-  const strokeW = 5;
-  const r = (ringSize - strokeW) / 2;
-  const cx = ringSize / 2;
-  const cy = ringSize / 2;
-  const circ = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(10, score));
-  const offset = circ * (1 - clamped / 10);
+interface Quote {
+  author: string;
+  text: string;
+  text_cn?: string;
+  stance: string;
+  upvotes?: number;
+}
+
+function getQuoteText(quote: Quote) {
+  const hasChinese = Boolean(quote.text_cn?.trim());
+  return {
+    primaryText: hasChinese ? cleanText(quote.text_cn!.trim()) : cleanText(quote.text),
+  };
+}
+
+const ControversyPill: React.FC<{
+  score: number;
+  delay: number;
+  frame: number;
+}> = ({ score, delay, frame }) => {
+  const progress = interpolate(frame, [delay, delay + 14], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const color = getControversyColor(score);
+  const label = getControversyLabel(score);
+  const pulse = audioPulse(frame);
 
   return (
-    <svg width={ringSize} height={ringSize} style={{ display: "block", flexShrink: 0 }}>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke="rgba(255,255,255,0.08)"
-        strokeWidth={strokeW}
-      />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeW}
-        strokeLinecap="round"
-        strokeDasharray={circ}
-        strokeDashoffset={offset}
-        transform={`rotate(-90 ${cx} ${cy})`}
-      />
-    </svg>
+    <span
+      style={{
+        fontFamily: FONTS.sans,
+        fontSize: FS.pill,
+        fontWeight: FW.bold,
+        color: COLORS.white,
+        background: `linear-gradient(135deg, ${color} 0%, ${color}BB 100%)`,
+        borderRadius: 999,
+        padding: "3px 12px",
+        letterSpacing: 0.3,
+        opacity: progress,
+        transform: `translateY(${interpolate(progress, [0, 1], [4, 0])}px) scale(${1 + pulse * 0.03})`,
+      }}
+    >
+      {label}
+    </span>
   );
 };
 
-/** Vertical bar chart for stance distribution. */
-const StanceColumnChart: React.FC<{
-  distribution: Record<string, number>;
-}> = ({ distribution }) => {
-  const entries = Object.entries(distribution)
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1]);
-
-  if (entries.length === 0) return null;
-
-  const barMaxH = 72;
-  const barW = 22;
-  const barGap = 28;
-  const maxPct = Math.max(...entries.map(([, v]) => v));
+const FocusPoint: React.FC<{
+  index: number;
+  text: string;
+  delay: number;
+  frame: number;
+}> = ({ index, text, delay, frame }) => {
+  const progress = interpolate(frame, [delay, delay + 18], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: barGap, height: barMaxH + 42 }}>
-      {entries.map(([label, value]) => {
-        const pct = Math.round(value * 100);
-        const barH = Math.max(4, (value / maxPct) * barMaxH);
-        const color = STANCE_COLORS[label] || COLORS.textSecondary;
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 6,
+        opacity: progress,
+        transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: FS.label,
+          fontWeight: FW.bold,
+          color: COLORS.accentLight,
+          opacity: 0.7,
+          flexShrink: 0,
+          lineHeight: 1.7,
+        }}
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <span
+        style={{
+          fontFamily: FONTS.sans,
+          fontSize: FS.bodySmall,
+          fontWeight: FW.medium,
+          color: COLORS.textSecondary,
+          lineHeight: 1.7,
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+};
 
-        return (
-          <div
-            key={label}
+const QuoteRow: React.FC<{
+  quote: Quote;
+  index: number;
+  frame: number;
+  compact: boolean;
+  keywords: string[];
+}> = ({ quote, index, frame, compact, keywords }) => {
+  const delay = 16 + index * 5;
+  const progress = interpolate(frame, [delay, delay + 18], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const { primaryText } = getQuoteText(quote);
+  const upvotes = quote.upvotes ?? 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+        opacity: progress,
+        transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
+      }}
+    >
+      <span
+        style={{
+          display: "inline-block",
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          backgroundColor: STANCE_COLORS[quote.stance] || COLORS.textSecondary,
+          flexShrink: 0,
+          marginTop: 6,
+        }}
+      />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 6,
+            marginBottom: 2,
+          }}
+        >
+          <span
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
+              fontFamily: FONTS.sans,
+              fontSize: FS.caption,
+              fontWeight: FW.bold,
+              color: COLORS.textTertiary,
             }}
           >
+            {quote.author}
+          </span>
+          {upvotes > 0 && (
             <span
               style={{
                 fontFamily: FONTS.mono,
-                fontSize: 11,
-                fontWeight: FW.heavy,
-                color: COLORS.textSecondary,
-                lineHeight: 1,
-              }}
-            >
-              {pct}%
-            </span>
-            <div
-              style={{
-                width: barW,
-                height: barH,
-                borderRadius: "4px 4px 0 0",
-                background: color,
-              }}
-            />
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 11,
+                fontSize: FS.micro,
                 fontWeight: FW.medium,
-                color: COLORS.textSecondary,
-                lineHeight: 1,
-                maxWidth: barW + 12,
-                textAlign: "center",
-                whiteSpace: "nowrap",
+                color: COLORS.textFaint,
               }}
             >
-              {label}
+              ▲ {upvotes}
             </span>
-          </div>
-        );
-      })}
+          )}
+        </div>
+
+        <div
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: compact ? FS.bodySmall : FS.body,
+            color: COLORS.text,
+            lineHeight: 1.7,
+            fontWeight: FW.regular,
+            letterSpacing: 0.1,
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            ...lineClamp(compact ? 2 : 3),
+          }}
+        >
+          &ldquo;{highlightKeywords(primaryText, keywords, frame, delay)}&rdquo;
+        </div>
+      </div>
     </div>
   );
 };
@@ -167,25 +251,38 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
 
   const stanceDistribution = (elementProps.stance_distribution as Record<string, number>) ?? {};
   const debateFocus = (elementProps.debate_focus as string[]) ?? [];
+  const keywords = limitList(
+    Array.isArray(elementProps.keywords)
+      ? elementProps.keywords.filter((k): k is string => typeof k === "string")
+      : [],
+    4,
+    16,
+  );
 
   const controversyScore = p(elementProps, "controversy_score", 0);
   const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
-  const heatScore = Number(p(elementProps, "score", 0)) || 0;
   const scoreNum =
     typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
-  const controversyColor = getControversyColor(scoreNum);
-  const controversyLabel = getControversyLabel(scoreNum);
-  const mood = getMoodSummary(stanceDistribution);
-  const dominantColor = STANCE_COLORS[mood.dominant] || COLORS.accentLight;
   const compactStances = compactDistribution(stanceDistribution);
+
+  // Quote data (merged from QuoteCard)
+  const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 2);
 
   const hasPie = Object.keys(compactStances).length > 0;
   const hasFocus = debateFocus.length > 0;
-  const compact = isCompactHeight(height);
+  const hasQuotes = quotes.length > 0;
 
+  const compact = isCompactHeight(height);
   const cardW = width - LAYOUT.pageInset * 2;
   const cardMaxH = getCardMaxHeight(height);
-  const topY = LAYOUT.topInset;
+
+  const padX = compact ? 36 : 44;
+  const padY = compact ? 32 : 40;
+  const pieW = hasPie ? (compact ? 200 : 280) : 0;
+  const gap = hasPie ? (compact ? 20 : 28) : 0;
+  const textColW = hasPie
+    ? Math.max(280, cardW - pieW - gap - padX * 2)
+    : Math.min(cardW - padX * 2, LAYOUT.contentWideMaxWidth);
 
   const cardProgress = interpolate(frame, [4, 22], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -193,323 +290,215 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     extrapolateRight: "clamp",
   });
 
-  const metricProgress = interpolate(frame, [14, 32], [0, 1], {
+  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  const pY = compact ? 22 : 28;
-  const pX = compact ? 24 : 32;
-  const gap = compact ? 16 : 24;
+  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  const imageProgress = interpolate(frame, [6, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  const footerProgress = interpolate(frame, [20, 36], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  const hasFooter = keywords.length > 0;
+  const titleFontSize = compact ? 34 : FS.headline;
 
   return (
     <div
       style={{
         ...S,
         left: LAYOUT.pageInset,
-        top: topY,
+        top: LAYOUT.topInset,
         width: cardW,
-        maxHeight: cardMaxH,
+        minHeight: cardMaxH,
         ...glassCard,
-        padding: `${pY}px ${pX}px`,
+        padding: `${padY}px ${padX}px`,
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
-        overflow: "hidden",
         opacity: cardProgress,
-        transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
+        transform: `translateY(${overshootTranslateY(cardProgress, 28)}px)`,
+        display: "flex",
+        gap,
+        alignItems: "stretch",
+        overflow: "visible",
       }}
     >
-      {/* === Section label === */}
-      <div style={sectionLabel}>{UI_TEXT.discussionMood}</div>
-
-      {/* === Row 1: metric cards (left) + large donut (right) === */}
+      <GlassShimmer frame={frame} />
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: compact
-            ? "minmax(0, 0.45fr) minmax(0, 1fr)"
-            : "minmax(0, 0.42fr) minmax(0, 1fr)",
-          gap,
-          alignItems: "stretch",
-          opacity: metricProgress,
-          transform: `translateY(${interpolate(metricProgress, [0, 1], [12, 0])}px)`,
-          marginBottom: gap,
+          flex: hasPie ? `0 0 ${textColW}px` : 1,
+          maxWidth: textColW,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+          zIndex: 1,
         }}
       >
-        {/* Left: metric cards stacked vertically */}
-        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 10 : 14 }}>
-          {/* Controversy card */}
-          <div
-            style={{
-              ...innerPanel,
-              padding: compact ? "14px" : "16px",
-              display: "flex",
-              alignItems: "center",
-              gap: compact ? 12 : 16,
-              flex: 1,
-            }}
-          >
-            <ProgressRing score={scoreNum} color={controversyColor} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              <div
-                style={{
-                  fontFamily: FONTS.sans,
-                  fontSize: 11,
-                  fontWeight: FW.bold,
-                  color: COLORS.textTertiary,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                {UI_TEXT.controversy}
-              </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                <span
-                  style={{
-                    fontFamily: FONTS.mono,
-                    fontSize: compact ? 24 : 28,
-                    fontWeight: FW.heavy,
-                    color: COLORS.text,
-                    lineHeight: 1,
-                  }}
-                >
-                  {scoreNum.toFixed(1)}
-                </span>
-                <span
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: 13,
-                    fontWeight: FW.medium,
-                    color: COLORS.textSecondary,
-                  }}
-                >
-                  /10
-                </span>
-              </div>
-              <span
-                style={{
-                  fontFamily: FONTS.sans,
-                  fontSize: 12,
-                  fontWeight: FW.bold,
-                  color: controversyColor,
-                }}
-              >
-                {controversyLabel}
-              </span>
-            </div>
-          </div>
-
-          {/* Dominant mood card */}
-          {mood.dominant && (
-            <div
-              style={{
-                ...innerPanel,
-                padding: compact ? "14px" : "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: compact ? 10 : 14,
-                flex: 1,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: compact ? 28 : 32,
-                  height: compact ? 28 : 32,
-                  borderRadius: "50%",
-                  backgroundColor: dominantColor,
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: 11,
-                    fontWeight: FW.bold,
-                    color: COLORS.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  主导情绪
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span
-                    style={{
-                      fontFamily: FONTS.sans,
-                      fontSize: compact ? 16 : 18,
-                      fontWeight: FW.heavy,
-                      color: COLORS.text,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {mood.dominant}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: FONTS.mono,
-                      fontSize: compact ? 20 : 24,
-                      fontWeight: FW.heavy,
-                      color: dominantColor,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {mood.percent}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: large donut chart */}
+        {/* Header row */}
         <div
           style={{
-            ...innerPanel,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            minWidth: 0,
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: compact ? 16 : 20,
+            maxWidth: textColW,
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
           }}
         >
-          {hasPie ? (
-            <StancePie
-              distribution={compactStances}
-              size={compact ? 180 : 240}
-              centerLabel={commentCount > 0 ? `${commentCount}条` : undefined}
-            />
-          ) : (
-            heatScore > 0 && (
-              <div
-                style={{
-                  fontFamily: FONTS.sans,
-                  fontSize: 13,
-                  fontWeight: FW.bold,
-                  color: COLORS.textSecondary,
-                  padding: "7px 12px",
-                  borderRadius: LAYOUT.chipRadius,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                }}
-              >
-                热度 {heatScore}
-              </div>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* === Row 2: stance bar chart (left) + debate focus (right) === */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: compact
-            ? "minmax(0, 0.45fr) minmax(0, 1fr)"
-            : "minmax(0, 0.42fr) minmax(0, 1fr)",
-          gap,
-          alignItems: "start",
-          opacity: metricProgress,
-          marginBottom: gap,
-        }}
-      >
-        {/* Left: stance distribution column chart */}
-        <div style={{ ...innerPanel, padding: compact ? "14px" : "16px" }}>
-          <div
-            style={{
-              fontFamily: FONTS.sans,
-              fontSize: 11,
-              fontWeight: FW.bold,
-              color: COLORS.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              marginBottom: compact ? 10 : 14,
-            }}
-          >
-            立场分布
-          </div>
-          <StanceColumnChart distribution={stanceDistribution} />
+          <CapsuleBadge text="讨论氛围" />
         </div>
 
-        {/* Right: debate focus */}
-        <div style={{ ...innerPanel, padding: compact ? "14px" : "16px" }}>
-          <div
+        {/* Controversy score */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 10,
+            marginBottom: compact ? 8 : 10,
+            maxWidth: textColW,
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
+          }}
+        >
+          <span
             style={{
-              fontFamily: FONTS.sans,
-              fontSize: 11,
-              fontWeight: FW.bold,
-              color: COLORS.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              marginBottom: compact ? 10 : 14,
+              fontFamily: FONTS.bold,
+              fontSize: titleFontSize,
+              fontWeight: FW.heavy,
+              color: COLORS.text,
+              lineHeight: 1.15,
+              letterSpacing: -0.4,
             }}
           >
-            {UI_TEXT.debateFocus}
-          </div>
-          {hasFocus ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: compact ? 8 : 10 }}>
-              {debateFocus.slice(0, 3).map((focus, i) => {
-                const tagDelay = 12 + i * 5;
-                const tagProgress = interpolate(frame, [tagDelay, tagDelay + 16], [0, 1], {
-                  easing: Easing.bezier(0.16, 1, 0.3, 1),
-                  extrapolateLeft: "clamp",
-                  extrapolateRight: "clamp",
-                });
+            {scoreNum.toFixed(1)}
+          </span>
+          <span
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: FS.subtitle2,
+              fontWeight: FW.regular,
+              color: COLORS.textTertiary,
+              lineHeight: 1.4,
+            }}
+          >
+            /10 争议度
+          </span>
+          <ControversyPill score={scoreNum} delay={10} frame={frame} />
+        </div>
 
-                return (
-                  <div
-                    key={focus}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      fontFamily: FONTS.sans,
-                      fontSize: compact ? 13 : 14,
-                      fontWeight: FW.bold,
-                      color: COLORS.text,
-                      opacity: tagProgress,
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      borderRadius: 8,
-                      padding: compact ? "10px 14px" : "12px 16px",
-                      lineHeight: 1.35,
-                      transform: `translateY(${interpolate(tagProgress, [0, 1], [8, 0])}px)`,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: FONTS.mono,
-                        fontSize: 12,
-                        fontWeight: FW.heavy,
-                        color: COLORS.accentLight,
-                        opacity: 0.7,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span>{focus}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
+        {/* Debate focus */}
+        {hasFocus && (
+          <div
+            style={{
+              opacity: bodyProgress,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [8, 0])}px)`,
+            }}
+          >
+            <SectionLabel text={UI_TEXT.debateFocus} delay={18} frame={frame} />
             <div
               style={{
-                fontFamily: FONTS.sans,
-                fontSize: 13,
-                fontWeight: FW.medium,
-                color: COLORS.textTertiary,
-                padding: "24px 0",
-                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                gap: compact ? 4 : 6,
+                marginBottom: hasQuotes ? (compact ? 10 : 12) : 0,
+                maxWidth: textColW,
               }}
             >
-              暂无数据
+              {debateFocus.slice(0, 3).map((focus, i) => (
+                <FocusPoint key={focus} index={i} text={focus} delay={20 + i * 5} frame={frame} />
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Quotes (merged from QuoteCard, max 2) */}
+        {hasQuotes && (
+          <div
+            style={{
+              opacity: bodyProgress,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [8, 0])}px)`,
+            }}
+          >
+            <SectionLabel text="精选观点" delay={14} frame={frame} />
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: compact ? 6 : 8,
+                marginBottom: hasFooter ? (compact ? 10 : 12) : 0,
+                maxWidth: textColW,
+              }}
+            >
+              {quotes.map((quote, i) => (
+                <QuoteRow
+                  key={`${quote.author}-${i}`}
+                  quote={quote}
+                  index={i}
+                  frame={frame}
+                  compact={compact}
+                  keywords={keywords}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Keywords */}
+        {hasFooter && <div style={dividerStyle} />}
+        {keywords.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              gap: 6,
+              opacity: footerProgress,
+            }}
+          >
+            {keywords.map((kw, i) => (
+              <KeywordTag key={kw} keyword={kw} delay={22 + i * 4} frame={frame} />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Right: stance pie chart */}
+      {hasPie && (
+        <div
+          style={{
+            flex: `0 0 ${pieW}px`,
+            alignSelf: "flex-start",
+            marginLeft: -100,
+            overflow: "visible",
+            opacity: imageProgress,
+            transform: `translateX(${interpolate(imageProgress, [0, 1], [24, 0])}px)`,
+          }}
+        >
+          <StancePie
+            distribution={compactStances}
+            size={compact ? 250 : 500}
+            centerLabel={commentCount > 0 ? `${commentCount}条` : undefined}
+          />
+        </div>
+      )}
     </div>
   );
 };

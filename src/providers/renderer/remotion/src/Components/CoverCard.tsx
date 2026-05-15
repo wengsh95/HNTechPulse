@@ -6,6 +6,7 @@ import {
   COLORS,
   FONTS,
   FW,
+  FS,
   getCardMaxHeight,
   glassCard,
   glassCardShadow,
@@ -13,7 +14,17 @@ import {
   LAYOUT,
   S,
 } from "./design";
-import { HighlightEntry, rowEntryAnimation } from "./HighlightShared";
+import {
+  breathingOpacity,
+  CapsuleBadge,
+  dividerStyle,
+  GlassShimmer,
+  HighlightEntry,
+  KeywordTag,
+  overshootTranslateY,
+  rowEntryAnimation,
+  SectionLabel,
+} from "./HighlightShared";
 
 export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
@@ -36,7 +47,17 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const titleProgress = interpolate(frame, [10, 32], [0, 1], {
+  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  });
+  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  });
+  const footerProgress = interpolate(frame, [20, 36], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -55,12 +76,31 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
         padding: compact ? "24px 32px" : "28px 36px",
         boxSizing: "border-box",
         opacity: cardProgress,
-        transform: `translateY(${interpolate(cardProgress, [0, 1], [28, 0])}px)`,
+        transform: `translateY(${overshootTranslateY(cardProgress, 28)}px)`,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
+      <GlassShimmer frame={frame} />
+
+      {/* Header row: capsule badge */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: compact ? 16 : 20,
+          maxWidth: cardW - (compact ? 64 : 72),
+          opacity: titleProgress,
+          transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
+        }}
+      >
+        <CapsuleBadge text="今日速递" />
+      </div>
+
+      {/* Headline */}
       <div
         style={{
           opacity: titleProgress,
@@ -71,7 +111,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
           style={{
             fontFamily: FONTS.bold,
             fontWeight: FW.heavy,
-            fontSize: compact ? 44 : 52,
+            fontSize: compact ? 44 : FS.hero,
             color: COLORS.text,
             lineHeight: 1.1,
             letterSpacing: -0.5,
@@ -79,49 +119,9 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
         >
           {headline}
         </div>
-
-        {keywords.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              marginTop: 20,
-              flexWrap: "wrap",
-            }}
-          >
-            {keywords.slice(0, 3).map((kw, i) => {
-              const tagProgress = interpolate(frame, [28 + i * 5, 46 + i * 5], [0, 1], {
-                easing: Easing.bezier(0.16, 1, 0.3, 1),
-                extrapolateLeft: "clamp",
-                extrapolateRight: "clamp",
-              });
-              return (
-                <div
-                  key={kw}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    background: "rgba(255,255,255,0.08)",
-                    fontFamily: FONTS.sans,
-                    fontSize: 16,
-                    fontWeight: FW.medium,
-                    color: COLORS.text,
-                    maxWidth: 280,
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
-                    opacity: tagProgress,
-                    transform: `translateY(${interpolate(tagProgress, [0, 1], [10, 0])}px)`,
-                  }}
-                >
-                  {kw}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
+      {/* Highlight entries */}
       {hasHighlights && (
         <div
           style={{
@@ -130,10 +130,13 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
             gap: 6,
             marginTop: compact ? 28 : 36,
             flex: 1,
+            opacity: bodyProgress,
+            transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
           }}
         >
+          <SectionLabel text="今日亮点" delay={14} frame={frame} />
           {highlightEntries.map((entry, i) => {
-            const rowProgress = rowEntryAnimation(frame, 20 + i * 6, 22);
+            const rowProgress = rowEntryAnimation(frame, 14 + i * 6, 22);
             const angle =
               entry.editor_angle ||
               entry.title_translation ||
@@ -164,9 +167,9 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     right: -8,
                     top: -4,
                     fontFamily: FONTS.mono,
-                    fontSize: 84,
+                    fontSize: FS.watermarkLg,
                     fontWeight: FW.heavy,
-                    color: "rgba(255,255,255,0.04)",
+                    color: `rgba(255,255,255,${breathingOpacity(frame)})`,
                     lineHeight: 1,
                     pointerEvents: "none",
                     letterSpacing: -2,
@@ -178,7 +181,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
                   <div
                     style={{
                       fontFamily: FONTS.bold,
-                      fontSize: compact ? 24 : 28,
+                      fontSize: compact ? 24 : FS.subhead,
                       lineHeight: 1.3,
                       fontWeight: FW.heavy,
                       color: COLORS.text,
@@ -194,7 +197,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     <div
                       style={{
                         fontFamily: FONTS.sans,
-                        fontSize: compact ? 16 : 18,
+                        fontSize: compact ? FS.body : FS.bodyLg,
                         lineHeight: 1.45,
                         fontWeight: FW.medium,
                         color: COLORS.textSecondary,
@@ -213,6 +216,26 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
             );
           })}
         </div>
+      )}
+
+      {/* Keywords */}
+      {keywords.length > 0 && (
+        <>
+          <div style={dividerStyle} />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              gap: 8,
+              opacity: footerProgress,
+            }}
+          >
+            {keywords.slice(0, 3).map((kw, i) => (
+              <KeywordTag key={kw} keyword={kw} delay={20 + i * 4} frame={frame} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

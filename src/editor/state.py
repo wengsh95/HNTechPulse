@@ -46,7 +46,7 @@ class EditorState:
         return None
 
     def get_stories(self) -> list[dict]:
-        """Return list of {story_index, source_id, event_card, atmosphere_card, quote_card}."""
+        """Return list of {story_index, source_id, event_card, atmosphere_card}."""
         seg = self.get_segment("story_scan")
         if not seg:
             return []
@@ -54,7 +54,7 @@ class EditorState:
         stories: dict[int, dict] = {}
         for elem in seg.get("scene_elements", []):
             etype = elem.get("element_type")
-            if etype not in ("event_card", "atmosphere_card", "quote_card"):
+            if etype not in ("event_card", "atmosphere_card"):
                 continue
             idx = elem.get("props", {}).get("story_index", 0)
             if idx not in stories:
@@ -63,7 +63,6 @@ class EditorState:
                     "source_id": self._story_index_to_source_id(idx),
                     "event_card": None,
                     "atmosphere_card": None,
-                    "quote_card": None,
                 }
             stories[idx][etype] = elem
 

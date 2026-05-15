@@ -1,4 +1,4 @@
-"""Per-story editor: event, atmosphere, quote cards."""
+"""Per-story editor: event and atmosphere cards."""
 
 import sys
 from pathlib import Path
@@ -12,28 +12,24 @@ from src.editor.state import EditorState
 
 
 def render_story_editor(state: EditorState, story: dict):
-    """Render editor for a single story (event + atmosphere + quote cards)."""
+    """Render editor for a single story (event + atmosphere cards)."""
     source_id = story.get("source_id", "")
     story_index = story.get("story_index", 0)
     event_card = story.get("event_card") or {}
     atmosphere_card = story.get("atmosphere_card") or {}
-    quote_card = story.get("quote_card") or {}
 
     title = state.get_story_title(source_id)
     st.subheader(
         f"#{story_index + 1} {title}" if title else f"Story #{story_index + 1}"
     )
 
-    tab_event, tab_atmo, tab_quote = st.tabs(["事件", "氛围", "原声"])
+    tab_event, tab_atmo = st.tabs(["事件", "氛围"])
 
     with tab_event:
         _render_event_tab(state, source_id, event_card, story_index)
 
     with tab_atmo:
         _render_atmosphere_tab(atmosphere_card, story_index)
-
-    with tab_quote:
-        _render_quote_tab(quote_card, story_index)
 
 
 STANCE_LABELS = ["支持", "质疑", "中立", "调侃", "担忧"]
@@ -147,57 +143,51 @@ def _render_image_picker(
 
 
 def _render_atmosphere_tab(atmosphere_card: dict, story_index: int):
-    """Edit stance distribution."""
+    """Edit stance distribution and view quotes."""
     props = atmosphere_card.get("props", {}) if atmosphere_card else {}
     stance_dist: dict = props.get("stance_distribution", {})
 
     if not stance_dist:
         st.info("该 story 没有立场分布数据")
-        return
+    else:
+        new_stance = {}
+        for label in STANCE_LABELS:
+            val = stance_dist.get(label, 0.0)
+            new_val = st.slider(
+                label,
+                min_value=0.0,
+                max_value=1.0,
+                value=float(val),
+                step=0.05,
+                key=f"stance_{story_index}_{label}",
+            )
+            new_stance[label] = round(new_val, 2)
 
-    new_stance = {}
-    for label in STANCE_LABELS:
-        val = stance_dist.get(label, 0.0)
-        new_val = st.slider(
-            label,
-            min_value=0.0,
-            max_value=1.0,
-            value=float(val),
-            step=0.05,
-            key=f"stance_{story_index}_{label}",
-        )
-        new_stance[label] = round(new_val, 2)
+        if new_stance != stance_dist:
+            props["stance_distribution"] = new_stance
 
-    if new_stance != stance_dist:
-        props["stance_distribution"] = new_stance
-
-
-def _render_quote_tab(quote_card: dict, story_index: int):
-    """View quotes (injected at render time from comments, not editable here)."""
-    props = quote_card.get("props", {}) if quote_card else {}
+    # Quotes preview
     quotes: list = props.get("quotes", [])
-
-    if not quotes:
-        st.info("引用数据由后端在渲染时自动注入，此处暂无预览")
-        return
-
-    for qi, q in enumerate(quotes):
-        with st.expander(
-            f"{q.get('stance', '?')} — {q.get('text', '')[:60]}", expanded=(qi == 0)
-        ):
-            st.caption(f"立场: {q.get('stance', '?')}")
-            st.caption(f"质量分: {q.get('quality_score', '?')}")
-            st.text_area(
-                "原文",
-                value=q.get("text", ""),
-                height=68,
-                key=f"qtext_{story_index}_{qi}",
-                disabled=True,
-            )
-            st.text_area(
-                "中文翻译",
-                value=q.get("text_cn", ""),
-                height=68,
-                key=f"qtextcn_{story_index}_{qi}",
-                disabled=True,
-            )
+    if quotes:
+        st.divider()
+        st.caption("精选观点（渲染时自动注入）")
+        for qi, q in enumerate(quotes):
+            with st.expander(
+                f"{q.get('stance', '?')} — {q.get('text', '')[:60]}", expanded=(qi == 0)
+            ):
+                st.caption(f"立场: {q.get('stance', '?')}")
+                st.caption(f"质量分: {q.get('quality_score', '?')}")
+                st.text_area(
+                    "原文",
+                    value=q.get("text", ""),
+                    height=68,
+                    key=f"qtext_{story_index}_{qi}",
+                    disabled=True,
+                )
+                st.text_area(
+                    "中文翻译",
+                    value=q.get("text_cn", ""),
+                    height=68,
+                    key=f"qtextcn_{story_index}_{qi}",
+                    disabled=True,
+                )
