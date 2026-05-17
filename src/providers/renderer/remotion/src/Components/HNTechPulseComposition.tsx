@@ -17,7 +17,25 @@ import {
 } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
-import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard } from "./Elements";
+import {
+  Subtitle,
+  ClosingCard,
+  CoverCard,
+  EventCard,
+  AtmosphereCard,
+  StoryCompactCard,
+  QuickItemCard,
+} from "./Elements";
+import {
+  CommentCard,
+  DiscussionOverviewCard,
+  NewsCarouselCard,
+  OutroCard,
+  PatternInsightCard,
+  PerspectiveCompareCard,
+  StoryHeaderCard,
+  SynthesisCard,
+} from "./LegacyCards";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
 import { COLORS, FONTS, FW, useDesign, DesignProvider, S } from "./design";
@@ -28,7 +46,7 @@ type StoryChapter = {
   endTime: number;
   title: string;
   category: string;
-  index: number;
+  displayIndex: number;
   total: number;
 };
 
@@ -40,6 +58,8 @@ type StoryEvent = {
 
 const STORY_MARKER_TYPES = new Set([
   "event_card",
+  "story_compact_card",
+  "quick_item_card",
   "story_header",
   "news_carousel_card",
   "story_scan_card",
@@ -94,9 +114,19 @@ const ELEMENT_RENDERERS: Record<
   }>
 > = {
   closing_card: (props) => <ClosingCard {...props} />,
+  outro_card: (props) => <OutroCard {...props} />,
   cover_card: (props) => <CoverCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
+  story_compact_card: (props) => <StoryCompactCard {...props} />,
+  quick_item_card: (props) => <QuickItemCard {...props} />,
+  story_header: (props) => <StoryHeaderCard {...props} />,
+  discussion_overview: (props) => <DiscussionOverviewCard {...props} />,
+  comment_card: (props) => <CommentCard {...props} />,
+  perspective_compare: (props) => <PerspectiveCompareCard {...props} />,
+  synthesis_card: (props) => <SynthesisCard {...props} />,
+  news_carousel_card: (props) => <NewsCarouselCard {...props} />,
+  pattern_insight: (props) => <PatternInsightCard {...props} />,
   story_gap: ({ elementProps, duration }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
@@ -296,7 +326,7 @@ const GlobalChrome: React.FC<{
           letterSpacing: 0,
         }}
       >
-        <span style={{ color: COLORS.text }}>HN TechPulse</span>
+        <span style={{ color: COLORS.text }}>HN每日观察</span>
         {dateLabel && (
           <>
             <span style={{ color: COLORS.textTertiary }}>/</span>
@@ -332,7 +362,7 @@ const GlobalChrome: React.FC<{
               lineHeight: 1,
             }}
           >
-            {String(activeChapter.index + 1).padStart(2, "0")}/
+            {String(activeChapter.displayIndex).padStart(2, "0")}/
             {String(activeChapter.total).padStart(2, "0")}
           </span>
           {activeChapter.category && (
@@ -376,14 +406,21 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
     const events = collectStoryEvents(segments);
     const boundaries = events.map((event) => event.startTime);
     const chapters: StoryChapter[] = events.map((event, i) => {
-      const index = asNumber(event.props.display_index ?? event.props.story_index) ?? i;
+      const displayIndex = asNumber(event.props.display_index);
+      const storyIndex = asNumber(event.props.story_index);
       const total = asNumber(event.props.story_count) ?? events.length;
+      const displayOrdinal =
+        displayIndex !== undefined
+          ? displayIndex + 1
+          : storyIndex !== undefined
+            ? storyIndex + 1
+            : i + 1;
       return {
         startTime: event.startTime,
         endTime: events[i + 1]?.startTime ?? event.segmentEndTime,
         title: titleFromProps(event.props),
         category: String(event.props.category ?? ""),
-        index,
+        displayIndex: displayOrdinal,
         total,
       };
     });

@@ -91,3 +91,90 @@ def test_collect_comment_refs_uses_selected_ids_then_fills_to_three():
         "comment_story_ops",
     ]
     assert "link" not in "".join(refs.keys())
+
+
+def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-05-11",
+        items=[
+            ContentItem(
+                source="hn",
+                source_id="story",
+                title="Story",
+                url=None,
+                comments=[
+                    ContentComment(
+                        author="plain",
+                        content="This neutral comment has enough explanation to be a fallback choice.",
+                        source_id="plain",
+                        quality_score=0.6,
+                    ),
+                    ContentComment(
+                        author="judge",
+                        content="This judged comment has a sharper viewpoint and should receive the cached translation.",
+                        source_id="judged",
+                        quality_score=0.5,
+                    ),
+                ],
+            )
+        ],
+    )
+    judgement_path = tmp_path / "data" / "2026-05-11" / "comment_judgement.json"
+    judgement_path.parent.mkdir(parents=True)
+    judgement_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "stories": {
+    "story": {
+      "quote_candidates": [
+        {
+          "comment_id": "judged",
+          "has_viewpoint": true,
+          "reject_for_quote": false
+        }
+      ]
+    }
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    script = Script(
+        title="T",
+        description="",
+        tags=[],
+        segments=[
+            ScriptSegment(
+                segment_type="story_scan",
+                audio_text="",
+                estimated_duration=1,
+                scene_elements=[
+                    SceneElement(
+                        element_type="atmosphere_card",
+                        start_time=0,
+                        end_time=1,
+                        props={
+                            "story_index": 0,
+                            "quotes": [
+                                {
+                                    "source_id": "judged",
+                                    "text": "This judged comment has a sharper viewpoint and should receive the cached translation.",
+                                }
+                            ],
+                        },
+                    )
+                ],
+            )
+        ],
+    )
+
+    TranslationManager.apply_translations_to_script(
+        script,
+        content,
+        {"comment_story_judged": "这条被 judgement 选中的评论应该有翻译。"},
+    )
+
+    quote = script.segments[0].scene_elements[0].props["quotes"][0]
+    assert quote["text_cn"] == "这条被 judgement 选中的评论应该有翻译。"

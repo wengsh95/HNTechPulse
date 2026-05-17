@@ -403,6 +403,11 @@ class OpenAILLMProvider(LLMProvider):
             story_dict["visual_hint"] = item.visual_hint
         if comments_data:
             story_dict["comment_judgement"] = comments_data
+            story_dict["discussion_mode"] = comments_data.get("discussion_mode")
+            story_dict["discussion_summary"] = comments_data.get(
+                "discussion_summary"
+            )
+            story_dict["comment_lanes"] = comments_data.get("comment_lanes")
         result = json.dumps(story_dict, ensure_ascii=False, indent=2)
         self.logger.debug(
             f"Story[{index}] serialized: {len(result)} chars ({story_dict['truncated_to']} comments)"

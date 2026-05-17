@@ -9,6 +9,9 @@ analyze:
   comment_judge_max_workers: 2      # comment judge 并发数；调大可更快但会增加并发 LLM 调用
   comment_judge_prompt: "prompts/comment_analyze.md"
   max_comments_for_judge: 15        # 每条 story 最多送给 comment judge 的评论数
+  judge_candidate_strategy: "balanced"   # comment judge 前置候选策略：balanced=本地分桶抽样，top_quality=旧版按质量取前N
+  judge_candidate_min_quality: 0.05       # balanced 初筛阈值，低于上屏阈值以保留少数派/深层回复
+  judge_candidate_similarity_threshold: 0.62 # balanced 候选去重阈值，越低去重越强
   comment_judge_max_tokens: 512     # judge 只输出 3 个评论 id
   comment_judge_thinking: "disabled" # DeepSeek v4 默认 thinking=enabled，会吃完 completion 导致 content 为空
   comment_judge_fallback_on_error: true   # LLM judge 失败时回退到启发式筛选，避免中断整条流水线

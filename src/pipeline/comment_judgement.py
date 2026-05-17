@@ -7,7 +7,25 @@ from src.core.models import ContentItem
 from src.pipeline.comment_selection import clean_comment_text, is_quotable_comment
 
 
-JUDGEMENT_SCHEMA_VERSION = 1
+JUDGEMENT_SCHEMA_VERSION = 2
+
+DISCUSSION_MODES = {
+    "debate",
+    "field_notes",
+    "nostalgia",
+    "troubleshooting",
+    "qna",
+    "correction",
+    "showcase",
+    "low_signal",
+}
+
+COMMENT_LANES = {
+    "representative",
+    "counterpoint",
+    "detail",
+    "color",
+}
 
 _save_lock = threading.Lock()
 
@@ -45,19 +63,50 @@ def _normalize_candidate(raw: dict, valid_ids: set[str]) -> Optional[dict]:
         "category": str(raw.get("category") or "viewpoint"),
         "stance": str(raw.get("stance") or "neutral"),
         "claim": str(raw.get("claim") or "")[:220],
+        "role": str(raw.get("role") or raw.get("category") or "viewpoint")[:48],
         "has_viewpoint": has_viewpoint,
         "reject_for_quote": reject,
         "reason": str(raw.get("reason") or "")[:220],
     }
 
 
+def _normalize_discussion_mode(value: Any) -> str:
+    mode = str(value or "").strip()
+    return mode if mode in DISCUSSION_MODES else "field_notes"
+
+
+def _normalize_confidence(value: Any) -> float:
+    return round(max(0.0, min(1.0, _safe_float(value, 0.0))), 4)
+
+
+def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
+    lanes: dict[str, list[dict]] = {lane: [] for lane in COMMENT_LANES}
+    raw_lanes = raw.get("comment_lanes", {}) or {}
+    if not isinstance(raw_lanes, dict):
+        return lanes
+
+    seen_by_lane: dict[str, set[str]] = {lane: set() for lane in COMMENT_LANES}
+    for lane, entries in raw_lanes.items():
+        lane_key = str(lane)
+        if lane_key not in COMMENT_LANES or not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            candidate = _normalize_candidate(entry, valid_ids)
+            if candidate is None:
+                continue
+            cid = candidate["comment_id"]
+            if cid in seen_by_lane[lane_key]:
+                continue
+            seen_by_lane[lane_key].add(cid)
+            lanes[lane_key].append(candidate)
+
+    return lanes
+
+
 def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
     """Normalize LLM comment judgement output into a canonical form.
-
-    Deduplication priority: selected_comment_ids entries take precedence over
-    quote_candidates entries. When the same comment_id appears in both lists,
-    the first occurrence (from selected_comment_ids) wins and the duplicate
-    from quote_candidates is silently dropped.
     """
     valid_ids = {str(c.source_id) for c in item.comments if c.source_id is not None}
     candidates = []
@@ -136,8 +185,17 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
             if isinstance(v, str) and v.strip() and k in stance_distribution:
                 stance_concerns[str(k)] = v.strip()[:24]
 
+    discussion_mode = _normalize_discussion_mode(raw.get("discussion_mode"))
+    discussion_summary = str(raw.get("discussion_summary") or "").strip()[:180]
+    confidence = _normalize_confidence(raw.get("confidence"))
+    comment_lanes = _normalize_comment_lanes(raw, valid_ids)
+
     return {
         "story_id": comment_judgement_key(item),
+        "discussion_mode": discussion_mode,
+        "discussion_summary": discussion_summary,
+        "confidence": confidence,
+        "comment_lanes": comment_lanes,
         "quote_candidates": candidates,
         "rejected": rejected,
         "debate_focus": debate_focus,
@@ -167,6 +225,15 @@ def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> di
     candidates.sort(key=lambda c: c["quote_score"], reverse=True)
     return {
         "story_id": comment_judgement_key(item),
+        "discussion_mode": "field_notes",
+        "discussion_summary": "",
+        "confidence": 0.0,
+        "comment_lanes": {
+            "representative": candidates[:2],
+            "counterpoint": candidates[2:3],
+            "detail": candidates[3:5],
+            "color": [],
+        },
         "quote_candidates": candidates[:max_candidates],
         "rejected": [],
     }

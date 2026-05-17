@@ -10,7 +10,7 @@ def generate_brief_transcript(
     content: Optional[ContentPackage] = None,
 ) -> str:
     """Generate newsletter-style markdown for daily brief product (4-segment structure)."""
-    lines = [f"# HN TechPulse 每日快讯 | {date}", ""]
+    lines = [f"# HN每日观察 | {date}", ""]
     if script.description:
         lines.append(f"> {script.description}")
     if script.total_duration:

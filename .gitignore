@@ -50,6 +50,9 @@ build/
 .claude/
 skills-lock.json
 
+# Whisper models
+whisper/
+
 # OS
 .DS_Store
 Thumbs.db

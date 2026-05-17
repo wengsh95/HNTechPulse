@@ -11,7 +11,11 @@ from typing import List
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
-from src.pipeline.comment_selection import clean_comment_text, compute_comment_quality
+from src.pipeline.comment_selection import (
+    clean_comment_text,
+    compute_comment_quality,
+    select_judge_candidate_comments,
+)
 from src.utils.logger import setup_logger
 
 
@@ -26,6 +30,16 @@ class CommentAnalyzer:
         self.min_quality_score = analyze_cfg.get("min_quality_score", 0.1)
         self.max_keywords = analyze_cfg.get("max_keywords_per_comment", 5)
         self.max_comments_for_llm = analyze_cfg.get("max_comments_for_llm", 10)
+        self.judge_candidate_strategy = analyze_cfg.get(
+            "judge_candidate_strategy", "balanced"
+        )
+        self.judge_candidate_min_quality = analyze_cfg.get(
+            "judge_candidate_min_quality",
+            analyze_cfg.get("judge_min_quality_score", 0.05),
+        )
+        self.judge_candidate_similarity_threshold = analyze_cfg.get(
+            "judge_candidate_similarity_threshold", 0.62
+        )
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
         self._vader = SentimentIntensityAnalyzer()
@@ -90,6 +104,20 @@ class CommentAnalyzer:
         ]
         scored.sort(key=lambda c: c.quality_score or 0, reverse=True)
         return scored[:n]
+
+    def get_judge_candidates(
+        self, item: ContentItem, n: int = None
+    ) -> List[ContentComment]:
+        if n is None:
+            n = self.max_comments_for_llm
+        if self.judge_candidate_strategy != "balanced":
+            return self.get_top_comments(item, n=n)
+        return select_judge_candidate_comments(
+            item,
+            max_n=n,
+            min_quality=float(self.judge_candidate_min_quality),
+            similarity_threshold=float(self.judge_candidate_similarity_threshold),
+        )
 
     def _save_cache(self, content: ContentPackage, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

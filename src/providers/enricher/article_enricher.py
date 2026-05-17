@@ -21,6 +21,27 @@ from src.providers.enricher.baidu_search import BaiduSearchProvider
 
 
 class ArticleEnricher:
+    LOW_VALUE_KEYWORDS = {
+        "AI",
+        "人工智能",
+        "技术",
+        "工具",
+        "平台",
+        "系统",
+        "应用",
+        "创新",
+        "趋势",
+        "生态",
+        "开发者",
+        "软件",
+        "服务",
+        "产品",
+        "数据",
+        "模型",
+        "代码",
+        "开源",
+    }
+
     def __init__(self, config: dict, debug: bool = False):
         self.config = config
         self.debug = debug
@@ -487,10 +508,19 @@ class ArticleEnricher:
                     item.editor_angle = enrich_result.get("editor_angle")
                     item.dek = enrich_result.get("dek")
                     item.key_points = enrich_result.get("key_points")
-                    item.keywords = enrich_result.get("keywords")
                     item.category = enrich_result.get("category")
-                    item.visual_hint = enrich_result.get("visual_hint")
                     item.why_it_matters = enrich_result.get("why_it_matters")
+                    item.keywords = self._normalize_keywords(
+                        enrich_result.get("keywords"),
+                        category=item.category,
+                        fallback_values=[
+                            item.editor_angle,
+                            item.dek,
+                            item.why_it_matters,
+                            item.title,
+                        ],
+                    )
+                    item.visual_hint = enrich_result.get("visual_hint")
                     item.next_watch = enrich_result.get("next_watch")
                 if (
                     not item.enrichment_source
@@ -584,6 +614,64 @@ class ArticleEnricher:
         except Exception as e:
             self.logger.info(f"LLM enrichment failed for '{title}': {e}")
             return None
+
+    @classmethod
+    def _normalize_keywords(
+        cls,
+        keywords: Any,
+        category: Optional[str] = None,
+        fallback_values: Optional[list[Any]] = None,
+    ) -> list[str]:
+        """Keep LLM keywords useful as compact video labels and highlight anchors."""
+        normalized: list[str] = []
+        seen: set[str] = set()
+        category_key = cls._keyword_key(category)
+
+        def add(value: Any) -> None:
+            if value is None or len(normalized) >= 3:
+                return
+            if isinstance(value, (list, tuple, set)):
+                for item in value:
+                    add(item)
+                return
+
+            text = str(value).strip()
+            if not text:
+                return
+            text = text.strip(" #，,、。；;：:|/\\()（）[]【】{}<>《》\"'`")
+            text = " ".join(text.split())
+            if not text:
+                return
+
+            if len(text) > 14:
+                text = text[:14].rstrip()
+
+            key = cls._keyword_key(text)
+            if not key or key in seen:
+                return
+            if category_key and key == category_key:
+                return
+            if text in cls.LOW_VALUE_KEYWORDS:
+                return
+            if len(text) == 1:
+                return
+
+            seen.add(key)
+            normalized.append(text)
+
+        add(keywords)
+        for value in fallback_values or []:
+            add(value)
+            if len(normalized) >= 3:
+                break
+
+        return normalized[:3]
+
+    @staticmethod
+    def _keyword_key(value: Any) -> str:
+        if value is None:
+            return ""
+        return "".join(str(value).lower().split())
 
     # ── Image Selection ────────────────────────────────────────
 
@@ -712,10 +800,19 @@ class ArticleEnricher:
                     item.editor_angle = cached.get("editor_angle")
                     item.dek = cached.get("dek")
                     item.key_points = cached.get("key_points")
-                    item.keywords = cached.get("keywords")
                     item.category = cached.get("category")
-                    item.visual_hint = cached.get("visual_hint")
                     item.why_it_matters = cached.get("why_it_matters")
+                    item.keywords = self._normalize_keywords(
+                        cached.get("keywords"),
+                        category=item.category,
+                        fallback_values=[
+                            item.editor_angle,
+                            item.dek,
+                            item.why_it_matters,
+                            item.title,
+                        ],
+                    )
+                    item.visual_hint = cached.get("visual_hint")
                     item.next_watch = cached.get("next_watch")
                     source = cached.get("enrichment_source") or "legacy"
                     if source == "manual_override":

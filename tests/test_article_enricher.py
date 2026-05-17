@@ -426,3 +426,30 @@ class TestImageSelection:
             "images/42_0.jpg",
             "images/42_screenshot.jpg",
         ]
+
+
+class TestNormalizeKeywords:
+    def test_filters_duplicates_category_and_low_value_terms(self):
+        result = ArticleEnricher._normalize_keywords(
+            [
+                " AI ",
+                "AI工具",
+                "Claude Code",
+                "claude code",
+                "开发者",
+                "本地推理",
+                "供应链攻击风险很长很长",
+            ],
+            category="AI工具",
+        )
+
+        assert result == ["Claude Code", "本地推理", "供应链攻击风险很长"]
+
+    def test_fallback_values_fill_missing_keywords(self):
+        result = ArticleEnricher._normalize_keywords(
+            ["技术", "开源生态"],
+            category="开源生态",
+            fallback_values=["MCP协议", "工具", "企业部署"],
+        )
+
+        assert result == ["MCP协议", "企业部署"]

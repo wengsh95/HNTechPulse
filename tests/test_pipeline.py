@@ -21,9 +21,10 @@ def _make_config():
     return {
         "logging": {"level": "WARNING"},
         "pipeline": {
-            "num_deep_dive": 1,
-            "num_brief": 2,
-            "num_quick_news": 6,
+            "target_story_count": 10,
+            "focus_items": 3,
+            "standard_items": 3,
+            "quick_items": 4,
         },
         "llm": {"model": "test-model"},
     }
@@ -97,6 +98,8 @@ class TestContentPreparer:
         config = _make_config()
         preparer = ContentPreparer(config, debug=True)
         content = _make_content_package()
+        content.items[0].why_it_matters = "影响开发工作流"
+        content.items[0].next_watch = "关注企业部署"
         date = "2026-04-26"
 
         preparer.save_content(content, date)
@@ -114,6 +117,8 @@ class TestContentPreparer:
             assert loaded_item.url == original.url
             assert loaded_item.score == original.score
             assert loaded_item.comment_count == original.comment_count
+            assert loaded_item.why_it_matters == original.why_it_matters
+            assert loaded_item.next_watch == original.next_watch
             assert len(loaded_item.comments) == len(original.comments)
             for orig_c, load_c in zip(original.comments, loaded_item.comments):
                 assert load_c.author == orig_c.author
@@ -137,9 +142,7 @@ class TestScriptWriter:
 
         script = writer.write(content)
 
-        assert (
-            mock_llm.generate_single_story_segment.call_count == 6
-        )  # num_brief_items default
+        assert mock_llm.generate_single_story_segment.call_count == len(content.items)
         assert len(script.segments) >= 2  # at least opening + closing
 
     def test_write_passes_comment_judgement_to_story_generation(
@@ -191,6 +194,32 @@ class TestScriptWriter:
             first_call.kwargs["comments_data"]["quote_candidates"][0]["comment_id"]
             == "c1"
         )
+
+    def test_closing_card_includes_daily_signal(self):
+        writer = ScriptWriter(_make_config(), MagicMock(), debug=True)
+        segment = writer._generate_fixed_closing(
+            "2026-04-26",
+            [
+                {
+                    "category": "AI",
+                    "keywords": ["Agents", "Infra", "Agents"],
+                },
+                {
+                    "category": "Developer Tools",
+                    "keywords": ["Open Source"],
+                },
+            ],
+        )
+
+        props = segment.scene_elements[0].props
+        assert props["signal_label"] == "今日信号"
+        assert props["signal"] == "今天的技术讨论，先记住问题，再看答案。"
+        assert props["keywords_label"] == "今日关键词"
+        assert props["keywords"] == ["AI", "Agents", "Infra"]
+        assert props["summary_label"] == "今日脉络"
+        assert props["summary_items"][0]["category"] == "AI"
+        assert props["summary_items"][0]["title"] == "AI 正从产品功能，变成开发工作流的底层能力。"
+        assert props["totals"]["story_count"] == 2
 
 
 class TestOrchestrator:

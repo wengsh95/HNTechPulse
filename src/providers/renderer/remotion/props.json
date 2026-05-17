@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_type": "opening",
-      "audio_text": "大家好，这里是 HN TechPulse。今天是 2026 年 4 月 26 日。今日聚焦浏览器隐私架构冲突。辅以量子计算、AI 估值及底层硬件标准的深度讨论。让我们开始。",
+      "audio_text": "大家好，这里是 HN每日观察。今天是 2026 年 4 月 26 日。今日聚焦浏览器隐私架构冲突。辅以量子计算、AI 估值及底层硬件标准的深度讨论。让我们开始。",
       "duration": 15.5,
       "start_time": 0.0,
       "end_time": 15.5,
@@ -19,7 +19,7 @@
           "end_time": 15.5,
           "props": {
             "subtitle": "2026-04-26",
-            "headline": "HN TechPulse",
+            "headline": "HN每日观察",
             "keywords": [
               "浏览器隐私架构",
               "量子计算",
@@ -277,7 +277,7 @@
           "start_time": 0.0,
           "end_time": 5.26,
           "props": {
-            "text": "HN TechPulse",
+            "text": "HN每日观察",
             "subtitle": "See you next time"
           }
         }

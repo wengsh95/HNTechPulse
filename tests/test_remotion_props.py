@@ -299,6 +299,16 @@ class TestExpandEventCard:
         result = _expand_event_card({"story_index": 0}, content)
         assert result["keywords"] == []
 
+    def test_event_fields_fallback_to_content_item(self):
+        content = _make_content_package()
+        content.items[0].why_it_matters = "改变开发工作流"
+        content.items[0].next_watch = "关注企业部署"
+
+        result = _expand_event_card({"story_index": 0}, content)
+
+        assert result["why_it_matters"] == "改变开发工作流"
+        assert result["next_watch"] == "关注企业部署"
+
 
 # ── _expand_atmosphere_card ────────────────────────────────────────────
 
@@ -327,6 +337,31 @@ class TestExpandAtmosphereCard:
         assert isinstance(result["controversy_score"], (int, float))
         assert result["score"] == 100
         assert result["comment_count"] == 2
+
+    def test_preserves_existing_quote_translation_by_source_id(self):
+        content = _make_content_package()
+        content.items[0].comments[0].source_id = "c0"
+        content.items[0].comments[0].content = (
+            "This selected comment has enough detail to pass the quote filter."
+        )
+        content.items[0].comments[0].content_cn = None
+        content.items[0].comments[0].quality_score = 0.6
+        result = _expand_atmosphere_card(
+            {
+                "story_index": 0,
+                "selected_comment_ids": ["c0"],
+                "quotes": [
+                    {
+                        "source_id": "c0",
+                        "text": "comment 0",
+                        "text_cn": "评论零",
+                    }
+                ],
+            },
+            content,
+        )
+        assert result["quotes"][0]["source_id"] == "c0"
+        assert result["quotes"][0]["text_cn"] == "评论零"
 
 
 # ── expand_element_props ───────────────────────────────────────────────

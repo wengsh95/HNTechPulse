@@ -9,7 +9,6 @@ import {
   lineClamp,
   MetricPill,
   overshootTranslateY,
-  SectionLabel,
   useCardPad,
   useCardAnimations,
   headerMargin,
@@ -56,6 +55,11 @@ function cleanKeyPoints(value: unknown): KeyPoint[] {
     })
     .filter((item): item is KeyPoint => item !== null)
     .slice(0, 2);
+}
+
+function findKeyPointText(points: KeyPoint[], labels: string[]): string {
+  const labelSet = new Set(labels);
+  return points.find((point) => labelSet.has(point.label))?.text ?? "";
 }
 
 const INFO_POINT_COLORS = [
@@ -143,12 +147,22 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
   );
   const mainTitle = editorAngle || titleCn || storyTitle;
   const showOriginalTitle = Boolean(sourceTitle && mainTitle !== sourceTitle);
-  const whyItMatters = cleanText(p(elementProps, "why_it_matters", ""));
+  const whyItMatters =
+    cleanText(p(elementProps, "why_it_matters", "")) ||
+    findKeyPointText(keyPoints, ["为何关注", "为什么关注"]);
+  const impactText =
+    findKeyPointText(keyPoints, ["影响", "后续影响"]) ||
+    cleanText(p(elementProps, "impact", ""));
+  const insightPoints: KeyPoint[] = [
+    whyItMatters ? { label: UI_TEXT.whyItMatters, text: whyItMatters } : null,
+    impactText ? { label: "影响", text: impactText } : null,
+  ].filter((point): point is KeyPoint => point !== null);
   const sourceDomain = cleanText(p(elementProps, "source_domain", ""));
-  const hasBody = Boolean(dek || whyItMatters || keyPoints.length > 0);
+  const hasBody = insightPoints.length > 0;
   const displayIndex = Number(p(elementProps, "display_index", 0));
   const storyCount = Number(p(elementProps, "story_count", 0));
-  const showChapterWatermark = displayIndex > 0 && storyCount > 0;
+  const displayOrdinal = displayIndex + 1;
+  const showChapterWatermark = displayIndex >= 0 && storyCount > 0;
   const heatScore = Number(p(elementProps, "score", 0)) || 0;
   const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
   const heatLevel = cleanText(p(elementProps, "heat_level", ""));
@@ -199,7 +213,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
       <GlassShimmer frame={frame} />
       {showChapterWatermark && (
         <ChapterWatermark
-          displayIndex={displayIndex}
+          displayIndex={displayOrdinal}
           storyCount={storyCount}
           padX={padX}
           padY={padY}
@@ -356,7 +370,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           </div>
         )}
 
-        {/* Body: summary + why it matters + key points */}
+        {/* Body: why it matters + impact */}
         {hasBody && (
           <div
             style={{
@@ -364,79 +378,28 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
             }}
           >
-            {dek && (
-              <>
-                <SectionLabel text="摘要" delay={14} frame={frame} />
-                <div
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: d.fs.body,
-                    color: COLORS.textBody,
-                    lineHeight: 1.7,
-                    fontWeight: FW.regular,
-                    marginBottom:
-                      whyItMatters || keyPoints.length > 0
-                        ? bodySectionGap(compact)
-                        : keywords.length > 0
-                          ? bodySectionGap(compact) * 0.8
-                          : 0,
-                    maxWidth: textColW,
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
-                    ...lineClamp(compact ? 3 : 5),
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: compact ? 8 : 12,
+                marginBottom: keywords.length > 0 ? bodySectionGap(compact) : 0,
+                maxWidth: textColW,
+              }}
+            >
+              {insightPoints.map((point, i) => (
+                <InfoPoint
+                  key={`${point.label}-${i}`}
+                  point={{
+                    ...point,
+                    text: cleanText(point.text),
                   }}
-                >
-                  {highlightKeywords(dek, keywords, frame, 14)}
-                </div>
-              </>
-            )}
-
-            {whyItMatters && (
-              <>
-                <SectionLabel text={UI_TEXT.whyItMatters} delay={16} frame={frame} variant="brand" />
-                <div
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: d.fs.body,
-                    color: COLORS.text,
-                    lineHeight: 1.7,
-                    fontWeight: FW.medium,
-                    marginBottom: keyPoints.length > 0 ? bodySectionGap(compact) : keywords.length > 0 ? bodySectionGap(compact) * 0.8 : 0,
-                    maxWidth: textColW,
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
-                    ...lineClamp(compact ? 2 : 3),
-                  }}
-                >
-                  {highlightKeywords(whyItMatters, keywords, frame, 16)}
-                </div>
-              </>
-            )}
-
-            {keyPoints.length > 0 && (
-              <>
-                <SectionLabel text="要点" delay={18} frame={frame} />
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr",
-                    gap: compact ? 8 : 12,
-                    marginBottom: keywords.length > 0 ? bodySectionGap(compact) : 0,
-                    maxWidth: textColW,
-                  }}
-                >
-                  {keyPoints.map((point, i) => (
-                    <InfoPoint
-                      key={`${point.label}-${i}`}
-                      point={point}
-                      delay={20 + i * 5}
-                      frame={frame}
-                      index={i}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
+                  delay={16 + i * 5}
+                  frame={frame}
+                  index={i}
+                />
+              ))}
+            </div>
           </div>
         )}
 

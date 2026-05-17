@@ -141,3 +141,31 @@ class TestJudge:
             )
         with pytest.raises(RuntimeError):
             judge.judge(content, "2026-04-26")
+
+    def test_uses_balanced_prefilter_when_available(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        comment = _make_comment(source_id="c1", quality_score=0.6)
+        item = _make_item(comments=[comment], source_id="100")
+        content = _make_content_package([item])
+
+        mock_llm = MagicMock(spec=LLMProvider)
+        mock_llm.judge_story_comments.return_value = {
+            "quote_candidates": [
+                {"comment_id": "c1", "quote_score": 0.9, "has_viewpoint": True}
+            ]
+        }
+        analyzer = MagicMock()
+        analyzer.get_judge_candidates.return_value = [comment]
+
+        with patch("src.pipeline.comment_judge.setup_logger"):
+            judge = CommentJudge(mock_llm, _make_config(), comment_analyzer=analyzer)
+
+        judge.judge(content, "2026-04-26")
+
+        analyzer.get_judge_candidates.assert_called_once_with(
+            item, n=judge.judge_candidate_count
+        )
+        mock_llm.judge_story_comments.assert_called_once()
+        assert mock_llm.judge_story_comments.call_args.kwargs["candidates"] == [
+            comment
+        ]

@@ -28,7 +28,7 @@ const COVER_SUBTITLE_COLOR = "rgba(245,245,247,0.50)";
 export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
 
-  const headline = p(elementProps, "headline", "HNTech 每日技术速递");
+  const headline = p(elementProps, "headline", "HN每日观察");
   const keywords = Array.isArray(elementProps.keywords)
     ? elementProps.keywords.filter((k): k is string => typeof k === "string")
     : [];

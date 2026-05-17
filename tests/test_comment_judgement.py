@@ -86,3 +86,40 @@ def test_candidate_ids_skip_rejected_candidates():
         }
     )
     assert ids == ["view"]
+
+
+def test_normalize_story_judgement_supports_discussion_modes_and_lanes():
+    item = _item()
+    result = normalize_story_judgement(
+        {
+            "discussion_mode": "field_notes",
+            "discussion_summary": "评论区主要在补充生产经验",
+            "confidence": 0.7,
+            "comment_lanes": {
+                "representative": [
+                    {
+                        "comment_id": "ops",
+                        "role": "experience",
+                        "stance": "中立",
+                        "claim": "生产环境里部署假设最容易出问题",
+                        "quote_score": 0.9,
+                    }
+                ],
+                "color": [
+                    {
+                        "comment_id": "missing",
+                        "role": "memorable_line",
+                        "claim": "should be dropped",
+                        "quote_score": 1.0,
+                    }
+                ],
+            },
+        },
+        item,
+    )
+
+    assert result["discussion_mode"] == "field_notes"
+    assert result["discussion_summary"] == "评论区主要在补充生产经验"
+    assert result["confidence"] == 0.7
+    assert result["comment_lanes"]["representative"][0]["comment_id"] == "ops"
+    assert result["comment_lanes"]["color"] == []

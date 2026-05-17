@@ -41,6 +41,16 @@ cd src/providers/renderer/remotion
 npm install
 ```
 
+### Windows 终端编码
+
+如果在 PowerShell 里看到中文注释、日志或脚本内容变成乱码，先在项目根目录运行：
+
+```powershell
+. .\scripts\encoding.ps1
+```
+
+这个脚本会把当前 PowerShell 会话切到 UTF-8，并设置 Python 的标准输入/输出编码。项目文件本身按 UTF-8 保存，`.editorconfig` 和 `.gitattributes` 会帮助编辑器和 Git 保持一致。
+
 ## 配置
 
 1. 复制环境变量示例：

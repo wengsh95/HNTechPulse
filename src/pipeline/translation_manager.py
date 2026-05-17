@@ -215,6 +215,7 @@ class TranslationManager:
     @staticmethod
     def apply_translations_to_script(script, content, translations: dict) -> None:
         """Apply title and quote translations to generated script props."""
+        judgements = load_comment_judgements(content.date)
         for seg in script.segments:
             if seg.segment_type == "opening":
                 for elem in seg.scene_elements:
@@ -242,6 +243,9 @@ class TranslationManager:
                                 selected = TranslationManager._pick_quote_comments(
                                     item.comments,
                                     elem.props.get("selected_comment_ids") or [],
+                                    judgement=judgements.get(
+                                        comment_judgement_key(item), {}
+                                    ),
                                 )
                                 if i >= len(selected):
                                     continue

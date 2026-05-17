@@ -1,4 +1,3 @@
-import json
 import subprocess
 import time
 from pathlib import Path
@@ -8,6 +7,7 @@ from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Render
 from src.core.models import ContentPackage, Script, ScriptSegment
 from src.providers.renderer.remotion_props import regenerate_preview_props
 from src.pipeline.content_preparer import ContentPreparer
+from src.pipeline.content_hydrator import merge_enrichment_into_content
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.tts_processor import TTSProcessor
@@ -168,11 +168,11 @@ class Orchestrator:
             return ContentPackage(date=date, items=[])
 
         pipeline_cfg = self.config.get("pipeline", {})
-        num_brief_items = pipeline_cfg.get("num_brief_items", 6)
+        target_story_count = pipeline_cfg.get("target_story_count", 10)
         content = self.content_fetcher.fetch(
             date,
             num_deep_dive=0,
-            num_brief=num_brief_items,
+            num_brief=target_story_count,
             num_quick_news=0,
         )
         self.content_preparer.save_content(content, date)
@@ -189,7 +189,6 @@ class Orchestrator:
         enriched = self.article_enricher.enrich(content, date)
         if enriched is not None:
             content = enriched
-        self.content_preparer.save_content(content, date)
 
         # Gate: check for items that need manual HTML download
         failed_items = [
@@ -215,8 +214,10 @@ class Orchestrator:
                 f"  File naming: {{source_id}}.html\n"
                 f"  Then re-run the pipeline. It will resume from this point."
             )
+            self.content_preparer.save_content(content, date)
             return content
 
+        self.content_preparer.save_content(content, date)
         return content
 
     def _step_analyze(self, content, date: str):
@@ -245,7 +246,7 @@ class Orchestrator:
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
         self.logger.info(f"Model: {self.config.get('llm', {}).get('model', 'unknown')}")
         num_brief = min(
-            self.config.get("pipeline", {}).get("num_brief_items", 6),
+            self.config.get("pipeline", {}).get("target_story_count", 10),
             len(content.items),
         )
         self.logger.info(
@@ -338,34 +339,8 @@ class Orchestrator:
             self.logger.info("Editor stopped.")
 
     def _merge_enrichment_images(self, content: ContentPackage, date: str) -> None:
-        """Merge article_images and image_candidates from enrichment.json into content items.
-
-        The editor saves uploaded images to enrichment.json only. Without this merge,
-        _prepare_image_assets won't copy them to Remotion's public/ dir and
-        event cards won't receive the correct image_src in props.
-
-        Also syncs image_candidates so that image_index (set by the editor against
-        image_candidates order) resolves consistently in _expand_event_card.
-        """
-        if content is None:
-            return
-        enrichment_path = Path(f"data/{date}/enrichment.json")
-        if not enrichment_path.exists():
-            return
-        enrich_data = json.loads(enrichment_path.read_text(encoding="utf-8"))
-        enrich_items = enrich_data.get("items", {})
-        for item in content.items:
-            ed = enrich_items.get(item.source_id, {})
-            enrich_images = ed.get("article_images", [])
-            if enrich_images:
-                existing = set(item.article_images)
-                for img in enrich_images:
-                    if img not in existing:
-                        item.article_images.append(img)
-            # Sync image_candidates — the editor sets image_index against this list
-            enrich_candidates = ed.get("image_candidates", [])
-            if enrich_candidates:
-                item.image_candidates = enrich_candidates
+        """Apply enrichment/editor overlay before preview or render."""
+        merge_enrichment_into_content(content, date, logger=self.logger)
 
     def _step_render(
         self, script: Script, date: str, content=None, force: bool = False

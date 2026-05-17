@@ -28,6 +28,41 @@ _VIEWPOINT_MARKER_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+_EXPERIENCE_MARKER_RE = re.compile(
+    r"\b("
+    r"i (?:used|tried|built|wrote|maintain|worked|ran)|"
+    r"we (?:use|used|tried|built|maintain|run)|"
+    r"in production|at (?:my|our) company|on my team|from experience|"
+    r"operational|deployment|deploy|maintain|debug|migration"
+    r")\b",
+    re.IGNORECASE,
+)
+_SKEPTICAL_MARKER_RE = re.compile(
+    r"\b("
+    r"however|but|concern|worried|skeptical|not convinced|risk|problem|"
+    r"trade-?off|fails?|breaks?|hard part|downside|danger|unsafe|"
+    r"wouldn't|won't|can't|cannot"
+    r")\b",
+    re.IGNORECASE,
+)
+_CORRECTION_MARKER_RE = re.compile(
+    r"\b("
+    r"actually|to be clear|that's not|that is not|misleading|correction|"
+    r"clarify|worth noting|the title|not exactly|in fact"
+    r")\b",
+    re.IGNORECASE,
+)
+_COMPARISON_MARKER_RE = re.compile(
+    r"\b("
+    r"compared to|similar to|unlike|instead of|alternative|versus|vs\.?|"
+    r"rather than|reminds me of"
+    r")\b",
+    re.IGNORECASE,
+)
+_LOW_SIGNAL_RE = re.compile(
+    r"^\s*(lol|same|thanks|thank you|this|exactly|\+1|agree|first)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
 
 
 def clean_comment_text(text: str) -> str:
@@ -156,6 +191,42 @@ def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
     return min(0.2, overlap * 0.04)
 
 
+def compute_comment_relevance(
+    clean_text: str, item: Optional[ContentItem], max_score: float = 0.25
+) -> float:
+    """Cheap local relevance signal based on overlap with story/enrichment context."""
+    if item is None:
+        return 0.0
+    key_points = item.key_points or []
+    key_point_text = " ".join(
+        str(kp.get("text") or "") for kp in key_points if isinstance(kp, dict)
+    )
+    context = " ".join(
+        part
+        for part in [
+            item.title,
+            item.title_cn or "",
+            item.article_summary or "",
+            item.summary or "",
+            item.editor_angle or "",
+            item.dek or "",
+            key_point_text,
+            " ".join(item.keywords or []),
+            item.category or "",
+            item.why_it_matters or "",
+        ]
+        if part
+    )
+    context_words = {w.lower() for w in _WORD_RE.findall(context) if len(w) >= 4}
+    if not context_words:
+        return 0.0
+    comment_words = {w.lower() for w in _WORD_RE.findall(clean_text) if len(w) >= 4}
+    if not comment_words:
+        return 0.0
+    overlap = len(context_words & comment_words)
+    return min(max_score, overlap * 0.035)
+
+
 def compute_comment_quality(
     comment: ContentComment, item: Optional[ContentItem] = None
 ) -> float:
@@ -217,6 +288,66 @@ def compute_comment_quality(
     return round(max(0.0, min(1.0, score)), 4)
 
 
+def local_comment_type_hints(text: str) -> set[str]:
+    """Classify useful local hints for balanced pre-LLM candidate sampling."""
+    clean_text = clean_comment_text(text)
+    hints: set[str] = set()
+    if not clean_text:
+        return hints
+    if is_resource_pointer_comment(clean_text):
+        hints.add("resource_only")
+    elif _URL_RE.search(clean_text):
+        hints.add("resource")
+    if _EXPERIENCE_MARKER_RE.search(clean_text):
+        hints.add("experience")
+    if _SKEPTICAL_MARKER_RE.search(clean_text):
+        hints.add("skeptical")
+    if _CORRECTION_MARKER_RE.search(clean_text):
+        hints.add("correction")
+    if _COMPARISON_MARKER_RE.search(clean_text):
+        hints.add("comparison")
+    if _VIEWPOINT_MARKER_RE.search(clean_text):
+        hints.add("viewpoint")
+    if "?" in clean_text:
+        hints.add("question")
+    if _LOW_SIGNAL_RE.match(clean_text):
+        hints.add("low_signal")
+    return hints
+
+
+def compute_judge_candidate_score(
+    comment: ContentComment, item: Optional[ContentItem] = None
+) -> float:
+    """Rank comments before sending a compact, diverse set to the LLM judge."""
+    text = clean_comment_text(comment.content or "")
+    quality = comment.quality_score
+    if quality is None:
+        quality = compute_comment_quality(comment, item)
+    relevance = compute_comment_relevance(text, item)
+    hints = local_comment_type_hints(text)
+
+    bonus = 0.0
+    if "viewpoint" in hints:
+        bonus += 0.04
+    if "experience" in hints:
+        bonus += 0.06
+    if "skeptical" in hints:
+        bonus += 0.04
+    if "correction" in hints or "comparison" in hints:
+        bonus += 0.03
+    if comment.depth is not None and comment.depth >= 2:
+        bonus += 0.025
+
+    penalty = 0.0
+    if "resource_only" in hints:
+        penalty += 0.25
+    if "low_signal" in hints:
+        penalty += 0.2
+
+    score = (float(quality or 0.0) * 0.65) + relevance + bonus - penalty
+    return round(max(0.0, min(1.0, score)), 4)
+
+
 def _similarity(a: str, b: str) -> float:
     words_a = {w.lower() for w in _WORD_RE.findall(a) if len(w) >= 4}
     words_b = {w.lower() for w in _WORD_RE.findall(b) if len(w) >= 4}
@@ -239,6 +370,99 @@ def _ranked_comments(comments: Iterable[ContentComment]) -> List[ContentComment]
         reverse=True,
     )
     return scored
+
+
+def select_judge_candidate_comments(
+    item: ContentItem,
+    max_n: int = 15,
+    min_quality: float = 0.05,
+    similarity_threshold: float = 0.62,
+) -> List[ContentComment]:
+    """Pick a local, balanced candidate pool before the LLM comment judge.
+
+    This keeps cost fixed while improving coverage: high-quality comments,
+    skeptical/supportive minority views, deeper replies, and practical experience.
+    """
+    if max_n <= 0:
+        return []
+
+    candidates: list[tuple[float, ContentComment, str, set[str]]] = []
+    for comment in item.comments:
+        if comment.source_id is None:
+            continue
+        text = clean_comment_text(comment.content or "")
+        if len(text) < 20:
+            continue
+        quality = comment.quality_score
+        if quality is None:
+            quality = compute_comment_quality(comment, item)
+            comment.quality_score = quality
+        if float(quality or 0.0) < min_quality:
+            continue
+        hints = local_comment_type_hints(text)
+        if "resource_only" in hints:
+            continue
+        if "low_signal" in hints:
+            continue
+        candidates.append(
+            (compute_judge_candidate_score(comment, item), comment, text, hints)
+        )
+
+    candidates.sort(
+        key=lambda row: (
+            row[0],
+            row[1].quality_score or 0.0,
+            -1 * (row[1].depth if row[1].depth is not None else 3),
+        ),
+        reverse=True,
+    )
+
+    selected: list[tuple[float, ContentComment, str, set[str]]] = []
+    selected_ids: set[str] = set()
+
+    def can_add(row: tuple[float, ContentComment, str, set[str]]) -> bool:
+        _score, comment, text, _hints = row
+        cid = str(comment.source_id)
+        if cid in selected_ids:
+            return False
+        return all(
+            _similarity(text, existing_text) < similarity_threshold
+            for _s, _c, existing_text, _h in selected
+        )
+
+    def add_from(
+        rows: list[tuple[float, ContentComment, str, set[str]]], limit: int
+    ) -> None:
+        for row in rows:
+            if len(selected) >= max_n or limit <= 0:
+                return
+            if not can_add(row):
+                continue
+            selected.append(row)
+            selected_ids.add(str(row[1].source_id))
+            limit -= 1
+
+    top_quality_limit = min(max_n, max(5, max_n // 2))
+    add_from(candidates, top_quality_limit)
+    add_from([r for r in candidates if (r[1].sentiment or 0.0) <= -0.25], 3)
+    add_from([r for r in candidates if (r[1].sentiment or 0.0) >= 0.25], 2)
+    add_from([r for r in candidates if r[1].depth is not None and r[1].depth >= 2], 2)
+    add_from([r for r in candidates if "experience" in r[3]], 2)
+    add_from(
+        [r for r in candidates if "correction" in r[3] or "comparison" in r[3]],
+        1,
+    )
+    add_from(candidates, max_n - len(selected))
+
+    selected.sort(
+        key=lambda row: (
+            row[0],
+            row[1].quality_score or 0.0,
+            -1 * (row[1].depth if row[1].depth is not None else 3),
+        ),
+        reverse=True,
+    )
+    return [row[1] for row in selected[:max_n]]
 
 
 def select_representative_comments(

@@ -6,10 +6,13 @@ composition.  Handles cue building and element props expansion.
 """
 
 from pathlib import Path
+import json
+import shutil
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
+from src.pipeline.content_hydrator import merge_enrichment_into_content
 from src.pipeline.comment_selection import (
     clean_comment_text,
     classify_comment_stance,
@@ -228,8 +231,8 @@ def _expand_event_card(props, content, score_ranks=None):
     )
     result["dek"] = result.get("dek") or item.dek or result["event_summary"]
     result["key_points"] = result.get("key_points") or item.key_points or []
-    result["why_it_matters"] = result.get("why_it_matters") or ""
-    result["next_watch"] = result.get("next_watch") or ""
+    result["why_it_matters"] = result.get("why_it_matters") or item.why_it_matters or ""
+    result["next_watch"] = result.get("next_watch") or item.next_watch or ""
     result["url"] = item.url or ""
     result["source_domain"] = _extract_domain(item.url) if item.url else ""
     result["published_at"] = item.published_at or 0
@@ -257,8 +260,7 @@ def _expand_event_card(props, content, score_ranks=None):
     if "visual_hint" not in result or not result["visual_hint"]:
         result["visual_hint"] = item.visual_hint or ""
 
-    # Image: resolve image_index against image_candidates (editor's source of truth),
-    # falling back to article_images for backward compatibility.
+    # Image: resolve image_index against image_candidates, then article_images.
     image_index = props.get("image_index", 0)
     # Build ordered candidate path list from image_candidates
     candidate_paths = [
@@ -327,10 +329,18 @@ def _expand_atmosphere_card(props, content):
 
     # Quotes (merged from quote_card, max 2)
     orig_text_cn = {}
+    orig_text_cn_by_id = {}
     for q in props.get("quotes", []):
         cn = q.get("text_cn", "")
         if cn:
-            orig_text_cn[q.get("text", "")] = cn
+            text = q.get("text", "")
+            orig_text_cn[text] = cn
+            cleaned_text = clean_comment_text(text)
+            if cleaned_text:
+                orig_text_cn[cleaned_text[:300]] = cn
+            comment_id = q.get("source_id") or q.get("comment_id")
+            if comment_id is not None:
+                orig_text_cn_by_id[str(comment_id)] = cn
 
     judgement = {}
     date = getattr(content, "date", "")
@@ -347,10 +357,19 @@ def _expand_atmosphere_card(props, content):
     for c in selected[:2]:
         stance = classify_comment_stance(c)
         text = clean_comment_text(c.content or "")[:300]
-        text_cn = c.content_cn or orig_text_cn.get(text, "")
+        text_cn = (
+            c.content_cn
+            or (
+                orig_text_cn_by_id.get(str(c.source_id))
+                if c.source_id is not None
+                else None
+            )
+            or orig_text_cn.get(text, "")
+        )
         quotes.append(
             {
                 "author": c.author,
+                "source_id": c.source_id or "",
                 "text": text,
                 "text_cn": text_cn,
                 "stance": stance,
@@ -380,6 +399,8 @@ ELEMENT_EXPANDERS = {
     "news_carousel_card": _expand_news_carousel_card,
     "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
+    "story_compact_card": _expand_event_card,
+    "quick_item_card": _expand_event_card,
     "atmosphere_card": _expand_atmosphere_card,
 }
 
@@ -394,7 +415,7 @@ def expand_element_props(
     if expander is None:
         return props
     try:
-        if element_type == "event_card":
+        if element_type in {"event_card", "story_compact_card", "quick_item_card"}:
             result = expander(props, content, score_ranks=score_ranks)
         else:
             result = expander(props, content)
@@ -552,10 +573,6 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
       - orchestrator._step_sync_preview()
       - editor's "Sync Preview" button
     """
-    import json as _json
-    import shutil as _shutil
-    from pathlib import Path as _Path
-
     if logger is None:
         logger = setup_logger(__name__)
 
@@ -567,38 +584,22 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
 
-    # Merge enrichment data into content
-    enrichment_path = _Path(f"data/{date}/enrichment.json")
-    if enrichment_path.exists():
-        enrich_data = _json.loads(enrichment_path.read_text(encoding="utf-8"))
-        enrich_items = enrich_data.get("items", {})
-        for item in content.items:
-            ed = enrich_items.get(item.source_id, {})
-            enrich_images = ed.get("article_images", [])
-            if enrich_images:
-                existing = set(item.article_images)
-                for img in enrich_images:
-                    if img not in existing:
-                        item.article_images.append(img)
-            # Sync image_candidates — the editor sets image_index against this list
-            enrich_candidates = ed.get("image_candidates", [])
-            if enrich_candidates:
-                item.image_candidates = enrich_candidates
+    merge_enrichment_into_content(content, date, logger=logger)
 
     # Copy image assets to Remotion public/
-    remotion_dir = _Path(__file__).parent / "remotion"
+    remotion_dir = Path(__file__).parent / "remotion"
     image_subdir = remotion_dir / "public" / "images"
     image_subdir.mkdir(parents=True, exist_ok=True)
 
     def _is_remote(p: str) -> bool:
         return p.startswith(("http://", "https://"))
 
-    def _resolve_local(p: str) -> _Path | None:
+    def _resolve_local(p: str) -> Path | None:
         if _is_remote(p):
             return None
-        src = _Path(p)
+        src = Path(p)
         if not src.is_absolute():
-            src = _Path(f"data/{date}") / p
+            src = Path(f"data/{date}") / p
         return src if src.exists() else None
 
     copied = 0
@@ -608,7 +609,19 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
             if src:
                 dest = image_subdir / src.name
                 if not dest.exists():
-                    _shutil.copy2(src, dest)
+                    shutil.copy2(src, dest)
+                    copied += 1
+        for candidate in item.image_candidates:
+            if not isinstance(candidate, dict):
+                continue
+            img_path = candidate.get("path")
+            if not img_path:
+                continue
+            src = _resolve_local(img_path)
+            if src:
+                dest = image_subdir / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
                     copied += 1
         for attr in ("logo_image", "screenshot_image"):
             val = getattr(item, attr, None)
@@ -617,7 +630,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
                 if src:
                     dest = image_subdir / src.name
                     if not dest.exists():
-                        _shutil.copy2(src, dest)
+                        shutil.copy2(src, dest)
                         copied += 1
     if copied > 0:
         logger.info(f"Copied {copied} images to public/images/")
@@ -633,7 +646,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     props_data = script_to_props(
         script, audio_dir, width, height, fps, bg_color, content=content, logger=logger
     )
-    props_json = _json.dumps(props_data, ensure_ascii=False, indent=2)
+    props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
     # Write to Remotion public/ (studio hot-reloads from here)
     public_dir = remotion_dir / "public"
@@ -643,7 +656,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
 
     # Also write to data/{date}/ for CLI use
-    cli_path = _Path(f"data/{date}/cli_props.json")
+    cli_path = Path(f"data/{date}/cli_props.json")
     cli_path.parent.mkdir(parents=True, exist_ok=True)
     cli_path.write_text(props_json, encoding="utf-8")
     logger.info(f"Props written to {cli_path}")

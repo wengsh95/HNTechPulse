@@ -85,9 +85,14 @@ class CommentJudge:
                 # Use comment_analyzer to pre-filter candidates when available
                 pre_filtered = None
                 if self.comment_analyzer:
-                    pre_filtered = self.comment_analyzer.get_top_comments(
-                        item, n=self.judge_candidate_count
-                    )
+                    if hasattr(self.comment_analyzer, "get_judge_candidates"):
+                        pre_filtered = self.comment_analyzer.get_judge_candidates(
+                            item, n=self.judge_candidate_count
+                        )
+                    else:
+                        pre_filtered = self.comment_analyzer.get_top_comments(
+                            item, n=self.judge_candidate_count
+                        )
                 self.logger.info(
                     f"  {label}: judging {len(pre_filtered or item.comments)} comments "
                     f"(model request starting)"

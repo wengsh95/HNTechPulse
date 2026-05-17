@@ -170,3 +170,107 @@ class TestGetTopComments:
         top = analyzer.get_top_comments(item, n=10)
         assert len(top) == 1
         assert top[0].source_id == "c2"
+
+
+class TestGetJudgeCandidates:
+    def test_balanced_keeps_minority_negative_and_deep_replies(self):
+        with patch("src.pipeline.comment_analyzer.setup_logger"):
+            analyzer = CommentAnalyzer(
+                _make_config(
+                    judge_candidate_strategy="balanced",
+                    judge_candidate_min_quality=0.05,
+                )
+            )
+        comments = [
+            _make_comment(
+                content=(
+                    "This is a strong positive comment about the design because it "
+                    "makes the common path much simpler for teams."
+                ),
+                source_id=f"pos{i}",
+                quality_score=0.8 - i * 0.01,
+                sentiment=0.6,
+                depth=0,
+            )
+            for i in range(8)
+        ]
+        comments.extend(
+            [
+                _make_comment(
+                    content=(
+                        "I am skeptical because this can fail in production when "
+                        "deployment and rollback behavior diverge."
+                    ),
+                    source_id="neg",
+                    quality_score=0.45,
+                    sentiment=-0.7,
+                    depth=0,
+                ),
+                _make_comment(
+                    content=(
+                        "In production we used a similar approach and the hard part "
+                        "was debugging state after partial migrations."
+                    ),
+                    source_id="deep",
+                    quality_score=0.42,
+                    sentiment=-0.1,
+                    depth=3,
+                ),
+            ]
+        )
+        item = _make_item(
+            title="Production deployment migration tool",
+            article_summary="A tool changes deployment and rollback behavior.",
+            comments=comments,
+        )
+
+        selected = analyzer.get_judge_candidates(item, n=8)
+        selected_ids = {c.source_id for c in selected}
+
+        assert "neg" in selected_ids
+        assert "deep" in selected_ids
+        assert len(selected) <= 8
+
+    def test_balanced_filters_resource_only_comments(self):
+        with patch("src.pipeline.comment_analyzer.setup_logger"):
+            analyzer = CommentAnalyzer(_make_config(judge_candidate_strategy="balanced"))
+        item = _make_item(
+            comments=[
+                _make_comment(
+                    content="Related article: https://example.com/writeup",
+                    source_id="link",
+                    quality_score=0.95,
+                ),
+                _make_comment(
+                    content=(
+                        "The practical concern is that this changes operational "
+                        "failure modes for the team maintaining it."
+                    ),
+                    source_id="view",
+                    quality_score=0.55,
+                ),
+            ]
+        )
+
+        selected = analyzer.get_judge_candidates(item, n=5)
+
+        assert [c.source_id for c in selected] == ["view"]
+
+    def test_top_quality_strategy_uses_original_ranking(self):
+        with patch("src.pipeline.comment_analyzer.setup_logger"):
+            analyzer = CommentAnalyzer(
+                _make_config(
+                    judge_candidate_strategy="top_quality",
+                    min_quality_score=0.0,
+                )
+            )
+        item = _make_item(
+            comments=[
+                _make_comment(source_id="low", quality_score=0.2),
+                _make_comment(source_id="high", quality_score=0.9),
+            ]
+        )
+
+        selected = analyzer.get_judge_candidates(item, n=1)
+
+        assert selected[0].source_id == "high"

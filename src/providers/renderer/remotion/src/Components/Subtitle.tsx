@@ -69,7 +69,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
 
   const isMinimal = mode === "minimal";
 
-  const subMaxWidth = Math.min(width - d.layout.pageInset * 2.4, d.scaled(720));
+  const subMaxWidth = Math.min(width - d.layout.pageInset * 2.8, d.scaled(680));
 
   return (
     <div
@@ -82,9 +82,9 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: `${d.scaled(12)}px ${d.scaled(32)}px`,
+        padding: `${d.scaled(8)}px ${d.scaled(28)}px`,
         width: subMaxWidth,
-        minHeight: isMinimal ? d.scaled(44) : d.scaled(54),
+        minHeight: isMinimal ? d.scaled(38) : d.scaled(46),
         opacity: opacity * (isMinimal ? 0.85 : 0.95),
         borderRadius: d.scaled(12),
       }}
@@ -92,10 +92,10 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: d.fs.subtitle,
+          fontSize: Math.round(d.fs.subtitle * 0.9),
           color: COLORS.text,
           textAlign: "center",
-          lineHeight: 1.45,
+          lineHeight: 1.35,
           fontWeight: FW.semibold,
           letterSpacing: 0,
           maxWidth: "100%",

@@ -30,7 +30,7 @@ from src.utils.logger import setup_logger
 from src.core.models import SceneElement, Cue
 
 
-CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六"]
+CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
 SPEECH_CPS = 3.5
 
 
@@ -125,8 +125,21 @@ class ScriptWriter:
         except (ValueError, TypeError):
             date_display = date
 
-        audio_text = "早上好，这里是 HN TechPulse，带你看昨天HN发生了什么。"
-        duration = 5
+        entries = highlight_entries or []
+        focus_count = len([e for e in entries if e.get("coverage_tier") == "focus"])
+        standard_count = len(
+            [e for e in entries if e.get("coverage_tier") == "standard"]
+        )
+        quick_count = len([e for e in entries if e.get("coverage_tier") == "quick"])
+        if len(entries) > 3:
+            audio_text = (
+                f"早上好，这里是 HN每日观察。今天选了{len(entries)}条讨论，"
+                f"{focus_count}条重点，{standard_count}条速读，{quick_count}条快扫。"
+            )
+            duration = 8
+        else:
+            audio_text = "早上好，这里是 HN每日观察，带你看昨天HN发生了什么。"
+            duration = 5
 
         keywords: list[str] = []
         if story_scan_segs:
@@ -155,11 +168,17 @@ class ScriptWriter:
                         "headline": "每日技术速览",
                         "subtitle": date_display,
                         "keywords": keywords[:3],
+                        "lineup_entries": entries,
+                        "section_counts": {
+                            "focus": focus_count,
+                            "standard": standard_count,
+                            "quick": quick_count,
+                        },
                     }
                     | (
                         {
                             "highlight_entries": highlight_entries[:3],
-                            "focus_count": min(3, len(highlight_entries)),
+                            "focus_count": focus_count or min(3, len(highlight_entries)),
                         }
                         if highlight_entries
                         else {}
@@ -167,28 +186,116 @@ class ScriptWriter:
                 )
             ],
             cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
-            meta={"highlights": {"entries": highlight_entries[:3]}}
+            meta={"highlights": {"entries": entries}}
             if highlight_entries
             else {},
         )
 
-    def _opening_needs_refresh(self, segment: ScriptSegment) -> bool:
-        """Detect cached openings that still preview the top stories."""
-        audio_text = segment.audio_text or ""
-        if (
-            "：" in audio_text
-            or "这几件事" in audio_text
-            or "几个技术信号" in audio_text
-        ):
-            return True
+    @staticmethod
+    def _closing_keywords(highlight_entries: Optional[list[dict]] = None) -> list[str]:
+        keywords: list[str] = []
+        seen: set[str] = set()
 
-        for elem in segment.scene_elements:
-            if elem.element_type == "cover_card" and elem.props.get("topics"):
-                return True
+        def add_keyword(value) -> None:
+            if not value:
+                return
+            text = str(value).strip()
+            if not text or text in seen:
+                return
+            seen.add(text)
+            keywords.append(text)
 
-        return False
+        for entry in highlight_entries or []:
+            add_keyword(entry.get("category"))
+            for keyword in entry.get("keywords") or []:
+                add_keyword(keyword)
+            if len(keywords) >= 3:
+                break
 
-    def _generate_fixed_closing(self, date: str) -> ScriptSegment:
+        return (keywords or ["Agents", "Infra", "Developer Tools"])[:3]
+
+    @staticmethod
+    def _closing_summary_items(
+        highlight_entries: Optional[list[dict]] = None,
+    ) -> list[dict]:
+        items: list[dict] = []
+        for entry in (highlight_entries or [])[:3]:
+            title = (
+                entry.get("editor_angle")
+                or entry.get("title_translation")
+                or entry.get("original_title")
+                or ""
+            )
+            note = entry.get("why_it_matters") or entry.get("next_watch") or ""
+            category = entry.get("category") or "观察"
+            if not title and not note:
+                continue
+            items.append(
+                {
+                    "category": str(category),
+                    "title": str(title),
+                    "note": str(note),
+                }
+            )
+
+        if items:
+            return items
+
+        return [
+            {
+                "category": "AI",
+                "title": "AI 正从产品功能，变成开发工作流的底层能力。",
+                "note": "继续关注工具链、成本结构与真实生产力提升。",
+            },
+            {
+                "category": "Infra",
+                "title": "底层基础设施仍是社区判断技术价值的核心坐标。",
+                "note": "性能、可控性和维护成本比发布声量更重要。",
+            },
+        ]
+
+    @staticmethod
+    def _closing_totals(highlight_entries: Optional[list[dict]] = None) -> dict:
+        entries = highlight_entries or []
+        story_count = len(entries)
+        score_total = sum(
+            int(entry.get("score") or 0)
+            for entry in entries
+            if str(entry.get("score") or "").isdigit()
+        )
+        comment_total = sum(
+            int(entry.get("comment_count") or 0)
+            for entry in entries
+            if str(entry.get("comment_count") or "").isdigit()
+        )
+        return {
+            "story_count": story_count,
+            "score_total": score_total,
+            "comment_total": comment_total,
+        }
+
+    @staticmethod
+    def _closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[str]:
+        takeaways: list[str] = []
+        for entry in (highlight_entries or [])[:3]:
+            text = (
+                entry.get("why_it_matters")
+                or entry.get("next_watch")
+                or entry.get("editor_angle")
+                or entry.get("title_translation")
+                or ""
+            )
+            text = str(text).strip()
+            if not text:
+                continue
+            if len(text) > 34:
+                text = text[:34].rstrip("，。！？；：,.!?;:") + "…"
+            takeaways.append(text)
+        return takeaways[:3]
+
+    def _generate_fixed_closing(
+        self, date: str, highlight_entries: Optional[list[dict]] = None
+    ) -> ScriptSegment:
         """生成每日快讯结尾"""
         from datetime import datetime
 
@@ -198,15 +305,24 @@ class ScriptWriter:
         except (ValueError, TypeError):
             weekday = None
 
-        if weekday == 4:
-            audio_text = "好，今天的速览就到这里，周末愉快，多喝热水。"
-        elif weekday == 5:
-            audio_text = "好，今天的速览就到这里，周末继续愉快，多喝热水。"
-        elif weekday == 6:
-            audio_text = "好，今天的速览就到这里，新的一周加油，多喝热水。"
+        if weekday in {4, 5}:
+            audio_text = "今天的 HN 速览就到这里，周末继续留意那些真正值得追的问题。"
         else:
-            audio_text = "好，今天的速览就到这里，下期再见，多喝热水。"
+            audio_text = "今天的 HN 速览就到这里，我们明天继续看哪些讨论值得停一下。"
         duration = 8
+        takeaways = self._closing_takeaways(highlight_entries)
+        signal = (
+            "今天值得带走的，是这些讨论各自提出的具体问题。"
+            if highlight_entries and len(highlight_entries) > 3
+            else (
+                takeaways[0]
+                if takeaways
+                else "今天的技术讨论，先记住问题，再看答案。"
+            )
+        )
+        keywords = self._closing_keywords(highlight_entries)
+        summary_items = self._closing_summary_items(highlight_entries)
+        totals = self._closing_totals(highlight_entries)
 
         return ScriptSegment(
             segment_type="closing",
@@ -217,7 +333,17 @@ class ScriptWriter:
                     element_type="closing_card",
                     start_time=0.0,
                     end_time=float(duration),
-                    props={},
+                    props={
+                        "signal_label": "今日信号",
+                        "signal": signal,
+                        "keywords_label": "今日关键词",
+                        "keywords": keywords,
+                        "summary_label": "今日脉络",
+                        "summary_items": summary_items,
+                        "takeaways": takeaways,
+                        "closing_mode": "takeaways",
+                        "totals": totals,
+                    },
                 )
             ],
             cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
@@ -272,15 +398,18 @@ class ScriptWriter:
                         "keywords": angle.get("keywords") or [],
                         "score": item.score,
                         "comment_count": item.comment_count,
+                        "coverage_tier": bi.get("coverage_tier", "focus"),
+                        "presentation_mode": bi.get("presentation_mode", "deep"),
+                        "section": bi.get("section", ""),
                     }
                 )
 
-        return entries[:3]
+        return entries
 
     @staticmethod
-    def _extract_story_indices(selection: SelectionResult) -> list[int]:
+    def _extract_story_specs(selection: SelectionResult) -> list[dict]:
         return [
-            bi.get("story_index")
+            bi
             for bi in selection.brief_items
             if bi.get("story_index") is not None
         ]
@@ -289,33 +418,121 @@ class ScriptWriter:
         max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
         return max(1, min(max_workers, len(story_indices) or 1))
 
+    @staticmethod
+    def _normalize_story_specs(story_specs: list[dict]) -> list[dict]:
+        specs = []
+        for entry in story_specs:
+            story_index = entry.get("story_index")
+            if story_index is None:
+                continue
+            specs.append(
+                {
+                    "story_index": int(story_index),
+                    "coverage_tier": entry.get("coverage_tier", "focus"),
+                    "presentation_mode": entry.get("presentation_mode", "deep"),
+                    "section": entry.get("section", ""),
+                }
+            )
+        return specs
+
+    @staticmethod
+    def _prompt_for_presentation(mode: str) -> str:
+        if mode == "quick":
+            return "prompts/story_script_quick.md"
+        if mode == "standard":
+            return "prompts/story_script_standard.md"
+        return "prompts/story_script.md"
+
+    @staticmethod
+    def _expected_card_types(mode: str) -> list[str]:
+        if mode == "quick":
+            return ["quick_item_card"]
+        if mode == "standard":
+            return ["story_compact_card"]
+        return ["event_card", "atmosphere_card"]
+
+    def _coerce_card_narrations_for_mode(
+        self, segment: ScriptSegment, mode: str
+    ) -> None:
+        """Keep LLM output within the configured tier shape."""
+        expected = self._expected_card_types(mode)
+        card_narrations = segment.meta.get("card_narrations", []) or []
+        filtered = [
+            card
+            for card in card_narrations
+            if card.get("card_type") in expected
+        ]
+        if filtered:
+            segment.meta["card_narrations"] = filtered
+
+        segment.scene_elements = [
+            elem for elem in segment.scene_elements if elem.element_type in expected
+        ]
+        story_index = segment.meta.get("story_index")
+        for elem in segment.scene_elements:
+            if story_index is not None:
+                break
+            if elem.props.get("story_index") is not None:
+                story_index = elem.props.get("story_index")
+                break
+        if story_index is None:
+            story_index = segment.meta.get("story_index", 0)
+
+        existing = set()
+        for elem in segment.scene_elements:
+            existing.add(elem.element_type)
+            props = dict(elem.props or {})
+            props["story_index"] = story_index
+            elem.props = props
+
+        for card_type in expected:
+            if card_type not in existing:
+                segment.scene_elements.append(
+                    SceneElement(
+                        element_type=card_type,
+                        start_time=0.0,
+                        end_time=0.0,
+                        props={"story_index": story_index},
+                    )
+                )
+
     def _generate_story_scan_segments(
         self,
         content: ContentPackage,
-        story_indices: list[int],
+        story_indices: list,
         date: str,
     ) -> list[ScriptSegment]:
-        if not story_indices:
+        story_specs = self._normalize_story_specs(story_indices)
+        if not story_specs:
             return []
 
         comment_judgements = load_comment_judgements(date)
+        story_indices = [spec["story_index"] for spec in story_specs]
         max_workers = self._calculate_max_workers(story_indices)
 
-        def _generate_single(story_idx: int) -> ScriptSegment:
+        def _generate_single(spec: dict) -> ScriptSegment:
+            story_idx = spec["story_index"]
             item = content.items[story_idx]
             judgement = comment_judgements.get(comment_judgement_key(item), {})
-            return self.llm_provider.generate_single_story_segment(
+            segment = self.llm_provider.generate_single_story_segment(
                 content=content,
                 story_index=story_idx,
                 segment_type="story_scan_item",
-                prompt_template_path="prompts/story_script.md",
+                prompt_template_path=self._prompt_for_presentation(
+                    spec.get("presentation_mode", "deep")
+                ),
                 date=date,
                 comments_data=judgement or None,
             )
+            segment.meta["coverage_tier"] = spec.get("coverage_tier", "focus")
+            segment.meta["presentation_mode"] = spec.get("presentation_mode", "deep")
+            segment.meta["section"] = spec.get("section", "")
+            segment.meta["story_index"] = story_idx
+            return segment
 
         if max_workers == 1 or len(story_indices) <= 1:
             segments_by_index = {
-                idx: _generate_single(idx) for idx in story_indices
+                spec["story_index"]: _generate_single(spec) for spec in story_specs
             }
         else:
             self.logger.info(
@@ -324,8 +541,8 @@ class ScriptWriter:
             segments_by_index = {}
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(_generate_single, idx): idx
-                    for idx in story_indices
+                    executor.submit(_generate_single, spec): spec["story_index"]
+                    for spec in story_specs
                 }
                 for future in as_completed(futures):
                     idx = futures[future]
@@ -338,10 +555,18 @@ class ScriptWriter:
         ]
 
         for story_idx, seg in zip(story_indices, ordered):
+            spec = next(
+                (s for s in story_specs if s["story_index"] == story_idx),
+                {"presentation_mode": "deep"},
+            )
+            self._coerce_card_narrations_for_mode(
+                seg, spec.get("presentation_mode", "deep")
+            )
             judgement = comment_judgements.get(
                 comment_judgement_key(content.items[story_idx]), {}
             )
             self._normalize_atmosphere_card(seg, content.items[story_idx], judgement)
+            self._normalize_story_cards(seg, content.items[story_idx], judgement)
 
         return ordered
 
@@ -362,7 +587,7 @@ class ScriptWriter:
         for elem in scene_elements:
             if elem.element_type == card_type and elem.sub_segment_index is None:
                 elem.sub_segment_index = sub_idx
-                if elem.element_type == "event_card":
+                if elem.element_type in {"event_card", "story_compact_card", "quick_item_card"}:
                     elem.props["display_index"] = story_i
                     elem.props["story_count"] = total_stories
                 elem.props["subtitle_texts"] = subtitle_texts
@@ -474,12 +699,42 @@ class ScriptWriter:
             },
         )
 
+    def _build_story_specs(self, content: ContentPackage) -> list[dict]:
+        pipeline_cfg = self.config.get("pipeline", {})
+        total = int(pipeline_cfg.get("target_story_count", 10) or 10)
+        total = min(total, len(content.items))
+        focus_count = int(pipeline_cfg.get("focus_items", 3) or 3)
+        standard_count = int(pipeline_cfg.get("standard_items", 3) or 3)
+        quick_count = int(
+            pipeline_cfg.get("quick_items", max(0, total - focus_count - standard_count))
+            or 0
+        )
+
+        specs: list[dict] = []
+        max_count = min(total, focus_count + standard_count + quick_count)
+        for i in range(max_count):
+            if i < focus_count:
+                tier, mode, section = "focus", "deep", "重点观察"
+            elif i < focus_count + standard_count:
+                tier, mode, section = "standard", "standard", "速读"
+            else:
+                tier, mode, section = "quick", "quick", "快扫"
+            specs.append(
+                {
+                    "story_index": i,
+                    "coverage_tier": tier,
+                    "presentation_mode": mode,
+                    "section": section,
+                }
+            )
+        return specs
+
     def _generate_script_split(
         self, content: ContentPackage, selection: SelectionResult, date: str
     ) -> Script:
         segments: list[ScriptSegment] = []
 
-        story_indices = self._extract_story_indices(selection)
+        story_indices = self._extract_story_specs(selection)
         story_scan_segs = self._generate_story_scan_segments(
             content, story_indices, date
         )
@@ -503,10 +758,10 @@ class ScriptWriter:
                 self._compose_story_scan_segment(story_scan_segs)
             )
 
-        segments.append(self._generate_fixed_closing(date))
+        segments.append(self._generate_fixed_closing(date, highlight_entries))
 
         return Script(
-            title="HN TechPulse 每日快讯",
+            title="HN每日观察",
             description=f"每日快讯 - {date}",
             tags=[],
             segments=segments,
@@ -539,6 +794,7 @@ class ScriptWriter:
             selected_comments = select_quote_comments(
                 item.comments,
                 selected_ids=combined_ids,
+                judgement=judgement,
                 max_n=2,
             )
             props["selected_comment_ids"] = [
@@ -549,6 +805,46 @@ class ScriptWriter:
 
             elem.props = props
 
+    @staticmethod
+    def _normalize_story_cards(
+        segment: ScriptSegment, item: ContentItem, judgement: dict
+    ) -> None:
+        """Inject common story metadata into all visual story card variants."""
+        for elem in segment.scene_elements:
+            if elem.element_type not in {
+                "event_card",
+                "atmosphere_card",
+                "story_compact_card",
+                "quick_item_card",
+            }:
+                continue
+            props = dict(elem.props or {})
+            props.setdefault("source_title", item.title)
+            if item.title_cn:
+                props.setdefault("title_cn", item.title_cn)
+            if item.editor_angle:
+                props.setdefault("editor_angle", item.editor_angle)
+            if item.dek:
+                props.setdefault("dek", item.dek)
+            if item.key_points:
+                props.setdefault("key_points", item.key_points)
+            if item.keywords:
+                props.setdefault("keywords", item.keywords)
+            if item.category:
+                props.setdefault("category", item.category)
+            if item.why_it_matters:
+                props.setdefault("why_it_matters", item.why_it_matters)
+            if item.score is not None:
+                props.setdefault("score", item.score)
+            if item.comment_count is not None:
+                props.setdefault("comment_count", item.comment_count)
+            if judgement:
+                props.setdefault("discussion_mode", judgement.get("discussion_mode", ""))
+                props.setdefault(
+                    "discussion_summary", judgement.get("discussion_summary", "")
+                )
+            elem.props = props
+
     def write(self, content: ContentPackage) -> Script:
         t_total = time.monotonic()
 
@@ -557,54 +853,15 @@ class ScriptWriter:
         if script_path.exists():
             self.logger.info(f"Found existing {script_path}, loading...")
             script = self.load_script(content.date)
-            opening_segment = next(
-                (seg for seg in script.segments if seg.segment_type == "opening"),
-                None,
-            )
-            if opening_segment and self._opening_needs_refresh(opening_segment):
-                self.logger.info(
-                    "Cached opening uses topic preview, refreshing opening only"
-                )
-                refreshed_opening = self._generate_fixed_opening(content.date)
-                script.segments = [
-                    refreshed_opening if seg.segment_type == "opening" else seg
-                    for seg in script.segments
-                ]
-            # Validate cached script has story content when content items exist.
-            # A broken cache (e.g. from a prior failed run) would be missing the
-            # story_scan segment, producing a video with no news content.
-            has_story_scan = any(
-                seg.segment_type == "story_scan" for seg in script.segments
-            )
-            if content.items and not has_story_scan:
-                self.logger.info(
-                    "Cached script is missing story_scan segment — forcing regeneration"
-                )
-                script_path.unlink()
-            elif self._cache_needs_audio_only_refresh(script):
-                self.logger.info(
-                    "Cached script lacks audio-only story anchors — "
-                    "forcing regeneration"
-                )
-                script_path.unlink()
-            elif not self._validate_cache_metadata(script, content):
-                self.logger.info(
-                    "Cached script is missing timing metadata — forcing regeneration"
-                )
-                script_path.unlink()
-            else:
-                elapsed = time.monotonic() - t_total
-                self.logger.info(f"Script loaded from cache in {elapsed:.1f}s")
-                return script
+            elapsed = time.monotonic() - t_total
+            self.logger.info(f"Script loaded from cache in {elapsed:.1f}s")
+            return script
 
         self.logger.info(f"Input: {len(content.items)} stories, date={content.date}")
 
-        # Build selection from top N stories (already sorted by score descending).
-        # No LLM decision needed — score/comment-count ranking is sufficient.
-        num_brief = self.config.get("pipeline", {}).get("num_brief_items", 6)
-        brief_items = [
-            {"story_index": i} for i in range(min(num_brief, len(content.items)))
-        ]
+        # Build selection from top N stories (already sorted upstream). Programmatic
+        # tiers keep the episode structure stable; LLMs only write each local item.
+        brief_items = self._build_story_specs(content)
         selection = SelectionResult(
             brief_items=brief_items,
             raw_json=json.dumps({"brief_items": brief_items}, ensure_ascii=False),
@@ -619,7 +876,7 @@ class ScriptWriter:
         elapsed = time.monotonic() - t_total
         self.logger.info("=" * 60)
         self.logger.info(
-            f"Pipeline complete in {elapsed:.1f}s (with checkpoint recovery)"
+            f"Pipeline complete in {elapsed:.1f}s"
         )
         self.logger.info("=" * 60)
 
@@ -635,65 +892,3 @@ class ScriptWriter:
 
     def load_script(self, date: str) -> Script:
         return _load_script(date)
-
-    @staticmethod
-    def _cache_needs_audio_only_refresh(script: Script) -> bool:
-        story_scan = next(
-            (s for s in script.segments if s.segment_type == "story_scan"), None
-        )
-        if story_scan and any(
-            elem.props.get("is_audio_marker") for elem in story_scan.scene_elements
-        ):
-            return True
-
-        return False
-
-    def _validate_cache_metadata(self, script: Script, content) -> bool:
-        """Check cached script has timing metadata needed for card/cue alignment.
-
-        Returns False if the cache is stale and should be regenerated.
-        """
-        story_scan = next(
-            (s for s in script.segments if s.segment_type == "story_scan"), None
-        )
-        if story_scan is None:
-            return True  # No story_scan to validate
-
-        # Must have per-card subtitle_texts for per-subtitle TTS timing
-        if not story_scan.meta.get("sub_segment_subtitle_texts"):
-            return False
-
-        # Milestone 2: story cards need editable fields for productized narrative.
-        # Fields may come from event_card props or ContentItem (enrichment).
-        for elem in story_scan.scene_elements:
-            if elem.element_type == "event_card":
-                si = elem.props.get("story_index")
-                item = (
-                    content.items[si]
-                    if si is not None and si < len(content.items)
-                    else None
-                )
-                has_angle = elem.props.get("editor_angle") or (
-                    item.editor_angle if item else None
-                )
-                has_dek = (
-                    elem.props.get("dek")
-                    or elem.props.get("event_summary")
-                    or (item.dek if item else None)
-                )
-                has_kp = elem.props.get("key_points") or (
-                    item.key_points if item else None
-                )
-                if not has_angle:
-                    return False
-                if not has_dek:
-                    return False
-                if not has_kp:
-                    return False
-
-        # Scene elements must know their sub-segment index
-        for elem in story_scan.scene_elements:
-            if elem.sub_segment_index is None:
-                return False
-
-        return True
