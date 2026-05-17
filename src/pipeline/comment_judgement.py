@@ -79,6 +79,18 @@ def _normalize_confidence(value: Any) -> float:
     return round(max(0.0, min(1.0, _safe_float(value, 0.0))), 4)
 
 
+def _validate_claim(value: Any, max_chars: int = 28) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("comment_lanes claim is required")
+    text = " ".join(text.split())
+    if len(text) > max_chars:
+        raise ValueError(
+            f"comment_lanes claim exceeds {max_chars} characters: {text}"
+        )
+    return text.strip("，。；：、,.!?！？;:）)]】")
+
+
 def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
     lanes: dict[str, list[dict]] = {lane: [] for lane in COMMENT_LANES}
     raw_lanes = raw.get("comment_lanes", {}) or {}
@@ -99,6 +111,7 @@ def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
             cid = candidate["comment_id"]
             if cid in seen_by_lane[lane_key]:
                 continue
+            candidate["claim"] = _validate_claim(candidate.get("claim"))
             seen_by_lane[lane_key].add(cid)
             lanes[lane_key].append(candidate)
 

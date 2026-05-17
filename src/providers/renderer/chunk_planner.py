@@ -41,7 +41,7 @@ def compute_segment_chunks(
 
     # Discard any chunk where start >= end (can happen when adjacent elements
     # overlap or share the same start frame)
-    chunks = [(s, e, l) for s, e, l in chunks if s < e]
+    chunks = [(start, end, label) for start, end, label in chunks if start < end]
 
     # Extend last chunk to cover total_frames
     if chunks:

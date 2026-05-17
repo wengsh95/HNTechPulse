@@ -18,7 +18,7 @@ load_dotenv()
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.providers.tts.mimo_tts import MimoTTSProvider, _EMOTION_MAP, _DEFAULT_TONE
+from src.providers.tts.mimo_tts import MimoTTSProvider, _EMOTION_MAP
 
 _OUTPUT_DIR = _PROJECT_ROOT / "data" / "tts_test_output"
 
@@ -206,7 +206,7 @@ def main():
         debug=True,
     )
 
-    print(f"Provider: MimoTTSProvider")
+    print("Provider: MimoTTSProvider")
     print(f"  base_url: {provider.base_url}")
     print(f"  model: {provider.model}")
     print(f"  voice: {provider.voice}")

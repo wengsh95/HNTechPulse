@@ -125,12 +125,24 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
     judgement_path.write_text(
         """
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "stories": {
     "story": {
+      "comment_lanes": {
+        "representative": [
+          {
+            "comment_id": "judged",
+            "role": "experience",
+            "stance": "中立",
+            "claim": "缓存翻译跟着精选走",
+            "quote_score": 0.9
+          }
+        ]
+      },
       "quote_candidates": [
         {
           "comment_id": "judged",
+          "quote_score": 0.9,
           "has_viewpoint": true,
           "reject_for_quote": false
         }

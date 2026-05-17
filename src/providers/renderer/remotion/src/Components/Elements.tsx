@@ -4,4 +4,4 @@ export { CoverCard } from "./CoverCard";
 export { EventCard } from "./EventCard";
 export { AtmosphereCard } from "./AtmosphereCard";
 export { StoryCompactCard } from "./StoryCompactCard";
-export { QuickItemCard } from "./QuickItemCard";
+export { QuickRoundupCard } from "./QuickRoundupCard";

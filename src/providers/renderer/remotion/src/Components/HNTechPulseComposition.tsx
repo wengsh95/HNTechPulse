@@ -24,7 +24,7 @@ import {
   EventCard,
   AtmosphereCard,
   StoryCompactCard,
-  QuickItemCard,
+  QuickRoundupCard,
 } from "./Elements";
 import {
   CommentCard,
@@ -59,7 +59,7 @@ type StoryEvent = {
 const STORY_MARKER_TYPES = new Set([
   "event_card",
   "story_compact_card",
-  "quick_item_card",
+  "quick_roundup_card",
   "story_header",
   "news_carousel_card",
   "story_scan_card",
@@ -119,7 +119,7 @@ const ELEMENT_RENDERERS: Record<
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
   story_compact_card: (props) => <StoryCompactCard {...props} />,
-  quick_item_card: (props) => <QuickItemCard {...props} />,
+  quick_roundup_card: (props) => <QuickRoundupCard {...props} />,
   story_header: (props) => <StoryHeaderCard {...props} />,
   discussion_overview: (props) => <DiscussionOverviewCard {...props} />,
   comment_card: (props) => <CommentCard {...props} />,

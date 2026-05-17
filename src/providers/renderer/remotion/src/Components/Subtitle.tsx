@@ -69,34 +69,34 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
 
   const isMinimal = mode === "minimal";
 
-  const subMaxWidth = Math.min(width - d.layout.pageInset * 2.8, d.scaled(680));
+  const subMaxWidth = Math.min(width - d.layout.pageInset * 3.2, d.scaled(isMinimal ? 560 : 640));
 
   return (
     <div
       style={{
         ...S,
         left: "50%",
-        bottom: isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom,
+        bottom: (isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom) + d.scaled(8),
         transform: `translateX(-50%) translateY(${slideY}px)`,
         background: isMinimal ? GRADIENTS.subtitleMinimal : GRADIENTS.subtitleStandard,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: `${d.scaled(8)}px ${d.scaled(28)}px`,
+        padding: `${d.scaled(7)}px ${d.scaled(24)}px`,
         width: subMaxWidth,
-        minHeight: isMinimal ? d.scaled(38) : d.scaled(46),
-        opacity: opacity * (isMinimal ? 0.85 : 0.95),
+        minHeight: isMinimal ? d.scaled(34) : d.scaled(42),
+        opacity: opacity * (isMinimal ? 0.72 : 0.84),
         borderRadius: d.scaled(12),
       }}
     >
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: Math.round(d.fs.subtitle * 0.9),
-          color: COLORS.text,
+          fontSize: Math.round(d.fs.subtitle * (isMinimal ? 0.74 : 0.8)),
+          color: isMinimal ? COLORS.textSecondary : COLORS.textBody,
           textAlign: "center",
           lineHeight: 1.35,
-          fontWeight: FW.semibold,
+          fontWeight: FW.medium,
           letterSpacing: 0,
           maxWidth: "100%",
           overflow: "hidden",

@@ -63,8 +63,8 @@ function findKeyPointText(points: KeyPoint[], labels: string[]): string {
 }
 
 const INFO_POINT_COLORS = [
-  COLORS.accent,
   COLORS.brand,
+  COLORS.accent,
   COLORS.green,
 ];
 
@@ -90,7 +90,7 @@ const InfoPoint: React.FC<{
         gap: 4,
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [8, 0])}px)`,
-        backgroundColor: COLORS.surfaceFaint,
+        backgroundColor: COLORS.surfaceSubtle,
         borderRadius: 8,
         padding: "10px 14px",
         borderLeft: `3px solid ${accentColor}`,
@@ -262,7 +262,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 letterSpacing: 0.4,
               }}
             >
-              事件详情
+              重点观察
             </span>
           </div>
           {sourceDomain && (

@@ -587,7 +587,11 @@ class ScriptWriter:
         for elem in scene_elements:
             if elem.element_type == card_type and elem.sub_segment_index is None:
                 elem.sub_segment_index = sub_idx
-                if elem.element_type in {"event_card", "story_compact_card", "quick_item_card"}:
+                if elem.element_type in {
+                    "event_card",
+                    "story_compact_card",
+                    "quick_item_card",
+                }:
                     elem.props["display_index"] = story_i
                     elem.props["story_count"] = total_stories
                 elem.props["subtitle_texts"] = subtitle_texts
@@ -650,6 +654,84 @@ class ScriptWriter:
 
         return audio_parts, scene_elems, subtitle_texts_list, durations
 
+    @staticmethod
+    def _is_quick_segment(segment: ScriptSegment) -> bool:
+        return segment.meta.get("presentation_mode") == "quick"
+
+    @staticmethod
+    def _quick_roundup_item_from_segment(
+        segment: ScriptSegment, display_index: int
+    ) -> dict:
+        quick_elem = next(
+            (
+                elem
+                for elem in segment.scene_elements
+                if elem.element_type == "quick_item_card"
+            ),
+            None,
+        )
+        props = dict(quick_elem.props if quick_elem else {})
+        story_index = segment.meta.get("story_index", props.get("story_index"))
+        return {
+            "story_index": story_index,
+            "display_index": display_index,
+            "source_title": props.get("source_title", ""),
+            "display_title": props.get("display_title", ""),
+            "quick_label": props.get("quick_label", ""),
+            "micro_takeaway": props.get("micro_takeaway", ""),
+            "category": props.get("category", ""),
+            "keywords": props.get("keywords", []),
+        }
+
+    def _process_quick_roundup(
+        self,
+        quick_segments: list[ScriptSegment],
+        start_story_i: int,
+        total_stories: int,
+        sub_idx: int,
+    ) -> tuple[list[str], list[SceneElement], list[list[str]], list[float]]:
+        audio_parts: list[str] = []
+        subtitle_texts: list[str] = []
+        items: list[dict] = []
+
+        for offset, seg in enumerate(quick_segments):
+            card_narrations = seg.meta.get("card_narrations", []) or []
+            texts: list[str] = []
+            for card in card_narrations:
+                if card.get("card_type") == "quick_item_card":
+                    texts.extend(self._extract_subtitle_texts(card))
+            if not texts and seg.audio_text:
+                texts = [seg.audio_text.strip()]
+            if not texts:
+                raise ValueError(
+                    "quick_roundup_card requires one subtitle text for every quick story"
+                )
+
+            text = texts[0].strip()
+            audio_parts.append(text)
+            subtitle_texts.append(text)
+            items.append(
+                self._quick_roundup_item_from_segment(
+                    seg, display_index=start_story_i + offset
+                )
+            )
+
+        duration = sum(max(2.0, len(t) / SPEECH_CPS) for t in subtitle_texts)
+        elem = SceneElement(
+            element_type="quick_roundup_card",
+            start_time=0.0,
+            end_time=0.0,
+            sub_segment_index=sub_idx,
+            props={
+                "section": "快扫",
+                "display_index": start_story_i,
+                "story_count": total_stories,
+                "items": items,
+                "subtitle_texts": subtitle_texts,
+            },
+        )
+        return audio_parts, [elem], [subtitle_texts], [duration]
+
     def _compose_story_scan_segment(
         self,
         story_scan_segs: list[ScriptSegment],
@@ -665,19 +747,36 @@ class ScriptWriter:
         num_stories = len(story_scan_segs)
 
         sub_idx = 0
-        for story_i, seg in enumerate(story_scan_segs):
-            audio_parts, scene_elems, subtitle_texts, durations = (
-                self._process_story_narrations(
-                    seg, story_i, num_stories, sub_idx
+        story_i = 0
+        while story_i < num_stories:
+            seg = story_scan_segs[story_i]
+            if self._is_quick_segment(seg):
+                quick_segments = []
+                start_story_i = story_i
+                while story_i < num_stories and self._is_quick_segment(
+                    story_scan_segs[story_i]
+                ):
+                    quick_segments.append(story_scan_segs[story_i])
+                    story_i += 1
+                audio_parts, scene_elems, subtitle_texts, durations = (
+                    self._process_quick_roundup(
+                        quick_segments, start_story_i, num_stories, sub_idx
+                    )
                 )
-            )
+            else:
+                audio_parts, scene_elems, subtitle_texts, durations = (
+                    self._process_story_narrations(
+                        seg, story_i, num_stories, sub_idx
+                    )
+                )
+                story_i += 1
             combined_audio_parts.extend(audio_parts)
             combined_scene_elements.extend(scene_elems)
             sub_segment_subtitle_texts.extend(subtitle_texts)
             sub_segment_estimated_durations.extend(durations)
             sub_idx += len(subtitle_texts)
 
-            if story_gap > 0 and story_i < num_stories - 1:
+            if story_gap > 0 and story_i < num_stories:
                 combined_scene_elements.append(
                     SceneElement(
                         element_type="story_gap",
@@ -815,7 +914,7 @@ class ScriptWriter:
                 "event_card",
                 "atmosphere_card",
                 "story_compact_card",
-                "quick_item_card",
+                "quick_roundup_card",
             }:
                 continue
             props = dict(elem.props or {})

@@ -123,3 +123,28 @@ def test_normalize_story_judgement_supports_discussion_modes_and_lanes():
     assert result["confidence"] == 0.7
     assert result["comment_lanes"]["representative"][0]["comment_id"] == "ops"
     assert result["comment_lanes"]["color"] == []
+
+
+def test_normalize_story_judgement_rejects_overlong_lane_claim():
+    item = _item()
+    try:
+        normalize_story_judgement(
+            {
+                "comment_lanes": {
+                    "representative": [
+                        {
+                            "comment_id": "ops",
+                            "role": "experience",
+                            "stance": "中立",
+                            "claim": "这是一条故意写得非常非常长的观点摘要不应该被自动截断继续通过",
+                            "quote_score": 0.9,
+                        }
+                    ]
+                },
+            },
+            item,
+        )
+    except ValueError as exc:
+        assert "claim exceeds" in str(exc)
+    else:
+        raise AssertionError("expected overlong claim to fail")

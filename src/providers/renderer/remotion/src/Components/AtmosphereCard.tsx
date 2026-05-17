@@ -57,14 +57,17 @@ interface Quote {
   author: string;
   text: string;
   text_cn?: string;
+  display_text: string;
   stance: string;
   upvotes?: number;
 }
 
 function getQuoteText(quote: Quote) {
-  const hasChinese = Boolean(quote.text_cn?.trim());
+  if (!quote.display_text?.trim()) {
+    throw new Error("AtmosphereCard quote requires display_text");
+  }
   return {
-    primaryText: hasChinese ? cleanText(quote.text_cn!.trim()) : cleanText(quote.text),
+    primaryText: cleanText(quote.display_text.trim()),
   };
 }
 
@@ -312,6 +315,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         width: cardW,
         minHeight: cardMaxH,
         ...glassCard,
+        background: `linear-gradient(135deg, rgba(255,102,0,0.035), rgba(255,255,255,0.055) 38%, rgba(52,199,89,0.03))`,
         padding: `${padY}px ${padX}px`,
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
@@ -320,7 +324,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         display: "flex",
         gap,
         alignItems: "stretch",
-        overflow: "visible",
+        overflow: "hidden",
       }}
     >
       <GlassShimmer frame={frame} />
@@ -336,7 +340,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         }}
       >
         {/* Header row */}
-        <SectionLabel text="讨论氛围" delay={8} frame={frame} variant="brand" />
+        <SectionLabel text="社区回声" delay={8} frame={frame} variant="brand" />
 
         {/* Controversy score */}
         <div
@@ -451,6 +455,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             opacity: imageProgress,
             transform: `translateX(${interpolate(imageProgress, [0, 1], [IMAGE_ENTRANCE_X, 0])}px)`,
             paddingTop: d.scaled(24),
+            paddingLeft: d.scaled(24),
+            borderLeft: `1px solid ${COLORS.borderLow}`,
           }}
         >
           <StancePie

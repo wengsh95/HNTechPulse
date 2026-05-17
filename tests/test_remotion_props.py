@@ -18,6 +18,7 @@ from src.providers.renderer.remotion_props import (
     _expand_news_carousel_card,
     _expand_highlight_entries,
     _expand_event_card,
+    _expand_quick_roundup_card,
     _expand_atmosphere_card,
     expand_element_props,
     sanitize_props,
@@ -310,6 +311,36 @@ class TestExpandEventCard:
         assert result["next_watch"] == "关注企业部署"
 
 
+class TestExpandQuickRoundupCard:
+    def test_expands_roundup_items_from_content(self):
+        content = _make_content_package()
+        content.items[1].category = "开源"
+        content.items[1].keywords = ["archive", "books"]
+
+        result = _expand_quick_roundup_card(
+            {
+                "items": [
+                    {
+                        "story_index": 1,
+                        "display_title": "古腾堡继续变好",
+                        "micro_takeaway": "老项目仍在进化",
+                    }
+                ]
+            },
+            content,
+        )
+
+        item = result["items"][0]
+        assert item["source_title"] == "Story 1"
+        assert item["display_title"] == "古腾堡继续变好"
+        assert item["micro_takeaway"] == "老项目仍在进化"
+        assert item["source_domain"] == "example.com"
+        assert item["score"] == 90
+        assert item["comment_count"] == 2
+        assert item["category"] == "开源"
+        assert item["keywords"] == ["archive", "books"]
+
+
 # ── _expand_atmosphere_card ────────────────────────────────────────────
 
 
@@ -338,14 +369,41 @@ class TestExpandAtmosphereCard:
         assert result["score"] == 100
         assert result["comment_count"] == 2
 
-    def test_preserves_existing_quote_translation_by_source_id(self):
+    def test_preserves_existing_quote_translation_and_uses_claim(self, monkeypatch):
         content = _make_content_package()
+        content.date = "2026-04-26"
+        content.items[0].source_id = "story0"
         content.items[0].comments[0].source_id = "c0"
         content.items[0].comments[0].content = (
             "This selected comment has enough detail to pass the quote filter."
         )
         content.items[0].comments[0].content_cn = None
         content.items[0].comments[0].quality_score = 0.6
+
+        monkeypatch.setattr(
+            "src.providers.renderer.remotion_props.load_comment_judgements",
+            lambda _date: {
+                "story0": {
+                    "comment_lanes": {
+                        "representative": [
+                            {
+                                "comment_id": "c0",
+                                "claim": "翻译不等于展示文案",
+                                "quote_score": 0.9,
+                            }
+                        ]
+                    },
+                    "quote_candidates": [
+                        {
+                            "comment_id": "c0",
+                            "quote_score": 0.9,
+                            "has_viewpoint": True,
+                        }
+                    ],
+                }
+            },
+        )
+
         result = _expand_atmosphere_card(
             {
                 "story_index": 0,
@@ -362,6 +420,80 @@ class TestExpandAtmosphereCard:
         )
         assert result["quotes"][0]["source_id"] == "c0"
         assert result["quotes"][0]["text_cn"] == "评论零"
+        assert result["quotes"][0]["display_text"] == "翻译不等于展示文案"
+
+    def test_quote_display_text_uses_judgement_claim(self, monkeypatch):
+        content = _make_content_package()
+        content.date = "2026-04-26"
+        content.items[0].source_id = "story0"
+        content.items[0].comments[0].source_id = "c0"
+        content.items[0].comments[0].content = (
+            "This selected comment is intentionally much longer than a card quote should be."
+        )
+        content.items[0].comments[0].quality_score = 0.8
+
+        monkeypatch.setattr(
+            "src.providers.renderer.remotion_props.load_comment_judgements",
+            lambda _date: {
+                "story0": {
+                    "comment_lanes": {
+                        "representative": [
+                            {
+                                "comment_id": "c0",
+                                "claim": "边界才是真问题",
+                                "quote_score": 0.9,
+                            }
+                        ]
+                    },
+                    "quote_candidates": [
+                        {
+                            "comment_id": "c0",
+                            "quote_score": 0.9,
+                            "has_viewpoint": True,
+                        }
+                    ],
+                }
+            },
+        )
+
+        result = _expand_atmosphere_card(
+            {"story_index": 0, "selected_comment_ids": ["c0"]},
+            content,
+        )
+
+        assert result["quotes"][0]["display_text"] == "边界才是真问题"
+
+    def test_quote_display_text_requires_judgement_claim(self, monkeypatch):
+        content = _make_content_package()
+        content.date = "2026-04-26"
+        content.items[0].source_id = "story0"
+        content.items[0].comments[0].source_id = "c0"
+        content.items[0].comments[0].content = (
+            "This selected comment is intentionally much longer than a card quote should be."
+        )
+        content.items[0].comments[0].quality_score = 0.8
+
+        monkeypatch.setattr(
+            "src.providers.renderer.remotion_props.load_comment_judgements",
+            lambda _date: {
+                "story0": {
+                    "comment_lanes": {},
+                    "quote_candidates": [
+                        {
+                            "comment_id": "c0",
+                            "quote_score": 0.9,
+                            "has_viewpoint": True,
+                        }
+                    ],
+                }
+            },
+        )
+
+        with pytest.raises(ValueError, match="requires comment_lanes claim"):
+            _expand_atmosphere_card(
+                {"story_index": 0, "selected_comment_ids": ["c0"]},
+                content,
+            )
 
 
 # ── expand_element_props ───────────────────────────────────────────────

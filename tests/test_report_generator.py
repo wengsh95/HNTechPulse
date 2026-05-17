@@ -5,6 +5,7 @@ from unittest.mock import patch
 from src.core.models import (
     ContentItem,
     ContentPackage,
+    SceneElement,
     Script,
     ScriptSegment,
 )
@@ -122,3 +123,58 @@ class TestGenerate:
 
         text = Path("data/2026-04-26/report.md").read_text(encoding="utf-8")
         assert "缺少图片" in text
+
+    def test_counts_story_coverage_from_script_elements(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        with patch("src.pipeline.report_generator.setup_logger"):
+            gen = ReportGenerator()
+
+        content = _make_content_package(items=[_make_item(source_id=str(i)) for i in range(10)])
+        script = _make_script(
+            segments=[
+                ScriptSegment(
+                    segment_type="story_scan",
+                    audio_text="scan",
+                    estimated_duration=100.0,
+                    actual_duration=90.0,
+                    scene_elements=[
+                        SceneElement(
+                            element_type="event_card",
+                            start_time=0,
+                            end_time=10,
+                            props={"story_index": i, "coverage_tier": "focus"},
+                        )
+                        for i in range(3)
+                    ]
+                    + [
+                        SceneElement(
+                            element_type="story_compact_card",
+                            start_time=30 + i * 10,
+                            end_time=40 + i * 10,
+                            props={"story_index": 3 + i, "coverage_tier": "standard"},
+                        )
+                        for i in range(3)
+                    ]
+                    + [
+                        SceneElement(
+                            element_type="quick_roundup_card",
+                            start_time=60,
+                            end_time=80,
+                            props={
+                                "items": [
+                                    {"story_index": i, "coverage_tier": "quick"}
+                                    for i in range(6, 10)
+                                ]
+                            },
+                        )
+                    ],
+                )
+            ]
+        )
+
+        gen.generate("2026-04-26", ["script"], 10.0, content, script)
+
+        text = Path("data/2026-04-26/report.md").read_text(encoding="utf-8")
+        assert "| 深度报道 | 3 |" in text
+        assert "| 简要速览 | 3 |" in text
+        assert "| 快讯 | 4 |" in text

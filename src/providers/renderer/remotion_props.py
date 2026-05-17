@@ -49,6 +49,19 @@ def _to_filename(path: str) -> str:
     return Path(path).name
 
 
+def _validate_quote_claim(text: str, max_chars: int = 28) -> str:
+    """Validate a card-facing quote claim."""
+    value = clean_comment_text(str(text or "")).strip()
+    if not value:
+        raise ValueError("comment_lanes claim is required")
+    value = " ".join(value.split())
+    if len(value) > max_chars:
+        raise ValueError(
+            f"comment_lanes claim exceeds {max_chars} characters: {value}"
+        )
+    return value.strip("，。；：、,.!?！？;:）)]】")
+
+
 def _safe_get_item(content, idx):
     """Return content.items[idx] if idx is a valid in-range int, else None."""
     if idx is None or not isinstance(idx, int):
@@ -294,6 +307,63 @@ def _expand_event_card(props, content, score_ranks=None):
     return result
 
 
+def _expand_quick_roundup_card(props, content, score_ranks=None):
+    """Expand quick_roundup_card items with content-backed story metadata."""
+    result = dict(props)
+    items = []
+    for raw in props.get("items", []) or []:
+        if not isinstance(raw, dict):
+            continue
+        story_index = raw.get("story_index")
+        try:
+            story_index = int(story_index)
+        except (TypeError, ValueError):
+            raise ValueError("quick_roundup_card item requires integer story_index")
+        item = _safe_get_item(content, story_index)
+        if item is None:
+            raise ValueError(
+                f"quick_roundup_card item story_index out of range: {story_index}"
+            )
+
+        expanded = dict(raw)
+        expanded["story_index"] = story_index
+        expanded["source_title"] = item.title
+        expanded["display_title"] = (
+            expanded.get("display_title")
+            or item.editor_angle
+            or item.title_cn
+            or item.title
+        )
+        expanded["title_cn"] = item.title_cn or ""
+        expanded["url"] = item.url or ""
+        expanded["source_domain"] = _extract_domain(item.url) if item.url else ""
+        expanded["score"] = item.score or 0
+        expanded["comment_count"] = item.comment_count or 0
+        expanded["category"] = expanded.get("category") or item.category or ""
+        expanded["keywords"] = expanded.get("keywords") or item.keywords or []
+        expanded["micro_takeaway"] = (
+            expanded.get("micro_takeaway")
+            or item.why_it_matters
+            or item.next_watch
+            or item.dek
+            or ""
+        )
+        if score_ranks and item.source_id is not None:
+            rank = score_ranks.get(item.source_id)
+            total = len(score_ranks)
+            expanded["heat_rank"] = rank or 0
+            expanded["heat_level"] = _heat_level_from_rank(rank, total) if rank else ""
+        else:
+            expanded["heat_rank"] = 0
+            expanded["heat_level"] = ""
+        items.append(expanded)
+
+    if not items:
+        raise ValueError("quick_roundup_card requires at least one item")
+    result["items"] = items
+    return result
+
+
 def _expand_atmosphere_card(props, content):
     """Expand atmosphere_card: inject controversy score, stance/distribution, and representative quotes."""
     import math
@@ -346,6 +416,19 @@ def _expand_atmosphere_card(props, content):
     date = getattr(content, "date", "")
     if date:
         judgement = load_comment_judgements(date).get(comment_judgement_key(item), {})
+
+    display_claims = {}
+    for entries in (judgement.get("comment_lanes") or {}).values():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            comment_id = entry.get("comment_id")
+            claim = _validate_quote_claim(entry.get("claim") or "")
+            if comment_id is not None and claim and str(comment_id) not in display_claims:
+                display_claims[str(comment_id)] = claim
+
     selected = select_quote_comments(
         item.comments,
         selected_ids=props.get("selected_comment_ids") or [],
@@ -366,12 +449,21 @@ def _expand_atmosphere_card(props, content):
             )
             or orig_text_cn.get(text, "")
         )
+        source_id = str(c.source_id) if c.source_id is not None else ""
+        display_text = display_claims.get(source_id)
+        if not display_text:
+            raise ValueError(
+                "atmosphere_card requires comment_lanes claim for selected "
+                f"comment {source_id or '<missing>'}; delete comment_judgement/script "
+                "cache and regenerate"
+            )
         quotes.append(
             {
                 "author": c.author,
                 "source_id": c.source_id or "",
                 "text": text,
                 "text_cn": text_cn,
+                "display_text": display_text,
                 "stance": stance,
                 "upvotes": c.upvotes or 0,
             }
@@ -400,7 +492,7 @@ ELEMENT_EXPANDERS = {
     "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
     "story_compact_card": _expand_event_card,
-    "quick_item_card": _expand_event_card,
+    "quick_roundup_card": _expand_quick_roundup_card,
     "atmosphere_card": _expand_atmosphere_card,
 }
 
@@ -409,13 +501,22 @@ def expand_element_props(
     element_type: str, props: Dict[str, Any], content, logger, score_ranks=None
 ) -> Dict[str, Any]:
     """Dispatch to the per-type expander; fall back to raw props on failure or unknown type."""
+    if element_type == "quick_item_card":
+        raise ValueError(
+            "quick_item_card is no longer a renderable element; delete script.json "
+            "and regenerate so quick stories are grouped into quick_roundup_card"
+        )
     if content is None:
         return props
     expander = ELEMENT_EXPANDERS.get(element_type)
     if expander is None:
         return props
     try:
-        if element_type in {"event_card", "story_compact_card", "quick_item_card"}:
+        if element_type in {
+            "event_card",
+            "story_compact_card",
+            "quick_roundup_card",
+        }:
             result = expander(props, content, score_ranks=score_ranks)
         else:
             result = expander(props, content)
