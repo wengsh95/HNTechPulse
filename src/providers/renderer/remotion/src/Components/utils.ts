@@ -43,6 +43,7 @@ export const UI_TEXT = {
   controversy: "争议指数",
   scoreSuffix: "/ 10",
   whyItMatters: "为何关注",
+  upvotes: "赞",
 };
 
 const STANCE_LABELS: Record<string, string> = {

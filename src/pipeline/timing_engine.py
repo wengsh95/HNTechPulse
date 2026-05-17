@@ -21,12 +21,7 @@ class TimingEngine:
                 seg.actual_duration = seg.estimated_duration
 
             if i > 0:
-                gap = (
-                    self.story_gap
-                    if seg.segment_type == "story_scan"
-                    else self.segment_gap
-                )
-                current_time += gap
+                current_time += self.segment_gap
 
             seg.start_time = current_time
             seg.end_time = current_time + seg.actual_duration
@@ -48,9 +43,19 @@ class TimingEngine:
                 if any(d is not None for d in elem_durations):
                     current = 0.0
                     for elem, dur in zip(seg.scene_elements, elem_durations):
+                        if elem.element_type == "story_gap":
+                            d = float(elem.props.get("gap_duration", 0.2))
+                            elem.start_time = current
+                            elem.end_time = current + d
+                            current += d
+                            continue
                         pre_gap = float(elem.props.get("pre_gap_duration") or 0.0)
+                        if pre_gap < 0:
+                            pre_gap = 0.0
                         current += pre_gap
                         d = dur if dur is not None else 0.0
+                        if d <= 0:
+                            d = 3.0
                         if elem.props.get("is_audio_marker") and d <= 0:
                             d = sum(
                                 max(0.0, cue.end_time - cue.start_time)
@@ -60,6 +65,18 @@ class TimingEngine:
                         elem.start_time = current
                         elem.end_time = current + d
                         current += d
+
+                    # Extend last element to fill any gap from MP3 concat
+                    # overhead (individual durations may not sum to the
+                    # concatenated segment audio duration exactly).
+                    segment_duration = seg.actual_duration or seg.estimated_duration
+                    if current < segment_duration:
+                        for elem in reversed(seg.scene_elements):
+                            if not elem.props.get("is_audio_marker"):
+                                elem.end_time = segment_duration
+                                break
+                        if seg.cues:
+                            seg.cues[-1].end_time = round(segment_duration, 3)
                     continue
 
             duration = seg.actual_duration or seg.estimated_duration

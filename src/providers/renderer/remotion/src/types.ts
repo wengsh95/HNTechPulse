@@ -50,5 +50,4 @@ export interface ScriptProps {
   totalDuration: number; // 总时长（秒）
   segments: SegmentData[];
   audioDir: string; // 音频文件根目录
-  transitionTimes?: number[]; // 每个 story 的转场音效起始时间（秒）
 }

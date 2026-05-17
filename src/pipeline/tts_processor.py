@@ -1,13 +1,17 @@
 import json
+import subprocess
 from hashlib import sha256
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from src.core.interfaces import TTSProvider, TTSResult
+from src.core.interfaces import TTSProvider
 from src.core.models import Cue, Script, ScriptSegment
 from src.pipeline.timing_engine import TimingEngine
+from src.providers.renderer.binary_finder import find_ffmpeg
 from src.utils.audio import get_audio_duration
+from src.utils.audio_alignment import AlignmentSegment, align_audio
 from src.utils.logger import setup_logger
+
+_FFMPEG = find_ffmpeg() or "ffmpeg"
 
 
 class TTSProcessor:
@@ -16,123 +20,34 @@ class TTSProcessor:
     ):
         self.tts_provider = tts_provider
         self.config = config
+        self.debug = debug
         timing_cfg = config.get("timing", {})
-        self.subtitle_gap = float(timing_cfg.get("subtitle_gap", 0.0))
-        self.story_gap = float(timing_cfg.get("story_gap", 0.0))
         self.timing_engine = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
-            story_gap=self.story_gap,
+            story_gap=float(timing_cfg.get("story_gap", 0.0)),
             debug=debug,
             level=level,
         )
         self.logger = setup_logger(__name__, debug=debug, level=level)
         tts_config = config.get("tts", {})
-        self.max_workers = tts_config.get("max_workers", 3)
-        if self.max_workers < 1:
-            self.max_workers = 1
-        elif self.max_workers > 8:
-            self.max_workers = 8
+        self.whisper_model = tts_config.get("whisper_model", "large-v3")
+        self.whisper_model_path = tts_config.get("whisper_model_path", "")
 
     def process_audio(self, script: Script, date: str, content=None) -> Script:
-        """Synthesize audio for all segments in parallel, compute timings, validate."""
+        """Synthesize audio and align subtitles via Whisper.
+
+        story_scan segments: per-element TTS → concatenate → cues.
+        Other segments: one TTS call → Whisper alignment → cues.
+        """
         audio_dir = Path(f"data/{date}/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
 
-        tasks = self._collect_tasks(script, audio_dir)
-        self._execute_tasks(tasks)
-        self._assemble_results(script, tasks, audio_dir)
+        self._synthesize_segments(script, audio_dir)
 
         self.timing_engine.compute_timeline(script)
         self.timing_engine.set_scene_element_times(script)
         self.timing_engine.validate_segment_duration(script)
         return script
-
-    # ── Phase 1: collect all synthesis tasks ──
-
-    def _collect_tasks(self, script: Script, audio_dir: Path) -> list[dict]:
-        tasks = []
-        for seg_idx, segment in enumerate(script.segments):
-            if segment.segment_type == "story_scan" and self._has_per_card_audio(
-                segment
-            ):
-                tasks.extend(
-                    self._collect_story_scan_tasks(segment, seg_idx, audio_dir)
-                )
-            else:
-                task = self._collect_segment_task(segment, seg_idx, audio_dir)
-                if task is not None:
-                    tasks.append(task)
-        return tasks
-
-    @staticmethod
-    def _has_per_card_audio(segment: ScriptSegment) -> bool:
-        return any(elem.props.get("subtitle_texts") for elem in segment.scene_elements)
-
-    def _collect_story_scan_tasks(
-        self, segment: ScriptSegment, seg_idx: int, audio_dir: Path
-    ) -> list[dict]:
-        tasks = []
-        for elem_idx, elem in enumerate(segment.scene_elements):
-            subtitle_texts = elem.props.get("subtitle_texts", []) or []
-            for sub_idx, sub_text in enumerate(subtitle_texts):
-                sub_text = (sub_text or "").strip()
-                if not sub_text:
-                    continue
-                audio_path = str(
-                    audio_dir
-                    / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}_sub_{sub_idx:02d}.mp3"
-                )
-                tasks.append(
-                    self._prepare_task(
-                        text=sub_text,
-                        audio_path=audio_path,
-                        emotion=segment.emotion,
-                        seg_idx=seg_idx,
-                        elem_idx=elem_idx,
-                        sub_idx=sub_idx,
-                    )
-                )
-        return tasks
-
-    def _collect_segment_task(
-        self, segment: ScriptSegment, idx: int, audio_dir: Path
-    ) -> dict | None:
-        if not (segment.audio_text or "").strip():
-            audio_path = str(audio_dir / f"segment_{idx:02d}.mp3")
-            Path(audio_path).unlink(missing_ok=True)
-            segment.actual_duration = 0.0
-            segment.audio_path = ""
-            return None
-
-        audio_path = str(audio_dir / f"segment_{idx:02d}.mp3")
-        return self._prepare_task(
-            text=segment.audio_text,
-            audio_path=audio_path,
-            emotion=segment.emotion,
-            seg_idx=idx,
-            elem_idx=None,
-            sub_idx=None,
-        )
-
-    def _prepare_task(
-        self, *, text, audio_path, emotion, seg_idx, elem_idx, sub_idx
-    ) -> dict:
-        text_hash = self._text_hash(text)
-        cache_valid = self._is_cache_valid(audio_path, text_hash)
-        task = {
-            "text": text,
-            "text_hash": text_hash,
-            "audio_path": audio_path,
-            "emotion": emotion,
-            "seg_idx": seg_idx,
-            "elem_idx": elem_idx,
-            "sub_idx": sub_idx,
-            "result": None,
-            "needs_synthesis": not cache_valid,
-        }
-        if not task["needs_synthesis"]:
-            task["result"] = TTSResult(duration=get_audio_duration(audio_path))
-        return task
 
     @staticmethod
     def _text_hash(text: str) -> str:
@@ -142,146 +57,244 @@ class TTSProcessor:
     def _manifest_path(audio_path: str) -> Path:
         return Path(audio_path).with_suffix(Path(audio_path).suffix + ".json")
 
-    def _is_cache_valid(self, audio_path: str, text_hash: str) -> bool:
-        audio_file = Path(audio_path)
-        if not audio_file.exists():
-            return False
+    # ── Synthesis ──────────────────────────────────────────────────────
+
+    def _synthesize_segments(self, script: Script, audio_dir: Path) -> None:
+        """Synthesize audio per segment.
+
+        story_scan segments use per-element TTS (each scene element gets its own
+        audio file and Whisper alignment), then concatenated. This avoids the
+        cross-element misalignment that occurs when SequenceMatcher matches
+        similar-sounding atmosphere texts to the wrong story.
+        """
+        for seg_idx, segment in enumerate(script.segments):
+            if segment.segment_type == "story_scan" and self._has_per_card_audio(
+                segment
+            ):
+                self._synthesize_story_scan(segment, seg_idx, audio_dir)
+            else:
+                self._synthesize_simple_segment(segment, seg_idx, audio_dir)
+
+    @staticmethod
+    def _has_per_card_audio(segment: ScriptSegment) -> bool:
+        return any(elem.props.get("subtitle_texts") for elem in segment.scene_elements)
+
+    # ── Per-element synthesis (story_scan) ─────────────────────────────
+
+    def _synthesize_story_scan(
+        self, segment: ScriptSegment, seg_idx: int, audio_dir: Path
+    ) -> None:
+        """One TTS call per scene element → Whisper alignment → concatenate.
+
+        Each scene element's subtitle_texts are synthesized independently, so
+        Whisper alignment cannot confuse similar text across different stories.
+        Element audio is then concatenated into a single segment audio file.
+        """
+        elem_audio_entries: list[tuple[int, str, float, list[AlignmentSegment]]] = []
+
+        for elem_idx, elem in enumerate(segment.scene_elements):
+            if elem.element_type == "story_gap":
+                gap_duration = float(elem.props.get("gap_duration", 1.0))
+                silent_path = str(
+                    audio_dir / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}_silence.mp3"
+                )
+                self._generate_silence(silent_path, gap_duration)
+                elem.props["audio_duration"] = gap_duration
+                elem_audio_entries.append((elem_idx, silent_path, gap_duration, []))
+                continue
+
+            subtitle_texts = elem.props.get("subtitle_texts", []) or []
+            texts = [t.strip() for t in subtitle_texts if t and t.strip()]
+            if not texts:
+                elem.props["audio_duration"] = 0.0
+                continue
+
+            combined = "\n\n".join(texts)
+            text_hash = self._text_hash(combined)
+            elem_audio_path = str(
+                audio_dir / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}.mp3"
+            )
+
+            aligned = self._load_segment_alignment(elem_audio_path, text_hash)
+            if aligned is None:
+                self.logger.info(
+                    f"Segment {seg_idx} elem {elem_idx}: synthesizing "
+                    f"{len(texts)} texts ({len(combined)} chars)..."
+                )
+                self.tts_provider.synthesize(combined, elem_audio_path)
+                aligned = align_audio(
+                    elem_audio_path,
+                    texts,
+                    model_size=self.whisper_model,
+                    model_path=self.whisper_model_path,
+                    debug=self.debug,
+                )
+                self._write_segment_manifest(elem_audio_path, text_hash, aligned)
+
+            duration = get_audio_duration(elem_audio_path)
+            elem.props["audio_duration"] = duration
+            elem_audio_entries.append((elem_idx, elem_audio_path, duration, aligned))
+
+        if not elem_audio_entries:
+            segment.audio_path = ""
+            segment.actual_duration = 0.0
+            segment.cues = []
+            return
+
+        # Concatenate element audio into segment audio
+        seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
+        self._concat_audio_files(
+            [e[1] for e in elem_audio_entries], seg_audio_path
+        )
+        segment.audio_path = seg_audio_path
+        segment.actual_duration = get_audio_duration(seg_audio_path)
+
+        # Build segment-level cues with absolute times from concatenated audio
+        all_cues: list[Cue] = []
+        offset = 0.0
+        for _elem_idx, _audio_path, duration, aligned in elem_audio_entries:
+            for alg in aligned:
+                all_cues.append(
+                    Cue(
+                        text=alg.text,
+                        start_time=round(offset + alg.start_time, 3),
+                        end_time=round(offset + alg.end_time, 3),
+                    )
+                )
+            offset += duration
+
+        segment.cues = all_cues
+
+        # Bridge gaps between elements (mutagen duration > Whisper end time)
+        # and extend final cue to cover full concatenated audio.
+        if segment.cues and segment.actual_duration:
+            for i in range(len(segment.cues) - 1):
+                if segment.cues[i + 1].start_time > segment.cues[i].end_time:
+                    segment.cues[i].end_time = segment.cues[i + 1].start_time
+            segment.cues[-1].end_time = round(segment.actual_duration, 3)
+
+    def _generate_silence(self, output_path: str, duration: float) -> None:
+        """Generate a silent MP3 matching TTS output format (24000Hz mono)."""
+        if Path(output_path).exists():
+            return
+        subprocess.run(
+            [
+                _FFMPEG, "-y", "-f", "lavfi",
+                "-i", "anullsrc=r=24000:cl=mono",
+                "-t", str(duration),
+                "-c:a", "libmp3lame", "-q:a", "2",
+                output_path,
+            ],
+            capture_output=True, check=True,
+        )
+
+    def _concat_audio_files(
+        self, audio_paths: list[str], output_path: str
+    ) -> None:
+        """Concatenate MP3 audio files without re-encoding."""
+        concat_list = Path(output_path).with_suffix(".concat.txt")
+        with open(concat_list, "w", encoding="utf-8") as f:
+            for path in audio_paths:
+                abs_path = Path(path).absolute().as_posix()
+                f.write(f"file '{abs_path}'\n")
+        try:
+            subprocess.run(
+                [_FFMPEG, "-y", "-f", "concat", "-safe", "0",
+                 "-i", str(concat_list), "-c", "copy", output_path],
+                capture_output=True, check=True,
+            )
+        finally:
+            concat_list.unlink(missing_ok=True)
+
+    # ── Simple segment synthesis (opening, closing, etc.) ──────────────
+
+    def _synthesize_simple_segment(
+        self, segment: ScriptSegment, seg_idx: int, audio_dir: Path
+    ) -> None:
+        """Single TTS call for the entire segment, with Whisper alignment."""
+        audio_text = (segment.audio_text or "").strip()
+        if not audio_text:
+            segment.actual_duration = 0.0
+            segment.audio_path = ""
+            return
+
+        seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
+        text_hash = self._text_hash(audio_text)
+
+        aligned = self._load_segment_alignment(seg_audio_path, text_hash)
+        if aligned is None:
+            self.logger.info(
+                f"Segment {seg_idx} ({segment.segment_type}): synthesizing "
+                f"({len(audio_text)} chars)..."
+            )
+            self.tts_provider.synthesize(
+                audio_text, seg_audio_path, emotion=segment.emotion
+            )
+            aligned = align_audio(
+                seg_audio_path,
+                [audio_text],
+                model_size=self.whisper_model,
+                model_path=self.whisper_model_path,
+                debug=self.debug,
+            )
+            self._write_segment_manifest(seg_audio_path, text_hash, aligned)
+
+        segment.audio_path = seg_audio_path
+        segment.actual_duration = get_audio_duration(seg_audio_path)
+        segment.cues = [
+            Cue(text=seg.text, start_time=seg.start_time, end_time=seg.end_time)
+            for seg in aligned
+        ]
+        if segment.cues and segment.actual_duration:
+            segment.cues[-1].end_time = round(segment.actual_duration, 3)
+
+    def _load_segment_alignment(
+        self, audio_path: str, text_hash: str
+    ) -> list[AlignmentSegment] | None:
+        """Return cached alignment segments, or None if re-synthesis needed."""
+        if not Path(audio_path).exists():
+            return None
         manifest_path = self._manifest_path(audio_path)
         if not manifest_path.exists():
-            return False
+            return None
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return False
-        return manifest.get("text_hash") == text_hash
+            return None
+        if manifest.get("text_hash") != text_hash:
+            return None
+        segments_data = manifest.get("segments")
+        if not segments_data:
+            return None
+        return [
+            AlignmentSegment(
+                text=s["text"],
+                start_time=s["start_time"],
+                end_time=s["end_time"],
+            )
+            for s in segments_data
+        ]
 
-    def _write_manifest(self, task: dict) -> None:
-        manifest_path = self._manifest_path(task["audio_path"])
+    def _write_segment_manifest(
+        self,
+        audio_path: str,
+        text_hash: str,
+        aligned: list[AlignmentSegment],
+    ) -> None:
+        manifest_path = self._manifest_path(audio_path)
         manifest = {
-            "text_hash": task["text_hash"],
-            "text": task["text"],
+            "text_hash": text_hash,
+            "segments": [
+                {
+                    "text": seg.text,
+                    "start_time": round(seg.start_time, 3),
+                    "end_time": round(seg.end_time, 3),
+                }
+                for seg in aligned
+            ],
         }
         manifest_path.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
-    # ── Phase 2: execute synthesis in parallel ──
-
-    def _execute_tasks(self, tasks: list[dict]) -> None:
-        pending = [t for t in tasks if t["needs_synthesis"]]
-        if not pending:
-            self.logger.info("All TTS tasks cached, nothing to synthesize.")
-            return
-
-        self.logger.info(
-            f"Synthesizing {len(pending)} TTS tasks (workers={self.max_workers})..."
-        )
-        completed = 0
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self.tts_provider.synthesize,
-                    t["text"],
-                    t["audio_path"],
-                    t.get("emotion"),
-                ): t
-                for t in pending
-            }
-            for future in as_completed(futures):
-                task = futures[future]
-                try:
-                    task["result"] = future.result()
-                    self._write_manifest(task)
-                except Exception as e:
-                    self.logger.error(
-                        f"TTS synthesis failed for task [{task['seg_idx']}]: {e}"
-                    )
-                    raise
-                completed += 1
-                if completed % 5 == 0 or completed == len(pending):
-                    self.logger.info(f"  TTS progress: {completed}/{len(pending)}")
-
-    # ── Phase 3: assemble results back into script ──
-
-    def _assemble_results(
-        self, script: Script, tasks: list[dict], audio_dir: Path
-    ) -> None:
-        from itertools import groupby
-
-        tasks.sort(key=lambda t: t["seg_idx"])
-        tasks_by_seg = {
-            k: list(g) for k, g in groupby(tasks, key=lambda t: t["seg_idx"])
-        }
-
-        for seg_idx, segment in enumerate(script.segments):
-            seg_tasks = tasks_by_seg.get(seg_idx, [])
-            if not seg_tasks:
-                continue
-
-            if segment.segment_type == "story_scan" and self._has_per_card_audio(
-                segment
-            ):
-                self._assemble_story_scan(segment, seg_tasks)
-            else:
-                self._assemble_simple_segment(segment, seg_tasks[0])
-
-    def _assemble_story_scan(self, segment: ScriptSegment, tasks: list[dict]) -> None:
-        total_duration = 0.0
-        all_cues = []
-
-        from itertools import groupby
-
-        tasks.sort(key=lambda t: t["elem_idx"])
-        tasks_by_elem = {
-            k: list(g) for k, g in groupby(tasks, key=lambda t: t["elem_idx"])
-        }
-
-        valid_tasks = [t for t in tasks if t["result"] is not None]
-        total_subs = len(valid_tasks)
-        sub_idx = 0
-
-        for elem_idx, elem in enumerate(segment.scene_elements):
-            if (
-                elem_idx > 0
-                and self.story_gap > 0
-                and elem.props.get("is_audio_marker")
-            ):
-                total_duration += self.story_gap
-                elem.props["pre_gap_duration"] = self.story_gap
-
-            elem_tasks = tasks_by_elem.get(elem_idx, [])
-            elem_duration = 0.0
-            for task in elem_tasks:
-                result = task["result"]
-                if result is None:
-                    continue
-                all_cues.append(
-                    {
-                        "text": task["text"],
-                        "start_time": total_duration,
-                        "end_time": total_duration + result.duration,
-                        "audio_path": task["audio_path"],
-                    }
-                )
-                total_duration += result.duration
-                elem_duration += result.duration
-                sub_idx += 1
-                if sub_idx < total_subs and self.subtitle_gap > 0:
-                    total_duration += self.subtitle_gap
-                    elem_duration += self.subtitle_gap
-            elem.props["audio_duration"] = elem_duration
-
-        segment.actual_duration = total_duration
-        segment.meta["subtitle_audios"] = all_cues
-        segment.cues = [
-            Cue(text=c["text"], start_time=c["start_time"], end_time=c["end_time"])
-            for c in all_cues
-        ]
-
-    def _assemble_simple_segment(self, segment: ScriptSegment, task: dict) -> None:
-        result = task["result"]
-        if result is None:
-            return
-        segment.actual_duration = result.duration
-        segment.audio_path = task["audio_path"]

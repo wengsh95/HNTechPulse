@@ -21,19 +21,18 @@ import { ScriptProps } from "./types";
 function validateScriptProps(props: Record<string, unknown>): ScriptProps {
   const segments = Array.isArray(props.segments) ? props.segments : [];
   return {
-    width: typeof props.width === "number" ? props.width : 1280,
-    height: typeof props.height === "number" ? props.height : 720,
+    width: typeof props.width === "number" ? props.width : 1920,
+    height: typeof props.height === "number" ? props.height : 1080,
     fps: typeof props.fps === "number" ? props.fps : 24,
     bgColor: typeof props.bgColor === "string" ? props.bgColor : "#0d1117",
     title: typeof props.title === "string" ? props.title : "",
     totalDuration: typeof props.totalDuration === "number" ? props.totalDuration : 0,
     segments,
     audioDir: typeof props.audioDir === "string" ? props.audioDir : "",
-    transitionTimes: Array.isArray(props.transitionTimes) ? props.transitionTimes : undefined,
   };
 }
 
-/** calculateMetadata：根据所有 segment 的时长动态计算总帧数 */
+/** calculateMetadata：根据 props 动态计算分辨率、总帧数 */
 const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
   const p = validateScriptProps(props);
   const fps = p.fps;
@@ -42,14 +41,16 @@ const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
 
   return {
     durationInFrames: Math.ceil(totalDuration * fps),
+    width: p.width,
+    height: p.height,
     props,
   };
 };
 
 /** 默认 props（CLI 模式下被 --props 覆盖，Studio 模式下被 calculateMetadata 返回的 props 覆盖） */
 const defaultProps: ScriptProps = {
-  width: 1280,
-  height: 720,
+  width: 1920,
+  height: 1080,
   fps: 24,
   bgColor: "#0d1117",
   title: "",
@@ -72,8 +73,8 @@ export const Root: React.FC = () => {
       component={ValidatedComposition}
       durationInFrames={240}
       fps={24}
-      width={1280}
-      height={720}
+      width={1920}
+      height={1080}
       defaultProps={defaultProps}
       calculateMetadata={calcMeta}
     />

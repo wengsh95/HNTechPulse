@@ -27,6 +27,18 @@ def _is_remote_url(path: str) -> bool:
     return path.startswith(("http://", "https://"))
 
 
+def _extract_domain(url: str) -> str:
+    """Extract domain from URL, stripping www. prefix."""
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc or ""
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        return netloc
+    except Exception:
+        return ""
+
+
 def _to_filename(path: str) -> str:
     """Extract bare filename from a local path or remote URL."""
     if _is_remote_url(path):
@@ -168,7 +180,32 @@ def _expand_perspective_compare(props, content):
     }
 
 
-def _expand_event_card(props, content):
+def _compute_score_ranks(content) -> Dict[str, int]:
+    """Return a mapping from source_id to 1-based score rank (highest score = 1)."""
+    if content is None or not getattr(content, "items", None):
+        return {}
+    scored = []
+    for idx, item in enumerate(content.items):
+        if item.source_id is not None and (item.score or 0) > 0:
+            scored.append((item.source_id, item.score or 0, idx))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return {sid: rank + 1 for rank, (sid, _, _) in enumerate(scored)}
+
+
+def _heat_level_from_rank(rank: int, total: int) -> str:
+    """Return a human-readable heat level based on rank and total stories."""
+    if total <= 1:
+        return "高热度"
+    if rank == 1:
+        return "今日最热"
+    if rank <= 3:
+        return "高热度"
+    if rank <= max(3, total // 2):
+        return "中热度"
+    return "低热度"
+
+
+def _expand_event_card(props, content, score_ranks=None):
     """Expand event_card element: inject story metadata, image, and keywords."""
 
     item = _safe_get_item(content, props.get("story_index"))
@@ -194,9 +231,24 @@ def _expand_event_card(props, content):
     result["why_it_matters"] = result.get("why_it_matters") or ""
     result["next_watch"] = result.get("next_watch") or ""
     result["url"] = item.url or ""
+    result["source_domain"] = _extract_domain(item.url) if item.url else ""
     result["published_at"] = item.published_at or 0
     result["score"] = item.score or 0
     result["comment_count"] = item.comment_count or 0
+
+    # Heat level from pre-computed score ranks
+    if score_ranks and item.source_id is not None:
+        rank = score_ranks.get(item.source_id)
+        total = len(score_ranks)
+        if rank is not None:
+            result["heat_level"] = _heat_level_from_rank(rank, total)
+            result["heat_rank"] = rank
+        else:
+            result["heat_level"] = ""
+            result["heat_rank"] = 0
+    else:
+        result["heat_level"] = ""
+        result["heat_rank"] = 0
 
     if "keywords" not in result or not result["keywords"]:
         result["keywords"] = item.keywords or []
@@ -205,16 +257,25 @@ def _expand_event_card(props, content):
     if "visual_hint" not in result or not result["visual_hint"]:
         result["visual_hint"] = item.visual_hint or ""
 
-    # Image: support manual image_index; fall back to first local image
+    # Image: resolve image_index against image_candidates (editor's source of truth),
+    # falling back to article_images for backward compatibility.
     image_index = props.get("image_index", 0)
-    local_images = [p for p in item.article_images if not _is_remote_url(p)]
-    if local_images:
+    # Build ordered candidate path list from image_candidates
+    candidate_paths = [
+        c["path"]
+        for c in item.image_candidates
+        if isinstance(c, dict) and c.get("path") and not _is_remote_url(c["path"])
+    ]
+    if not candidate_paths:
+        candidate_paths = [p for p in item.article_images if not _is_remote_url(p)]
+
+    if candidate_paths:
         idx = (
-            max(0, min(image_index, len(local_images) - 1))
+            max(0, min(image_index, len(candidate_paths) - 1))
             if isinstance(image_index, int)
             else 0
         )
-        result["image_src"] = f"images/{_to_filename(local_images[idx])}"
+        result["image_src"] = f"images/{_to_filename(candidate_paths[idx])}"
         result["image_type"] = "article"
     elif item.screenshot_image and not _is_remote_url(item.screenshot_image):
         result["image_src"] = f"images/{_to_filename(item.screenshot_image)}"
@@ -303,6 +364,8 @@ def _expand_atmosphere_card(props, content):
         result["stance_distribution"] = judgement["stance_distribution"]
     if judgement.get("debate_focus"):
         result["debate_focus"] = judgement["debate_focus"]
+    if judgement.get("stance_concerns"):
+        result["stance_concerns"] = judgement["stance_concerns"]
 
     return result
 
@@ -322,7 +385,7 @@ ELEMENT_EXPANDERS = {
 
 
 def expand_element_props(
-    element_type: str, props: Dict[str, Any], content, logger
+    element_type: str, props: Dict[str, Any], content, logger, score_ranks=None
 ) -> Dict[str, Any]:
     """Dispatch to the per-type expander; fall back to raw props on failure or unknown type."""
     if content is None:
@@ -331,7 +394,10 @@ def expand_element_props(
     if expander is None:
         return props
     try:
-        result = expander(props, content)
+        if element_type == "event_card":
+            result = expander(props, content, score_ranks=score_ranks)
+        else:
+            result = expander(props, content)
     except Exception as e:
         logger.info(f"Failed to expand props for {element_type}: {e}")
         return props
@@ -368,38 +434,6 @@ def sanitize_props(props: Dict[str, Any]) -> Dict[str, Any]:
     return cleaned
 
 
-def _story_transition_times(script: Script) -> list[float]:
-    """Return transition sound starts for story boundaries inside story_scan."""
-    times: list[float] = []
-    for segment in script.segments:
-        if segment.segment_type != "story_scan":
-            continue
-        base = float(segment.start_time or 0)
-        markers = [
-            elem for elem in segment.scene_elements if elem.props.get("is_audio_marker")
-        ]
-        if markers:
-            for marker in markers[1:]:
-                story_start = base + float(marker.start_time or 0)
-                previous_end = max(
-                    (
-                        base + float(elem.end_time or 0)
-                        for elem in segment.scene_elements
-                        if not elem.props.get("is_audio_marker")
-                        and float(elem.end_time or 0) <= float(marker.start_time or 0)
-                    ),
-                    default=story_start,
-                )
-                times.append(previous_end)
-            continue
-
-        event_cards = [
-            elem for elem in segment.scene_elements if elem.element_type == "event_card"
-        ]
-        for event in event_cards[1:]:
-            times.append(base + float(event.start_time or 0))
-    return times
-
 
 # ── Main serialization entry point ──────────────────────────────────
 
@@ -420,6 +454,9 @@ def script_to_props(
 
     segments_data: List[Dict[str, Any]] = []
     audio_path_obj = Path(audio_dir).resolve()
+
+    # Pre-compute score rankings across all content items for heat level display
+    score_ranks = _compute_score_ranks(content)
 
     for segment in script.segments:
         duration = float(segment.actual_duration or segment.estimated_duration)
@@ -468,7 +505,7 @@ def script_to_props(
                 continue
 
             expanded_props = expand_element_props(
-                elem.element_type, elem.props.copy(), content, logger
+                elem.element_type, elem.props.copy(), content, logger, score_ranks=score_ranks
             )
             if expanded_props != elem.props:
                 expanded_count += 1
@@ -489,8 +526,6 @@ def script_to_props(
 
         segments_data.append(seg_dict)
 
-    transition_times = _story_transition_times(script)
-
     return {
         "width": width,
         "height": height,
@@ -500,5 +535,117 @@ def script_to_props(
         "totalDuration": float(script.total_duration or 0),
         "segments": segments_data,
         "audioDir": str(Path(audio_dir).resolve()),
-        "transitionTimes": transition_times,
     }
+
+
+# ── Preview props sync (used by orchestrator and editor) ──────────────
+
+
+def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
+    """Load script + content + enrichment from disk, regenerate props.json.
+
+    Copies image assets to Remotion's public/ dir and writes props.json.
+    Returns the path to the written props file. Safe to call while Remotion
+    Studio is running — it will hot-reload on the next file change.
+
+    Used by:
+      - orchestrator._step_sync_preview()
+      - editor's "Sync Preview" button
+    """
+    import json as _json
+    import shutil as _shutil
+    from pathlib import Path as _Path
+
+    if logger is None:
+        logger = setup_logger(__name__)
+
+    # Load script and content
+    from src.pipeline.script_io import load_script as _load_script
+    from src.pipeline.content_preparer import ContentPreparer as _ContentPreparer
+
+    script = _load_script(date)
+    cp = _ContentPreparer(config)
+    content = cp.load_content(date)
+
+    # Merge enrichment data into content
+    enrichment_path = _Path(f"data/{date}/enrichment.json")
+    if enrichment_path.exists():
+        enrich_data = _json.loads(enrichment_path.read_text(encoding="utf-8"))
+        enrich_items = enrich_data.get("items", {})
+        for item in content.items:
+            ed = enrich_items.get(item.source_id, {})
+            enrich_images = ed.get("article_images", [])
+            if enrich_images:
+                existing = set(item.article_images)
+                for img in enrich_images:
+                    if img not in existing:
+                        item.article_images.append(img)
+            # Sync image_candidates — the editor sets image_index against this list
+            enrich_candidates = ed.get("image_candidates", [])
+            if enrich_candidates:
+                item.image_candidates = enrich_candidates
+
+    # Copy image assets to Remotion public/
+    remotion_dir = _Path(__file__).parent / "remotion"
+    image_subdir = remotion_dir / "public" / "images"
+    image_subdir.mkdir(parents=True, exist_ok=True)
+
+    def _is_remote(p: str) -> bool:
+        return p.startswith(("http://", "https://"))
+
+    def _resolve_local(p: str) -> _Path | None:
+        if _is_remote(p):
+            return None
+        src = _Path(p)
+        if not src.is_absolute():
+            src = _Path(f"data/{date}") / p
+        return src if src.exists() else None
+
+    copied = 0
+    for item in content.items:
+        for img_path in item.article_images:
+            src = _resolve_local(img_path)
+            if src:
+                dest = image_subdir / src.name
+                if not dest.exists():
+                    _shutil.copy2(src, dest)
+                    copied += 1
+        for attr in ("logo_image", "screenshot_image"):
+            val = getattr(item, attr, None)
+            if val:
+                src = _resolve_local(val)
+                if src:
+                    dest = image_subdir / src.name
+                    if not dest.exists():
+                        _shutil.copy2(src, dest)
+                        copied += 1
+    if copied > 0:
+        logger.info(f"Copied {copied} images to public/images/")
+
+    # Build props
+    video_config = config.get("video", {})
+    width = video_config.get("resolution", (1280, 720))[0]
+    height = video_config.get("resolution", (1280, 720))[1]
+    fps = video_config.get("fps", 24)
+    bg_color = video_config.get("bg_color", "#0d1117")
+
+    audio_dir = f"data/{date}/audio"
+    props_data = script_to_props(
+        script, audio_dir, width, height, fps, bg_color, content=content, logger=logger
+    )
+    props_json = _json.dumps(props_data, ensure_ascii=False, indent=2)
+
+    # Write to Remotion public/ (studio hot-reloads from here)
+    public_dir = remotion_dir / "public"
+    public_dir.mkdir(parents=True, exist_ok=True)
+    props_file = public_dir / "props.json"
+    props_file.write_text(props_json, encoding="utf-8")
+    logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
+
+    # Also write to data/{date}/ for CLI use
+    cli_path = _Path(f"data/{date}/cli_props.json")
+    cli_path.parent.mkdir(parents=True, exist_ok=True)
+    cli_path.write_text(props_json, encoding="utf-8")
+    logger.info(f"Props written to {cli_path}")
+
+    return str(props_file)

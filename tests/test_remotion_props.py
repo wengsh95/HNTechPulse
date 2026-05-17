@@ -19,9 +19,7 @@ from src.providers.renderer.remotion_props import (
     _expand_highlight_entries,
     _expand_event_card,
     _expand_atmosphere_card,
-    _expand_quote_card,
     expand_element_props,
-    _story_transition_times,
     sanitize_props,
     script_to_props,
 )
@@ -331,36 +329,6 @@ class TestExpandAtmosphereCard:
         assert result["comment_count"] == 2
 
 
-# ── _expand_quote_card ─────────────────────────────────────────────────
-
-
-class TestExpandQuoteCard:
-    def test_injects_quotes(self):
-        content = _make_content_package()
-        result = _expand_quote_card({"story_index": 0}, content)
-        assert "quotes" in result
-        assert isinstance(result["quotes"], list)
-
-    def test_derives_stance_from_sentiment(self):
-        content = _make_content_package()
-        content.items[0].comments[0].content = (
-            "This is a good default because it keeps the common case simple while "
-            "still leaving room for advanced users to opt out."
-        )
-        content.items[0].comments[0].sentiment = 0.8
-        content.items[0].comments[0].quality_score = 0.9
-        content.items[0].comments[1].content = (
-            "I am skeptical because the same mechanism can break workflows where "
-            "people need to control the deployment boundary themselves."
-        )
-        content.items[0].comments[1].sentiment = -0.7
-        content.items[0].comments[1].quality_score = 0.8
-        result = _expand_quote_card({"story_index": 0}, content)
-        assert len(result["quotes"]) == 2
-        assert result["quotes"][0]["stance"] == "支持"
-        assert result["quotes"][1]["stance"] == "质疑"
-
-
 # ── expand_element_props ───────────────────────────────────────────────
 
 
@@ -371,90 +339,6 @@ def test_quote_selection_filters_resource_pointer_comments():
     )
     assert is_resource_pointer_comment(text)
     assert select_representative_comments([comment]) == []
-
-
-def test_quote_card_prefers_llm_selected_comment_ids():
-    content = _make_content_package()
-    content.items[0].comments = [
-        ContentComment(
-            author="linker",
-            content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
-            source_id="link",
-            quality_score=0.95,
-        ),
-        ContentComment(
-            author="skeptic",
-            content="The hard part is not the syntax, it is keeping ABI assumptions and toolchain behavior consistent across platforms.",
-            source_id="view",
-            quality_score=0.7,
-            sentiment=-0.4,
-        ),
-        ContentComment(
-            author="operator",
-            content="In production this usually fails at the boundary where deployment scripts assume one platform and users bring another.",
-            source_id="ops",
-            quality_score=0.65,
-            sentiment=-0.2,
-        ),
-        ContentComment(
-            author="supporter",
-            content="I like the goal, but it should document the unsupported cases clearly instead of pretending portability is automatic.",
-            source_id="support",
-            quality_score=0.6,
-            sentiment=0.5,
-        ),
-    ]
-    result = _expand_quote_card(
-        {"story_index": 0, "selected_comment_ids": ["view"]},
-        content,
-    )
-    assert len(result["quotes"]) == 3
-    assert result["quotes"][0]["author"] == "skeptic"
-
-
-def test_quote_card_rejects_llm_selected_resource_pointer_and_falls_back():
-    content = _make_content_package()
-    content.items[0].comments = [
-        ContentComment(
-            author="linker",
-            content="Here is an article about writing portable ARM64 assembly: https://ariadne.space/2023/04/12/writing-portable-arm-assembly/",
-            source_id="link",
-            quality_score=0.95,
-        ),
-        ContentComment(
-            author="skeptic",
-            content="The hard part is not the syntax, it is keeping ABI assumptions and toolchain behavior consistent across platforms.",
-            source_id="view",
-            quality_score=0.7,
-            sentiment=-0.4,
-        ),
-        ContentComment(
-            author="operator",
-            content="In production this usually fails at the boundary where deployment scripts assume one platform and users bring another.",
-            source_id="ops",
-            quality_score=0.65,
-            sentiment=-0.2,
-        ),
-        ContentComment(
-            author="supporter",
-            content="I like the goal, but it should document the unsupported cases clearly instead of pretending portability is automatic.",
-            source_id="support",
-            quality_score=0.6,
-            sentiment=0.5,
-        ),
-    ]
-    result = _expand_quote_card(
-        {"story_index": 0, "selected_comment_ids": ["link"]},
-        content,
-    )
-    assert len(result["quotes"]) == 3
-    # Stances are ordered 支持, 质疑, 中立
-    assert result["quotes"][0]["author"] == "supporter"
-    assert result["quotes"][0]["stance"] == "支持"
-    assert result["quotes"][1]["author"] == "skeptic"
-    assert result["quotes"][1]["stance"] == "质疑"
-    assert result["quotes"][2]["author"] == "operator"
-    assert result["quotes"][2]["stance"] == "中立"
 
 
 def test_select_quote_comments_honors_ids_then_fills_to_three():
@@ -719,50 +603,3 @@ class TestScriptToProps:
         result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
         assert "cues" in result["segments"][0]
         assert len(result["segments"][0]["cues"]) >= 1
-
-    def test_story_audio_markers_are_audio_only_and_drive_transitions(self):
-        seg = ScriptSegment(
-            segment_type="story_scan",
-            audio_text="第一条。正文一。第二条。正文二。",
-            estimated_duration=24.0,
-            actual_duration=24.0,
-            start_time=10.0,
-            end_time=34.0,
-            scene_elements=[
-                SceneElement(
-                    element_type="story_audio_marker",
-                    start_time=0.0,
-                    end_time=2.0,
-                    props={"is_audio_marker": True, "story_index": 0},
-                ),
-                SceneElement(
-                    element_type="event_card",
-                    start_time=2.0,
-                    end_time=10.0,
-                    props={"story_index": 0},
-                ),
-                SceneElement(
-                    element_type="story_audio_marker",
-                    start_time=11.0,
-                    end_time=13.0,
-                    props={"is_audio_marker": True, "story_index": 1},
-                ),
-                SceneElement(
-                    element_type="event_card",
-                    start_time=13.0,
-                    end_time=24.0,
-                    props={"story_index": 1},
-                ),
-            ],
-        )
-        script = Script(
-            title="T", description="", tags=[], segments=[seg], total_duration=34.0
-        )
-
-        result = script_to_props(script, "/audio", 1280, 720, 24, "#000")
-
-        assert _story_transition_times(script) == [20.0]
-        assert result["transitionTimes"] == [20.0]
-        assert [
-            elem["element_type"] for elem in result["segments"][0]["scene_elements"]
-        ] == ["event_card", "event_card"]

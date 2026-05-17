@@ -17,6 +17,7 @@ from src.providers.enricher.page_fetcher import (
     _parse_github_url,
 )
 from src.providers.enricher.image_handler import ImageHandler
+from src.providers.enricher.baidu_search import BaiduSearchProvider
 
 
 class ArticleEnricher:
@@ -103,6 +104,8 @@ class ArticleEnricher:
         self.llm_model = llm_model
         self.llm_max_tokens = llm_max_tokens
         self.llm_temperature = llm_temperature
+
+        self.baidu_search = BaiduSearchProvider(config)
 
         self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
 
@@ -205,6 +208,8 @@ class ArticleEnricher:
                     item.keywords = None
                     item.category = None
                     item.visual_hint = None
+                    item.why_it_matters = None
+                    item.next_watch = None
                     item.screenshot_image = None
                     result["skipped"].append(item)
                     continue
@@ -310,6 +315,8 @@ class ArticleEnricher:
             item.keywords = None
             item.category = None
             item.visual_hint = None
+            item.why_it_matters = None
+            item.next_watch = None
             item.screenshot_image = None
             self.logger.info(f"[fetch_failed] {item.title[:50]} ({item.url})")
 
@@ -372,6 +379,8 @@ class ArticleEnricher:
                     item.keywords = None
                     item.category = None
                     item.visual_hint = None
+                    item.why_it_matters = None
+                    item.next_watch = None
                     item.enrichment_source = "extraction_failed"
                     self.logger.debug(f"Phase 2 extraction empty: {item.title[:50]}")
                     return
@@ -420,7 +429,14 @@ class ArticleEnricher:
                         )
                     item.screenshot_image = screenshot_image
 
-                enrich_result = self._enrich_content(article_text, item.title)
+                search_context = ""
+                if self.baidu_search.enabled:
+                    results = await self.baidu_search.search(item.title or "")
+                    search_context = BaiduSearchProvider.format_results(results)
+
+                enrich_result = self._enrich_content(
+                    article_text, item.title, search_context
+                )
                 article_summary = (
                     enrich_result.get("article_summary") if enrich_result else None
                 )
@@ -474,6 +490,8 @@ class ArticleEnricher:
                     item.keywords = enrich_result.get("keywords")
                     item.category = enrich_result.get("category")
                     item.visual_hint = enrich_result.get("visual_hint")
+                    item.why_it_matters = enrich_result.get("why_it_matters")
+                    item.next_watch = enrich_result.get("next_watch")
                 if (
                     not item.enrichment_source
                     or item.enrichment_source == "fetch_failed"
@@ -500,6 +518,8 @@ class ArticleEnricher:
                 item.keywords = None
                 item.category = None
                 item.visual_hint = None
+                item.why_it_matters = None
+                item.next_watch = None
                 item.enrichment_source = "error"
                 item.enrichment_error = f"{type(e).__name__}: {e}"
                 item.screenshot_image = None
@@ -510,7 +530,7 @@ class ArticleEnricher:
         )
 
     def _enrich_content(
-        self, article_text: str, title: str
+        self, article_text: str, title: str, search_context: str = ""
     ) -> Optional[Dict[str, Any]]:
         if not self._enrich_prompt:
             self.logger.info("Enrich prompt not loaded, skipping LLM enrichment")
@@ -521,6 +541,7 @@ class ArticleEnricher:
                 self._enrich_prompt,
                 title=title,
                 article_text=article_text[: self.max_text_length],
+                search_context=search_context,
             )
 
             if "<!-- SYSTEM_CUT -->" in prompt:
@@ -665,6 +686,8 @@ class ArticleEnricher:
                     "keywords": item.keywords,
                     "category": item.category,
                     "visual_hint": item.visual_hint,
+                    "why_it_matters": item.why_it_matters,
+                    "next_watch": item.next_watch,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
                     "logo_image": item.logo_image,
@@ -692,6 +715,8 @@ class ArticleEnricher:
                     item.keywords = cached.get("keywords")
                     item.category = cached.get("category")
                     item.visual_hint = cached.get("visual_hint")
+                    item.why_it_matters = cached.get("why_it_matters")
+                    item.next_watch = cached.get("next_watch")
                     source = cached.get("enrichment_source") or "legacy"
                     if source == "manual_override":
                         source = "downloaded_page"

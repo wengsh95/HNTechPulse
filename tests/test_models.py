@@ -69,7 +69,7 @@ class TestScriptModels:
             audio_text="Welcome",
             estimated_duration=10.0,
         )
-        assert seg.emotion == "neutral"
+        assert seg.emotion == "warm"
         assert seg.scene_elements == []
         assert seg.actual_duration is None
 

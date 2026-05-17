@@ -1,10 +1,12 @@
 import json
+import subprocess
 import time
 from pathlib import Path
 from typing import List, Optional
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script, ScriptSegment
+from src.providers.renderer.remotion_props import regenerate_preview_props
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
@@ -64,16 +66,30 @@ class Orchestrator:
     def run(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
     ) -> None:
+        _ALL_STEPS = [
+            "fetch",
+            "enrich",
+            "analyze",
+            "script",
+            "translate",
+            "tts",
+            "render",
+            "preview",
+            "editor",
+            "sync_preview",
+        ]
+
         if steps is None:
-            steps = [
-                "fetch",
-                "enrich",
-                "analyze",
-                "script",
-                "translate",
-                "tts",
-                "render",
-            ]
+            steps = [s for s in _ALL_STEPS if s not in ("render", "editor", "sync_preview")]
+        else:
+            # Exclude standalone steps from expansion — they don't need prior steps
+            _standalone = {"editor", "render", "preview", "sync_preview"}
+            pipeline_steps = [s for s in steps if s in _ALL_STEPS and s not in _standalone]
+            if pipeline_steps:
+                max_idx = max(_ALL_STEPS.index(s) for s in pipeline_steps)
+                steps = _ALL_STEPS[: max_idx + 1] + [s for s in steps if s in _standalone]
+            else:
+                steps = [s for s in steps if s in _ALL_STEPS]
 
         t_start = time.monotonic()
         self.logger.info(
@@ -122,8 +138,14 @@ class Orchestrator:
         if "tts" in steps:
             script = self._step_tts(script, date, content)
 
+        if "sync_preview" in steps:
+            self._step_sync_preview(script, date, content)
+
         if "preview" in steps:
             self._step_preview(script, date, content)
+
+        if "editor" in steps:
+            self._step_editor(date)
 
         if "render" in steps:
             self._step_render(script, date, content, force=force)
@@ -243,7 +265,6 @@ class Orchestrator:
                         segment_type="opening",
                         audio_text="测试音频",
                         estimated_duration=10.0,
-                        emotion="energetic",
                     )
                 ],
             )
@@ -265,6 +286,13 @@ class Orchestrator:
         script = self.tts_processor.process_audio(script, date, content)
         self.script_writer.save_script(script, date)
         return script
+
+    def _step_sync_preview(self, script: Script, date: str, content=None) -> None:
+        self.logger.info("Step: Sync Preview Props")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping sync_preview")
+            return
+        regenerate_preview_props(date, self.config, logger=self.logger)
 
     def _step_preview(self, script: Script, date: str, content=None) -> None:
         self.logger.info("Step: Preview (Remotion Studio)")
@@ -289,12 +317,35 @@ class Orchestrator:
         )
         self.renderer.preview(script, audio_dir, content, date=date)
 
+    def _step_editor(self, date: str) -> None:
+        self.logger.info("Step: Open Streamlit Editor")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping editor")
+            return
+
+        self.logger.info("Opening Streamlit Editor at http://localhost:8501")
+        self.logger.info("Close the browser tab and press Ctrl+C to stop.")
+        try:
+            subprocess.run(
+                [
+                    "uv", "run", "streamlit", "run",
+                    "src/editor/app.py",
+                    "--server.port", "8501",
+                ],
+                check=True,
+            )
+        except KeyboardInterrupt:
+            self.logger.info("Editor stopped.")
+
     def _merge_enrichment_images(self, content: ContentPackage, date: str) -> None:
-        """Merge article_images from enrichment.json into content items.
+        """Merge article_images and image_candidates from enrichment.json into content items.
 
         The editor saves uploaded images to enrichment.json only. Without this merge,
         _prepare_image_assets won't copy them to Remotion's public/ dir and
         event cards won't receive the correct image_src in props.
+
+        Also syncs image_candidates so that image_index (set by the editor against
+        image_candidates order) resolves consistently in _expand_event_card.
         """
         if content is None:
             return
@@ -306,12 +357,15 @@ class Orchestrator:
         for item in content.items:
             ed = enrich_items.get(item.source_id, {})
             enrich_images = ed.get("article_images", [])
-            if not enrich_images:
-                continue
-            existing = set(item.article_images)
-            for img in enrich_images:
-                if img not in existing:
-                    item.article_images.append(img)
+            if enrich_images:
+                existing = set(item.article_images)
+                for img in enrich_images:
+                    if img not in existing:
+                        item.article_images.append(img)
+            # Sync image_candidates — the editor sets image_index against this list
+            enrich_candidates = ed.get("image_candidates", [])
+            if enrich_candidates:
+                item.image_candidates = enrich_candidates
 
     def _step_render(
         self, script: Script, date: str, content=None, force: bool = False

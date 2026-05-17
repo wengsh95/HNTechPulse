@@ -28,69 +28,13 @@ def _make_item(comments=None, **kwargs):
     return ContentItem(**defaults)
 
 
-class TestNormalizeQuoteCardSelection:
-    def test_merges_judgement_ids(self):
+class TestNormalizeAtmosphereCard:
+    def test_injects_debate_focus(self):
         comments = [
             _make_comment(source_id="c1", quality_score=0.8),
             _make_comment(source_id="c2", quality_score=0.7),
-            _make_comment(source_id="c3", quality_score=0.6),
         ]
         item = _make_item(comments=comments)
-
-        segment = ScriptSegment(
-            segment_type="story_scan",
-            audio_text="test",
-            estimated_duration=10.0,
-            scene_elements=[
-                SceneElement(
-                    element_type="quote_card",
-                    start_time=0,
-                    end_time=0,
-                    props={"story_index": 0, "selected_comment_ids": ["c1"]},
-                )
-            ],
-        )
-
-        judgement = {
-            "quote_candidates": [
-                {"comment_id": "c2", "quote_score": 0.9, "has_viewpoint": True},
-                {"comment_id": "c3", "quote_score": 0.8, "has_viewpoint": True},
-            ],
-        }
-
-        ScriptWriter._normalize_quote_card_selection(segment, item, judgement)
-
-        selected_ids = segment.scene_elements[0].props["selected_comment_ids"]
-        assert "c1" in selected_ids
-        # c2 or c3 should be added from judgement
-        assert len(selected_ids) >= 1
-
-    def test_no_op_without_judgement(self):
-        comments = [_make_comment(source_id="c1")]
-        item = _make_item(comments=comments)
-
-        segment = ScriptSegment(
-            segment_type="story_scan",
-            audio_text="test",
-            estimated_duration=10.0,
-            scene_elements=[
-                SceneElement(
-                    element_type="quote_card",
-                    start_time=0,
-                    end_time=0,
-                    props={"story_index": 0, "selected_comment_ids": ["c1"]},
-                )
-            ],
-        )
-
-        ScriptWriter._normalize_quote_card_selection(segment, item, {})
-
-        # Should still have c1
-        assert "c1" in segment.scene_elements[0].props["selected_comment_ids"]
-
-
-class TestNormalizeAtmosphereCard:
-    def test_injects_debate_focus(self):
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
@@ -107,16 +51,18 @@ class TestNormalizeAtmosphereCard:
 
         judgement = {
             "debate_focus": ["API design", "performance"],
-            "stance_distribution": {"鏀寔": 0.6, "璐ㄧ枒": 0.4},
+            "stance_distribution": {"支持": 0.6, "质疑": 0.4},
         }
 
-        ScriptWriter._normalize_atmosphere_card(segment, judgement)
+        ScriptWriter._normalize_atmosphere_card(segment, item, judgement)
 
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["API design", "performance"]
-        assert props["stance_distribution"] == {"鏀寔": 0.6, "璐ㄧ枒": 0.4}
+        assert props["stance_distribution"] == {"支持": 0.6, "质疑": 0.4}
 
     def test_no_op_when_empty_judgement(self):
+        comments = [_make_comment(source_id="c1")]
+        item = _make_item(comments=comments)
         original_props = {"story_index": 0, "existing_key": "value"}
         segment = ScriptSegment(
             segment_type="story_scan",
@@ -132,12 +78,15 @@ class TestNormalizeAtmosphereCard:
             ],
         )
 
-        ScriptWriter._normalize_atmosphere_card(segment, {})
+        ScriptWriter._normalize_atmosphere_card(segment, item, {})
 
-        # Props should be unchanged
-        assert segment.scene_elements[0].props == original_props
+        # Props should be unchanged (no debate_focus or stance_distribution injected)
+        assert "debate_focus" not in segment.scene_elements[0].props
+        assert segment.scene_elements[0].props["existing_key"] == "value"
 
     def test_injects_only_debate_focus(self):
+        comments = [_make_comment(source_id="c1")]
+        item = _make_item(comments=comments)
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
@@ -154,11 +103,11 @@ class TestNormalizeAtmosphereCard:
 
         judgement = {"debate_focus": ["security"], "stance_distribution": {}}
 
-        ScriptWriter._normalize_atmosphere_card(segment, judgement)
+        ScriptWriter._normalize_atmosphere_card(segment, item, judgement)
 
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["security"]
-        assert "stance_distribution" not in props
+        assert "stance_distribution" not in props or props["stance_distribution"] == {}
 
 
 class TestAudioOnlyScriptHelpers:

@@ -2,29 +2,28 @@ import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 import { ElementProps, p } from "./utils";
+import { COLORS, FONTS, FW, useDesign, glassCard, glassCardShadow, S, GRADIENTS } from "./design";
 import {
-  COLORS,
-  FONTS,
-  FW,
-  FS,
-  getCardMaxHeight,
-  glassCard,
-  glassCardShadow,
-  isCompactHeight,
-  LAYOUT,
-  S,
-} from "./design";
-import {
-  breathingOpacity,
-  CapsuleBadge,
   dividerStyle,
   GlassShimmer,
   HighlightEntry,
-  KeywordTag,
+  MedalBadge,
+  MetricPill,
   overshootTranslateY,
   rowEntryAnimation,
   SectionLabel,
+  useCardPad,
+  useCardAnimations,
+  bodySectionGap,
+  heroFontSize,
+  subheadFontSize,
+  CardKeywordsFooter,
+  CARD_ENTRANCE_Y,
+  HERO_ENTRANCE_Y,
+  ROW_STAGGER,
 } from "./HighlightShared";
+
+const COVER_SUBTITLE_COLOR = "rgba(245,245,247,0.50)";
 
 export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const frame = useCurrentFrame();
@@ -38,45 +37,28 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
     : [];
   const hasHighlights = highlightEntries.length > 0;
 
-  const compact = isCompactHeight(height);
-  const cardW = width - LAYOUT.pageInset * 2;
-  const cardH = getCardMaxHeight(height);
+  const d = useDesign();
+  const compact = d.isCompactHeight;
+  const cardW = width - d.layout.pageInset * 2;
+  const cardH = d.getCardMaxHeight;
 
-  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-  });
-  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-  });
-  const footerProgress = interpolate(frame, [20, 36], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-  });
+  const { padX, padY } = useCardPad(compact);
+  const { cardProgress, titleProgress, bodyProgress, footerProgress } = useCardAnimations(frame);
 
   return (
     <div
       style={{
         ...S,
-        left: LAYOUT.pageInset,
-        top: LAYOUT.topInset,
+        left: d.layout.pageInset,
+        top: d.layout.topInset,
         width: cardW,
         height: cardH,
         ...glassCard,
         boxShadow: glassCardShadow,
-        padding: compact ? "24px 32px" : "28px 36px",
+        padding: `${padY}px ${padX}px`,
         boxSizing: "border-box",
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, 28)}px)`,
+        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -84,34 +66,21 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
     >
       <GlassShimmer frame={frame} />
 
-      {/* Header row: capsule badge */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 8,
-          marginBottom: compact ? 16 : 20,
-          maxWidth: cardW - (compact ? 64 : 72),
-          opacity: titleProgress,
-          transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
-        }}
-      >
-        <CapsuleBadge text="今日速递" />
-      </div>
+      {/* Header row */}
+      <SectionLabel text="今日速递" delay={8} frame={frame} />
 
       {/* Headline */}
       <div
         style={{
           opacity: titleProgress,
-          transform: `translateY(${interpolate(titleProgress, [0, 1], [24, 0])}px)`,
+          transform: `translateY(${interpolate(titleProgress, [0, 1], [HERO_ENTRANCE_Y, 0])}px)`,
         }}
       >
         <div
           style={{
             fontFamily: FONTS.bold,
-            fontWeight: FW.heavy,
-            fontSize: compact ? 44 : FS.hero,
+            fontWeight: FW.bold,
+            fontSize: heroFontSize(d, compact),
             color: COLORS.text,
             lineHeight: 1.1,
             letterSpacing: -0.5,
@@ -127,8 +96,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: 6,
-            marginTop: compact ? 28 : 36,
+            marginTop: d.scaled(compact ? 24 : 36),
             flex: 1,
             opacity: bodyProgress,
             transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
@@ -136,16 +104,10 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
         >
           <SectionLabel text="今日亮点" delay={14} frame={frame} />
           {highlightEntries.map((entry, i) => {
-            const rowProgress = rowEntryAnimation(frame, 14 + i * 6, 22);
-            const angle =
-              entry.editor_angle ||
-              entry.title_translation ||
-              entry.title_cn ||
-              entry.original_title ||
-              entry.title ||
-              "";
-            const why = entry.why_it_matters || entry.next_watch || entry.original_title || "";
-            const num = String(i + 1).padStart(2, "0");
+            const rowProgress = rowEntryAnimation(frame, 16 + i * ROW_STAGGER, 20);
+            const angle = entry.editor_angle || "";
+            const why = entry.original_title || "";
+            const showMetrics = typeof entry.score === "number" || typeof entry.comment_count === "number";
 
             return (
               <div
@@ -153,55 +115,90 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 style={{
                   position: "relative",
                   display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  minHeight: 72,
-                  padding: "18px 0",
+                  alignItems: "flex-start",
+                  gap: d.scaled(14),
+                  padding: `${d.scaled(compact ? 14 : 18)}px 0`,
                   opacity: rowProgress,
-                  transform: `translateY(${interpolate(rowProgress, [0, 1], [12, 0])}px)`,
+                  transform: `translateY(${interpolate(rowProgress, [0, 1], [10, 0])}px)`,
+                  borderBottom: i < highlightEntries.length - 1 ? `1px solid ${COLORS.borderLow}` : undefined,
                 }}
               >
+                {/* Left medal */}
                 <div
                   style={{
-                    position: "absolute",
-                    right: -8,
-                    top: -4,
-                    fontFamily: FONTS.mono,
-                    fontSize: FS.watermarkLg,
-                    fontWeight: FW.heavy,
-                    color: `rgba(255,255,255,${breathingOpacity(frame)})`,
-                    lineHeight: 1,
-                    pointerEvents: "none",
-                    letterSpacing: -2,
+                    flexShrink: 0,
+                    alignSelf: "flex-start",
                   }}
                 >
-                  {num}
+                  <MedalBadge rank={i + 1} size={d.scaled(32)} fontSize={d.fs.bodySmall} />
                 </div>
-                <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
+
+                {/* Content */}
+                <div style={{ minWidth: 0, flex: 1, position: "relative", zIndex: 1 }}>
+                  {/* Title row: angle + metrics pills on the right */}
                   <div
                     style={{
-                      fontFamily: FONTS.bold,
-                      fontSize: compact ? 24 : FS.subhead,
-                      lineHeight: 1.3,
-                      fontWeight: FW.heavy,
-                      color: COLORS.text,
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical" as const,
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                      gap: d.scaled(12),
                     }}
                   >
-                    {angle}
+                    <div
+                      style={{
+                        fontFamily: FONTS.bold,
+                        fontSize: subheadFontSize(d, compact),
+                        lineHeight: 1.35,
+                        fontWeight: FW.bold,
+                        color: COLORS.text,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical" as const,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      {angle}
+                    </div>
+                    {showMetrics && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: d.scaled(8),
+                          flexShrink: 0,
+                          alignItems: "center",
+                        }}
+                      >
+                        {typeof entry.score === "number" && (
+                          <MetricPill
+                            icon="🔥"
+                            value={entry.score}
+                            delay={18 + i * ROW_STAGGER}
+                            frame={frame}
+                          />
+                        )}
+                        {typeof entry.comment_count === "number" && (
+                          <MetricPill
+                            icon="💬"
+                            value={entry.comment_count}
+                            delay={20 + i * ROW_STAGGER}
+                            frame={frame}
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
+
                   {why && (
                     <div
                       style={{
                         fontFamily: FONTS.sans,
-                        fontSize: compact ? FS.body : FS.bodyLg,
-                        lineHeight: 1.45,
-                        fontWeight: FW.medium,
-                        color: COLORS.textSecondary,
-                        marginTop: 6,
+                        fontSize: d.fs.bodyLg,
+                        lineHeight: 1.5,
+                        fontWeight: FW.regular,
+                        color: COVER_SUBTITLE_COLOR,
+                        marginTop: d.scaled(compact ? 5 : 8),
                         overflow: "hidden",
                         display: "-webkit-box",
                         WebkitLineClamp: 1,
@@ -222,19 +219,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
       {keywords.length > 0 && (
         <>
           <div style={dividerStyle} />
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "flex-start",
-              gap: 8,
-              opacity: footerProgress,
-            }}
-          >
-            {keywords.slice(0, 3).map((kw, i) => (
-              <KeywordTag key={kw} keyword={kw} delay={20 + i * 4} frame={frame} />
-            ))}
-          </div>
+          <CardKeywordsFooter keywords={keywords.slice(0, 3)} progress={footerProgress} frame={frame} delayBase={20} />
         </>
       )}
     </div>

@@ -1,6 +1,15 @@
-import React from "react";
+import React, { createContext, useContext, useMemo } from "react";
+import { Easing } from "remotion";
 
-/** Keynote 风格暗色设计系统 */
+/** 基准分辨率宽度（设计稿基于 1080p） */
+const BASE_WIDTH = 1920;
+
+/** 根据实际宽度计算缩放因子 */
+export function designScale(width: number): number {
+  return width / BASE_WIDTH;
+}
+
+/** Keynote 风格暗色设计系统（基准值，对应 1080p） */
 export const GRID_UNIT = 8;
 export const grid = (units: number) => units * GRID_UNIT;
 export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
@@ -11,7 +20,7 @@ export const FONTS = {
   bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
 };
 
-/** 标准字重 — 仅使用这些值以保证渲染一致性 */
+/** 标准字重 */
 export const FW = {
   regular: 400,
   medium: 500,
@@ -21,30 +30,25 @@ export const FW = {
 } as const;
 
 export const COLORS = {
-  // 暗色主题背景
   bg: "#0d0d0f",
   surface: "rgba(255,255,255,0.06)",
   surfaceHover: "rgba(255,255,255,0.10)",
   surfaceBorder: "transparent",
 
-  // 文字层级 — 暗底白字
   text: "#f5f5f7",
   textSecondary: "rgba(245,245,247,0.60)",
   textTertiary: "rgba(245,245,247,0.38)",
 
-  // 主强调色 — Apple 蓝
   accent: "#007AFF",
   accentLight: "#4DA6FF",
   accentBg: "rgba(0, 122, 255, 0.12)",
   accentBorder: "rgba(0, 122, 255, 0.35)",
 
-  // 品牌色 — HN 橙（辅助）
   brand: "#ff6600",
   brandLight: "#ff8b36",
   brandBg: "rgba(255, 102, 0, 0.10)",
   brandBorder: "rgba(255, 102, 0, 0.30)",
 
-  // 语义色 — Apple 暗底系统色
   green: "#34C759",
   yellow: "#FFD60A",
   red: "#FF453A",
@@ -54,37 +58,30 @@ export const COLORS = {
   gray: "#8E8E93",
   white: "#ffffff",
 
-  // 文字变体 — text/secondary/tertiary 之间的中间透明度
-  textBody: "rgba(245,245,247,0.85)", // 摘要、要点正文
-  textDim: "rgba(245,245,247,0.70)", // 次级文字
-  textFaint: "rgba(255,255,255,0.22)", // 微弱文字（如投票数）
+  textBody: "rgba(245,245,247,0.85)",
+  textDim: "rgba(245,245,247,0.70)",
+  textFaint: "rgba(255,255,255,0.22)",
 
-  // 表面变体 — 内面板、图片容器等
-  surfaceSubtle: "rgba(255,255,255,0.03)", // 最淡表面
-  surfaceFaint: "rgba(255,255,255,0.04)", // 淡表面
-  surfaceLow: "rgba(255,255,255,0.08)", // 低透明度表面
-  surfaceMid: "rgba(255,255,255,0.10)", // 中透明度表面
-  surfaceMed: "rgba(255,255,255,0.12)", // 中高透明度表面
+  surfaceSubtle: "rgba(255,255,255,0.03)",
+  surfaceFaint: "rgba(255,255,255,0.04)",
+  surfaceLow: "rgba(255,255,255,0.08)",
+  surfaceMid: "rgba(255,255,255,0.10)",
+  surfaceMed: "rgba(255,255,255,0.12)",
 
-  // 边框变体
-  borderSubtle: "rgba(255,255,255,0.07)", // 极淡边框
-  borderLow: "rgba(255,255,255,0.08)", // 淡边框
-  borderMid: "rgba(255,255,255,0.18)", // 中等边框
+  borderSubtle: "rgba(255,255,255,0.07)",
+  borderLow: "rgba(255,255,255,0.08)",
+  borderMid: "rgba(255,255,255,0.18)",
 
-  // 强调色表面/边框（非标准透明度）
-  accentSurface: "rgba(0,122,255,0.10)", // 关键词标签背景
-  accentBorderSubtle: "rgba(0,122,255,0.18)", // 关键词标签边框
-  accentBorderMid: "rgba(0,122,255,0.25)", // 章节指示器边框
+  accentSurface: "rgba(0,122,255,0.10)",
+  accentBorderSubtle: "rgba(0,122,255,0.18)",
+  accentBorderMid: "rgba(0,122,255,0.25)",
 
-  // 品牌色边框（非标准透明度）
-  brandBorderSubtle: "rgba(255,102,0,0.25)", // 胶囊边框
+  brandBorderSubtle: "rgba(255,102,0,0.25)",
 
-  // 背景色变体 — 字幕条等
-  bgTint75: "rgba(13,13,15,0.75)", // 字幕条 minimal 模式
-  bgTint88: "rgba(13,13,15,0.88)", // 字幕条 standard 模式
-  bgStroke: "rgba(13,13,15,0.6)", // 饼图描边
+  bgTint75: "rgba(13,13,15,0.75)",
+  bgTint88: "rgba(13,13,15,0.88)",
+  bgStroke: "rgba(13,13,15,0.6)",
 
-  // 遗留色（保留以减少 diff；部分可能仍被引用）
   dim: "rgba(245,245,247,0.60)",
   cardBg: "rgba(255,255,255,0.06)",
   background: "#0d0d0f",
@@ -93,35 +90,123 @@ export const COLORS = {
   textLight: "rgba(245,245,247,0.60)",
 };
 
-export const LAYOUT = {
-  pageInset: grid(10), // 页面左右内边距
-  topInset: grid(10), // 顶部内边距
-  bottomSafe: grid(15), // 底部安全区
-  chromeInsetX: grid(5), // 顶栏左右内边距
-  chromeTop: grid(4), // 顶栏顶部偏移
-  chromeHeight: grid(4), // 顶栏高度
-  progressInsetX: grid(3), // 进度条左右内边距
-  progressBottom: grid(1), // 进度条底部偏移
-  subtitleBottom: grid(7), // 字幕底部偏移（标准）
-  subtitleBottomMinimal: grid(6), // 字幕底部偏移（精简）
-  cardRadius: 14, // 卡片圆角
-  panelRadius: 10, // 面板圆角
-  chipRadius: 6, // 标签圆角
-  cardPaddingX: grid(4), // 卡片水平内边距
-  cardPaddingY: grid(3), // 卡片垂直内边距
-  contentMaxWidth: grid(102), // 内容最大宽度
-  contentWideMaxWidth: grid(128), // 宽内容最大宽度
-  subtitleMaxWidth: grid(130), // 字幕最大宽度
+/** 基准 LAYOUT 值（1080p 设计稿） */
+const _LAYOUT = {
+  pageInset: grid(12),
+  topInset: grid(12),
+  bottomSafe: grid(18),
+  chromeInsetX: grid(6),
+  chromeTop: grid(5),
+  chromeHeight: grid(5),
+  progressInsetX: grid(4),
+  progressBottom: grid(2),
+  subtitleBottom: grid(8),
+  subtitleBottomMinimal: grid(7),
+  cardRadius: 16,
+  panelRadius: 12,
+  chipRadius: 8,
+  cardPaddingX: grid(5),
+  cardPaddingY: grid(4),
+  contentMaxWidth: grid(120),
+  contentWideMaxWidth: grid(150),
+  subtitleMaxWidth: grid(152),
 };
 
-export const getCardMaxHeight = (height: number) =>
-  Math.max(grid(40), height - LAYOUT.topInset - LAYOUT.bottomSafe);
+export const LAYOUT = _LAYOUT;
 
-export const isCompactHeight = (height: number) => height <= 760;
+/** 基准字号（1080p 设计稿） */
+const _FS = {
+  hero: 56,
+  headline: 42,
+  subhead: 30,
+  closing: 52,
 
-export const GRID_DEBUG = {
-  unit: GRID_UNIT,
-  major: grid(4),
+  body: 22,
+  bodySmall: 18,
+  bodyLg: 20,
+  subtitle2: 18,
+
+  label: 18,
+  caption: 15,
+  pill: 12,
+  micro: 11,
+
+  watermark: 72,
+  watermarkLg: 96,
+  subtitle: 28,
+};
+
+export const FS = _FS;
+
+/** 缩放数值（递归处理嵌套对象，仅缩放 number 类型值） */
+function scaleNumber<T>(value: T, scale: number): T {
+  if (typeof value === "number") {
+    return (value * scale) as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => scaleNumber(v, scale)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      result[key] = scaleNumber((value as Record<string, unknown>)[key], scale);
+    }
+    return result as T;
+  }
+  return value;
+}
+
+/** 缩放后的 grid */
+function scaledGrid(scale: number, units: number): number {
+  return Math.round(units * GRID_UNIT * scale);
+}
+
+export interface DesignTokens {
+  scale: number;
+  /** Scale a raw pixel value to current resolution */
+  scaled: (px: number) => number;
+  layout: typeof LAYOUT;
+  fs: typeof FS;
+  grid: (units: number) => number;
+  isCompactHeight: boolean;
+  getCardMaxHeight: number;
+}
+
+function createDesignTokens(width: number, height: number): DesignTokens {
+  const s = designScale(width);
+  const isLargeScreen = height >= 1000;
+  const heightBoost = isLargeScreen ? 1.18 : 1;
+  const layout = scaleNumber(_LAYOUT, s);
+  const g = (units: number) => scaledGrid(s, units);
+  return {
+    scale: s,
+    scaled: (px: number) => Math.round(px * s * (isLargeScreen && px > 16 ? heightBoost : 1)),
+    layout,
+    fs: scaleNumber(_FS, s * heightBoost),
+    grid: g,
+    isCompactHeight: height <= 900 * s,
+    getCardMaxHeight: Math.max(g(40), height - layout.topInset - layout.bottomSafe),
+  };
+}
+
+const DesignContext = createContext<DesignTokens | null>(null);
+
+/** 获取缩放后的设计令牌（必须在 <DesignProvider> 内使用） */
+export function useDesign(): DesignTokens {
+  const ctx = useContext(DesignContext);
+  if (!ctx) {
+    throw new Error("useDesign() must be used within <DesignProvider>");
+  }
+  return ctx;
+}
+
+export const DesignProvider: React.FC<{
+  width: number;
+  height: number;
+  children: React.ReactNode;
+}> = ({ width, height, children }) => {
+  const tokens = useMemo(() => createDesignTokens(width, height), [width, height]);
+  return React.createElement(DesignContext.Provider, { value: tokens }, children);
 };
 
 /** 毛玻璃卡片样式（Keynote 风格） */
@@ -148,43 +233,16 @@ export const SHADOWS = {
   cardHover: "0 8px 32px rgba(0,0,0,0.50), 0 2px 10px rgba(0,0,0,0.30)",
 };
 
-/** 命名渐变 — 所有渐变字符串的唯一来源 */
+/** 命名渐变 */
 export const GRADIENTS = {
-  brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange})`, // 品牌底条
-  accentFill: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`, // 进度条填充
-  // 扫光效果
+  brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange})`,
+  accentFill: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
   shimmerSweep: `linear-gradient(105deg, transparent 40%, ${COLORS.surfaceLow} 48%, ${COLORS.surfaceLow} 52%, transparent 60%)`,
-  divider: `linear-gradient(90deg, ${COLORS.surfaceMid} 0%, ${COLORS.surfaceFaint} 100%)`, // 分隔线
-  subtitleMinimal: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(13,13,15,0))`, // 字幕条精简模式
-  subtitleStandard: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(13,13,15,0))`, // 字幕条标准模式
-  keywordTagBg: `rgba(0,122,255,0.10)`, // 关键词标签背景
-  dotGrid: `radial-gradient(circle, ${COLORS.surfaceSubtle} 1px, transparent 1px)`, // 微网格背景
-} as const;
-
-/** 语义字号 — 仅使用这些值以保证排版一致性 */
-export const FS = {
-  // 标题层级
-  hero: 52, // CoverCard 主标题
-  headline: 38, // EventCard / AtmosphereCard 主标题
-  subhead: 28, // CoverCard 条目标题
-  closing: 56, // ClosingCard 品牌名
-
-  // 正文
-  body: 20, // 摘要、引言正文
-  bodySmall: 16, // 紧凑模式正文
-  bodyLg: 18, // CoverCard "为何重要" 行
-  subtitle2: 16, // 英文副标题、辅助信息
-
-  // 辅助
-  label: 16, // SectionLabel、InfoPoint 标签、FocusPoint 序号
-  caption: 16, // 徽章、标签、顶栏文字、分类胶囊
-  pill: 11, // 小胶囊文字（EventCard 分类）
-  micro: 10, // 最小文字（投票数、KeywordTags）
-
-  // 特殊
-  watermark: 64, // 章节水印（EventCard）
-  watermarkLg: 84, // 大水印（CoverCard）
-  subtitle: 22, // 底部字幕条
+  divider: `linear-gradient(90deg, ${COLORS.surfaceMid} 0%, ${COLORS.surfaceFaint} 100%)`,
+  subtitleMinimal: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(13,13,15,0))`,
+  subtitleStandard: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(13,13,15,0))`,
+  keywordTagBg: `rgba(0,122,255,0.10)`,
+  dotGrid: `radial-gradient(circle, ${COLORS.surfaceSubtle} 1px, transparent 1px)`,
 } as const;
 
 export const sectionLabel: React.CSSProperties = {
@@ -198,3 +256,148 @@ export const sectionLabel: React.CSSProperties = {
 };
 
 export const S: React.CSSProperties = { position: "absolute" as const };
+
+// ── Shared card layout constants ──
+
+/** Standard card padding (px values, scaled at runtime via d.scaled) */
+export const CARD_PAD = {
+  xNormal: 56,
+  xCompact: 40,
+  yNormal: 56,
+  yCompact: 36,
+} as const;
+
+/** Standard animation timing (frames at 30fps) */
+export const ANIM = {
+  cardStart: 4,
+  cardEnd: 22,
+  titleStart: 8,
+  titleEnd: 26,
+  bodyStart: 14,
+  bodyEnd: 32,
+  imageStart: 6,
+  imageEnd: 26,
+  footerStart: 20,
+  footerEnd: 36,
+  rowDuration: 20,
+  sectionLabelDuration: 14,
+  rowStagger: 5,
+} as const;
+
+/** Standard easing curve used across all cards */
+export const EASE_CARD = Easing.bezier(0.16, 1, 0.3, 1);
+
+/** Standard header margin-bottom */
+export const HEADER_MARGIN = {
+  normal: 28,
+  compact: 20,
+} as const;
+
+/** Standard title → body gap (margin-bottom after title) */
+export const TITLE_BODY_GAP = {
+  normal: 24,
+  compact: 16,
+} as const;
+
+/** Standard body section gap */
+export const BODY_SECTION_GAP = {
+  normal: 24,
+  compact: 18,
+} as const;
+
+/** Standard divider margin */
+export const DIVIDER_MARGIN = {
+  top: 14,
+  bottom: 16,
+} as const;
+
+/** Standard keyword gap */
+export const KEYWORD_GAP = 8;
+
+/** Standard card entrance translateY */
+export const CARD_ENTRANCE_Y = 32;
+
+/** Standard title entrance translateY */
+export const TITLE_ENTRANCE_Y = 12;
+
+/** Standard body entrance translateY */
+export const BODY_ENTRANCE_Y = 12;
+
+/** Standard header entrance translateY */
+export const HEADER_ENTRANCE_Y = 8;
+
+/** Standard footer entrance translateY */
+export const FOOTER_ENTRANCE_Y = 6;
+
+/** Standard image panel translateX */
+export const IMAGE_ENTRANCE_X = 28;
+
+/** Standard chapter watermark offset from top padding */
+export const WATERMARK_TOP_OFFSET = 6;
+
+/** Standard compact title font size (headline fallback) */
+export const COMPACT_TITLE_SIZE = 40;
+
+/** Standard hero font size for compact mode */
+export const COMPACT_HERO_SIZE = 48;
+
+/** Standard subhead font size for compact mode */
+export const COMPACT_SUBHEAD_SIZE = 26;
+
+/** Standard item sub-component animation duration (frames) */
+export const ITEM_DURATION = 18;
+
+/** Standard pill/badge animation duration (frames) */
+export const PILL_DURATION = 14;
+
+/** Standard SectionLabel accent bar dimensions */
+export const SECTION_BAR = {
+  width: 3,
+  height: 14,
+  borderRadius: 2,
+} as const;
+
+/** Standard pill border radius (fully rounded) */
+export const PILL_RADIUS = 999;
+
+/** Standard metric pill height */
+export const METRIC_PILL_HEIGHT = 32;
+
+/** Standard metric pill padding horizontal */
+export const METRIC_PILL_PAD_X = 14;
+
+/** Standard hero entrance translateY (CoverCard headline) */
+export const HERO_ENTRANCE_Y = 28;
+
+/** Standard closing question entrance translateY */
+export const CLOSING_QUESTION_ENTRANCE_Y = 24;
+
+/** Standard closing brand entrance translateY */
+export const CLOSING_BRAND_ENTRANCE_Y = 18;
+
+/** Standard image panel border radius */
+export const IMAGE_PANEL_RADIUS = 14;
+
+/** Standard image panel box shadow */
+export const IMAGE_PANEL_SHADOW = glassGlow;
+
+/** Standard image panel border */
+export const IMAGE_PANEL_BORDER = `1px solid ${COLORS.borderLow}`;
+
+/** Standard image panel background */
+export const IMAGE_PANEL_BG = COLORS.surfaceSubtle;
+
+/** Standard row entry stagger (frames between items) */
+export const ROW_STAGGER = 5;
+
+/** Standard keyword tag padding */
+export const KEYWORD_TAG_PAD = {
+  y: 6,
+  x: 16,
+} as const;
+
+/** Standard capsule badge padding */
+export const CAPSULE_PAD = {
+  y: 4,
+  x: 12,
+} as const;

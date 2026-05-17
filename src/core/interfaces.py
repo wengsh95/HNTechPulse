@@ -94,3 +94,13 @@ class Renderer(ABC):
     ) -> None:
         """启动预览模式（可选实现）。"""
         pass
+
+    def sync_props(
+        self,
+        script: "Script",
+        audio_dir: str,
+        content: Optional["ContentPackage"] = None,
+        date: str = "",
+    ) -> None:
+        """重新生成 props.json 和静态资源，不启动预览服务。"""
+        pass

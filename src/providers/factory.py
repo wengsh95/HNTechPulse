@@ -56,6 +56,13 @@ def _auto_register():
         ),
         ("tts", "mimo", "src.providers.tts.mimo_tts", "MimoTTSProvider", register_tts),
         (
+            "tts",
+            "minimax",
+            "src.providers.tts.minimax_tts",
+            "MinimaxTTSProvider",
+            register_tts,
+        ),
+        (
             "renderer",
             "remotion",
             "src.providers.renderer.remotion_renderer",

@@ -65,6 +65,7 @@ class RemotionRenderer(Renderer):
         self.chunk_frames = remotion_config.get("chunk_frames", 1500)
         self.resume_enabled = remotion_config.get("resume_enabled", True)
         self.render_workers = remotion_config.get("render_workers", 2)
+        timing_cfg = config.get("timing", {})
 
         self._node_path = find_node()
         self._npm_path = find_npm(self._node_path)
@@ -87,6 +88,8 @@ class RemotionRenderer(Renderer):
         self._prepare_audio_assets(script, audio_dir)
         if content and date:
             self._prepare_image_assets(content, date)
+
+        self._prepare_sound_effects()
 
         props_data = script_to_props(
             script,
@@ -159,6 +162,15 @@ class RemotionRenderer(Renderer):
         finally:
             pass
 
+    def sync_props(
+        self, script: Script, audio_dir: str, content=None, date: str = ""
+    ) -> None:
+        """Regenerate props.json and static assets without starting the studio."""
+        self.logger.info("Syncing preview props...")
+        _, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
+        self._write_props_file(props_json, date=date)
+        self.logger.info("Props synced. Remotion Studio will hot-reload on next change.")
+
     def render(
         self,
         script: Script,
@@ -216,6 +228,8 @@ class RemotionRenderer(Renderer):
             "render",
             "src/index.ts",
             "HNTechPulseComposition",
+            f"--width={self.width}",
+            f"--height={self.height}",
             f"--props={cli_props_file}",
         ]
 
@@ -484,6 +498,18 @@ class RemotionRenderer(Renderer):
                     copied += 1
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
+
+    def _prepare_sound_effects(self) -> None:
+        """Copy story-gap click sound effect to Remotion public/."""
+        click_src = Path("double-click-computer-mouse.mp3")
+        if not click_src.exists():
+            return
+        public_dir = self.remotion_dir / "public"
+        public_dir.mkdir(parents=True, exist_ok=True)
+        dest = public_dir / click_src.name
+        if not dest.exists():
+            shutil.copy2(click_src, dest)
+            self.logger.debug(f"Copied sound effect: {click_src.name} -> public/")
 
     def _ensure_dependencies_installed(self):
         node_modules = self.remotion_dir / "node_modules"

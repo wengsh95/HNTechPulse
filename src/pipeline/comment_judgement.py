@@ -129,12 +129,20 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
                 if isinstance(v, (int, float)) and v > 0
             }
 
+    stance_concerns = {}
+    raw_concerns = raw.get("stance_concerns", {}) or {}
+    if isinstance(raw_concerns, dict):
+        for k, v in raw_concerns.items():
+            if isinstance(v, str) and v.strip() and k in stance_distribution:
+                stance_concerns[str(k)] = v.strip()[:24]
+
     return {
         "story_id": comment_judgement_key(item),
         "quote_candidates": candidates,
         "rejected": rejected,
         "debate_focus": debate_focus,
         "stance_distribution": stance_distribution,
+        "stance_concerns": stance_concerns,
     }
 
 

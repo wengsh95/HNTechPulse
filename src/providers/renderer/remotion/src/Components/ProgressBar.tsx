@@ -1,7 +1,7 @@
 import React from "react";
 import { interpolate, Easing, useCurrentFrame, useVideoConfig } from "remotion";
 
-import { COLORS, GRADIENTS, LAYOUT } from "./design";
+import { COLORS, GRADIENTS, useDesign } from "./design";
 
 interface ProgressBarProps {
   totalDuration: number;
@@ -16,6 +16,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const { layout } = useDesign();
 
   const currentTime = frame / fps;
   const progress = totalDuration > 0 ? Math.min(Math.max(currentTime / totalDuration, 0), 1) : 0;
@@ -28,7 +29,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   const BAR_HEIGHT = 3;
   const TICK_HEIGHT = 8;
-  const PAD = LAYOUT.progressInsetX;
+  const PAD = layout.progressInsetX;
 
   return (
     <div
@@ -47,7 +48,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           position: "absolute",
           left: PAD,
           right: PAD,
-          bottom: LAYOUT.progressBottom,
+          bottom: layout.progressBottom,
           height: BAR_HEIGHT,
         }}
       >

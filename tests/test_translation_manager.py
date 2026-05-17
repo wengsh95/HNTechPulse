@@ -84,9 +84,10 @@ def test_collect_comment_refs_uses_selected_ids_then_fills_to_three():
         content,
         manager._selected_ids_by_story(script),
     )
+    # select_quote_comments orders by stance: 支持, 质疑, 中立
     assert list(refs.keys()) == [
-        "comment_story_view",
         "comment_story_support",
+        "comment_story_view",
         "comment_story_ops",
     ]
     assert "link" not in "".join(refs.keys())

@@ -1,32 +1,35 @@
 import React from "react";
 import { interpolate, Easing, staticFile, useCurrentFrame } from "remotion";
 
+import { COLORS, FONTS, FW, useDesign, glassCard, glassCardShadow, glassGlow, S } from "./design";
 import {
-  COLORS,
-  FONTS,
-  FW,
-  FS,
-  getCardMaxHeight,
-  glassCard,
-  glassCardShadow,
-  glassGlow,
-  isCompactHeight,
-  LAYOUT,
-  S,
-} from "./design";
-import {
-  breathingOpacity,
-  CapsuleBadge,
   dividerStyle,
   GlassShimmer,
   highlightKeywords,
-  KeywordTag,
   lineClamp,
   MetricPill,
   overshootTranslateY,
   SectionLabel,
+  useCardPad,
+  useCardAnimations,
+  headerMargin,
+  titleBodyGap,
+  bodySectionGap,
+  titleFontSize,
+  ChapterWatermark,
+  CardKeywordsFooter,
+  CARD_ENTRANCE_Y,
+  TITLE_ENTRANCE_Y,
+  BODY_ENTRANCE_Y,
+  HEADER_ENTRANCE_Y,
+  IMAGE_ENTRANCE_X,
+  ITEM_DURATION,
+  IMAGE_PANEL_RADIUS,
+  IMAGE_PANEL_SHADOW,
+  IMAGE_PANEL_BORDER,
+  IMAGE_PANEL_BG,
 } from "./HighlightShared";
-import { cleanText, ElementProps, limitList, p } from "./utils";
+import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
 
 interface KeyPoint {
   label: string;
@@ -55,35 +58,48 @@ function cleanKeyPoints(value: unknown): KeyPoint[] {
     .slice(0, 2);
 }
 
+const INFO_POINT_COLORS = [
+  COLORS.accent,
+  COLORS.brand,
+  COLORS.green,
+];
+
 const InfoPoint: React.FC<{
   point: KeyPoint;
   delay: number;
   frame: number;
-}> = ({ point, delay, frame }) => {
-  const progress = interpolate(frame, [delay, delay + 18], [0, 1], {
+  index: number;
+}> = ({ point, delay, frame, index }) => {
+  const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const { fs } = useDesign();
+  const accentColor = INFO_POINT_COLORS[index % INFO_POINT_COLORS.length];
 
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "baseline",
-        gap: 8,
+        flexDirection: "column",
+        gap: 4,
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [8, 0])}px)`,
+        backgroundColor: COLORS.surfaceFaint,
+        borderRadius: 8,
+        padding: "10px 14px",
+        borderLeft: `3px solid ${accentColor}`,
       }}
     >
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: FS.label,
+          fontSize: fs.caption,
           fontWeight: FW.bold,
-          color: COLORS.textSecondary,
-          whiteSpace: "nowrap",
-          lineHeight: 1.7,
+          color: accentColor,
+          lineHeight: 1.4,
+          letterSpacing: 0.2,
         }}
       >
         {point.label}
@@ -91,7 +107,7 @@ const InfoPoint: React.FC<{
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: FS.bodySmall,
+          fontSize: fs.body,
           fontWeight: FW.medium,
           color: COLORS.textBody,
           lineHeight: 1.7,
@@ -125,72 +141,47 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
     4,
     16,
   );
-  const category = cleanText(p(elementProps, "category", ""));
   const mainTitle = editorAngle || titleCn || storyTitle;
   const showOriginalTitle = Boolean(sourceTitle && mainTitle !== sourceTitle);
-  const hasBody = Boolean(dek || keyPoints.length > 0);
+  const whyItMatters = cleanText(p(elementProps, "why_it_matters", ""));
+  const sourceDomain = cleanText(p(elementProps, "source_domain", ""));
+  const hasBody = Boolean(dek || whyItMatters || keyPoints.length > 0);
   const displayIndex = Number(p(elementProps, "display_index", 0));
   const storyCount = Number(p(elementProps, "story_count", 0));
   const showChapterWatermark = displayIndex > 0 && storyCount > 0;
   const heatScore = Number(p(elementProps, "score", 0)) || 0;
   const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
-  const showMetrics = heatScore > 0 || commentCount > 0;
+  const heatLevel = cleanText(p(elementProps, "heat_level", ""));
+  const heatRank = Number(p(elementProps, "heat_rank", 0)) || 0;
+  const showMetrics = heatScore > 0 || commentCount > 0 || heatLevel !== "";
 
   const hasImage = imageSrc !== "";
   const isLogo = imageType === "logo";
-  const compact = isCompactHeight(height);
-  const cardW = width - LAYOUT.pageInset * 2;
-  const cardMaxH = getCardMaxHeight(height);
+  const d = useDesign();
+  const compact = d.isCompactHeight;
+  const cardW = width - d.layout.pageInset * 2;
+  const cardMaxH = d.getCardMaxHeight;
 
-  const padX = compact ? 36 : 44;
-  const padY = compact ? 32 : 40;
-  const mediaW = hasImage ? (isLogo ? 220 : Math.round(cardW * 0.4)) : 0;
+  const { padX, padY } = useCardPad(compact);
+  const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } = useCardAnimations(frame);
+
+  const mediaW = hasImage ? (isLogo ? d.scaled(220) : Math.round(cardW * 0.38)) : 0;
   const mediaH = isLogo
-    ? Math.min(240, cardMaxH - padY * 2)
-    : Math.min(Math.round((mediaW * 10) / 16), cardMaxH - padY * 2);
-  const gap = hasImage ? (compact ? 32 : 40) : 0;
+    ? Math.min(d.scaled(240), cardMaxH - padY * 2)
+    : Math.min(Math.round((mediaW * 11) / 16), cardMaxH - padY * 2);
+  const gap = hasImage ? d.scaled(compact ? 32 : 36) : 0;
   const textColW = hasImage
-    ? Math.max(320, cardW - mediaW - gap - padX * 2)
-    : Math.min(cardW - padX * 2, LAYOUT.contentWideMaxWidth);
+    ? Math.max(d.scaled(320), cardW - mediaW - gap - padX * 2)
+    : Math.min(cardW - padX * 2, d.layout.contentWideMaxWidth);
 
-  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const imageProgress = interpolate(frame, [6, 26], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const footerProgress = interpolate(frame, [20, 36], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const titleFontSize = compact ? 34 : FS.headline;
+  const resolvedTitleFontSize = titleFontSize(d, compact);
 
   return (
     <div
       style={{
         ...S,
-        left: LAYOUT.pageInset,
-        top: LAYOUT.topInset,
+        left: d.layout.pageInset,
+        top: d.layout.topInset,
         width: cardW,
         minHeight: cardMaxH,
         ...glassCard,
@@ -198,7 +189,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         boxShadow: glassCardShadow,
         boxSizing: "border-box",
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, 28)}px)`,
+        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
         display: "flex",
         gap,
         alignItems: "stretch",
@@ -207,23 +198,13 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
     >
       <GlassShimmer frame={frame} />
       {showChapterWatermark && (
-        <div
-          style={{
-            position: "absolute",
-            right: padX,
-            top: padY - 4,
-            fontFamily: FONTS.mono,
-            fontSize: FS.watermark,
-            fontWeight: FW.heavy,
-            color: `rgba(255,255,255,${breathingOpacity(frame)})`,
-            lineHeight: 1,
-            pointerEvents: "none",
-            letterSpacing: -4,
-            zIndex: 0,
-          }}
-        >
-          {String(displayIndex).padStart(2, "0")}/{String(storyCount).padStart(2, "0")}
-        </div>
+        <ChapterWatermark
+          displayIndex={displayIndex}
+          storyCount={storyCount}
+          padX={padX}
+          padY={padY}
+          frame={frame}
+        />
       )}
 
       <div
@@ -237,52 +218,89 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           zIndex: 1,
         }}
       >
-        {/* Header row: HN badge + category + reading time + date */}
+        {/* Header row */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-            marginBottom: compact ? 16 : 20,
-            maxWidth: textColW,
+            gap: d.scaled(12),
+            marginBottom: headerMargin(compact),
             opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [HEADER_ENTRANCE_Y, 0])}px)`,
           }}
         >
-          <CapsuleBadge text="事件详情" />
+          <div style={{ display: "flex", alignItems: "center", gap: d.scaled(10) }}>
+            <div
+              style={{
+                width: d.scaled(3),
+                height: d.scaled(14),
+                borderRadius: 2,
+                background: COLORS.accent,
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: d.fs.bodySmall,
+                fontWeight: FW.semibold,
+                color: COLORS.textSecondary,
+                letterSpacing: 0.4,
+              }}
+            >
+              事件详情
+            </span>
+          </div>
+          {sourceDomain && (
+            <span
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: d.fs.caption,
+                fontWeight: FW.semibold,
+                color: COLORS.textTertiary,
+                backgroundColor: COLORS.surfaceFaint,
+                border: `1px solid ${COLORS.borderLow}`,
+                borderRadius: d.scaled(4),
+                padding: `${d.scaled(3)}px ${d.scaled(10)}px`,
+                lineHeight: 1.4,
+                letterSpacing: 0.2,
+              }}
+            >
+              {sourceDomain}
+            </span>
+          )}
         </div>
 
-        {/* Main title — large, bold, the visual anchor */}
+        {/* Main title */}
         <div
           style={{
             fontFamily: FONTS.bold,
             fontWeight: FW.heavy,
-            fontSize: titleFontSize,
+            fontSize: resolvedTitleFontSize,
             color: COLORS.text,
             lineHeight: 1.15,
             letterSpacing: -0.4,
-            marginBottom: showOriginalTitle ? (compact ? 6 : 8) : compact ? 14 : 18,
+            marginBottom: showOriginalTitle ? titleBodyGap(compact) * 0.5 : titleBodyGap(compact),
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             maxWidth: textColW,
             opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [TITLE_ENTRANCE_Y, 0])}px)`,
             ...lineClamp(2),
           }}
         >
           {mainTitle}
         </div>
 
-        {/* English subtitle — subordinate to main title */}
+        {/* English subtitle */}
         {showOriginalTitle && (
           <div
             style={{
               fontFamily: FONTS.sans,
               fontWeight: FW.regular,
-              fontSize: FS.subtitle2,
+              fontSize: d.fs.bodyLg,
               color: COLORS.textTertiary,
-              marginBottom: compact ? 14 : 18,
+              marginBottom: titleBodyGap(compact),
               lineHeight: 1.4,
               maxWidth: textColW,
               overflowWrap: "anywhere",
@@ -301,10 +319,36 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           <div
             style={{
               display: "flex",
-              gap: 8,
-              marginBottom: hasBody ? (compact ? 18 : 22) : 0,
+              gap: d.scaled(10),
+              marginBottom: hasBody ? bodySectionGap(compact) : 0,
             }}
           >
+            {heatLevel && (
+              <span
+                style={{
+                  fontFamily: FONTS.sans,
+                  fontSize: d.fs.pill,
+                  fontWeight: FW.bold,
+                  color: COLORS.white,
+                  background: `linear-gradient(135deg, ${COLORS.orange} 0%, ${COLORS.orangeRed}BB 100%)`,
+                  borderRadius: 999,
+                  padding: `${d.scaled(4)}px ${d.scaled(14)}px`,
+                  letterSpacing: 0.3,
+                  opacity: interpolate(frame, [12, 18], [0, 1], {
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
+                  }),
+                  transform: `translateY(${interpolate(
+                    frame,
+                    [12, 18],
+                    [4, 0],
+                    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+                  )}px)`,
+                }}
+              >
+                {heatLevel}
+              </span>
+            )}
             {heatScore > 0 && <MetricPill icon="🔥" value={heatScore} delay={12} frame={frame} />}
             {commentCount > 0 && (
               <MetricPill icon="💬" value={commentCount} delay={14} frame={frame} />
@@ -312,12 +356,12 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
           </div>
         )}
 
-        {/* Body: summary + key points */}
+        {/* Body: summary + why it matters + key points */}
         {hasBody && (
           <div
             style={{
               opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
             }}
           >
             {dek && (
@@ -326,24 +370,20 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                 <div
                   style={{
                     fontFamily: FONTS.sans,
-                    fontSize: compact ? FS.bodySmall : FS.body,
+                    fontSize: d.fs.body,
                     color: COLORS.textBody,
                     lineHeight: 1.7,
                     fontWeight: FW.regular,
                     marginBottom:
-                      keyPoints.length > 0
-                        ? compact
-                          ? 16
-                          : 20
+                      whyItMatters || keyPoints.length > 0
+                        ? bodySectionGap(compact)
                         : keywords.length > 0
-                          ? compact
-                            ? 14
-                            : 16
+                          ? bodySectionGap(compact) * 0.8
                           : 0,
                     maxWidth: textColW,
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
-                    ...lineClamp(3),
+                    ...lineClamp(compact ? 3 : 5),
                   }}
                 >
                   {highlightKeywords(dek, keywords, frame, 14)}
@@ -351,15 +391,37 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
               </>
             )}
 
+            {whyItMatters && (
+              <>
+                <SectionLabel text={UI_TEXT.whyItMatters} delay={16} frame={frame} variant="brand" />
+                <div
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: d.fs.body,
+                    color: COLORS.text,
+                    lineHeight: 1.7,
+                    fontWeight: FW.medium,
+                    marginBottom: keyPoints.length > 0 ? bodySectionGap(compact) : keywords.length > 0 ? bodySectionGap(compact) * 0.8 : 0,
+                    maxWidth: textColW,
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                    ...lineClamp(compact ? 2 : 3),
+                  }}
+                >
+                  {highlightKeywords(whyItMatters, keywords, frame, 16)}
+                </div>
+              </>
+            )}
+
             {keyPoints.length > 0 && (
               <>
-                <SectionLabel text="要点" delay={16} frame={frame} />
+                <SectionLabel text="要点" delay={18} frame={frame} />
                 <div
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr",
                     gap: compact ? 8 : 12,
-                    marginBottom: keywords.length > 0 ? (compact ? 16 : 20) : 0,
+                    marginBottom: keywords.length > 0 ? bodySectionGap(compact) : 0,
                     maxWidth: textColW,
                   }}
                 >
@@ -367,8 +429,9 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     <InfoPoint
                       key={`${point.label}-${i}`}
                       point={point}
-                      delay={18 + i * 5}
+                      delay={20 + i * 5}
                       frame={frame}
+                      index={i}
                     />
                   ))}
                 </div>
@@ -381,21 +444,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         {keywords.length > 0 && (
           <>
             <div style={dividerStyle} />
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "flex-start",
-                gap: 8,
-                marginBottom: 0,
-                maxWidth: textColW,
-                opacity: footerProgress,
-              }}
-            >
-              {keywords.map((kw, i) => (
-                <KeywordTag key={kw} keyword={kw} delay={20 + i * 4} frame={frame} />
-              ))}
-            </div>
+            <CardKeywordsFooter keywords={keywords} progress={footerProgress} frame={frame} delayBase={20} />
           </>
         )}
 
@@ -403,26 +452,28 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
         {!hasBody && !showMetrics && keywords.length === 0 && <div style={{ flex: 1 }} />}
       </div>
 
-      {/* Right: image panel — no browser chrome, glass glow, 3D tilt */}
+      {/* Right: image panel */}
       {hasImage && (
         <div
           style={{
             flex: `0 0 ${mediaW}px`,
-            alignSelf: "center",
+            alignSelf: "stretch",
+            display: "flex",
+            alignItems: "center",
             opacity: imageProgress,
-            transform: `perspective(1000px) rotateY(${interpolate(imageProgress, [0, 1], [3, -1.5])}deg) translateX(${interpolate(imageProgress, [0, 1], [24, 0])}px)`,
+            transform: `perspective(1000px) rotateY(${interpolate(imageProgress, [0, 1], [3, -1.5])}deg) translateX(${interpolate(imageProgress, [0, 1], [IMAGE_ENTRANCE_X, 0])}px)`,
           }}
         >
           <div
             style={{
-              borderRadius: 12,
+              borderRadius: IMAGE_PANEL_RADIUS,
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: COLORS.surfaceSubtle,
-              border: "1px solid " + COLORS.borderLow,
-              boxShadow: glassGlow,
+              background: IMAGE_PANEL_BG,
+              border: IMAGE_PANEL_BORDER,
+              boxShadow: IMAGE_PANEL_SHADOW,
               width: mediaW,
               height: mediaH,
             }}

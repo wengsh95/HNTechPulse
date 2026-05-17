@@ -1,10 +1,10 @@
 # ── 基础/编排配置 ──
 
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 pipeline:
-  num_brief_items: 10            # 快讯条目数量
+  num_brief_items: 3            # 快讯条目数量
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
 hn:
@@ -19,10 +19,10 @@ hn:
   granular_cache: true            # 评论级细粒度缓存（支持断点续传，中断重跑跳过已缓存故事）
 
 video:
-  resolution: [1280, 720]        # 720p 足够（1080p 对文字卡片类视频过剩，且慢 2x）
+  resolution: [1920, 1080]      
   fps: 24                        # 24fps 电影感足够（比 30fps 快 20%）
 
 timing:
-  segment_gap: 0.5          # 非 story 段之间的停顿（opening→dashboard, dashboard→story, story→closing）
-  story_gap: 1.0            # story_scan 段之间的停顿（故事切换）
+  segment_gap: 0.0          # 非 story 段之间的停顿（由 fade-in/out 处理过渡）
+  story_gap: 0.5          # story_scan 内各故事间的过渡时长（暗闪过渡 + 点击音效）
   subtitle_gap: 0.2         # story_scan 内字幕音频之间的停顿（换气感）

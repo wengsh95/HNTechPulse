@@ -3,11 +3,12 @@ import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
-import { COLORS, FONTS, FW, FS, GRADIENTS, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, useDesign, GRADIENTS, S } from "./design";
 
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: _height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const d = useDesign();
   const cues = (elementProps.cues as CueData[]) ?? [];
   const mode = p<"standard" | "minimal" | "hidden">(elementProps, "mode", "standard");
   const fallbackText = stripHtml(p(elementProps, "text", ""));
@@ -68,30 +69,30 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
 
   const isMinimal = mode === "minimal";
 
-  const subMaxWidth = Math.min(width - LAYOUT.pageInset * 2.4, 720);
+  const subMaxWidth = Math.min(width - d.layout.pageInset * 2.4, d.scaled(720));
 
   return (
     <div
       style={{
         ...S,
         left: "50%",
-        bottom: isMinimal ? LAYOUT.subtitleBottomMinimal : LAYOUT.subtitleBottom,
+        bottom: isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom,
         transform: `translateX(-50%) translateY(${slideY}px)`,
         background: isMinimal ? GRADIENTS.subtitleMinimal : GRADIENTS.subtitleStandard,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "10px 28px",
+        padding: `${d.scaled(12)}px ${d.scaled(32)}px`,
         width: subMaxWidth,
-        minHeight: isMinimal ? 40 : 48,
+        minHeight: isMinimal ? d.scaled(44) : d.scaled(54),
         opacity: opacity * (isMinimal ? 0.85 : 0.95),
-        borderRadius: 10,
+        borderRadius: d.scaled(12),
       }}
     >
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: FS.subtitle,
+          fontSize: d.fs.subtitle,
           color: COLORS.text,
           textAlign: "center",
           lineHeight: 1.45,

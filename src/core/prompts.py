@@ -20,6 +20,7 @@ PH_COMMENTS_JSON = "comments_json"
 PH_ITEMS_JSON = "items_json"
 PH_TITLE = "title"
 PH_ARTICLE_TEXT = "article_text"
+PH_SEARCH_CONTEXT = "search_context"
 PH_STORY_INDEX = "story_index"
 
 _KNOWN_PLACEHOLDERS = frozenset(
@@ -33,6 +34,7 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_ITEMS_JSON,
         PH_TITLE,
         PH_ARTICLE_TEXT,
+        PH_SEARCH_CONTEXT,
         PH_STORY_INDEX,
     }
 )

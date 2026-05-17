@@ -37,7 +37,7 @@ def load_script(date: str) -> Script:
                     audio_text=s["audio_text"],
                     estimated_duration=s["estimated_duration"],
                     actual_duration=s.get("actual_duration"),
-                    emotion=s.get("emotion", "neutral"),
+                    emotion=s.get("emotion", "warm"),
                     scene_elements=[
                         SceneElement(
                             element_type=e["element_type"],

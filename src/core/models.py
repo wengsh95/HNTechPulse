@@ -52,6 +52,8 @@ class ContentItem:
     keywords: Optional[List[str]] = None
     category: Optional[str] = None
     visual_hint: Optional[str] = None
+    why_it_matters: Optional[str] = None
+    next_watch: Optional[str] = None
     # Where article_text came from: "aiohttp" | "headless" | "headed" | "manual_override" | "none" | "skipped" | "error" | "legacy".
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.
@@ -109,7 +111,7 @@ class ScriptSegment:
     audio_text: str
     estimated_duration: float
     actual_duration: Optional[float] = None
-    emotion: str = "neutral"
+    emotion: str = "warm"
 
     scene_elements: List[SceneElement] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)

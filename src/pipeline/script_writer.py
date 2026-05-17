@@ -31,6 +31,7 @@ from src.core.models import SceneElement, Cue
 
 
 CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六"]
+SPEECH_CPS = 3.5
 
 
 class ScriptWriter:
@@ -71,8 +72,12 @@ class ScriptWriter:
             "event_summary": props.get("event_summary")
             or (item.dek if item else None)
             or "",
-            "why_it_matters": props.get("why_it_matters") or "",
-            "next_watch": props.get("next_watch") or "",
+            "why_it_matters": props.get("why_it_matters")
+            or (item.why_it_matters if item else None)
+            or "",
+            "next_watch": props.get("next_watch")
+            or (item.next_watch if item else None)
+            or "",
             "category": props.get("category")
             or (item.category if item else None)
             or "",
@@ -122,10 +127,6 @@ class ScriptWriter:
 
         audio_text = "早上好，这里是 HN TechPulse，带你看昨天HN发生了什么。"
         duration = 5
-        highlight_entries = highlight_entries or []
-        if highlight_entries:
-            audio_text = audio_text + self._highlight_audio_text(highlight_entries)
-            duration = 13
 
         keywords: list[str] = []
         if story_scan_segs:
@@ -145,7 +146,6 @@ class ScriptWriter:
             segment_type="opening",
             audio_text=audio_text,
             estimated_duration=duration,
-            emotion="warm",
             scene_elements=[
                 SceneElement(
                     element_type="cover_card",
@@ -212,7 +212,6 @@ class ScriptWriter:
             segment_type="closing",
             audio_text=audio_text,
             estimated_duration=duration,
-            emotion="warm",
             scene_elements=[
                 SceneElement(
                     element_type="closing_card",
@@ -278,25 +277,31 @@ class ScriptWriter:
 
         return entries[:3]
 
-    def _generate_script_split(
-        self, content: ContentPackage, selection: SelectionResult, date: str
-    ) -> Script:
-        """生成每日快讯脚本（拆分模式）"""
-
-        segments = []
-
-        # Generate story scans first so opening highlights can lead with concrete angles.
-        story_indices = [
+    @staticmethod
+    def _extract_story_indices(selection: SelectionResult) -> list[int]:
+        return [
             bi.get("story_index")
             for bi in selection.brief_items
             if bi.get("story_index") is not None
         ]
-        story_scan_segs_by_index = {}
-        comment_judgements = load_comment_judgements(date)
-        max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
-        max_workers = max(1, min(max_workers, len(story_indices) or 1))
 
-        def _generate_story_scan(story_idx: int) -> ScriptSegment:
+    def _calculate_max_workers(self, story_indices: list[int]) -> int:
+        max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
+        return max(1, min(max_workers, len(story_indices) or 1))
+
+    def _generate_story_scan_segments(
+        self,
+        content: ContentPackage,
+        story_indices: list[int],
+        date: str,
+    ) -> list[ScriptSegment]:
+        if not story_indices:
+            return []
+
+        comment_judgements = load_comment_judgements(date)
+        max_workers = self._calculate_max_workers(story_indices)
+
+        def _generate_single(story_idx: int) -> ScriptSegment:
             item = content.items[story_idx]
             judgement = comment_judgements.get(comment_judgement_key(item), {})
             return self.llm_provider.generate_single_story_segment(
@@ -309,143 +314,195 @@ class ScriptWriter:
             )
 
         if max_workers == 1 or len(story_indices) <= 1:
-            for story_idx in story_indices:
-                story_scan_segs_by_index[story_idx] = _generate_story_scan(story_idx)
+            segments_by_index = {
+                idx: _generate_single(idx) for idx in story_indices
+            }
         else:
             self.logger.info(
                 f"Generating {len(story_indices)} story scans with {max_workers} LLM workers"
             )
+            segments_by_index = {}
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(_generate_story_scan, story_idx): story_idx
-                    for story_idx in story_indices
+                    executor.submit(_generate_single, idx): idx
+                    for idx in story_indices
                 }
                 for future in as_completed(futures):
-                    story_idx = futures[future]
-                    story_scan_segs_by_index[story_idx] = future.result()
+                    idx = futures[future]
+                    segments_by_index[idx] = future.result()
 
-        story_scan_segs = [
-            story_scan_segs_by_index[story_idx]
-            for story_idx in story_indices
-            if story_idx in story_scan_segs_by_index
+        ordered = [
+            segments_by_index[idx]
+            for idx in story_indices
+            if idx in segments_by_index
         ]
-        for story_idx, seg in zip(story_indices, story_scan_segs):
+
+        for story_idx, seg in zip(story_indices, ordered):
             judgement = comment_judgements.get(
                 comment_judgement_key(content.items[story_idx]), {}
             )
-            self._normalize_atmosphere_card(
-                seg,
-                content.items[story_idx],
-                judgement,
-            )
+            self._normalize_atmosphere_card(seg, content.items[story_idx], judgement)
 
-        # 固定开场
+        return ordered
+
+    @staticmethod
+    def _extract_subtitle_texts(card: dict) -> list[str]:
+        raw_texts = card.get("subtitle_texts", []) or []
+        return [t.strip() for t in raw_texts if t and t.strip()]
+
+    def _match_card_to_element(
+        self,
+        scene_elements: list[SceneElement],
+        card_type: str,
+        sub_idx: int,
+        story_i: int,
+        total_stories: int,
+        subtitle_texts: list[str],
+    ) -> Optional[SceneElement]:
+        for elem in scene_elements:
+            if elem.element_type == card_type and elem.sub_segment_index is None:
+                elem.sub_segment_index = sub_idx
+                if elem.element_type == "event_card":
+                    elem.props["display_index"] = story_i
+                    elem.props["story_count"] = total_stories
+                elem.props["subtitle_texts"] = subtitle_texts
+                return elem
+        return None
+
+    def _process_story_narrations(
+        self,
+        segment: ScriptSegment,
+        story_i: int,
+        total_stories: int,
+        start_sub_idx: int,
+    ) -> tuple[list[str], list[SceneElement], list[list[str]], list[float]]:
+        audio_parts: list[str] = []
+        scene_elems: list[SceneElement] = []
+        subtitle_texts_list: list[list[str]] = []
+        durations: list[float] = []
+
+        card_narrations = segment.meta.get("card_narrations", [])
+
+        if not card_narrations:
+            card_audio = (segment.audio_text or "").strip()
+            if not card_audio:
+                return audio_parts, scene_elems, subtitle_texts_list, durations
+            texts = [card_audio]
+            audio_parts.append(card_audio)
+            subtitle_texts_list.append(texts)
+            durations.append(sum(max(2.0, len(t) / SPEECH_CPS) for t in texts))
+            for elem in segment.scene_elements:
+                elem.sub_segment_index = start_sub_idx
+                if elem.element_type == "event_card":
+                    elem.props["display_index"] = story_i
+                    elem.props["story_count"] = total_stories
+                elem.props["subtitle_texts"] = texts
+                scene_elems.append(elem)
+            return audio_parts, scene_elems, subtitle_texts_list, durations
+
+        sub_idx = start_sub_idx
+        for card in card_narrations:
+            texts = self._extract_subtitle_texts(card)
+            if not texts:
+                continue
+            card_type = card.get("card_type", "")
+
+            audio_parts.extend(texts)
+            subtitle_texts_list.append(texts)
+            durations.append(sum(max(2.0, len(t) / SPEECH_CPS) for t in texts))
+
+            matched = self._match_card_to_element(
+                segment.scene_elements, card_type, sub_idx, story_i, total_stories, texts
+            )
+            if matched:
+                scene_elems.append(matched)
+            else:
+                self.logger.debug(
+                    f"card_narration type '{card_type}' has no matching scene_element in story {story_i}"
+                )
+
+            sub_idx += 1
+
+        return audio_parts, scene_elems, subtitle_texts_list, durations
+
+    def _compose_story_scan_segment(
+        self,
+        story_scan_segs: list[ScriptSegment],
+    ) -> ScriptSegment:
+        combined_audio_parts: list[str] = []
+        combined_scene_elements: list[SceneElement] = []
+        sub_segment_subtitle_texts: list[list[str]] = []
+        sub_segment_estimated_durations: list[float] = []
+
+        story_gap = float(
+            self.config.get("timing", {}).get("story_gap", 0.0)
+        )
+        num_stories = len(story_scan_segs)
+
+        sub_idx = 0
+        for story_i, seg in enumerate(story_scan_segs):
+            audio_parts, scene_elems, subtitle_texts, durations = (
+                self._process_story_narrations(
+                    seg, story_i, num_stories, sub_idx
+                )
+            )
+            combined_audio_parts.extend(audio_parts)
+            combined_scene_elements.extend(scene_elems)
+            sub_segment_subtitle_texts.extend(subtitle_texts)
+            sub_segment_estimated_durations.extend(durations)
+            sub_idx += len(subtitle_texts)
+
+            if story_gap > 0 and story_i < num_stories - 1:
+                combined_scene_elements.append(
+                    SceneElement(
+                        element_type="story_gap",
+                        start_time=0.0,
+                        end_time=story_gap,
+                        props={"gap_duration": story_gap},
+                    )
+                )
+                sub_segment_estimated_durations.append(story_gap)
+
+        return ScriptSegment(
+            segment_type="story_scan",
+            audio_text=" ".join(combined_audio_parts),
+            estimated_duration=sum(sub_segment_estimated_durations),
+            scene_elements=combined_scene_elements,
+            meta={
+                "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
+                "sub_segment_estimated_durations": sub_segment_estimated_durations,
+            },
+        )
+
+    def _generate_script_split(
+        self, content: ContentPackage, selection: SelectionResult, date: str
+    ) -> Script:
+        segments: list[ScriptSegment] = []
+
+        story_indices = self._extract_story_indices(selection)
+        story_scan_segs = self._generate_story_scan_segments(
+            content, story_indices, date
+        )
+
         highlight_entries = self._build_highlight_entries(
             selection, content, story_scan_segs
         )
         segments.append(
             self._generate_fixed_opening(
-                date,
-                selection,
-                content,
-                story_scan_segs,
-                highlight_entries=highlight_entries,
+                date, selection, content, story_scan_segs, highlight_entries=highlight_entries
             )
         )
 
-        # Story scan
         if not story_scan_segs:
             self.logger.info(
                 f"WARNING: No story_scan segments generated for {len(content.items)} "
                 f"content items. Video will have no news content in the middle."
             )
         else:
-            combined_audio_parts = []
-            combined_scene_elements = []
-            sub_segment_subtitle_texts = []  # list of list[str]
-            sub_segment_estimated_durations = []
-            sub_idx = 0
-            SPEECH_CPS = 3.5  # approximate Chinese chars per second
-
-            for story_i, s in enumerate(story_scan_segs):
-                story_idx = (
-                    story_indices[story_i] if story_i < len(story_indices) else story_i
-                )
-
-                card_narrations = s.meta.get("card_narrations", [])
-                if not card_narrations:
-                    card_audio = (s.audio_text or "").strip()
-                    if not card_audio:
-                        continue
-                    texts = [card_audio]
-                    combined_audio_parts.append(card_audio)
-                    sub_segment_subtitle_texts.append(texts)
-                    sub_segment_estimated_durations.append(
-                        sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
-                    )
-                    for elem in s.scene_elements:
-                        elem.sub_segment_index = sub_idx
-                        if elem.element_type == "event_card":
-                            elem.props["display_index"] = story_i
-                            elem.props["story_count"] = len(story_scan_segs)
-                        elem.props["subtitle_texts"] = texts
-                        combined_scene_elements.append(elem)
-                    sub_idx += 1
-                    continue
-
-                for card in card_narrations:
-                    raw_texts = card.get("subtitle_texts", []) or []
-                    texts = [t.strip() for t in raw_texts if t and t.strip()]
-                    if not texts:
-                        continue
-                    card_type = card.get("card_type", "")
-
-                    for t in texts:
-                        combined_audio_parts.append(t)
-                    sub_segment_subtitle_texts.append(texts)
-                    sub_segment_estimated_durations.append(
-                        sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
-                    )
-
-                    matched = False
-                    for elem in s.scene_elements:
-                        if (
-                            elem.element_type == card_type
-                            and elem.sub_segment_index is None
-                        ):
-                            elem.sub_segment_index = sub_idx
-                            if elem.element_type == "event_card":
-                                elem.props["display_index"] = story_i
-                                elem.props["story_count"] = len(story_scan_segs)
-                            elem.props["subtitle_texts"] = texts
-                            combined_scene_elements.append(elem)
-                            matched = True
-                            break
-
-                    if not matched:
-                        self.logger.debug(
-                            f"card_narration type '{card_type}' has no matching scene_element in story {story_i}"
-                        )
-
-                    sub_idx += 1
-
-            combined_audio = " ".join(combined_audio_parts)
-            total_duration = sum(sub_segment_estimated_durations)
-
-            story_scan_seg = ScriptSegment(
-                segment_type="story_scan",
-                audio_text=combined_audio,
-                estimated_duration=total_duration,
-                emotion="upbeat",
-                scene_elements=combined_scene_elements,
-                meta={
-                    "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
-                    "sub_segment_estimated_durations": sub_segment_estimated_durations,
-                },
+            segments.append(
+                self._compose_story_scan_segment(story_scan_segs)
             )
-            segments.append(story_scan_seg)
 
-        # 固定结尾
         segments.append(self._generate_fixed_closing(date))
 
         return Script(

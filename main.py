@@ -33,8 +33,8 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
     parser.add_argument("--force", action="store_true", help="Force re-render (clear render cache)")
-    parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,render",
-                        help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,render)")
+    parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,preview",
+                        help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,preview,render,editor,sync_preview)")
     parser.add_argument("--config", type=str, default="config/", help="Config directory or file path")
     args = parser.parse_args()
 

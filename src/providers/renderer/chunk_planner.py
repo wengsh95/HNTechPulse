@@ -25,19 +25,23 @@ def compute_segment_chunks(
                 abs_end = seg_start + (elem.end_time or 0)
                 start_f = math.floor(abs_start * fps)
                 end_f = min(math.ceil(abs_end * fps), total_frames - 1)
-                if start_f <= end_f:
+                if start_f < end_f:
                     chunks.append((start_f, end_f, f"story_{story_idx}"))
                 story_idx += 1
         else:
             start_f = math.floor(seg_start * fps)
             end_f = min(math.ceil(seg_end * fps), total_frames - 1)
-            if start_f <= end_f:
+            if start_f < end_f:
                 chunks.append((start_f, end_f, seg.segment_type))
 
     # Align boundaries: each chunk ends exactly one frame before the next starts
     for i in range(len(chunks) - 1):
         next_start = chunks[i + 1][0]
         chunks[i] = (chunks[i][0], next_start - 1, chunks[i][2])
+
+    # Discard any chunk where start >= end (can happen when adjacent elements
+    # overlap or share the same start frame)
+    chunks = [(s, e, l) for s, e, l in chunks if s < e]
 
     # Extend last chunk to cover total_frames
     if chunks:

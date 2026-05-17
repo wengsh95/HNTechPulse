@@ -20,7 +20,8 @@ import { ScriptProps, SegmentData } from "../types";
 import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
-import { COLORS, FONTS, FW, FS, LAYOUT, S } from "./design";
+import { COLORS, FONTS, FW, useDesign, DesignProvider, S } from "./design";
+import { segmentTransitionOpacity } from "./timing";
 
 type StoryChapter = {
   startTime: number;
@@ -96,6 +97,31 @@ const ELEMENT_RENDERERS: Record<
   cover_card: (props) => <CoverCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
+  story_gap: ({ elementProps, duration }) => {
+    const frame = useCurrentFrame();
+    const { fps } = useVideoConfig();
+    const t = frame / fps;
+    const fadeDur = duration * 0.2;
+    const overlayAlpha = interpolate(
+      t,
+      [0, fadeDur, duration - fadeDur, duration],
+      [0, 1, 1, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    return (
+      <>
+        <Audio src={staticFile("double-click-computer-mouse.mp3")} />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `rgba(0,0,0,${0.55 * overlayAlpha})`,
+            pointerEvents: "none",
+          }}
+        />
+      </>
+    );
+  },
 };
 
 /** 渲染单个元素
@@ -166,20 +192,13 @@ const SegmentRenderer: React.FC<{
       : "standard";
 
   const TRANSITION_FRAMES = 12;
-  const fadeIn = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  const segOpacity = segmentTransitionOpacity({
+    absoluteFrame: frame,
+    startFrame,
+    durationFrames,
+    transitionFrames: TRANSITION_FRAMES,
+    isLastSegment,
   });
-  const framesRemaining = durationFrames - frame;
-  const fadeOut = isLastSegment
-    ? 1
-    : interpolate(framesRemaining, [0, TRANSITION_FRAMES], [0, 1], {
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      });
-  const segOpacity = fadeIn * fadeOut;
 
   return (
     <Sequence
@@ -230,6 +249,7 @@ const GlobalChrome: React.FC<{
 }> = ({ dateLabel, chapters, startTime }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const { layout, fs } = useDesign();
   const currentTime = frame / fps;
 
   const activeChapter = chapters.find(
@@ -246,14 +266,17 @@ const GlobalChrome: React.FC<{
     extrapolateRight: "clamp",
   });
 
+  const chromeH = layout.chromeHeight;
+  const pillH = Math.round(chromeH * 0.75);
+
   return (
     <div
       style={{
         position: "absolute",
-        left: LAYOUT.chromeInsetX,
-        right: LAYOUT.chromeInsetX,
-        top: LAYOUT.chromeTop,
-        height: LAYOUT.chromeHeight,
+        left: layout.chromeInsetX,
+        right: layout.chromeInsetX,
+        top: layout.chromeTop,
+        height: chromeH,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -268,7 +291,7 @@ const GlobalChrome: React.FC<{
           gap: 10,
           fontFamily: FONTS.sans,
           color: COLORS.textSecondary,
-          fontSize: FS.bodySmall,
+          fontSize: fs.bodySmall,
           fontWeight: FW.heavy,
           letterSpacing: 0,
         }}
@@ -288,7 +311,7 @@ const GlobalChrome: React.FC<{
             display: "flex",
             alignItems: "center",
             gap: 8,
-            height: 30,
+            height: pillH,
             padding: "0 12px",
             borderRadius: 999,
             background: COLORS.accentBg,
@@ -301,9 +324,9 @@ const GlobalChrome: React.FC<{
             style={{
               display: "inline-flex",
               alignItems: "center",
-              height: 16,
+              height: Math.round(pillH * 0.53),
               fontFamily: FONTS.mono,
-              fontSize: FS.caption,
+              fontSize: fs.caption,
               fontWeight: FW.heavy,
               color: COLORS.accentLight,
               lineHeight: 1,
@@ -317,9 +340,9 @@ const GlobalChrome: React.FC<{
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                height: 16,
+                height: Math.round(pillH * 0.53),
                 fontFamily: FONTS.sans,
-                fontSize: FS.caption,
+                fontSize: fs.caption,
                 fontWeight: FW.bold,
                 color: COLORS.textSecondary,
                 lineHeight: 1,
@@ -342,7 +365,6 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
   bgColor,
   segments,
   audioDir: _audioDir,
-  transitionTimes,
 }) => {
   const frame = useCurrentFrame();
   const totalDuration = useMemo(
@@ -380,79 +402,69 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
 
   return (
     <AbsoluteFill style={{ background: bgColor || COLORS.bg }}>
-      {/* Background atmosphere: glow spots + micro grid */}
-      <BackgroundAtmosphere width={width} height={height} />
+      <DesignProvider width={width} height={height}>
+        {/* Background atmosphere: glow spots + micro grid */}
+        <BackgroundAtmosphere width={width} height={height} />
 
-      {/* 遍历所有 segments，按时间线排列视觉内容 */}
-      {segments.map((segment, index) => (
-        <SegmentRenderer
-          key={`seg-${index}`}
-          segment={segment}
-          index={index}
-          width={width}
-          height={height}
-          fps={fps}
-          isLastSegment={index === segments.length - 1}
+        {/* 遍历所有 segments，按时间线排列视觉内容 */}
+        {segments.map((segment, index) => (
+          <SegmentRenderer
+            key={`seg-${index}`}
+            segment={segment}
+            index={index}
+            width={width}
+            height={height}
+            fps={fps}
+            isLastSegment={index === segments.length - 1}
+          />
+        ))}
+
+        {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
+        {segments
+          .filter((seg) => seg.audio_path && seg.duration > 0)
+          .map((segment, index) => (
+            <Sequence
+              key={`audio-${index}`}
+              from={Math.floor(segment.start_time * fps)}
+              durationInFrames={Math.max(1, Math.ceil(segment.duration * fps))}
+              name={`audio-seg-${index}`}
+              layout="none"
+            >
+              <Audio src={staticFile(segment.audio_path!)} />
+            </Sequence>
+          ))}
+
+        {/* Per-subtitle 音频轨道 (story_scan 使用) */}
+        {segments
+          .filter((seg) => seg.subtitle_audios && seg.subtitle_audios.length > 0)
+          .flatMap((segment) =>
+            (segment.subtitle_audios ?? []).map((sa, i) => ({
+              key: `sub-audio-${segment.start_time}-${i}`,
+              absoluteStart: segment.start_time + sa.start_time,
+              duration: sa.end_time - sa.start_time,
+              audioPath: sa.audio_path,
+            })),
+          )
+          .filter((item) => item.duration > 0)
+          .map((item) => (
+            <Sequence
+              key={item.key}
+              from={Math.floor(item.absoluteStart * fps)}
+              durationInFrames={Math.max(1, Math.ceil(item.duration * fps))}
+              layout="none"
+            >
+              <Audio src={staticFile(item.audioPath)} />
+            </Sequence>
+          ))}
+
+        {/* 底部进度条 */}
+        <ProgressBar
+          totalDuration={totalDuration}
+          storyBoundaries={storyBoundaries}
+          activeStoryIndex={activeStoryIndex}
         />
-      ))}
-
-      {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
-      {segments
-        .filter((seg) => seg.audio_path && seg.duration > 0)
-        .map((segment, index) => (
-          <Sequence
-            key={`audio-${index}`}
-            from={Math.floor(segment.start_time * fps)}
-            durationInFrames={Math.max(1, Math.ceil(segment.duration * fps))}
-            name={`audio-seg-${index}`}
-            layout="none"
-          >
-            <Audio src={staticFile(segment.audio_path!)} />
-          </Sequence>
-        ))}
-
-      {/* Per-subtitle 音频轨道 (story_scan 使用) */}
-      {segments
-        .filter((seg) => seg.subtitle_audios && seg.subtitle_audios.length > 0)
-        .flatMap((segment) =>
-          (segment.subtitle_audios ?? []).map((sa, i) => ({
-            key: `sub-audio-${segment.start_time}-${i}`,
-            absoluteStart: segment.start_time + sa.start_time,
-            duration: sa.end_time - sa.start_time,
-            audioPath: sa.audio_path,
-          })),
-        )
-        .filter((item) => item.duration > 0)
-        .map((item) => (
-          <Sequence
-            key={item.key}
-            from={Math.floor(item.absoluteStart * fps)}
-            durationInFrames={Math.max(1, Math.ceil(item.duration * fps))}
-            layout="none"
-          >
-            <Audio src={staticFile(item.audioPath)} />
-          </Sequence>
-        ))}
-
-      {/* 每个 story 切入时的转场音效（从 gap 起点播放，填充段间停顿） */}
-      {(transitionTimes ?? storyBoundaries).map((startTime, i) => (
-        <Sequence
-          key={`transition-${i}`}
-          from={Math.floor(startTime * fps)}
-          durationInFrames={Math.ceil(1 * fps)}
-          layout="none"
-        >
-          <Audio src={staticFile("double-click-computer-mouse.mp3")} />
-        </Sequence>
-      ))}
-
-      {/* 底部进度条 */}
-      <ProgressBar
-        totalDuration={totalDuration}
-        storyBoundaries={storyBoundaries}
-        activeStoryIndex={activeStoryIndex}
-      />
-      <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
+        <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
+      </DesignProvider>
     </AbsoluteFill>
   );
 };
