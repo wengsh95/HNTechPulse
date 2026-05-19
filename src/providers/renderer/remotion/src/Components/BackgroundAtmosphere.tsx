@@ -105,8 +105,8 @@ export const BackgroundAtmosphere: React.FC<{
               width: spot.size,
               height: spot.size,
               borderRadius: "50%",
-              background: `radial-gradient(circle, ${spot.color} 0%, transparent 70%)`,
-              filter: "blur(80px)",
+              background: `radial-gradient(circle, ${spot.color} 0%, transparent 55%)`,
+              filter: "blur(40px)",
               pointerEvents: "none",
             }}
           />

@@ -26,3 +26,8 @@ enrich:
     top_k: 5                       # 搜索返回条数
     request_timeout: 15            # 搜索请求超时（秒）
     # search_recency_filter: "month"  # 可选：week/month/semiyear/year 时效过滤
+
+  # ── PDF 处理 ──
+  pdf_enabled: true                # 启用 PDF 下载和文本提取
+  pdf_max_size: 20971520           # PDF 文件最大字节数（20MB）
+  pdf_extract_images: true         # 从 PDF 中提取嵌入图片

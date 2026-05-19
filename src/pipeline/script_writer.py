@@ -18,7 +18,10 @@ from src.pipeline.comment_judgement import (
     comment_judgement_key,
     load_comment_judgements,
 )
-from src.pipeline.comment_selection import select_quote_comments
+from src.pipeline.comment_selection import (
+    classify_comment_stance,
+    select_quote_comments,
+)
 from src.pipeline.script_io import (
     save_script as _save_script,
     load_script as _load_script,
@@ -74,9 +77,6 @@ class ScriptWriter:
             or "",
             "why_it_matters": props.get("why_it_matters")
             or (item.why_it_matters if item else None)
-            or "",
-            "next_watch": props.get("next_watch")
-            or (item.next_watch if item else None)
             or "",
             "category": props.get("category")
             or (item.category if item else None)
@@ -141,18 +141,42 @@ class ScriptWriter:
             audio_text = "早上好，这里是 HN每日观察，带你看昨天HN发生了什么。"
             duration = 5
 
-        keywords: list[str] = []
+        # Collect headline titles from top-3 to exclude as keywords (would duplicate visible text)
+        top3_titles: list[str] = []
         if story_scan_segs:
             for seg in story_scan_segs[:3]:
                 for elem in seg.scene_elements:
                     if elem.element_type == "event_card":
-                        kw = (
+                        title = (
                             elem.props.get("editor_angle")
                             or elem.props.get("title_cn")
                             or ""
                         )
-                        if kw:
-                            keywords.append(str(kw))
+                        if title:
+                            top3_titles.append(str(title))
+                        break
+
+        keyword_counts: dict[str, int] = {}
+        for entry in entries:
+            for kw in entry.get("keywords") or []:
+                token = str(kw).strip()
+                if not token:
+                    continue
+                if any(token in t or t in token for t in top3_titles):
+                    continue
+                keyword_counts[token] = keyword_counts.get(token, 0) + 1
+        keywords: list[str] = [
+            kw for kw, _ in sorted(keyword_counts.items(), key=lambda x: (-x[1], x[0]))
+        ][:3]
+        # Fallback: category labels of remaining (non-top3) entries
+        if len(keywords) < 3:
+            seen = set(keywords)
+            for entry in entries[3:]:
+                cat = str(entry.get("category") or "").strip()
+                if cat and cat not in seen:
+                    keywords.append(cat)
+                    seen.add(cat)
+                    if len(keywords) >= 3:
                         break
 
         return ScriptSegment(
@@ -178,7 +202,8 @@ class ScriptWriter:
                     | (
                         {
                             "highlight_entries": highlight_entries[:3],
-                            "focus_count": focus_count or min(3, len(highlight_entries)),
+                            "focus_count": focus_count
+                            or min(3, len(highlight_entries)),
                         }
                         if highlight_entries
                         else {}
@@ -186,9 +211,7 @@ class ScriptWriter:
                 )
             ],
             cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
-            meta={"highlights": {"entries": entries}}
-            if highlight_entries
-            else {},
+            meta={"highlights": {"entries": entries}} if highlight_entries else {},
         )
 
     @staticmethod
@@ -226,7 +249,7 @@ class ScriptWriter:
                 or entry.get("original_title")
                 or ""
             )
-            note = entry.get("why_it_matters") or entry.get("next_watch") or ""
+            note = entry.get("why_it_matters") or ""
             category = entry.get("category") or "观察"
             if not title and not note:
                 continue
@@ -280,7 +303,6 @@ class ScriptWriter:
         for entry in (highlight_entries or [])[:3]:
             text = (
                 entry.get("why_it_matters")
-                or entry.get("next_watch")
                 or entry.get("editor_angle")
                 or entry.get("title_translation")
                 or ""
@@ -315,9 +337,7 @@ class ScriptWriter:
             "今天值得带走的，是这些讨论各自提出的具体问题。"
             if highlight_entries and len(highlight_entries) > 3
             else (
-                takeaways[0]
-                if takeaways
-                else "今天的技术讨论，先记住问题，再看答案。"
+                takeaways[0] if takeaways else "今天的技术讨论，先记住问题，再看答案。"
             )
         )
         keywords = self._closing_keywords(highlight_entries)
@@ -393,7 +413,6 @@ class ScriptWriter:
                         or item.title_cn
                         or item.title,
                         "why_it_matters": angle.get("why_it_matters") or "",
-                        "next_watch": angle.get("next_watch") or "",
                         "category": angle.get("category") or "",
                         "keywords": angle.get("keywords") or [],
                         "score": item.score,
@@ -408,11 +427,7 @@ class ScriptWriter:
 
     @staticmethod
     def _extract_story_specs(selection: SelectionResult) -> list[dict]:
-        return [
-            bi
-            for bi in selection.brief_items
-            if bi.get("story_index") is not None
-        ]
+        return [bi for bi in selection.brief_items if bi.get("story_index") is not None]
 
     def _calculate_max_workers(self, story_indices: list[int]) -> int:
         max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
@@ -458,9 +473,7 @@ class ScriptWriter:
         expected = self._expected_card_types(mode)
         card_narrations = segment.meta.get("card_narrations", []) or []
         filtered = [
-            card
-            for card in card_narrations
-            if card.get("card_type") in expected
+            card for card in card_narrations if card.get("card_type") in expected
         ]
         if filtered:
             segment.meta["card_narrations"] = filtered
@@ -514,15 +527,15 @@ class ScriptWriter:
             story_idx = spec["story_index"]
             item = content.items[story_idx]
             judgement = comment_judgements.get(comment_judgement_key(item), {})
+            mode = spec.get("presentation_mode", "deep")
             segment = self.llm_provider.generate_single_story_segment(
                 content=content,
                 story_index=story_idx,
                 segment_type="story_scan_item",
-                prompt_template_path=self._prompt_for_presentation(
-                    spec.get("presentation_mode", "deep")
-                ),
+                prompt_template_path=self._prompt_for_presentation(mode),
                 date=date,
                 comments_data=judgement or None,
+                expected_card_types=self._expected_card_types(mode),
             )
             segment.meta["coverage_tier"] = spec.get("coverage_tier", "focus")
             segment.meta["presentation_mode"] = spec.get("presentation_mode", "deep")
@@ -549,9 +562,7 @@ class ScriptWriter:
                     segments_by_index[idx] = future.result()
 
         ordered = [
-            segments_by_index[idx]
-            for idx in story_indices
-            if idx in segments_by_index
+            segments_by_index[idx] for idx in story_indices if idx in segments_by_index
         ]
 
         for story_idx, seg in zip(story_indices, ordered):
@@ -573,7 +584,46 @@ class ScriptWriter:
     @staticmethod
     def _extract_subtitle_texts(card: dict) -> list[str]:
         raw_texts = card.get("subtitle_texts", []) or []
-        return [t.strip() for t in raw_texts if t and t.strip()]
+        return [
+            piece
+            for t in raw_texts
+            if t and t.strip()
+            for piece in ScriptWriter._split_long_subtitle(t.strip())
+        ]
+
+    @staticmethod
+    def _split_long_subtitle(
+        text: str, max_cjk: int = 36, max_chars: int = 70
+    ) -> list[str]:
+        """Split a single subtitle into 1-2 cues when it exceeds the readable width.
+
+        CJK characters count fully; ASCII counts half. Splits on Chinese punctuation
+        nearest the midpoint. Returns [text] unchanged when within budget or no split
+        point is found.
+        """
+        cjk_count = sum(1 for ch in text if "一" <= ch <= "鿿")
+        ascii_count = len(text) - cjk_count
+        weight = cjk_count + ascii_count / 2
+        if weight <= max_cjk and len(text) <= max_chars:
+            return [text]
+
+        breakers = "，。；：、!?！？,;"
+        midpoint = len(text) // 2
+        best_idx = -1
+        best_dist = len(text)
+        for i, ch in enumerate(text):
+            if ch in breakers:
+                dist = abs(i - midpoint)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_idx = i
+        if best_idx <= 0 or best_idx >= len(text) - 1:
+            return [text]
+        left = text[: best_idx + 1].rstrip(breakers + " ").strip()
+        right = text[best_idx + 1 :].lstrip(breakers + " ").strip()
+        if not left or not right:
+            return [text]
+        return [left, right]
 
     def _match_card_to_element(
         self,
@@ -641,7 +691,12 @@ class ScriptWriter:
             durations.append(sum(max(2.0, len(t) / SPEECH_CPS) for t in texts))
 
             matched = self._match_card_to_element(
-                segment.scene_elements, card_type, sub_idx, story_i, total_stories, texts
+                segment.scene_elements,
+                card_type,
+                sub_idx,
+                story_i,
+                total_stories,
+                texts,
             )
             if matched:
                 scene_elems.append(matched)
@@ -741,9 +796,7 @@ class ScriptWriter:
         sub_segment_subtitle_texts: list[list[str]] = []
         sub_segment_estimated_durations: list[float] = []
 
-        story_gap = float(
-            self.config.get("timing", {}).get("story_gap", 0.0)
-        )
+        story_gap = float(self.config.get("timing", {}).get("story_gap", 0.0))
         num_stories = len(story_scan_segs)
 
         sub_idx = 0
@@ -765,9 +818,7 @@ class ScriptWriter:
                 )
             else:
                 audio_parts, scene_elems, subtitle_texts, durations = (
-                    self._process_story_narrations(
-                        seg, story_i, num_stories, sub_idx
-                    )
+                    self._process_story_narrations(seg, story_i, num_stories, sub_idx)
                 )
                 story_i += 1
             combined_audio_parts.extend(audio_parts)
@@ -805,7 +856,9 @@ class ScriptWriter:
         focus_count = int(pipeline_cfg.get("focus_items", 3) or 3)
         standard_count = int(pipeline_cfg.get("standard_items", 3) or 3)
         quick_count = int(
-            pipeline_cfg.get("quick_items", max(0, total - focus_count - standard_count))
+            pipeline_cfg.get(
+                "quick_items", max(0, total - focus_count - standard_count)
+            )
             or 0
         )
 
@@ -843,7 +896,11 @@ class ScriptWriter:
         )
         segments.append(
             self._generate_fixed_opening(
-                date, selection, content, story_scan_segs, highlight_entries=highlight_entries
+                date,
+                selection,
+                content,
+                story_scan_segs,
+                highlight_entries=highlight_entries,
             )
         )
 
@@ -853,9 +910,7 @@ class ScriptWriter:
                 f"content items. Video will have no news content in the middle."
             )
         else:
-            segments.append(
-                self._compose_story_scan_segment(story_scan_segs)
-            )
+            segments.append(self._compose_story_scan_segment(story_scan_segs))
 
         segments.append(self._generate_fixed_closing(date, highlight_entries))
 
@@ -884,23 +939,44 @@ class ScriptWriter:
             if stance_distribution:
                 props["stance_distribution"] = stance_distribution
 
-            # Quote selection (merged from quote_card, max 2)
+            # Quote selection (default 2, bumped to 3 only when one stance dominates >=60%
+            # and is not yet represented — keeps editorial freedom while avoiding the
+            # "top stance missing from quotes" failure mode).
             selected_ids = props.get("selected_comment_ids") or []
             combined_ids = list(selected_ids)
             for comment_id in preferred_ids:
                 if comment_id not in combined_ids:
                     combined_ids.append(comment_id)
+
+            comments_by_id = {
+                str(c.source_id): c for c in item.comments if c.source_id is not None
+            }
+            preselected_stances = {
+                classify_comment_stance(comments_by_id[str(cid)])
+                for cid in combined_ids
+                if str(cid) in comments_by_id
+            }
+            quote_cap = 2
+            if stance_distribution:
+                dominant_stance, dominant_share = max(
+                    stance_distribution.items(), key=lambda x: x[1]
+                )
+                if dominant_share >= 0.6 and dominant_stance not in preselected_stances:
+                    quote_cap = 3
+
             selected_comments = select_quote_comments(
                 item.comments,
                 selected_ids=combined_ids,
                 judgement=judgement,
-                max_n=2,
+                max_n=quote_cap,
             )
             props["selected_comment_ids"] = [
                 str(c.source_id) for c in selected_comments if c.source_id is not None
             ]
             if not props["selected_comment_ids"] and combined_ids:
-                props["selected_comment_ids"] = [str(cid) for cid in combined_ids[:2]]
+                props["selected_comment_ids"] = [
+                    str(cid) for cid in combined_ids[:quote_cap]
+                ]
 
             elem.props = props
 
@@ -923,8 +999,6 @@ class ScriptWriter:
                 props.setdefault("title_cn", item.title_cn)
             if item.editor_angle:
                 props.setdefault("editor_angle", item.editor_angle)
-            if item.dek:
-                props.setdefault("dek", item.dek)
             if item.key_points:
                 props.setdefault("key_points", item.key_points)
             if item.keywords:
@@ -938,7 +1012,9 @@ class ScriptWriter:
             if item.comment_count is not None:
                 props.setdefault("comment_count", item.comment_count)
             if judgement:
-                props.setdefault("discussion_mode", judgement.get("discussion_mode", ""))
+                props.setdefault(
+                    "discussion_mode", judgement.get("discussion_mode", "")
+                )
                 props.setdefault(
                     "discussion_summary", judgement.get("discussion_summary", "")
                 )
@@ -974,9 +1050,7 @@ class ScriptWriter:
 
         elapsed = time.monotonic() - t_total
         self.logger.info("=" * 60)
-        self.logger.info(
-            f"Pipeline complete in {elapsed:.1f}s"
-        )
+        self.logger.info(f"Pipeline complete in {elapsed:.1f}s")
         self.logger.info("=" * 60)
 
         return script

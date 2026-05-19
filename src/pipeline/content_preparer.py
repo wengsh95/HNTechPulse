@@ -51,15 +51,11 @@ class ContentPreparer:
                     "key_points": item.key_points,
                     "keywords": item.keywords,
                     "category": item.category,
-                    "visual_hint": item.visual_hint,
                     "why_it_matters": item.why_it_matters,
-                    "next_watch": item.next_watch,
                     "logo_image": item.logo_image,
                     "screenshot_image": item.screenshot_image,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
-                    "summary": item.summary,
-                    "raw": item.raw,
                 }
                 for item in content.items
             ],
@@ -125,15 +121,11 @@ class ContentPreparer:
                         key_points=item_dict.get("key_points"),
                         keywords=item_dict.get("keywords"),
                         category=item_dict.get("category"),
-                        visual_hint=item_dict.get("visual_hint"),
                         why_it_matters=item_dict.get("why_it_matters"),
-                        next_watch=item_dict.get("next_watch"),
                         logo_image=item_dict.get("logo_image"),
                         screenshot_image=item_dict.get("screenshot_image"),
                         enrichment_source=item_dict.get("enrichment_source"),
                         enrichment_error=item_dict.get("enrichment_error"),
-                        summary=item_dict.get("summary"),
-                        raw=item_dict.get("raw"),
                     )
                 )
 

@@ -17,16 +17,19 @@ export const StancePie: React.FC<{
   size: number;
   centerLabel?: string;
   stanceConcerns?: Record<string, string>;
-}> = ({ distribution, size, centerLabel, stanceConcerns }) => {
+  quotedStances?: string[];
+}> = ({ distribution, size, centerLabel, stanceConcerns, quotedStances }) => {
   const frame = useCurrentFrame();
-  const { fs } = useDesign();
-  const pad = 8;
+  const { fs, scaled } = useDesign();
+  const pad = scaled(8);
   const svgSize = size + pad * 2;
   const cx = svgSize / 2;
   const cy = svgSize / 2;
-  const outerR = size / 2 - 4;
+  const outerR = size / 2 - scaled(4);
   const innerR = outerR * 0.55;
   const entries = Object.entries(distribution).filter(([, v]) => v > 0);
+  const quotedSet = new Set(quotedStances ?? []);
+  const hasUnquoted = quotedSet.size > 0 && entries.some(([label]) => !quotedSet.has(label));
 
   const pieProgress = interpolate(frame, [8, 40], [0, 1], {
     extrapolateLeft: "clamp",
@@ -55,8 +58,9 @@ export const StancePie: React.FC<{
     const path = `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`;
     const color = STANCE_COLORS[label] || COLORS.textSecondary;
     const pct = Math.round(value * 100);
+    const quoted = quotedSet.size === 0 || quotedSet.has(label);
 
-    return { label, value, path, color, pct, idx };
+    return { label, value, path, color, pct, idx, quoted };
   });
 
   return (
@@ -75,8 +79,10 @@ export const StancePie: React.FC<{
               key={arc.idx}
               d={arc.path}
               fill={arc.color}
+              fillOpacity={arc.quoted ? 1 : 0.42}
               stroke={COLORS.bgStroke}
-              strokeWidth={1.5}
+              strokeWidth={scaled(1.5)}
+              strokeDasharray={arc.quoted ? undefined : `${scaled(4)} ${scaled(3)}`}
             />
           ))}
         </svg>
@@ -101,13 +107,14 @@ export const StancePie: React.FC<{
         )}
       </div>
 
-      {/* Legend below — one stance per row */}
+      {/* Legend below — one stance per row, single-line concern note */}
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 10,
-          marginTop: 14,
+          gap: scaled(6),
+          marginTop: scaled(12),
+          maxWidth: svgSize + scaled(80),
         }}
       >
         {arcs.map((arc) => {
@@ -117,48 +124,44 @@ export const StancePie: React.FC<{
               key={`legend-${arc.idx}`}
               style={{
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-start",
-                gap: 2,
+                alignItems: "center",
+                gap: scaled(6),
+                minWidth: 0,
               }}
             >
-              <div
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
+                  width: scaled(10),
+                  height: scaled(10),
+                  borderRadius: scaled(2),
+                  backgroundColor: arc.color,
+                  opacity: arc.quoted ? 1 : 0.42,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: FONTS.mono,
+                  fontSize: fs.bodySmall,
+                  fontWeight: FW.heavy,
+                  color: COLORS.text,
+                  flexShrink: 0,
+                  minWidth: scaled(36),
                 }}
               >
-                <span
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor: arc.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: FONTS.mono,
-                    fontSize: fs.bodySmall,
-                    fontWeight: FW.heavy,
-                    color: COLORS.text,
-                  }}
-                >
-                  {arc.pct}%
-                </span>
-                <span
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: fs.bodySmall,
-                    fontWeight: FW.semibold,
-                    color: COLORS.textSecondary,
-                  }}
-                >
-                  {arc.label}
-                </span>
-              </div>
+                {arc.pct}%
+              </span>
+              <span
+                style={{
+                  fontFamily: FONTS.sans,
+                  fontSize: fs.bodySmall,
+                  fontWeight: FW.semibold,
+                  color: COLORS.textSecondary,
+                  flexShrink: 0,
+                }}
+              >
+                {arc.label}
+              </span>
               {concern && (
                 <span
                   style={{
@@ -166,20 +169,51 @@ export const StancePie: React.FC<{
                     fontSize: fs.caption,
                     fontWeight: FW.medium,
                     color: COLORS.textTertiary,
-                    lineHeight: 1.4,
-                    paddingLeft: 18,
-                    maxWidth: 240,
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
+                    letterSpacing: 0.2,
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
+                    textOverflow: "ellipsis",
+                    flex: 1,
+                    minWidth: 0,
                   }}
                 >
-                  {concern}
+                  · {concern}
+                </span>
+              )}
+              {!arc.quoted && (
+                <span
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: fs.caption,
+                    fontWeight: FW.medium,
+                    color: COLORS.textTertiary,
+                    letterSpacing: 0.2,
+                    flexShrink: 0,
+                  }}
+                >
+                  未采纳
                 </span>
               )}
             </div>
           );
         })}
       </div>
+      {hasUnquoted && (
+        <div
+          style={{
+            marginTop: scaled(10),
+            fontFamily: FONTS.sans,
+            fontSize: fs.caption,
+            fontWeight: FW.medium,
+            color: COLORS.textTertiary,
+            letterSpacing: 0.2,
+            textAlign: "center",
+            maxWidth: svgSize,
+          }}
+        >
+          引述按信息增量挑选
+        </div>
+      )}
     </div>
   );
 };

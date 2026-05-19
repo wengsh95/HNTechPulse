@@ -179,7 +179,6 @@ def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
             item.title,
             item.title_cn or "",
             item.article_summary or "",
-            item.summary or "",
         ]
         if part
     )
@@ -207,7 +206,6 @@ def compute_comment_relevance(
             item.title,
             item.title_cn or "",
             item.article_summary or "",
-            item.summary or "",
             item.editor_angle or "",
             item.dek or "",
             key_point_text,

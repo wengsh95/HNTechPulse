@@ -1,0 +1,136 @@
+# ── HN Tech Sentiment Lexicon ──
+# VADER custom lexicon for Hacker News / tech community language.
+# Values: positive = favorable, negative = unfavorable.
+# Range: roughly -3.0 to +3.0 (VADER normalizes internally).
+# Only add terms that VADER misses or scores incorrectly.
+
+# ── Negative: overhyped / poor quality ──
+
+overhyped: -2.0
+overrated: -1.5
+overengineered: -1.5
+overcomplicated: -1.5
+bloated: -2.0
+brittle: -2.0
+fragile: -2.0
+flaky: -2.0
+flakey: -2.0
+buggy: -2.0
+kludge: -2.5
+kludgy: -2.5
+hacky: -2.0
+shoddy: -2.0
+sloppy: -1.5
+half-baked: -2.0
+half-assed: -2.5
+snakeoil: -2.5
+snake-oil: -2.5
+unmaintainable: -2.5
+unreliable: -2.0
+unscalable: -2.0
+unusable: -2.5
+unintuitive: -1.5
+cumbersome: -1.5
+clunky: -1.5
+tedious: -1.5
+painstaking: -1.0
+sketchy: -1.5
+dodgy: -1.5
+dubious: -1.5
+questionable: -1.5
+naive: -1.0
+band-aid: -1.5
+bandaid: -1.5
+duct-tape: -1.5
+ducttape: -1.5
+workaround: -0.5
+underwhelming: -1.5
+underwhelmed: -1.5
+disappointing: -1.5
+disappointed: -1.5
+meh: -1.0
+segfault: -2.0
+segfaults: -2.0
+seg-fault: -2.0
+crashy: -2.0
+memory-leak: -2.0
+memory-leaks: -2.0
+leaky: -1.5
+vaporware: -2.5
+vapourware: -2.5
+clickbait: -2.0
+hype: -0.5
+reinvent: -0.5
+reinvented: -0.5
+reinventing: -0.5
+not-invented-here: -1.5
+YAGNI: -1.0
+tech-debt: -1.5
+technical-debt: -1.5
+
+# ── Positive: solid / impressive ──
+
+performant: 2.0
+rock-solid: 2.5
+rocksolid: 2.5
+bulletproof: 2.0
+battle-tested: 2.0
+battletested: 2.0
+production-ready: 2.0
+production-grade: 2.0
+enterprise-grade: 1.5
+well-designed: 2.0
+well-crafted: 2.0
+well-documented: 1.5
+well-tested: 1.5
+well-maintained: 1.5
+slick: 1.5
+insightful: 2.0
+elegant: 2.0
+clean: 1.0
+clever: 1.0
+brilliant: 2.0
+impressive: 2.0
+underrated: 1.5
+gamechanger: 2.0
+game-changer: 2.0
+game-changing: 2.0
+revolutionary: 2.0
+groundbreaking: 2.0
+ground-breaking: 2.0
+innovative: 1.5
+ingenious: 2.0
+stellar: 2.0
+superb: 2.0
+top-notch: 2.0
+topnotch: 2.0
+first-class: 2.0
+first-rate: 2.0
+seamless: 1.5
+intuitive: 1.5
+ergonomic: 1.5
+ergonomical: 1.5
+ergonomics: 1.0
+polished: 1.5
+robust: 1.5
+reliable: 1.5
+scalable: 1.0
+blazing: 1.5
+blazingly: 1.5
+lightning-fast: 2.0
+lightweight: 1.0
+zero-cost: 1.5
+zero-overhead: 1.5
+battle-hardened: 2.0
+proven: 1.0
+dependable: 1.5
+trustworthy: 1.5
+mind-blowing: 2.5
+mindblowing: 2.5
+
+# ── Sarcasm / skepticism markers ──
+# Weak negative — won't flip sentiment alone, but pulls compound
+# down to counter VADER reading sarcastic praise as genuine positive.
+
+surrrre: -1.5
+riiiight: -1.5

@@ -56,9 +56,7 @@ def _validate_quote_claim(text: str, max_chars: int = 28) -> str:
         raise ValueError("comment_lanes claim is required")
     value = " ".join(value.split())
     if len(value) > max_chars:
-        raise ValueError(
-            f"comment_lanes claim exceeds {max_chars} characters: {value}"
-        )
+        raise ValueError(f"comment_lanes claim exceeds {max_chars} characters: {value}")
     return value.strip("，。；：、,.!?！？;:）)]】")
 
 
@@ -234,21 +232,9 @@ def _expand_event_card(props, content, score_ranks=None):
     result["editor_angle"] = (
         result.get("editor_angle") or item.editor_angle or item.title_cn or item.title
     )
-    result["event_summary"] = (
-        result.get("event_summary")
-        or item.dek
-        or item.article_summary
-        or item.summary
-        or item.title_cn
-        or item.title
-    )
-    result["dek"] = result.get("dek") or item.dek or result["event_summary"]
     result["key_points"] = result.get("key_points") or item.key_points or []
     result["why_it_matters"] = result.get("why_it_matters") or item.why_it_matters or ""
-    result["next_watch"] = result.get("next_watch") or item.next_watch or ""
-    result["url"] = item.url or ""
     result["source_domain"] = _extract_domain(item.url) if item.url else ""
-    result["published_at"] = item.published_at or 0
     result["score"] = item.score or 0
     result["comment_count"] = item.comment_count or 0
 
@@ -258,20 +244,15 @@ def _expand_event_card(props, content, score_ranks=None):
         total = len(score_ranks)
         if rank is not None:
             result["heat_level"] = _heat_level_from_rank(rank, total)
-            result["heat_rank"] = rank
         else:
             result["heat_level"] = ""
-            result["heat_rank"] = 0
     else:
         result["heat_level"] = ""
-        result["heat_rank"] = 0
 
     if "keywords" not in result or not result["keywords"]:
         result["keywords"] = item.keywords or []
     if "category" not in result or not result["category"]:
         result["category"] = item.category or ""
-    if "visual_hint" not in result or not result["visual_hint"]:
-        result["visual_hint"] = item.visual_hint or ""
 
     # Image: resolve image_index against image_candidates, then article_images.
     image_index = props.get("image_index", 0)
@@ -335,26 +316,19 @@ def _expand_quick_roundup_card(props, content, score_ranks=None):
             or item.title
         )
         expanded["title_cn"] = item.title_cn or ""
-        expanded["url"] = item.url or ""
         expanded["source_domain"] = _extract_domain(item.url) if item.url else ""
         expanded["score"] = item.score or 0
         expanded["comment_count"] = item.comment_count or 0
         expanded["category"] = expanded.get("category") or item.category or ""
         expanded["keywords"] = expanded.get("keywords") or item.keywords or []
         expanded["micro_takeaway"] = (
-            expanded.get("micro_takeaway")
-            or item.why_it_matters
-            or item.next_watch
-            or item.dek
-            or ""
+            expanded.get("micro_takeaway") or item.why_it_matters or item.dek or ""
         )
         if score_ranks and item.source_id is not None:
             rank = score_ranks.get(item.source_id)
             total = len(score_ranks)
-            expanded["heat_rank"] = rank or 0
             expanded["heat_level"] = _heat_level_from_rank(rank, total) if rank else ""
         else:
-            expanded["heat_rank"] = 0
             expanded["heat_level"] = ""
         items.append(expanded)
 
@@ -398,20 +372,6 @@ def _expand_atmosphere_card(props, content):
         result["controversy_score"] = 0.0
 
     # Quotes (merged from quote_card, max 2)
-    orig_text_cn = {}
-    orig_text_cn_by_id = {}
-    for q in props.get("quotes", []):
-        cn = q.get("text_cn", "")
-        if cn:
-            text = q.get("text", "")
-            orig_text_cn[text] = cn
-            cleaned_text = clean_comment_text(text)
-            if cleaned_text:
-                orig_text_cn[cleaned_text[:300]] = cn
-            comment_id = q.get("source_id") or q.get("comment_id")
-            if comment_id is not None:
-                orig_text_cn_by_id[str(comment_id)] = cn
-
     judgement = {}
     date = getattr(content, "date", "")
     if date:
@@ -426,7 +386,11 @@ def _expand_atmosphere_card(props, content):
                 continue
             comment_id = entry.get("comment_id")
             claim = _validate_quote_claim(entry.get("claim") or "")
-            if comment_id is not None and claim and str(comment_id) not in display_claims:
+            if (
+                comment_id is not None
+                and claim
+                and str(comment_id) not in display_claims
+            ):
                 display_claims[str(comment_id)] = claim
 
     selected = select_quote_comments(
@@ -439,16 +403,6 @@ def _expand_atmosphere_card(props, content):
     quotes = []
     for c in selected[:2]:
         stance = classify_comment_stance(c)
-        text = clean_comment_text(c.content or "")[:300]
-        text_cn = (
-            c.content_cn
-            or (
-                orig_text_cn_by_id.get(str(c.source_id))
-                if c.source_id is not None
-                else None
-            )
-            or orig_text_cn.get(text, "")
-        )
         source_id = str(c.source_id) if c.source_id is not None else ""
         display_text = display_claims.get(source_id)
         if not display_text:
@@ -459,10 +413,10 @@ def _expand_atmosphere_card(props, content):
             )
         quotes.append(
             {
+                "source_id": source_id,
                 "author": c.author,
-                "source_id": c.source_id or "",
-                "text": text,
-                "text_cn": text_cn,
+                "text": c.content or "",
+                "text_cn": c.content_cn or "",
                 "display_text": display_text,
                 "stance": stance,
                 "upvotes": c.upvotes or 0,
@@ -556,7 +510,6 @@ def sanitize_props(props: Dict[str, Any]) -> Dict[str, Any]:
     return cleaned
 
 
-
 # ── Main serialization entry point ──────────────────────────────────
 
 
@@ -627,7 +580,11 @@ def script_to_props(
                 continue
 
             expanded_props = expand_element_props(
-                elem.element_type, elem.props.copy(), content, logger, score_ranks=score_ranks
+                elem.element_type,
+                elem.props.copy(),
+                content,
+                logger,
+                score_ranks=score_ranks,
             )
             if expanded_props != elem.props:
                 expanded_count += 1

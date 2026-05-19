@@ -16,8 +16,6 @@
 
 ```json
 {
-  "story_index": 0,
-  "category": "AI工具|开源生态|基础设施|安全风险|创业信号|开发者体验|硬件与系统|其他",
   "card_narrations": [
     {
       "card_type": "quick_item_card",
@@ -26,7 +24,6 @@
       ]
     }
   ],
-  "estimated_duration": 8,
   "emotion": "neutral",
   "scene_elements": [
     {

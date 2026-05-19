@@ -157,6 +157,12 @@ async def _resolve_with_fallback(
     return None
 
 
+def _is_pdf_url(url: str) -> bool:
+    """Check if a URL likely points to a PDF based on path extension."""
+    path = urlparse(url).path.lower()
+    return path.endswith(".pdf") or ".pdf?" in path or ".pdf;" in path
+
+
 def _make_headers() -> Dict[str, str]:
     """Return a copy of base headers with a randomly chosen User-Agent."""
     headers = dict(_BASE_HEADERS)
@@ -276,6 +282,9 @@ class PageFetcher:
                         self.logger.debug(f"HTTP {resp.status} for {url}")
                         raise aiohttp.ClientError(f"HTTP {resp.status} for {url}")
                     ct = resp.headers.get("Content-Type", "")
+                    if "application/pdf" in ct:
+                        self.logger.debug(f"PDF content type detected: {ct} for {url}")
+                        return "__PDF__"
                     if "text/html" not in ct and "application/xhtml" not in ct:
                         self.logger.debug(f"Non-HTML content type: {ct} for {url}")
                         return None
@@ -313,6 +322,11 @@ class PageFetcher:
                     if resp.status != 200:
                         return None
                     ct = resp.headers.get("Content-Type", "")
+                    if "application/pdf" in ct:
+                        self.logger.debug(
+                            f"PDF content type (DNS fallback): {ct} for {url}"
+                        )
+                        return "__PDF__"
                     if "text/html" not in ct and "application/xhtml" not in ct:
                         return None
                     body = await resp.content.read(10 * 1024 * 1024)
@@ -320,6 +334,54 @@ class PageFetcher:
         except Exception as e:
             self.logger.debug(f"DNS fallback fetch failed for {url}: {e}")
             return None
+
+    async def fetch_pdf(
+        self, url: str, max_size: int = 20 * 1024 * 1024
+    ) -> Optional[bytes]:
+        """Fetch a PDF file via aiohttp. Returns raw bytes or None."""
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return None
+
+        @retry(
+            stop=stop_after_attempt(self.retry_count),
+            wait=wait_exponential(multiplier=1, min=1, max=10),
+            retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
+            reraise=True,
+        )
+        async def _do_fetch():
+            headers = _make_headers()
+            headers["Accept"] = "application/pdf,*/*;q=0.8"
+            timeout = aiohttp.ClientTimeout(total=self.request_timeout * 2)
+            async with aiohttp.ClientSession(
+                timeout=timeout,
+                headers=headers,
+                trust_env=True,
+            ) as session:
+                async with session.get(
+                    url,
+                    allow_redirects=True,
+                    max_redirects=5,
+                ) as resp:
+                    if resp.status != 200:
+                        self.logger.debug(f"PDF HTTP {resp.status} for {url}")
+                        raise aiohttp.ClientError(f"HTTP {resp.status} for {url}")
+                    ct = resp.headers.get("Content-Type", "")
+                    if "application/pdf" not in ct:
+                        self.logger.debug(f"Non-PDF content type: {ct} for {url}")
+                        return None
+                    cl = resp.headers.get("Content-Length")
+                    if cl and int(cl) > max_size:
+                        self.logger.debug(f"PDF too large ({cl} bytes) for {url}")
+                        return None
+                    body = await resp.content.read(max_size)
+                    return body
+
+        try:
+            return await _do_fetch()
+        except Exception as e:
+            self.logger.debug(f"PDF fetch failed for {url}: {e}")
+        return None
 
     async def fetch_browser_batch(
         self, items: list, pages_dir: Path, headless: bool, date: str

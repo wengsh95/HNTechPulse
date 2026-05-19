@@ -19,6 +19,39 @@ from src.providers.llm.llm_client import (
 from src.providers.llm.llm_cache import LLMCache
 
 
+def _build_card_narration_validator(expected_card_types: List[str]):
+    """Validate the LLM's segment JSON against the tier's card schema.
+
+    Raising ValueError triggers a re-prompt inside call_llm_with_json_retry.
+    """
+    expected_set = set(expected_card_types)
+
+    def _validate(parsed: dict) -> None:
+        cards = parsed.get("card_narrations") or []
+        if not cards:
+            raise ValueError(
+                f"card_narrations is empty; expected at least one of {expected_card_types}"
+            )
+        for i, card in enumerate(cards):
+            if not isinstance(card, dict):
+                raise ValueError(f"card_narrations[{i}] is not an object")
+            ct = card.get("card_type")
+            if ct not in expected_set:
+                raise ValueError(
+                    f"card_narrations[{i}].card_type={ct!r} is missing or "
+                    f"not one of {expected_card_types}"
+                )
+            texts = card.get("subtitle_texts") or []
+            if not isinstance(texts, list) or not any(
+                isinstance(t, str) and t.strip() for t in texts
+            ):
+                raise ValueError(
+                    f"card_narrations[{i}].subtitle_texts must be a non-empty list of strings"
+                )
+
+    return _validate
+
+
 class OpenAILLMProvider(LLMProvider):
     def __init__(self, config: dict, debug: bool = False):
         self._client = LLMClient(config, debug=debug)
@@ -65,6 +98,7 @@ class OpenAILLMProvider(LLMProvider):
         prompt_template_path: str,
         date: str,
         comments_data: Optional[Dict] = None,
+        expected_card_types: Optional[List[str]] = None,
     ) -> ScriptSegment:
         item = content.items[story_index]
         story_json = self._single_story_to_json(
@@ -103,8 +137,16 @@ class OpenAILLMProvider(LLMProvider):
 
         self.logger.info(f"    [{segment_type}_{story_index}] Generating...")
 
+        validator = (
+            _build_card_narration_validator(expected_card_types)
+            if expected_card_types
+            else None
+        )
+
         response_text = self._call_llm_with_json_retry(
-            messages=self._split_prompt(prompt), label=f"{segment_type}_{story_index}"
+            messages=self._split_prompt(prompt),
+            label=f"{segment_type}_{story_index}",
+            validator=validator,
         )
 
         seg_dict = self._extract_json(response_text)
@@ -138,7 +180,7 @@ class OpenAILLMProvider(LLMProvider):
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),
             audio_text=seg_dict.get("audio_text", ""),
-            estimated_duration=seg_dict.get("estimated_duration", 30.0),
+            estimated_duration=0.0,
             emotion=seg_dict.get("emotion", "neutral"),
             scene_elements=scene_elements,
             meta=meta,
@@ -282,6 +324,38 @@ class OpenAILLMProvider(LLMProvider):
             return None
         return {"thinking": {"type": str(thinking)}}
 
+    # ── Prefilter ──────────────────────────────────────────────
+
+    def prefilter_stories(
+        self,
+        stories: list,
+        prompt_template_path: str = "prompts/prefilter.md",
+    ) -> list:
+        stories_json = json.dumps(
+            [{"index": i, "title": t, "url": u} for i, t, u in stories],
+            ensure_ascii=False,
+            indent=2,
+        )
+        prompt_path = Path(prompt_template_path)
+        if prompt_path.exists():
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        else:
+            prompt_template = prompt_template_path
+        prompt = render_prompt(prompt_template, stories_json=stories_json)
+
+        prefilter_cfg = self.config.get("prefilter", {})
+        temperature = prefilter_cfg.get("temperature", 0.1)
+
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label="prefilter",
+            max_tokens=self.fast_max_tokens,
+            model=self.fast_model,
+            temperature=temperature,
+        )
+        result = self._extract_json(response_text)
+        return result.get("decisions", [])
+
     # ── Story Serialization ────────────────────────────────────
 
     def _single_story_to_json(
@@ -399,14 +473,10 @@ class OpenAILLMProvider(LLMProvider):
             story_dict["keywords"] = item.keywords
         if item.category:
             story_dict["category"] = item.category
-        if item.visual_hint:
-            story_dict["visual_hint"] = item.visual_hint
         if comments_data:
             story_dict["comment_judgement"] = comments_data
             story_dict["discussion_mode"] = comments_data.get("discussion_mode")
-            story_dict["discussion_summary"] = comments_data.get(
-                "discussion_summary"
-            )
+            story_dict["discussion_summary"] = comments_data.get("discussion_summary")
             story_dict["comment_lanes"] = comments_data.get("comment_lanes")
         result = json.dumps(story_dict, ensure_ascii=False, indent=2)
         self.logger.debug(

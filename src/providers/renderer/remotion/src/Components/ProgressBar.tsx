@@ -40,6 +40,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         bottom: 0,
         height: TICK_HEIGHT + 8,
         opacity: fadeIn,
+        zIndex: 10,
       }}
     >
       {/* Track container */}

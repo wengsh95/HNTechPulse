@@ -23,7 +23,9 @@ class ReportGenerator:
                             for item in items:
                                 if not isinstance(item, dict):
                                     continue
-                                story_index = item.get("story_index", item.get("display_index"))
+                                story_index = item.get(
+                                    "story_index", item.get("display_index")
+                                )
                                 try:
                                     idx = int(story_index)
                                 except (TypeError, ValueError):
@@ -117,6 +119,7 @@ class ReportGenerator:
             lines.append("|------|------|------|")
             for strategy in [
                 "aiohttp",
+                "pdf",
                 "headless",
                 "headed",
                 "downloaded_page",
@@ -183,7 +186,7 @@ class ReportGenerator:
                     issues.append(f"- [需手动处理] #{i} {title} — {reason}")
                     manual_override_items.append(f"  - #{i} {title}: {url}")
                 if (
-                    item.enrichment_source in ("aiohttp", "headless", "headed")
+                    item.enrichment_source in ("aiohttp", "headless", "headed", "pdf")
                     and not item.article_images
                 ):
                     title = (item.title or "")[:40]

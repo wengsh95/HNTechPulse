@@ -303,12 +303,10 @@ class TestExpandEventCard:
     def test_event_fields_fallback_to_content_item(self):
         content = _make_content_package()
         content.items[0].why_it_matters = "改变开发工作流"
-        content.items[0].next_watch = "关注企业部署"
 
         result = _expand_event_card({"story_index": 0}, content)
 
         assert result["why_it_matters"] == "改变开发工作流"
-        assert result["next_watch"] == "关注企业部署"
 
 
 class TestExpandQuickRoundupCard:
@@ -374,10 +372,10 @@ class TestExpandAtmosphereCard:
         content.date = "2026-04-26"
         content.items[0].source_id = "story0"
         content.items[0].comments[0].source_id = "c0"
-        content.items[0].comments[0].content = (
-            "This selected comment has enough detail to pass the quote filter."
-        )
-        content.items[0].comments[0].content_cn = None
+        content.items[0].comments[
+            0
+        ].content = "This selected comment has enough detail to pass the quote filter."
+        content.items[0].comments[0].content_cn = "评论零"
         content.items[0].comments[0].quality_score = 0.6
 
         monkeypatch.setattr(
@@ -427,9 +425,9 @@ class TestExpandAtmosphereCard:
         content.date = "2026-04-26"
         content.items[0].source_id = "story0"
         content.items[0].comments[0].source_id = "c0"
-        content.items[0].comments[0].content = (
-            "This selected comment is intentionally much longer than a card quote should be."
-        )
+        content.items[0].comments[
+            0
+        ].content = "This selected comment is intentionally much longer than a card quote should be."
         content.items[0].comments[0].quality_score = 0.8
 
         monkeypatch.setattr(
@@ -468,9 +466,9 @@ class TestExpandAtmosphereCard:
         content.date = "2026-04-26"
         content.items[0].source_id = "story0"
         content.items[0].comments[0].source_id = "c0"
-        content.items[0].comments[0].content = (
-            "This selected comment is intentionally much longer than a card quote should be."
-        )
+        content.items[0].comments[
+            0
+        ].content = "This selected comment is intentionally much longer than a card quote should be."
         content.items[0].comments[0].quality_score = 0.8
 
         monkeypatch.setattr(

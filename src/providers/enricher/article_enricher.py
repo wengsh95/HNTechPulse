@@ -75,6 +75,10 @@ class ArticleEnricher:
             d.lower().lstrip(".") for d in enrich_cfg.get("skip_domains", []) or []
         }
 
+        self.pdf_enabled = enrich_cfg.get("pdf_enabled", True)
+        self.pdf_max_size = enrich_cfg.get("pdf_max_size", 20 * 1024 * 1024)
+        self.pdf_extract_images = enrich_cfg.get("pdf_extract_images", True)
+
         _target = enrich_cfg.get("image_target_size", [1280, 720])
         _min_size = enrich_cfg.get("image_min_size", [640, 360])
 
@@ -228,14 +232,13 @@ class ArticleEnricher:
                     item.key_points = None
                     item.keywords = None
                     item.category = None
-                    item.visual_hint = None
                     item.why_it_matters = None
-                    item.next_watch = None
                     item.screenshot_image = None
                     result["skipped"].append(item)
                     continue
 
             html_path = pages_dir / f"{item.source_id}.html"
+            pdf_path = pages_dir / f"{item.source_id}.pdf"
             if html_path.exists():
                 try:
                     html = html_path.read_text(encoding="utf-8", errors="replace")
@@ -249,6 +252,9 @@ class ArticleEnricher:
                         result["full"].append(item)
                 except Exception:
                     result["full"].append(item)
+            elif pdf_path.exists():
+                item.enrichment_source = "pdf"
+                result["phase2_only"].append(item)
             else:
                 result["full"].append(item)
 
@@ -335,15 +341,32 @@ class ArticleEnricher:
             item.key_points = None
             item.keywords = None
             item.category = None
-            item.visual_hint = None
             item.why_it_matters = None
-            item.next_watch = None
             item.screenshot_image = None
             self.logger.info(f"[fetch_failed] {item.title[:50]} ({item.url})")
 
     async def _phase1_fetch_one_aiohttp(self, item, pages_dir: Path) -> Optional[str]:
         try:
             html = await self.fetcher.fetch_page(item.url)
+            if html == "__PDF__":
+                if not self.pdf_enabled:
+                    self.logger.debug(
+                        f"PDF support disabled, skipping: {item.title[:50]}"
+                    )
+                    return None
+                pdf_data = await self.fetcher.fetch_pdf(
+                    item.url, max_size=self.pdf_max_size
+                )
+                if pdf_data:
+                    pdf_path = pages_dir / f"{item.source_id}.pdf"
+                    if self.save_fetched_html:
+                        pdf_path.write_bytes(pdf_data)
+                        self.logger.debug(
+                            f"PDF saved: {pdf_path} ({len(pdf_data)} bytes)"
+                        )
+                    return "pdf"
+                self.logger.debug(f"[aiohttp] PDF download failed: {item.title[:50]}")
+                return None
             if html:
                 html_path = pages_dir / f"{item.source_id}.html"
                 if self.save_fetched_html:
@@ -377,10 +400,97 @@ class ArticleEnricher:
             try:
                 pages_dir = self._pages_dir(date)
                 html_path = pages_dir / f"{item.source_id}.html"
+                pdf_path = pages_dir / f"{item.source_id}.pdf"
 
-                if not html_path.exists():
+                if not html_path.exists() and not pdf_path.exists():
                     item.enrichment_source = "fetch_failed"
                     return
+
+                # ── PDF path ──
+                if pdf_path.exists() and not html_path.exists():
+                    image_dir = Path(f"data/{date}/images")
+                    image_dir.mkdir(parents=True, exist_ok=True)
+
+                    article_text = self._extract_pdf_text(pdf_path)
+                    if not article_text:
+                        item.article_text = None
+                        item.article_images = []
+                        item.article_summary = None
+                        item.editor_angle = None
+                        item.dek = None
+                        item.key_points = None
+                        item.keywords = None
+                        item.category = None
+                        item.why_it_matters = None
+                        item.enrichment_source = "extraction_failed"
+                        self.logger.debug(f"PDF extraction empty: {item.title[:50]}")
+                        return
+
+                    pdf_image_candidates = self._extract_pdf_images(
+                        pdf_path, image_dir, str(item.source_id)
+                    )
+
+                    search_context = ""
+                    if self.baidu_search.enabled:
+                        results = await self.baidu_search.search(item.title or "")
+                        search_context = BaiduSearchProvider.format_results(results)
+
+                    enrich_result = self._enrich_content(
+                        article_text, item.title, search_context
+                    )
+                    article_summary = (
+                        enrich_result.get("article_summary") if enrich_result else None
+                    )
+
+                    image_candidates = list(pdf_image_candidates)
+                    selected_candidate = self.image_handler.choose_auto_image_candidate(
+                        image_candidates
+                    )
+                    selected_path = (
+                        selected_candidate.get("path") if selected_candidate else None
+                    )
+                    if selected_path:
+                        for candidate in image_candidates:
+                            candidate["auto_selected"] = (
+                                candidate.get("path") == selected_path
+                            )
+                        if selected_candidate is not None:
+                            selected_candidate["selection_reason"] = (
+                                self.image_handler.selection_reason(selected_candidate)
+                            )
+
+                    item.article_text = article_text[: self.max_text_length]
+                    item.article_images = self.image_handler.candidate_paths(
+                        image_candidates, preferred_path=selected_path
+                    )
+                    item.article_summary = article_summary
+                    if enrich_result:
+                        item.editor_angle = enrich_result.get("editor_angle")
+                        item.dek = enrich_result.get("dek")
+                        item.key_points = enrich_result.get("key_points")
+                        item.category = enrich_result.get("category")
+                        item.why_it_matters = enrich_result.get("why_it_matters")
+                        item.keywords = self._normalize_keywords(
+                            enrich_result.get("keywords"),
+                            category=item.category,
+                            fallback_values=[
+                                item.editor_angle,
+                                item.dek,
+                                item.why_it_matters,
+                                item.title,
+                            ],
+                        )
+                    item.enrichment_source = "pdf"
+                    item.image_candidates = image_candidates
+
+                    self.logger.info(
+                        f"[pdf] {item.title[:50]} — "
+                        f"{len(article_text)} chars, "
+                        f"images={len(pdf_image_candidates)}"
+                    )
+                    return
+
+                # ── HTML path ──
 
                 html = html_path.read_text(encoding="utf-8", errors="replace")
                 image_dir = Path(f"data/{date}/images")
@@ -399,9 +509,7 @@ class ArticleEnricher:
                     item.key_points = None
                     item.keywords = None
                     item.category = None
-                    item.visual_hint = None
                     item.why_it_matters = None
-                    item.next_watch = None
                     item.enrichment_source = "extraction_failed"
                     self.logger.debug(f"Phase 2 extraction empty: {item.title[:50]}")
                     return
@@ -520,8 +628,6 @@ class ArticleEnricher:
                             item.title,
                         ],
                     )
-                    item.visual_hint = enrich_result.get("visual_hint")
-                    item.next_watch = enrich_result.get("next_watch")
                 if (
                     not item.enrichment_source
                     or item.enrichment_source == "fetch_failed"
@@ -549,7 +655,6 @@ class ArticleEnricher:
                 item.category = None
                 item.visual_hint = None
                 item.why_it_matters = None
-                item.next_watch = None
                 item.enrichment_source = "error"
                 item.enrichment_error = f"{type(e).__name__}: {e}"
                 item.screenshot_image = None
@@ -558,6 +663,71 @@ class ArticleEnricher:
         return self.image_handler.extract_text(
             html, base_url, max_text_length=self.max_text_length
         )
+
+    def _extract_pdf_text(self, pdf_path: Path) -> Optional[str]:
+        """Extract text from a PDF file using pdfplumber."""
+        try:
+            import pdfplumber
+        except ImportError:
+            self.logger.warning("pdfplumber not installed, cannot extract PDF text")
+            return None
+
+        try:
+            text_parts = []
+            with pdfplumber.open(str(pdf_path)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_parts.append(page_text)
+            full_text = "\n\n".join(text_parts).strip()
+            if full_text and len(full_text) > 100:
+                return full_text[: self.max_text_length]
+            return None
+        except Exception as e:
+            self.logger.debug(f"PDF text extraction failed for {pdf_path}: {e}")
+            return None
+
+    def _extract_pdf_images(
+        self, pdf_path: Path, image_dir: Path, source_id: str
+    ) -> list[dict]:
+        """Extract images from a PDF file using pdfplumber."""
+        if not self.pdf_extract_images:
+            return []
+        try:
+            import pdfplumber
+        except ImportError:
+            return []
+
+        candidates = []
+        try:
+            with pdfplumber.open(str(pdf_path)) as pdf:
+                for page_idx, page in enumerate(pdf.pages):
+                    images = page.images
+                    if not images:
+                        continue
+                    for img_idx, img in enumerate(images[:3]):
+                        try:
+                            cropped = page.within_bbox(
+                                (img["x0"], img["top"], img["x1"], img["bottom"])
+                            ).to_image(resolution=150)
+                            filename = f"{source_id}_pdf_p{page_idx}_{img_idx}.jpg"
+                            dest = image_dir / filename
+                            cropped.save(dest, format="JPEG")
+                            candidates.append(
+                                {
+                                    "path": f"images/{filename}",
+                                    "source": "pdf",
+                                    "label": "PDF embedded image",
+                                    "rank": len(candidates),
+                                }
+                            )
+                        except Exception as e:
+                            self.logger.debug(f"PDF image crop failed: {e}")
+                    if len(candidates) >= self.max_images:
+                        break
+        except Exception as e:
+            self.logger.debug(f"PDF image extraction failed for {pdf_path}: {e}")
+        return candidates
 
     def _enrich_content(
         self, article_text: str, title: str, search_context: str = ""
@@ -773,9 +943,7 @@ class ArticleEnricher:
                     "key_points": item.key_points,
                     "keywords": item.keywords,
                     "category": item.category,
-                    "visual_hint": item.visual_hint,
                     "why_it_matters": item.why_it_matters,
-                    "next_watch": item.next_watch,
                     "enrichment_source": item.enrichment_source,
                     "enrichment_error": item.enrichment_error,
                     "logo_image": item.logo_image,
@@ -812,8 +980,6 @@ class ArticleEnricher:
                             item.title,
                         ],
                     )
-                    item.visual_hint = cached.get("visual_hint")
-                    item.next_watch = cached.get("next_watch")
                     source = cached.get("enrichment_source") or "legacy"
                     if source == "manual_override":
                         source = "downloaded_page"

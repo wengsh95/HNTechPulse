@@ -13,7 +13,7 @@ pipeline:
 hn:
   base_url: "https://hacker-news.firebaseio.com/v0"
   top_stories_count: 300
-  target_stories_count: 10
+  target_stories_count: 30
   request_timeout: [5, 15]     # [connect_timeout, read_timeout] 秒
   comment_log_interval: 50        # 每抓取 N 条评论输出一次进度日志（0=关闭）
   max_comment_depth: 5            # 评论递归最大深度（深层评论价值低，截断可减少 30-50% 请求）

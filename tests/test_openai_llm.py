@@ -275,7 +275,6 @@ class TestSingleStoryToJson:
         ]
         item.keywords = ["Gemini", "LLM", "推理"]
         item.category = "AI工具"
-        item.visual_hint = "产品发布页面截图"
         result = provider._single_story_to_json(item, 0)
         parsed = json.loads(result)
         assert parsed["editor_angle"] == "Google发布新模型"
@@ -283,7 +282,6 @@ class TestSingleStoryToJson:
         assert len(parsed["key_points"]) == 2
         assert parsed["keywords"] == ["Gemini", "LLM", "推理"]
         assert parsed["category"] == "AI工具"
-        assert parsed["visual_hint"] == "产品发布页面截图"
 
     def test_eventcard_fields_omitted_when_none(self):
         provider = _make_provider()
@@ -295,4 +293,3 @@ class TestSingleStoryToJson:
         assert "key_points" not in parsed
         assert "keywords" not in parsed
         assert "category" not in parsed
-        assert "visual_hint" not in parsed

@@ -6,6 +6,7 @@ import {
   FONTS,
   FW,
   useDesign,
+  useChapterTone,
   GRADIENTS,
   ANIM,
   EASE_CARD,
@@ -25,6 +26,7 @@ import {
   COMPACT_TITLE_SIZE,
   COMPACT_HERO_SIZE,
   COMPACT_SUBHEAD_SIZE,
+  FOCUS_TITLE_SIZE,
   ITEM_DURATION,
   PILL_DURATION,
   SECTION_BAR,
@@ -67,21 +69,14 @@ export {
   ROW_STAGGER,
   KEYWORD_TAG_PAD,
   CAPSULE_PAD,
+  FOCUS_TITLE_SIZE,
 } from "./design";
 
 export interface HighlightEntry {
-  rank?: number;
   original_title?: string;
-  title?: string;
-  title_translation?: string;
-  title_cn?: string;
   score?: number;
   comment_count?: number;
   editor_angle?: string;
-  why_it_matters?: string;
-  next_watch?: string;
-  category?: string;
-  keywords?: string[];
 }
 
 export const medalSets = [
@@ -95,7 +90,7 @@ export const MedalBadge: React.FC<{
   size?: number;
   fontSize?: number;
 }> = ({ rank, size = 28, fontSize }) => {
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
   const resolvedFontSize = fontSize ?? fs.label;
   const isTop3 = rank <= 3;
   const medal = isTop3 ? medalSets[rank - 1] : null;
@@ -106,7 +101,7 @@ export const MedalBadge: React.FC<{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 6,
+        gap: scaled(6),
         width: size,
       }}
     >
@@ -143,27 +138,32 @@ export const MedalBadge: React.FC<{
 export const PageIndicator: React.FC<{
   pages: unknown[][];
   currentPage: number;
-}> = ({ pages, currentPage }) => (
-  <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
-    {pages.map((_, pi) => (
-      <div
-        key={pi}
-        style={{
-          width: pi === currentPage ? 24 : 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: pi === currentPage ? COLORS.accent : COLORS.surfaceMed,
-        }}
-      />
-    ))}
-  </div>
-);
+}> = ({ pages, currentPage }) => {
+  const { scaled } = useDesign();
+  return (
+    <div
+      style={{ display: "flex", justifyContent: "center", gap: scaled(8), marginTop: scaled(16) }}
+    >
+      {pages.map((_, pi) => (
+        <div
+          key={pi}
+          style={{
+            width: pi === currentPage ? scaled(24) : scaled(8),
+            height: scaled(8),
+            borderRadius: scaled(4),
+            backgroundColor: pi === currentPage ? COLORS.accent : COLORS.surfaceMed,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 export const CategoryBadge: React.FC<{
   category: string;
   maxWidth?: number;
 }> = ({ category, maxWidth = 120 }) => {
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
   return (
     <div
       style={{
@@ -172,8 +172,8 @@ export const CategoryBadge: React.FC<{
         fontWeight: 700,
         color: COLORS.accentLight,
         backgroundColor: COLORS.accentBg,
-        borderRadius: 6,
-        padding: "5px 10px",
+        borderRadius: scaled(6),
+        padding: `${scaled(5)}px ${scaled(10)}px`,
         maxWidth,
         overflow: "hidden",
         whiteSpace: "nowrap",
@@ -190,9 +190,9 @@ export const KeywordTags: React.FC<{
   max?: number;
   maxWidth?: number;
 }> = ({ keywords, max = 2, maxWidth = 46 }) => {
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
   return (
-    <div style={{ display: "flex", gap: 5 }}>
+    <div style={{ display: "flex", gap: scaled(5) }}>
       {keywords.slice(0, max).map((kw) => (
         <span
           key={kw}
@@ -213,7 +213,11 @@ export const KeywordTags: React.FC<{
   );
 };
 
-export const rowEntryAnimation = (frame: number, rowStart: number, duration: number = ANIM.rowDuration) =>
+export const rowEntryAnimation = (
+  frame: number,
+  rowStart: number,
+  duration: number = ANIM.rowDuration,
+) =>
   interpolate(frame, [rowStart, rowStart + duration], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -319,25 +323,27 @@ export const SectionLabel: React.FC<{
   text: string;
   delay: number;
   frame: number;
+  /** 显式指定配色变体；未指定时使用 ChapterProvider 注入的章节色 */
   variant?: keyof typeof SECTION_VARIANTS;
-}> = ({ text, delay, frame, variant = "default" }) => {
+}> = ({ text, delay, frame, variant }) => {
   const progress = interpolate(frame, [delay, delay + ANIM.sectionLabelDuration], [0, 1], {
     easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const { fs } = useDesign();
-  const theme = SECTION_VARIANTS[variant];
+  const { fs, scaled } = useDesign();
+  const tone = useChapterTone();
+  const theme = variant ? SECTION_VARIANTS[variant] : { bar: tone.accent, text: tone.labelText };
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        marginBottom: 8,
+        gap: scaled(8),
+        marginBottom: scaled(12),
         opacity: progress,
-        transform: `translateX(${interpolate(progress, [0, 1], [-6, 0])}px)`,
+        transform: `translateX(${interpolate(progress, [0, 1], [-scaled(6), 0])}px)`,
       }}
     >
       <div
@@ -376,17 +382,17 @@ export const MetricPill: React.FC<{
     extrapolateRight: "clamp",
   });
   const pulse = audioPulse(frame);
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
 
   return (
     <div
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
-        height: METRIC_PILL_HEIGHT,
-        padding: `0 ${METRIC_PILL_PAD_X}px`,
-        borderRadius: METRIC_PILL_HEIGHT / 2,
+        gap: scaled(5),
+        height: scaled(METRIC_PILL_HEIGHT),
+        padding: `0 ${scaled(METRIC_PILL_PAD_X)}px`,
+        borderRadius: scaled(METRIC_PILL_HEIGHT / 2),
         backgroundColor: COLORS.surfaceFaint,
         border: `1px solid ${COLORS.borderSubtle}`,
         boxSizing: "border-box",
@@ -396,7 +402,11 @@ export const MetricPill: React.FC<{
         transform: `translateY(${interpolate(progress, [0, 1], [FOOTER_ENTRANCE_Y, 0])}px) scale(${1 + pulse * 0.03})`,
       }}
     >
-      <span style={{ fontSize: fs.label, lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{icon}</span>
+      <span
+        style={{ fontSize: fs.label, lineHeight: 1, display: "inline-flex", alignItems: "center" }}
+      >
+        {icon}
+      </span>
       <RollingNumber
         value={value}
         delay={delay}
@@ -422,6 +432,7 @@ export const KeywordTag: React.FC<{
   });
   const pulse = audioPulse(frame);
   const { fs } = useDesign();
+  const tone = useChapterTone();
 
   return (
     <span
@@ -429,9 +440,9 @@ export const KeywordTag: React.FC<{
         fontFamily: FONTS.sans,
         fontSize: fs.caption,
         fontWeight: FW.semibold,
-        color: COLORS.accentLight,
-        backgroundColor: COLORS.accentSurface,
-        border: `1px solid ${COLORS.accentBorderSubtle}`,
+        color: tone.accentLight,
+        backgroundColor: tone.accentBg,
+        border: `1px solid ${tone.accentBorder}`,
         borderRadius: PILL_RADIUS,
         padding: `${KEYWORD_TAG_PAD.y}px ${KEYWORD_TAG_PAD.x}px`,
         letterSpacing: 0.2,
@@ -548,15 +559,16 @@ export const CapsuleBadge: React.FC<{
   text: string;
 }> = ({ text }) => {
   const { fs } = useDesign();
+  const tone = useChapterTone();
   return (
     <span
       style={{
         fontFamily: FONTS.sans,
         fontSize: fs.caption,
         fontWeight: FW.heavy,
-        color: COLORS.brand,
-        backgroundColor: COLORS.brandBg,
-        border: "1px solid " + COLORS.brandBorderSubtle,
+        color: tone.accent,
+        backgroundColor: tone.accentBg,
+        border: "1px solid " + tone.accentBorder,
         borderRadius: PILL_RADIUS,
         padding: `${CAPSULE_PAD.y}px ${CAPSULE_PAD.x}px`,
         letterSpacing: 0.3,
@@ -646,6 +658,13 @@ export function subheadFontSize(d: ReturnType<typeof useDesign>, compact: boolea
   return compact ? Math.round(COMPACT_SUBHEAD_SIZE * d.scale) : d.fs.subhead;
 }
 
+/** Resolve focus card title font size (slightly larger than headline for hierarchy) */
+export function focusTitleFontSize(d: ReturnType<typeof useDesign>, compact: boolean): number {
+  return compact
+    ? Math.round(COMPACT_TITLE_SIZE * d.scale)
+    : Math.round(FOCUS_TITLE_SIZE * d.scale * 1.18);
+}
+
 /** Shared chapter watermark component */
 export const ChapterWatermark: React.FC<{
   displayIndex: number;
@@ -682,22 +701,25 @@ export const CardHeader: React.FC<{
   compact: boolean;
   maxWidth: number;
   progress: number;
-}> = ({ badgeText, compact, maxWidth, progress }) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: headerMargin(compact),
-      maxWidth,
-      opacity: progress,
-      transform: `translateY(${interpolate(progress, [0, 1], [HEADER_ENTRANCE_Y, 0])}px)`,
-    }}
-  >
-    <CapsuleBadge text={badgeText} />
-  </div>
-);
+}> = ({ badgeText, compact, maxWidth, progress }) => {
+  const { scaled } = useDesign();
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: scaled(8),
+        marginBottom: headerMargin(compact),
+        maxWidth,
+        opacity: progress,
+        transform: `translateY(${interpolate(progress, [0, 1], [HEADER_ENTRANCE_Y, 0])}px)`,
+      }}
+    >
+      <CapsuleBadge text={badgeText} />
+    </div>
+  );
+};
 
 /** Shared keywords footer row */
 export const CardKeywordsFooter: React.FC<{

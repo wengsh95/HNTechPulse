@@ -55,8 +55,6 @@ function compactDistribution(distribution: Record<string, number>): Record<strin
 
 interface Quote {
   author: string;
-  text: string;
-  text_cn?: string;
   display_text: string;
   stance: string;
   upvotes?: number;
@@ -117,14 +115,14 @@ const FocusPoint: React.FC<{
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "baseline",
-        gap: 10,
+        gap: scaled(10),
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
       }}
@@ -136,11 +134,11 @@ const FocusPoint: React.FC<{
           fontWeight: FW.bold,
           color: COLORS.accentLight,
           backgroundColor: COLORS.accentBg,
-          borderRadius: 4,
-          padding: "2px 6px",
+          borderRadius: scaled(4),
+          padding: `${scaled(2)}px ${scaled(6)}px`,
           flexShrink: 0,
           lineHeight: 1.4,
-          minWidth: 24,
+          minWidth: scaled(24),
           textAlign: "center",
         }}
       >
@@ -195,8 +193,9 @@ const QuoteRow: React.FC<{
   frame: number;
   compact: boolean;
   keywords: string[];
-}> = ({ quote, index, frame, compact, keywords }) => {
-  const { fs } = useDesign();
+  dense?: boolean;
+}> = ({ quote, index, frame, compact, keywords, dense = false }) => {
+  const { fs, scaled } = useDesign();
   const delay = 16 + index * 5;
   const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -211,13 +210,13 @@ const QuoteRow: React.FC<{
       style={{
         display: "flex",
         alignItems: "flex-start",
-        gap: 10,
+        gap: scaled(10),
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
         backgroundColor: COLORS.surfaceFaint,
-        borderRadius: 8,
-        padding: `${compact ? 10 : 14}px ${compact ? 12 : 16}px`,
-        borderLeft: `3px solid ${STANCE_COLORS[quote.stance] || COLORS.textSecondary}`,
+        borderRadius: scaled(8),
+        padding: `${scaled(dense ? 8 : compact ? 10 : 14)}px ${scaled(compact ? 12 : 16)}px`,
+        borderLeft: `${scaled(3)}px solid ${STANCE_COLORS[quote.stance] || COLORS.textSecondary}`,
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -226,22 +225,22 @@ const QuoteRow: React.FC<{
             fontFamily: FONTS.sans,
             fontSize: fs.body,
             color: COLORS.text,
-            lineHeight: 1.7,
+            lineHeight: dense ? 1.5 : 1.7,
             fontWeight: FW.regular,
             letterSpacing: 0.1,
             overflowWrap: "anywhere",
             wordBreak: "break-word",
-            ...lineClamp(compact ? 2 : 3),
+            ...lineClamp(dense ? 2 : compact ? 2 : 3),
           }}
         >
           &ldquo;{highlightKeywords(primaryText, keywords, frame, delay)}&rdquo;
         </div>
         <div
           style={{
-            marginTop: 6,
+            marginTop: scaled(6),
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: scaled(8),
             flexWrap: "wrap",
           }}
         >
@@ -283,7 +282,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
     typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
   const compactStances = compactDistribution(stanceDistribution);
 
-  const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 2);
+  const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
 
   const hasPie = Object.keys(compactStances).length > 0;
   const hasFocus = debateFocus.length > 0;
@@ -295,12 +294,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   const cardMaxH = d.getCardMaxHeight;
 
   const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } = useCardAnimations(frame);
+  const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } =
+    useCardAnimations(frame);
 
   const gap = hasPie ? d.scaled(compact ? 20 : 28) : 0;
-  const pieSize = d.scaled(compact ? 180 : 280);
+  const pieSize = d.scaled(compact ? 130 : 200);
+  const availableTextW = cardW - pieSize - gap - padX * 2;
   const textColW = hasPie
-    ? Math.max(d.scaled(320), cardW - pieSize - gap - padX * 2)
+    ? Math.max(d.scaled(360), Math.min(availableTextW, cardW - padX * 2))
     : Math.min(cardW - padX * 2, d.layout.contentWideMaxWidth);
 
   const hasFooter = keywords.length > 0;
@@ -314,6 +315,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         top: d.layout.topInset,
         width: cardW,
         minHeight: cardMaxH,
+        maxHeight: cardMaxH,
         ...glassCard,
         background: `linear-gradient(135deg, rgba(255,102,0,0.035), rgba(255,255,255,0.055) 38%, rgba(52,199,89,0.03))`,
         padding: `${padY}px ${padX}px`,
@@ -337,6 +339,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           flexDirection: "column",
           position: "relative",
           zIndex: 1,
+          alignSelf: hasPie ? undefined : "center",
         }}
       >
         {/* Header row */}
@@ -347,8 +350,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
           style={{
             display: "flex",
             alignItems: "baseline",
-            gap: 10,
-            marginBottom: compact ? 8 : 14,
+            gap: d.scaled(10),
+            marginBottom: compact ? d.scaled(8) : d.scaled(14),
             maxWidth: textColW,
             opacity: titleProgress,
             transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
@@ -393,8 +396,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: compact ? 4 : 8,
-                marginBottom: hasQuotes ? bodySectionGap(compact) * 0.8 : 0,
+                gap: d.scaled(compact ? 4 : 8),
+                marginBottom: hasQuotes ? bodySectionGap(compact) : 0,
                 maxWidth: textColW,
               }}
             >
@@ -419,8 +422,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: compact ? 6 : 10,
-                marginBottom: hasFooter ? bodySectionGap(compact) * 0.8 : 0,
+                gap: d.scaled(quotes.length >= 3 ? 5 : compact ? 6 : 10),
+                marginBottom: hasFooter ? bodySectionGap(compact) : 0,
                 maxWidth: textColW,
               }}
             >
@@ -432,6 +435,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
                   frame={frame}
                   compact={compact}
                   keywords={keywords}
+                  dense={quotes.length >= 3}
                 />
               ))}
             </div>
@@ -441,7 +445,12 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         {/* Keywords */}
         {hasFooter && <div style={dividerStyle} />}
         {keywords.length > 0 && (
-          <CardKeywordsFooter keywords={keywords} progress={footerProgress} frame={frame} delayBase={22} />
+          <CardKeywordsFooter
+            keywords={keywords}
+            progress={footerProgress}
+            frame={frame}
+            delayBase={22}
+          />
         )}
       </div>
 
@@ -450,7 +459,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
         <div
           style={{
             flex: `0 0 ${pieSize}px`,
-            alignSelf: "flex-start",
+            alignSelf: "stretch",
             overflow: "visible",
             opacity: imageProgress,
             transform: `translateX(${interpolate(imageProgress, [0, 1], [IMAGE_ENTRANCE_X, 0])}px)`,
@@ -464,6 +473,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
             size={pieSize}
             centerLabel={commentCount > 0 ? `${commentCount}条` : undefined}
             stanceConcerns={stanceConcerns}
+            quotedStances={quotes.map((q) => q.stance).filter(Boolean)}
           />
         </div>
       )}

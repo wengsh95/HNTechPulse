@@ -51,7 +51,7 @@ npm install && npm run start
 
 Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `render`
 
-Script structure (daily_brief): **opening** → **dashboard** → **story_scan** (per-story LLM segments) → **closing**
+Script structure (daily_brief): **opening** (cover_card 承担 dashboard 角色：headline + Top-3 highlights + section_counts) → **story_scan** (per-story LLM segments) → **closing**
 
 ### Data Flow
 

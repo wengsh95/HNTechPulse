@@ -120,7 +120,6 @@ def test_normalize_story_judgement_supports_discussion_modes_and_lanes():
 
     assert result["discussion_mode"] == "field_notes"
     assert result["discussion_summary"] == "评论区主要在补充生产经验"
-    assert result["confidence"] == 0.7
     assert result["comment_lanes"]["representative"][0]["comment_id"] == "ops"
     assert result["comment_lanes"]["color"] == []
 

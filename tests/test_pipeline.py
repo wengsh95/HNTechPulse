@@ -99,7 +99,6 @@ class TestContentPreparer:
         preparer = ContentPreparer(config, debug=True)
         content = _make_content_package()
         content.items[0].why_it_matters = "影响开发工作流"
-        content.items[0].next_watch = "关注企业部署"
         date = "2026-04-26"
 
         preparer.save_content(content, date)
@@ -118,7 +117,6 @@ class TestContentPreparer:
             assert loaded_item.score == original.score
             assert loaded_item.comment_count == original.comment_count
             assert loaded_item.why_it_matters == original.why_it_matters
-            assert loaded_item.next_watch == original.next_watch
             assert len(loaded_item.comments) == len(original.comments)
             for orig_c, load_c in zip(original.comments, loaded_item.comments):
                 assert load_c.author == orig_c.author
@@ -218,7 +216,10 @@ class TestScriptWriter:
         assert props["keywords"] == ["AI", "Agents", "Infra"]
         assert props["summary_label"] == "今日脉络"
         assert props["summary_items"][0]["category"] == "AI"
-        assert props["summary_items"][0]["title"] == "AI 正从产品功能，变成开发工作流的底层能力。"
+        assert (
+            props["summary_items"][0]["title"]
+            == "AI 正从产品功能，变成开发工作流的底层能力。"
+        )
         assert props["totals"]["story_count"] == 2
 
 
@@ -260,7 +261,8 @@ class TestOrchestrator:
         )
 
         script = _make_script()
-        result = orch._step_tts(script, "2026-04-26")
+        content = _make_content_package()
+        _, result = orch._step_produce(content, script, "2026-04-26")
         assert result.total_duration == 30.0
         for seg in result.segments:
             assert seg.actual_duration is not None

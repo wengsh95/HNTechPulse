@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock
 
-
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script
 from src.pipeline.orchestrator import Orchestrator
@@ -51,28 +50,9 @@ class TestStepEnrich:
         orch = _make_orchestrator(dry_run=False)
         orch.article_enricher = None
         content = ContentPackage(date="2026-04-26", items=[])
+        orch.content_fetcher.fetch_comments.return_value = content
         result = orch._step_enrich(content, "2026-04-26")
         assert result is content
-
-
-class TestStepAnalyze:
-    def test_dry_run_returns_content_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        content = ContentPackage(date="2026-04-26", items=[])
-        result = orch._step_analyze(content, "2026-04-26")
-        assert result is content
-
-
-class TestStepTranslate:
-    def test_dry_run_returns_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        content = ContentPackage(date="2026-04-26", items=[])
-        script = Script(title="T", description="", tags=[], segments=[])
-        result_content, result_script = orch._step_translate(
-            content, script, "2026-04-26"
-        )
-        assert result_content is content
-        assert result_script is script
 
 
 class TestStepScript:
@@ -83,3 +63,15 @@ class TestStepScript:
         assert isinstance(result, Script)
         assert len(result.segments) >= 1
         assert result.segments[0].segment_type == "opening"
+
+
+class TestStepProduce:
+    def test_dry_run_returns_unchanged(self):
+        orch = _make_orchestrator(dry_run=True)
+        content = ContentPackage(date="2026-04-26", items=[])
+        script = Script(title="T", description="", tags=[], segments=[])
+        result_content, result_script = orch._step_produce(
+            content, script, "2026-04-26"
+        )
+        assert result_content is content
+        assert result_script is script

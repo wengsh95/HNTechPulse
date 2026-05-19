@@ -9,7 +9,12 @@ sys.stderr.reconfigure(line_buffering=True)
 
 from src.utils.config import load_config
 from src.utils.logger import setup_logger, get_log_file_path
-from src.providers.factory import create_fetcher, create_llm_provider, create_tts_provider, create_renderer
+from src.providers.factory import (
+    create_fetcher,
+    create_llm_provider,
+    create_tts_provider,
+    create_renderer,
+)
 from src.pipeline.orchestrator import Orchestrator
 from src.providers.enricher.article_enricher import ArticleEnricher
 
@@ -23,18 +28,35 @@ def validate_date(value: str) -> str:
         datetime.strptime(value, "%Y-%m-%d")
         return value
     except ValueError:
-        raise argparse.ArgumentTypeError(f"Invalid date format: '{value}'. Expected YYYY-MM-DD")
+        raise argparse.ArgumentTypeError(
+            f"Invalid date format: '{value}'. Expected YYYY-MM-DD"
+        )
 
 
 def main():
-    parser = argparse.ArgumentParser(description="HN TechPulse: Generate tech video from Hacker News")
-    parser.add_argument("--date", type=validate_date, default=get_default_date(), help="Date to process (YYYY-MM-DD)")
+    parser = argparse.ArgumentParser(
+        description="HN TechPulse: Generate tech video from Hacker News"
+    )
+    parser.add_argument(
+        "--date",
+        type=validate_date,
+        default=get_default_date(),
+        help="Date to process (YYYY-MM-DD)",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
-    parser.add_argument("--force", action="store_true", help="Force re-render (clear render cache)")
-    parser.add_argument("--steps", type=str, default="fetch,enrich,analyze,translate,script,tts,preview",
-                        help="Steps to run (comma-separated: fetch,enrich,analyze,translate,script,tts,preview,render,editor,sync_preview)")
-    parser.add_argument("--config", type=str, default="config/", help="Config directory or file path")
+    parser.add_argument(
+        "--force", action="store_true", help="Force re-render (clear render cache)"
+    )
+    parser.add_argument(
+        "--steps",
+        type=str,
+        default="fetch,enrich,script,produce,preview",
+        help="Steps to run (comma-separated: fetch,enrich,script,produce,render,preview,editor,sync_preview)",
+    )
+    parser.add_argument(
+        "--config", type=str, default="config/", help="Config directory or file path"
+    )
     args = parser.parse_args()
 
     steps = [s.strip() for s in args.steps.split(",")]
@@ -45,7 +67,9 @@ def main():
 
     log_file = get_log_file_path(args.date) if not args.dry_run else None
     log_level = config.get("logging", {}).get("level", "INFO")
-    logger = setup_logger("hn_techpulse", log_file=log_file, debug=args.debug, level=log_level)
+    logger = setup_logger(
+        "hn_techpulse", log_file=log_file, debug=args.debug, level=log_level
+    )
 
     logger.info("=" * 60)
     logger.info("Starting HN TechPulse")
@@ -84,7 +108,7 @@ def main():
             renderer=renderer,
             article_enricher=article_enricher,
             debug=args.debug,
-            dry_run=args.dry_run
+            dry_run=args.dry_run,
         )
 
         orchestrator.run(

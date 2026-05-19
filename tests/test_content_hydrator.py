@@ -38,7 +38,6 @@ def test_merge_enrichment_overlay_updates_render_fields(tmp_path, monkeypatch):
                         ],
                         "keywords": ["MCP协议", "企业部署"],
                         "why_it_matters": "改变开发工作流",
-                        "next_watch": "关注企业部署",
                     }
                 },
             },
@@ -54,10 +53,11 @@ def test_merge_enrichment_overlay_updates_render_fields(tmp_path, monkeypatch):
     assert item.image_candidates == [{"path": "images/editor.jpg", "source": "upload"}]
     assert item.keywords == ["MCP协议", "企业部署"]
     assert item.why_it_matters == "改变开发工作流"
-    assert item.next_watch == "关注企业部署"
 
 
-def test_merge_enrichment_overlay_preserves_base_when_values_empty(tmp_path, monkeypatch):
+def test_merge_enrichment_overlay_preserves_base_when_values_empty(
+    tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     date = "2026-05-17"
     data_dir = Path("data") / date
@@ -84,7 +84,6 @@ def test_merge_enrichment_overlay_preserves_base_when_values_empty(tmp_path, mon
                     "42": {
                         "keywords": [],
                         "why_it_matters": "",
-                        "next_watch": None,
                     }
                 },
             },
@@ -97,4 +96,3 @@ def test_merge_enrichment_overlay_preserves_base_when_values_empty(tmp_path, mon
 
     assert content.items[0].keywords == ["保留关键词"]
     assert content.items[0].why_it_matters == "保留价值"
-    assert content.items[0].next_watch is None

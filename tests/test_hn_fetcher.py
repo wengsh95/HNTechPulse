@@ -169,35 +169,21 @@ class TestToContentPackage:
         assert len(item.comments) == 1
         assert item.comments[0].author == "alice"
 
-    def test_index_assignment(self):
-        fetcher = _make_fetcher()
-        stories = [_make_story(story_id=i) for i in range(5)]
-        comments = {i: [] for i in range(5)}
-        pkg = fetcher._to_content_package(
-            stories,
-            comments,
-            "2024-01-15",
-            num_deep_dive=1,
-            num_brief=2,
-            num_quick_news=2,
-        )
-        assert pkg.deep_dive_indices == [0]
-        assert pkg.brief_indices == [1, 2]
-        assert pkg.quick_news_indices == [3, 4]
-
-    def test_items_truncated(self):
+    def test_no_truncation(self):
+        """_to_content_package no longer truncates; all stories are kept."""
         fetcher = _make_fetcher()
         stories = [_make_story(story_id=i) for i in range(20)]
-        comments = {i: [] for i in range(20)}
-        pkg = fetcher._to_content_package(
-            stories,
-            comments,
-            "2024-01-15",
-            num_deep_dive=1,
-            num_brief=2,
-            num_quick_news=7,
-        )
-        assert len(pkg.items) == 10
+        pkg = fetcher._to_content_package(stories, {}, "2024-01-15")
+        assert len(pkg.items) == 20
+
+    def test_empty_comments(self):
+        """Stories without comments in dict get empty comment list."""
+        fetcher = _make_fetcher()
+        stories = [_make_story(story_id=1), _make_story(story_id=2)]
+        pkg = fetcher._to_content_package(stories, {}, "2024-01-15")
+        assert len(pkg.items) == 2
+        assert len(pkg.items[0].comments) == 0
+        assert len(pkg.items[1].comments) == 0
 
 
 # ── _story_to_dict / _dict_to_story ──────────────────────────────────

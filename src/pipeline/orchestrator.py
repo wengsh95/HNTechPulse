@@ -15,6 +15,7 @@ from src.pipeline.translation_manager import TranslationManager
 from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.comment_analyzer import CommentAnalyzer
 from src.pipeline.comment_judge import CommentJudge
+from src.pipeline.prefilter import Prefilter
 from src.utils.logger import setup_logger
 
 
@@ -56,6 +57,7 @@ class Orchestrator:
         self.comment_judge = CommentJudge(
             llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug
         )
+        self.prefilter = Prefilter(llm_provider, config, debug=debug)
         timing_cfg = config.get("timing", {})
         self._timing = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
@@ -66,13 +68,13 @@ class Orchestrator:
     def run(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
     ) -> None:
+        # Core pipeline: fetch → enrich → script → produce
+        # Standalone: render, preview, editor, sync_preview
         _ALL_STEPS = [
             "fetch",
             "enrich",
-            "analyze",
             "script",
-            "translate",
-            "tts",
+            "produce",
             "render",
             "preview",
             "editor",
@@ -80,14 +82,20 @@ class Orchestrator:
         ]
 
         if steps is None:
-            steps = [s for s in _ALL_STEPS if s not in ("render", "editor", "sync_preview")]
+            steps = [
+                s for s in _ALL_STEPS if s not in ("render", "editor", "sync_preview")
+            ]
         else:
             # Exclude standalone steps from expansion — they don't need prior steps
             _standalone = {"editor", "render", "preview", "sync_preview"}
-            pipeline_steps = [s for s in steps if s in _ALL_STEPS and s not in _standalone]
+            pipeline_steps = [
+                s for s in steps if s in _ALL_STEPS and s not in _standalone
+            ]
             if pipeline_steps:
                 max_idx = max(_ALL_STEPS.index(s) for s in pipeline_steps)
-                steps = _ALL_STEPS[: max_idx + 1] + [s for s in steps if s in _standalone]
+                steps = _ALL_STEPS[: max_idx + 1] + [
+                    s for s in steps if s in _standalone
+                ]
             else:
                 steps = [s for s in steps if s in _ALL_STEPS]
 
@@ -99,6 +107,7 @@ class Orchestrator:
         content = None
         script = None
 
+        # ── fetch ──────────────────────────────────────────────────
         if "fetch" in steps:
             content = self._step_fetch(date)
         else:
@@ -108,6 +117,7 @@ class Orchestrator:
                 self.logger.info("Content not found, fetching anyway...")
                 content = self._step_fetch(date)
 
+        # ── enrich (prefilter + enrichment) ────────────────────────
         if "enrich" in steps:
             content = self._step_enrich(content, date)
             # Stop pipeline if any items need manual HTML download
@@ -120,9 +130,8 @@ class Orchestrator:
                     "Re-run after placing HTML files in downloaded_pages/."
                 )
                 return
-        if "analyze" in steps:
-            content = self._step_analyze(content, date)
 
+        # ── script (analyze + script generation) ───────────────────
         if "script" in steps:
             script = self._step_script(content, date)
         else:
@@ -132,12 +141,11 @@ class Orchestrator:
                 self.logger.info("Script not found, generating anyway...")
                 script = self._step_script(content, date)
 
-        if "translate" in steps:
-            content, script = self._step_translate(content, script, date)
+        # ── produce (translate + tts) ──────────────────────────────
+        if "produce" in steps:
+            content, script = self._step_produce(content, script, date)
 
-        if "tts" in steps:
-            script = self._step_tts(script, date, content)
-
+        # ── standalone steps ───────────────────────────────────────
         if "sync_preview" in steps:
             self._step_sync_preview(script, date, content)
 
@@ -151,13 +159,15 @@ class Orchestrator:
             self._step_render(script, date, content, force=force)
 
         # Save transcript
-        if script and ("script" in steps or "tts" in steps):
+        if script and ("script" in steps or "produce" in steps):
             self.script_writer.save_transcript(script, date, content)
 
         elapsed = time.monotonic() - t_start
         self.report_generator.generate(date, steps, elapsed, content, script)
 
         self.logger.info("Pipeline completed")
+
+    # ── Core Steps ────────────────────────────────────────────────
 
     def _step_fetch(self, date: str):
         self.logger.info("Step: Fetch content")
@@ -167,19 +177,31 @@ class Orchestrator:
 
             return ContentPackage(date=date, items=[])
 
-        pipeline_cfg = self.config.get("pipeline", {})
-        target_story_count = pipeline_cfg.get("target_story_count", 10)
+        hn_cfg = self.config.get("hn", {})
+        fetch_count = hn_cfg.get("target_stories_count", 30)
         content = self.content_fetcher.fetch(
             date,
             num_deep_dive=0,
-            num_brief=target_story_count,
-            num_quick_news=0,
+            num_brief=fetch_count,
         )
         self.content_preparer.save_content(content, date)
         return content
 
     def _step_enrich(self, content, date: str):
-        self.logger.info("Step: Enrich content")
+        # Sub-step 1: prefilter
+        self.logger.info("Step: Enrich — prefilter stories by tech relevance")
+        if not self.dry_run:
+            content = self.prefilter.filter(content, date)
+            self.content_preparer.save_content(content, date)
+
+        # Sub-step 2: fetch comments (only for stories that survived prefilter)
+        self.logger.info("Step: Enrich — fetch comments")
+        if not self.dry_run:
+            content = self.content_fetcher.fetch_comments(content, date)
+            self.content_preparer.save_content(content, date)
+
+        # Sub-step 3: enrichment
+        self.logger.info("Step: Enrich — fetch article content and extract metadata")
         if self.dry_run:
             self.logger.info("Dry run: skipping enrichment")
             return content
@@ -209,9 +231,9 @@ class Orchestrator:
                 self.logger.info(f"  [{reason}] {item.source_id}: {title}")
                 self.logger.info(f"         {url}")
             self.logger.warning(
-                f"Download each page in your browser, save as HTML to:\n"
+                f"Download each page in your browser, save as HTML or PDF to:\n"
                 f"    {download_dir}/\n"
-                f"  File naming: {{source_id}}.html\n"
+                f"  File naming: {{source_id}}.html or {{source_id}}.pdf\n"
                 f"  Then re-run the pipeline. It will resume from this point."
             )
             self.content_preparer.save_content(content, date)
@@ -220,29 +242,17 @@ class Orchestrator:
         self.content_preparer.save_content(content, date)
         return content
 
-    def _step_analyze(self, content, date: str):
-        self.logger.info("Step: Analyze comments")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping analysis")
-            return content
-        content = self.comment_analyzer.analyze(content, date)
-        self.comment_judge.judge(content, date)
-        self.content_preparer.save_content(content, date)
-        return content
-
-    def _step_translate(self, content, script, date: str):
-        self.logger.info("Step: Translate titles and comments")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping translation")
-            return content, script
-
-        content, script = self.translation_manager.translate(content, script, date)
-        self.script_writer.save_script(script, date)
-        return content, script
-
     def _step_script(self, content, date: str):
+        # Sub-step 1: analyze comments
+        self.logger.info("Step: Script — analyze comments")
+        if not self.dry_run:
+            content = self.comment_analyzer.analyze(content, date)
+            self.comment_judge.judge(content, date)
+            self.content_preparer.save_content(content, date)
+
+        # Sub-step 2: generate script
         self.logger.info("=" * 50)
-        self.logger.info("Step: Generate script (daily_brief)")
+        self.logger.info("Step: Script — generate narration (daily_brief)")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
         self.logger.info(f"Model: {self.config.get('llm', {}).get('model', 'unknown')}")
         num_brief = min(
@@ -274,19 +284,28 @@ class Orchestrator:
         self.script_writer.save_script(script, date)
         return script
 
-    def _step_tts(self, script: Script, date: str, content=None) -> Script:
-        self.logger.info("Step: Synthesize audio")
+    def _step_produce(self, content, script, date: str):
+        # Sub-step 1: translate
+        self.logger.info("Step: Produce — translate titles and comments")
+        if not self.dry_run:
+            content, script = self.translation_manager.translate(content, script, date)
+            self.script_writer.save_script(script, date)
+
+        # Sub-step 2: tts
+        self.logger.info("Step: Produce — synthesize audio")
         if self.dry_run:
             self.logger.info("Dry run: skipping TTS")
             for seg in script.segments:
                 seg.actual_duration = seg.estimated_duration
                 seg.audio_path = ""
             self._timing.compute_timeline(script)
-            return script
+            return content, script
 
         script = self.tts_processor.process_audio(script, date, content)
         self.script_writer.save_script(script, date)
-        return script
+        return content, script
+
+    # ── Standalone Steps ──────────────────────────────────────────
 
     def _step_sync_preview(self, script: Script, date: str, content=None) -> None:
         self.logger.info("Step: Sync Preview Props")
@@ -329,9 +348,13 @@ class Orchestrator:
         try:
             subprocess.run(
                 [
-                    "uv", "run", "streamlit", "run",
+                    "uv",
+                    "run",
+                    "streamlit",
+                    "run",
                     "src/editor/app.py",
-                    "--server.port", "8501",
+                    "--server.port",
+                    "8501",
                 ],
                 check=True,
             )

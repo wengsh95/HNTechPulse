@@ -15,6 +15,7 @@ dependencies = [
     "edge-tts>=6.1.12",
     "tenacity>=8.2.3",
     "trafilatura>=2.0.0",
+    "pdfplumber>=0.11.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
     "Pillow>=10.0.0",

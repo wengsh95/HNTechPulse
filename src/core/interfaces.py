@@ -12,6 +12,10 @@ class ContentFetcher(ABC):
     def fetch(self, date: str, **kwargs) -> "ContentPackage":
         pass
 
+    def fetch_comments(self, content: "ContentPackage", date: str) -> "ContentPackage":
+        """Fetch comments for stories in content. Default: no-op."""
+        return content
+
 
 class LLMProvider(ABC):
     """LLM 抽象 —— R2: 逐条生成脚本"""
@@ -25,6 +29,7 @@ class LLMProvider(ABC):
         prompt_template_path: str,
         date: str,
         comments_data: Optional[dict] = None,
+        expected_card_types: Optional[list[str]] = None,
     ) -> "ScriptSegment":
         """R2: 为单个 story 生成对应的 ScriptSegment"""
         pass
@@ -50,6 +55,15 @@ class LLMProvider(ABC):
         candidates=None,
     ) -> dict:
         """Rank comments suitable for quote display. Return {} if unsupported."""
+        pass
+
+    @abstractmethod
+    def prefilter_stories(
+        self,
+        stories: list,
+        prompt_template_path: str = "prompts/prefilter.md",
+    ) -> list:
+        """Judge technical relevance of stories. Returns list of {index, keep, reason}."""
         pass
 
 

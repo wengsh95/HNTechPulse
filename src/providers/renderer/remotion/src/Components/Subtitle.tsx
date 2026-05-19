@@ -76,7 +76,8 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
       style={{
         ...S,
         left: "50%",
-        bottom: (isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom) + d.scaled(8),
+        bottom:
+          (isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom) + d.scaled(8),
         transform: `translateX(-50%) translateY(${slideY}px)`,
         background: isMinimal ? GRADIENTS.subtitleMinimal : GRADIENTS.subtitleStandard,
         display: "flex",

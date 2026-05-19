@@ -57,10 +57,10 @@ def align_audio(
     if model_path:
         model_file = str(Path(model_path) / f"{model_size}.pt")
         logger.info(f"Loading Whisper model from local path: {model_file}")
-        model = whisper.load_model(model_file)
+        model = whisper.load_model(model_file, device="cpu")
     else:
         logger.info(f"Loading Whisper model '{model_size}'")
-        model = whisper.load_model(model_size)
+        model = whisper.load_model(model_size, device="cpu")
 
     logger.info(f"Transcribing {audio_path} with word timestamps...")
     result = model.transcribe(
@@ -79,7 +79,9 @@ def align_audio(
     if not words:
         raise RuntimeError("Whisper produced no word timestamps")
 
-    logger.info(f"Whisper returned {len(words)} words, aligning to {len(reference_texts)} reference texts...")
+    logger.info(
+        f"Whisper returned {len(words)} words, aligning to {len(reference_texts)} reference texts..."
+    )
 
     # Build whisper transcript and per-character word-index lookup.
     whisper_chars: list[str] = []
@@ -178,11 +180,16 @@ def split_audio(
         cmd = [
             _FFMPEG,
             "-y",
-            "-i", audio_path,
-            "-ss", f"{seg.start_time:.3f}",
-            "-to", f"{seg.end_time:.3f}",
-            "-acodec", "libmp3lame",
-            "-q:a", "2",
+            "-i",
+            audio_path,
+            "-ss",
+            f"{seg.start_time:.3f}",
+            "-to",
+            f"{seg.end_time:.3f}",
+            "-acodec",
+            "libmp3lame",
+            "-q:a",
+            "2",
             out_path,
         ]
         subprocess.run(cmd, capture_output=True, check=True)

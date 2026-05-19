@@ -84,7 +84,6 @@ class HNFetcher(ContentFetcher):
         date: str,
         num_deep_dive: int = 1,
         num_brief: int = 2,
-        num_quick_news: int = 7,
     ) -> ContentPackage:
         import time as _time
 
@@ -93,39 +92,41 @@ class HNFetcher(ContentFetcher):
         self.logger.info(f"Starting fetch, date={date}")
         self.logger.info("=" * 60)
 
-        raw_data_path = Path(f"data/{date}/raw.json")
-        if raw_data_path.exists():
-            self.logger.info(f"Cache hit, loading from {raw_data_path}")
-            result = self._load_from_cache(
-                raw_data_path, date, num_deep_dive, num_brief, num_quick_news
-            )
+        raw_stories_path = Path(f"data/{date}/raw_stories.json")
+        # Backward compat: also check old raw.json
+        raw_compat_path = Path(f"data/{date}/raw.json")
+        cache_path = raw_stories_path if raw_stories_path.exists() else raw_compat_path
+
+        if cache_path.exists():
+            self.logger.info(f"Cache hit, loading from {cache_path}")
+            result = self._load_stories_from_cache(cache_path, date)
             self.logger.info(f"Loaded from cache in {_time.monotonic() - t0:.1f}s")
             return result
 
         self.logger.info(
-            f"[1/4] Fetching top stories IDs (max {self.top_stories_count})..."
+            f"[1/3] Fetching top stories IDs (max {self.top_stories_count})..."
         )
         t1 = _time.monotonic()
         top_story_ids = self._fetch_top_stories()
         self.logger.info(
-            f"[1/4] Fetched {len(top_story_ids)} story IDs in {_time.monotonic() - t1:.1f}s"
+            f"[1/3] Fetched {len(top_story_ids)} story IDs in {_time.monotonic() - t1:.1f}s"
         )
 
         total_ids = len(top_story_ids)
         self.logger.info(
-            f"[2/4] Fetching story details, total {total_ids} (concurrent={self.max_concurrent_requests})..."
+            f"[2/3] Fetching story details, total {total_ids} (concurrent={self.max_concurrent_requests})..."
         )
         t2 = _time.monotonic()
         stories = self._fetch_stories_concurrent(top_story_ids)
         valid_count = len(stories)
         skipped_count = total_ids - valid_count
         self.logger.info(
-            f"[2/4] Fetched {valid_count} valid stories, skipped {skipped_count}"
+            f"[2/3] Fetched {valid_count} valid stories, skipped {skipped_count}"
             f" in {_time.monotonic() - t2:.1f}s"
         )
 
         self.logger.info(
-            f"[3/4] Filtering by time and selecting top {self.target_stories_count}..."
+            f"[3/3] Filtering by time and selecting top {self.target_stories_count}..."
         )
         t3 = _time.monotonic()
         filtered_stories = self._filter_stories_by_time(stories, date)
@@ -134,46 +135,83 @@ class HNFetcher(ContentFetcher):
         )
         top_stories = self._select_top_stories(filtered_stories)
         self.logger.info(
-            f"[3/4] Selected {len(top_stories)} stories in {_time.monotonic() - t3:.1f}s"
+            f"[3/3] Selected {len(top_stories)} stories in {_time.monotonic() - t3:.1f}s"
         )
 
-        total_stories = len(top_stories)
-        self.logger.info(
-            f"[4/4] Fetching comments for {total_stories} stories"
-            f" (concurrent={self.max_concurrent_requests}, max_depth={self.max_comment_depth})..."
-        )
-        t4 = _time.monotonic()
-        comments = self._fetch_comments_concurrent(top_stories)
-
-        total_comments = sum(len(v) for v in comments.values())
-        elapsed_t4 = _time.monotonic() - t4
-        self.logger.info(
-            f"[4/4] Fetched {total_comments} comments in {elapsed_t4:.1f}s"
-        )
-
+        # Save stories cache (no comments)
         raw_data = {
             "date": date,
             "stories": [self._story_to_dict(s) for s in top_stories],
-            "comments": {
-                k: [self._comment_to_dict(c) for c in v] for k, v in comments.items()
-            },
         }
-        raw_data_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(raw_data_path, "w", encoding="utf-8") as f:
+        raw_stories_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(raw_stories_path, "w", encoding="utf-8") as f:
             json.dump(raw_data, f, ensure_ascii=False, indent=2)
-        self.logger.info(f"Cache saved to {raw_data_path}")
+        self.logger.info(f"Stories cache saved to {raw_stories_path}")
 
         elapsed = _time.monotonic() - t0
         self.logger.info("=" * 60)
         self.logger.info(
-            f"Fetch complete: stories={len(top_stories)}"
-            f"  comments={total_comments}  total_time={elapsed:.1f}s"
+            f"Fetch complete: stories={len(top_stories)}  total_time={elapsed:.1f}s"
         )
         self.logger.info("=" * 60)
 
-        return self._to_content_package(
-            top_stories, comments, date, num_deep_dive, num_brief, num_quick_news
+        return self._to_content_package(top_stories, {}, date)
+
+    def fetch_comments(self, content: ContentPackage, date: str) -> ContentPackage:
+        """Fetch comments for stories in content.items (called after prefilter)."""
+        import time as _time
+
+        if not content.items:
+            return content
+
+        # Build HNStory list from content items for comment fetching
+        stories_to_fetch = []
+        for item in content.items:
+            # Skip stories that already have comments loaded
+            if item.comments:
+                continue
+            stories_to_fetch.append(
+                HNStory(
+                    id=int(item.source_id),
+                    title=item.title or "",
+                    url=item.url,
+                    score=item.score or 0,
+                    descendants=item.comment_count or 0,
+                    time=item.published_at or 0,
+                )
+            )
+
+        if not stories_to_fetch:
+            self.logger.info("All stories already have comments, skipping fetch")
+            return content
+
+        self.logger.info(
+            f"Fetching comments for {len(stories_to_fetch)} stories"
+            f" (concurrent={self.max_concurrent_requests}, max_depth={self.max_comment_depth})..."
         )
+        t0 = _time.monotonic()
+        comments = self._fetch_comments_concurrent(stories_to_fetch)
+
+        total_comments = sum(len(v) for v in comments.values())
+        elapsed = _time.monotonic() - t0
+        self.logger.info(f"Fetched {total_comments} comments in {elapsed:.1f}s")
+
+        # Attach comments to content items
+        for item in content.items:
+            story_id = int(item.source_id)
+            for hn_comment in comments.get(story_id, []):
+                item.comments.append(
+                    ContentComment(
+                        author=hn_comment.author,
+                        content=hn_comment.text,
+                        source_id=str(hn_comment.id),
+                        upvotes=hn_comment.score,
+                        depth=hn_comment.depth,
+                        published_at=hn_comment.time,
+                    )
+                )
+
+        return content
 
     def _fetch_top_stories(self) -> List[int]:
         url = f"{self.base_url}/topstories.json"
@@ -560,9 +598,6 @@ class HNFetcher(ContentFetcher):
         stories: List[HNStory],
         comments: Dict[int, List[HNComment]],
         date: str,
-        num_deep_dive: int = 1,
-        num_brief: int = 2,
-        num_quick_news: int = 7,
     ) -> ContentPackage:
         items: List[ContentItem] = []
 
@@ -575,7 +610,6 @@ class HNFetcher(ContentFetcher):
                 score=story.score,
                 comment_count=story.descendants,
                 published_at=story.time,
-                raw=self._story_to_dict(story),
             )
 
             for hn_comment in comments.get(story.id, []):
@@ -592,39 +626,32 @@ class HNFetcher(ContentFetcher):
 
             items.append(item)
 
-        total = num_deep_dive + num_brief + num_quick_news
-        items = items[:total]
-
         return ContentPackage(
             date=date,
             items=items,
-            deep_dive_indices=list(range(min(num_deep_dive, len(items)))),
-            brief_indices=list(
-                range(num_deep_dive, min(num_deep_dive + num_brief, len(items)))
-            ),
-            quick_news_indices=list(range(num_deep_dive + num_brief, len(items))),
+            deep_dive_indices=[],
+            brief_indices=list(range(len(items))),
+            quick_news_indices=[],
         )
 
-    def _load_from_cache(
+    def _load_stories_from_cache(
         self,
         path: Path,
         date: str,
-        num_deep_dive: int = 1,
-        num_brief: int = 2,
-        num_quick_news: int = 7,
     ) -> ContentPackage:
         with open(path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
         stories = [self._dict_to_story(d) for d in raw_data["stories"]]
-        comments = {
-            int(k): [self._dict_to_comment(c) for c in v]
-            for k, v in raw_data["comments"].items()
-        }
+        # Old raw.json may include comments; new raw_stories.json won't
+        comments = {}
+        if "comments" in raw_data:
+            comments = {
+                int(k): [self._dict_to_comment(c) for c in v]
+                for k, v in raw_data["comments"].items()
+            }
 
-        return self._to_content_package(
-            stories, comments, date, num_deep_dive, num_brief, num_quick_news
-        )
+        return self._to_content_package(stories, comments, date)
 
     def _story_to_dict(self, story: HNStory) -> dict:
         return {

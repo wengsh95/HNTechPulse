@@ -32,6 +32,10 @@ class TTSProcessor:
         tts_config = config.get("tts", {})
         self.whisper_model = tts_config.get("whisper_model", "large-v3")
         self.whisper_model_path = tts_config.get("whisper_model_path", "")
+        if self.whisper_model_path and not Path(self.whisper_model_path).is_absolute():
+            self.whisper_model_path = str(
+                Path(__file__).resolve().parents[2] / self.whisper_model_path
+            )
 
     def process_audio(self, script: Script, date: str, content=None) -> Script:
         """Synthesize audio and align subtitles via Whisper.
@@ -143,9 +147,7 @@ class TTSProcessor:
 
         # Concatenate element audio into segment audio
         seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
-        self._concat_audio_files(
-            [e[1] for e in elem_audio_entries], seg_audio_path
-        )
+        self._concat_audio_files([e[1] for e in elem_audio_entries], seg_audio_path)
         segment.audio_path = seg_audio_path
         segment.actual_duration = get_audio_duration(seg_audio_path)
 
@@ -179,18 +181,25 @@ class TTSProcessor:
             return
         subprocess.run(
             [
-                _FFMPEG, "-y", "-f", "lavfi",
-                "-i", "anullsrc=r=24000:cl=mono",
-                "-t", str(duration),
-                "-c:a", "libmp3lame", "-q:a", "2",
+                _FFMPEG,
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=24000:cl=mono",
+                "-t",
+                str(duration),
+                "-c:a",
+                "libmp3lame",
+                "-q:a",
+                "2",
                 output_path,
             ],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
-    def _concat_audio_files(
-        self, audio_paths: list[str], output_path: str
-    ) -> None:
+    def _concat_audio_files(self, audio_paths: list[str], output_path: str) -> None:
         """Concatenate MP3 audio files without re-encoding."""
         concat_list = Path(output_path).with_suffix(".concat.txt")
         with open(concat_list, "w", encoding="utf-8") as f:
@@ -199,9 +208,21 @@ class TTSProcessor:
                 f.write(f"file '{abs_path}'\n")
         try:
             subprocess.run(
-                [_FFMPEG, "-y", "-f", "concat", "-safe", "0",
-                 "-i", str(concat_list), "-c", "copy", output_path],
-                capture_output=True, check=True,
+                [
+                    _FFMPEG,
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(concat_list),
+                    "-c",
+                    "copy",
+                    output_path,
+                ],
+                capture_output=True,
+                check=True,
             )
         finally:
             concat_list.unlink(missing_ok=True)
@@ -297,4 +318,3 @@ class TTSProcessor:
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-

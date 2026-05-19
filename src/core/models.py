@@ -32,13 +32,11 @@ class ContentItem:
     source_id: str
     title: str
     url: Optional[str]
-    summary: Optional[str] = None
     title_cn: Optional[str] = None
     score: Optional[int] = None
     comment_count: Optional[int] = None
     published_at: int = 0
     comments: List[ContentComment] = field(default_factory=list)
-    raw: Optional[Any] = None
     article_text: Optional[str] = None
     article_images: List[str] = field(default_factory=list)
     image_candidates: List[Dict[str, Any]] = field(default_factory=list)
@@ -51,10 +49,8 @@ class ContentItem:
     key_points: Optional[List[Dict[str, str]]] = None
     keywords: Optional[List[str]] = None
     category: Optional[str] = None
-    visual_hint: Optional[str] = None
     why_it_matters: Optional[str] = None
-    next_watch: Optional[str] = None
-    # Where article_text came from: "aiohttp" | "headless" | "headed" | "manual_override" | "none" | "skipped" | "error" | "legacy".
+    # Where article_text came from: "aiohttp" | "headless" | "headed" | "pdf" | "github_api" | "manual_override" | "downloaded_page" | "none" | "skipped" | "error" | "legacy".
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.
     enrichment_source: Optional[str] = None

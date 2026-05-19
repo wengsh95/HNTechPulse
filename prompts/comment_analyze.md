@@ -8,8 +8,6 @@
 {
   "discussion_mode": "debate",
   "discussion_summary": "评论区主要在争论企业采用 AI 是理性提效还是 FOMO 跟风",
-  "confidence": 0.8,
-  "selected_comment_ids": ["评论id1", "评论id2", "评论id3"],
   "comment_lanes": {
     "representative": [
       {"comment_id": "评论id1", "role": "experience", "stance": "中立", "claim": "短金句观点", "quote_score": 0.9}
@@ -46,17 +44,6 @@ discussion_mode（讨论类型）:
 discussion_summary（讨论摘要）:
 - 18-40 个中文字符，说明评论区主要在做什么。
 - 不要宏大总结，不要复制评论原文。
-
-confidence（置信度）:
-- 0-1。评论少、候选弱、讨论方向散时降低置信度。
-
-selected_comment_ids（展示评论）:
-- 返回 2-4 条评论 id，供氛围卡和评论翻译使用。
-- 优先从 comment_lanes 中最适合展示的评论里选。
-- 优先选择有明确态度、观点、经验、反问、技术取舍或具体担忧的评论。
-- 禁止选择纯链接、论文、文档、博客、教程、资料推荐。
-- 禁止选择只是复述标题、感谢、无观点感叹、需要父评论上下文才能懂的回复。
-- id 必须完全来自输入的 `comments[].id`。
 
 comment_lanes（按用途分组的评论候选）:
 - representative：最能代表评论区主讨论的 1-2 条。

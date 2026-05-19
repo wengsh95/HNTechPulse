@@ -31,8 +31,6 @@
 
 ```json
 {
-  "story_index": 0,
-  "category": "AI工具|开源生态|基础设施|安全风险|创业信号|开发者体验|硬件与系统|其他",
   "card_narrations": [
     {
       "card_type": "event_card",
@@ -50,7 +48,6 @@
       ]
     }
   ],
-  "estimated_duration": 20,
   "emotion": "upbeat",
   "scene_elements": [
     {
@@ -63,8 +60,7 @@
     {
       "element_type": "atmosphere_card",
       "props": {
-        "story_index": 0,
-        "quote_angle": "评论核心观点，12-28 个中文字符"
+        "story_index": 0
       }
     }
   ]
@@ -173,7 +169,6 @@
 ## 其他字段
 
 - `emotion`：根据故事整体情绪选择 neutral / upbeat / concerned / curious。
-- `quote_angle`：基于系统预选的评论候选，提炼一个核心观点，12-28 个中文字符。评论的最终选取以及立场分布、争议焦点均由系统完成，你不需要输出这些字段。
 
 ---
 

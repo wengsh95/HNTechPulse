@@ -129,7 +129,9 @@ const Metric: React.FC<{ label: string; value: number; color?: string }> = ({
 
 export const StoryHeaderCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
   const d = useDesign();
-  const title = textFrom(elementProps.story_title ?? elementProps.title_cn ?? elementProps.source_title);
+  const title = textFrom(
+    elementProps.story_title ?? elementProps.title_cn ?? elementProps.source_title,
+  );
   const score = asNumber(elementProps.score);
   const comments = asNumber(elementProps.comments ?? elementProps.comment_count);
 
@@ -224,7 +226,12 @@ export const CommentCard: React.FC<ElementProps> = ({ elementProps, width, heigh
   const original = textFrom(elementProps.text ?? elementProps.comment_text);
 
   return (
-    <LegacyShell width={width} height={height} label={label || "Community Voice"} accent={COLORS.green}>
+    <LegacyShell
+      width={width}
+      height={height}
+      label={label || "Community Voice"}
+      accent={COLORS.green}
+    >
       <div
         style={{
           fontFamily: FONTS.sans,
@@ -237,7 +244,7 @@ export const CommentCard: React.FC<ElementProps> = ({ elementProps, width, heigh
           ...fitLines(4),
         }}
       >
-        "{translation || original}"
+        &ldquo;{translation || original}&rdquo;
       </div>
       <div
         style={{
@@ -310,7 +317,14 @@ export const PerspectiveCompareCard: React.FC<ElementProps> = ({ elementProps, w
                 {body}
               </div>
               {keywords.length > 0 && (
-                <div style={{ display: "flex", gap: d.scaled(8), marginTop: d.scaled(18), flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: d.scaled(8),
+                    marginTop: d.scaled(18),
+                    flexWrap: "wrap",
+                  }}
+                >
                   {keywords.slice(0, 3).map((kw) => (
                     <span
                       key={kw}

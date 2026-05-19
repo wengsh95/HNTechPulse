@@ -3,7 +3,7 @@ import re
 import time
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from contextlib import contextmanager
 
 from openai import (
@@ -137,6 +137,7 @@ class LLMClient:
         model: str | None = None,
         temperature: float | None = None,
         extra_body: Optional[Dict[str, Any]] = None,
+        validator: Optional[Callable[[dict], None]] = None,
     ) -> str:
         current_messages = list(messages)
         effective_max_tokens = max_tokens or self.max_tokens
@@ -246,20 +247,22 @@ class LLMClient:
                 continue
 
             try:
-                self.extract_json(response_text)
+                parsed = self.extract_json(response_text)
+                if validator is not None:
+                    validator(parsed)
                 return response_text
             except (json.JSONDecodeError, ValueError) as e:
                 self.logger.info(
-                    f"  [{label}] JSON parse failed on attempt {attempt}/{self.json_parse_max_retries}: {e}"
+                    f"  [{label}] Response invalid on attempt {attempt}/{self.json_parse_max_retries}: {e}"
                 )
                 if attempt < self.json_parse_max_retries:
                     error_feedback = (
-                        f"\n\n---\nYour previous response contained invalid JSON:\n"
+                        f"\n\n---\nYour previous response was rejected:\n"
                         f"Error: {e}\n\n"
-                        f"Please fix the JSON and respond again with valid JSON only. "
-                        f"Common issues: trailing commas, unquoted keys, missing commas, "
-                        f"or text outside the JSON structure. "
-                        f"Output ONLY the JSON object, no markdown fences or extra text."
+                        f"Return ONLY a valid JSON object that matches the required schema. "
+                        f"No markdown fences, no commentary. "
+                        f"Make sure every required field (including card_type) is present "
+                        f"with the exact spelling specified in the prompt."
                     )
                     current_messages = list(messages) + [
                         {"role": "assistant", "content": response_text},
@@ -270,7 +273,7 @@ class LLMClient:
                     )
                 else:
                     self.logger.error(
-                        f"  [{label}] JSON parse failed after {self.json_parse_max_retries} attempts"
+                        f"  [{label}] Response invalid after {self.json_parse_max_retries} attempts"
                     )
                     raise
 

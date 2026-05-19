@@ -38,7 +38,18 @@ import {
 } from "./LegacyCards";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
-import { COLORS, FONTS, FW, useDesign, DesignProvider, S } from "./design";
+import {
+  CHAPTERS,
+  COLORS,
+  ChapterName,
+  ChapterProvider,
+  ELEMENT_TYPE_TO_CHAPTER,
+  FONTS,
+  FW,
+  S,
+  DesignProvider,
+  useDesign,
+} from "./design";
 import { segmentTransitionOpacity } from "./timing";
 
 type StoryChapter = {
@@ -46,6 +57,7 @@ type StoryChapter = {
   endTime: number;
   title: string;
   category: string;
+  chapter: ChapterName;
   displayIndex: number;
   total: number;
 };
@@ -53,6 +65,7 @@ type StoryChapter = {
 type StoryEvent = {
   startTime: number;
   segmentEndTime: number;
+  elementType: string;
   props: Record<string, unknown>;
 };
 
@@ -95,6 +108,7 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
       events.push({
         startTime: absoluteStart,
         segmentEndTime: seg.end_time,
+        elementType: elem.element_type,
         props,
       });
     });
@@ -127,31 +141,84 @@ const ELEMENT_RENDERERS: Record<
   synthesis_card: (props) => <SynthesisCard {...props} />,
   news_carousel_card: (props) => <NewsCarouselCard {...props} />,
   pattern_insight: (props) => <PatternInsightCard {...props} />,
-  story_gap: ({ elementProps, duration }) => {
-    const frame = useCurrentFrame();
-    const { fps } = useVideoConfig();
-    const t = frame / fps;
-    const fadeDur = duration * 0.2;
-    const overlayAlpha = interpolate(
-      t,
-      [0, fadeDur, duration - fadeDur, duration],
-      [0, 1, 1, 0],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-    );
-    return (
-      <>
-        <Audio src={staticFile("double-click-computer-mouse.mp3")} />
+  story_gap: (props) => <StoryGap {...props} />,
+};
+
+const StoryGap: React.FC<{
+  elementProps: Record<string, unknown>;
+  duration: number;
+  width: number;
+  height: number;
+}> = ({ elementProps, duration }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = frame / fps;
+  const fadeDur = duration * 0.2;
+  const overlayAlpha = interpolate(t, [0, fadeDur, duration - fadeDur, duration], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const prevChapter = elementProps.prev_chapter as ChapterName | undefined;
+  const nextChapter = elementProps.next_chapter as ChapterName | undefined;
+  // 把 focus 和 atmosphere 视为同一过渡分组（同一 story 内的 event/atmosphere 配对）
+  const groupOf = (c: ChapterName | undefined): string | undefined =>
+    c === "atmosphere" ? "focus" : c;
+  const isCrossChapter = Boolean(
+    prevChapter && nextChapter && groupOf(prevChapter) !== groupOf(nextChapter),
+  );
+  // 同章节：低强度黑闪保持连贯；跨章节：黑闪 + 下章节色细横扫
+  const blackAlpha = isCrossChapter ? 0.45 : 0.25;
+  const sweepProgress = interpolate(t, [0, duration], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const sweepOpacity = isCrossChapter
+    ? interpolate(sweepProgress, [0, 0.4, 0.7, 1], [0, 0.55, 0.55, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 0;
+  const sweepX = interpolate(sweepProgress, [0, 1], [110, -30]); // % from right edge
+  const sweepAccent = nextChapter ? CHAPTERS[nextChapter].accent : COLORS.accent;
+  return (
+    <>
+      <Audio src={staticFile("double-click-computer-mouse.mp3")} />
+      {/* Black flash */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `rgba(0,0,0,${blackAlpha * overlayAlpha})`,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Cross-chapter color sweep */}
+      {isCrossChapter && (
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: `rgba(0,0,0,${0.55 * overlayAlpha})`,
+            overflow: "hidden",
             pointerEvents: "none",
+            opacity: sweepOpacity,
           }}
-        />
-      </>
-    );
-  },
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "-10%",
+              left: `${sweepX}%`,
+              width: "22%",
+              height: "120%",
+              transform: "skewX(-14deg)",
+              background: `linear-gradient(90deg, transparent 0%, ${sweepAccent} 50%, transparent 100%)`,
+              filter: "blur(20px)",
+            }}
+          />
+        </div>
+      )}
+    </>
+  );
 };
 
 /** 渲染单个元素
@@ -164,7 +231,9 @@ const SceneElementRenderer: React.FC<{
   width: number;
   height: number;
   fps: number;
-}> = ({ elem, width, height, fps }) => {
+  /** 额外注入的 props，会与 elem.props merge（用于 story_gap 的 prev/next chapter） */
+  extraProps?: Record<string, unknown>;
+}> = ({ elem, width, height, fps, extraProps }) => {
   const RendererComponent = ELEMENT_RENDERERS[elem.element_type];
   if (!RendererComponent) {
     console.warn(`[Remotion] Unknown element type: ${elem.element_type}`);
@@ -176,26 +245,32 @@ const SceneElementRenderer: React.FC<{
 
   const startFrame = Math.floor(elem.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(duration * fps));
+  const chapter: ChapterName = ELEMENT_TYPE_TO_CHAPTER[elem.element_type] ?? "focus";
+  const mergedProps = extraProps
+    ? { ...(elem.props as Record<string, unknown>), ...extraProps }
+    : (elem.props as Record<string, unknown>);
 
   return (
     <Sequence from={startFrame} durationInFrames={durationFrames} layout="none">
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-        }}
-      >
-        <RendererComponent
-          elementProps={elem.props as Record<string, unknown>}
-          duration={duration}
-          width={width}
-          height={height}
-        />
-      </div>
+      <ChapterProvider chapter={chapter}>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+          }}
+        >
+          <RendererComponent
+            elementProps={mergedProps}
+            duration={duration}
+            width={width}
+            height={height}
+          />
+        </div>
+      </ChapterProvider>
     </Sequence>
   );
 };
@@ -250,15 +325,38 @@ const SegmentRenderer: React.FC<{
         }}
       >
         {/* 场景元素 */}
-        {segment.scene_elements.map((elem, i) => (
-          <SceneElementRenderer
-            key={`${index}-elem-${i}`}
-            elem={elem}
-            width={width}
-            height={height}
-            fps={fps}
-          />
-        ))}
+        {segment.scene_elements.map((elem, i) => {
+          let extraProps: Record<string, unknown> | undefined;
+          if (elem.element_type === "story_gap") {
+            // Find nearest non-gap neighbor on each side to determine chapter transition.
+            // event_card → atmosphere_card 不被视为跨章节（属于同一 story 的两段），
+            // 因此遇到 atmosphere_card 时继续向前找它对应的 event_card 章节。
+            const lookupChapter = (start: number, dir: -1 | 1): ChapterName | undefined => {
+              for (let j = start; j >= 0 && j < segment.scene_elements.length; j += dir) {
+                const t = segment.scene_elements[j].element_type;
+                if (t === "story_gap") continue;
+                return ELEMENT_TYPE_TO_CHAPTER[t];
+              }
+              return undefined;
+            };
+            const prevChapter = lookupChapter(i - 1, -1);
+            const nextChapter = lookupChapter(i + 1, 1);
+            extraProps = {
+              prev_chapter: prevChapter,
+              next_chapter: nextChapter,
+            };
+          }
+          return (
+            <SceneElementRenderer
+              key={`${index}-elem-${i}`}
+              elem={elem}
+              width={width}
+              height={height}
+              fps={fps}
+              extraProps={extraProps}
+            />
+          );
+        })}
 
         {/* 字幕（始终显示在底部，按 cues 逐句切换） */}
         <Subtitle
@@ -279,7 +377,7 @@ const GlobalChrome: React.FC<{
 }> = ({ dateLabel, chapters, startTime }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { layout, fs } = useDesign();
+  const { layout, fs, scaled } = useDesign();
   const currentTime = frame / fps;
 
   const activeChapter = chapters.find(
@@ -312,13 +410,14 @@ const GlobalChrome: React.FC<{
         justifyContent: "space-between",
         opacity,
         pointerEvents: "none",
+        zIndex: 10,
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 10,
+          gap: scaled(10),
           fontFamily: FONTS.sans,
           color: COLORS.textSecondary,
           fontSize: fs.bodySmall,
@@ -340,12 +439,12 @@ const GlobalChrome: React.FC<{
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: scaled(8),
             height: pillH,
-            padding: "0 12px",
+            padding: `0 ${scaled(12)}px`,
             borderRadius: 999,
-            background: COLORS.accentBg,
-            border: `1px solid ${COLORS.accentBorderMid}`,
+            background: CHAPTERS[activeChapter.chapter].accentBg,
+            border: `1px solid ${CHAPTERS[activeChapter.chapter].accentBorder}`,
             boxShadow: "0 2px 8px rgba(0,0,0,0.30)",
             boxSizing: "border-box",
           }}
@@ -358,7 +457,7 @@ const GlobalChrome: React.FC<{
               fontFamily: FONTS.mono,
               fontSize: fs.caption,
               fontWeight: FW.heavy,
-              color: COLORS.accentLight,
+              color: CHAPTERS[activeChapter.chapter].accentLight,
               lineHeight: 1,
             }}
           >
@@ -420,6 +519,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
         endTime: events[i + 1]?.startTime ?? event.segmentEndTime,
         title: titleFromProps(event.props),
         category: String(event.props.category ?? ""),
+        chapter: ELEMENT_TYPE_TO_CHAPTER[event.elementType] ?? "focus",
         displayIndex: displayOrdinal,
         total,
       };

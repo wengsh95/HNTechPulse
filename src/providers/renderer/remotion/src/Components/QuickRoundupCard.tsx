@@ -1,11 +1,19 @@
 import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 
-import { COLORS, FONTS, FW, glassCard, glassCardShadow, S, useDesign } from "./design";
+import {
+  COLORS,
+  FONTS,
+  FW,
+  glassCard,
+  glassCardShadow,
+  S,
+  useChapterTone,
+  useDesign,
+} from "./design";
 import {
   ChapterWatermark,
   GlassShimmer,
-  MetricPill,
   dividerStyle,
   headerMargin,
   lineClamp,
@@ -34,18 +42,83 @@ type RoundupItem = {
   keywords?: string[];
 };
 
-const itemTitle = (item: RoundupItem) =>
-  cleanText(item.display_title || item.source_title || "");
+const itemTitle = (item: RoundupItem) => cleanText(item.display_title || item.source_title || "");
 
 const itemTakeaway = (item: RoundupItem) => cleanText(item.micro_takeaway || "");
+
+/** Inline bar with leading icon + numeric value at right + filled track */
+const ScoreBar: React.FC<{
+  icon: string;
+  value: number;
+  /** 0..1, already grown over time */
+  ratio: number;
+  color: string;
+  delay: number;
+  frame: number;
+}> = ({ icon, value, ratio, color, delay, frame }) => {
+  const d = useDesign();
+  const labelOpacity = interpolate(frame, [delay, delay + 12], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: d.scaled(8),
+        opacity: labelOpacity,
+      }}
+    >
+      <span style={{ fontSize: d.fs.bodySmall, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+      <div
+        style={{
+          flex: 1,
+          height: d.scaled(6),
+          borderRadius: 999,
+          backgroundColor: COLORS.surfaceLow,
+          overflow: "hidden",
+          minWidth: d.scaled(40),
+        }}
+      >
+        <div
+          style={{
+            width: `${Math.max(0, Math.min(1, ratio)) * 100}%`,
+            height: "100%",
+            backgroundColor: color,
+            borderRadius: 999,
+          }}
+        />
+      </div>
+      <span
+        style={{
+          fontFamily: FONTS.mono,
+          fontSize: d.fs.caption,
+          fontWeight: FW.bold,
+          color: COLORS.textSecondary,
+          lineHeight: 1,
+          minWidth: d.scaled(36),
+          textAlign: "right",
+          flexShrink: 0,
+        }}
+      >
+        {value.toLocaleString("en-US")}
+      </span>
+    </div>
+  );
+};
 
 const QuickRow: React.FC<{
   item: RoundupItem;
   index: number;
   frame: number;
   totalStories: number;
-}> = ({ item, index, frame, totalStories }) => {
+  maxScore: number;
+  maxComments: number;
+}> = ({ item, index, frame, totalStories, maxScore, maxComments }) => {
   const d = useDesign();
+  const tone = useChapterTone();
+  const compact = d.isCompactHeight;
   const delay = 10 + index * 3;
   const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
     extrapolateLeft: "clamp",
@@ -58,12 +131,19 @@ const QuickRow: React.FC<{
   const commentCount = Number(item.comment_count || 0);
   const domain = cleanText(item.source_domain || "");
   const label = cleanText(item.quick_label || item.heat_level || "");
+  // Bar fill grows from 0 → final ratio over its own delay window
+  const barGrow = interpolate(frame, [delay + 4, delay + 4 + 18], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const scoreRatio = maxScore > 0 ? Math.min(1, score / maxScore) : 0;
+  const commentRatio = maxComments > 0 ? Math.min(1, commentCount / maxComments) : 0;
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `${d.scaled(54)}px minmax(0, 1fr) ${d.scaled(132)}px`,
+        gridTemplateColumns: `${d.scaled(54)}px minmax(0, 1fr) ${d.scaled(compact ? 140 : 180)}px`,
         gap: d.scaled(12),
         alignItems: "center",
         minHeight: d.scaled(94),
@@ -182,14 +262,31 @@ const QuickRow: React.FC<{
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: "flex-end",
-          gap: d.scaled(5),
+          alignItems: "stretch",
+          justifyContent: "center",
+          gap: d.scaled(8),
           minWidth: 0,
         }}
       >
-        {score > 0 && <MetricPill icon="🔥" value={score} delay={delay + 2} frame={frame} />}
+        {score > 0 && (
+          <ScoreBar
+            icon="🔥"
+            value={score}
+            ratio={scoreRatio * barGrow}
+            color={tone.accent}
+            delay={delay + 2}
+            frame={frame}
+          />
+        )}
         {commentCount > 0 && (
-          <MetricPill icon="💬" value={commentCount} delay={delay + 3} frame={frame} />
+          <ScoreBar
+            icon="💬"
+            value={commentCount}
+            ratio={commentRatio * barGrow}
+            color={COLORS.textTertiary}
+            delay={delay + 3}
+            frame={frame}
+          />
         )}
       </div>
     </div>
@@ -199,6 +296,7 @@ const QuickRow: React.FC<{
 export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }) => {
   const frame = useCurrentFrame();
   const d = useDesign();
+  const tone = useChapterTone();
   const compact = d.isCompactHeight;
   const { padX, padY } = useCardPad(compact);
   const { cardProgress, titleProgress, bodyProgress, footerProgress } = useCardAnimations(frame);
@@ -218,6 +316,8 @@ export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }
     14,
   );
   const showKeywordFooter = keywords.length > 0 && items.length < 4;
+  const maxScore = items.reduce((m, it) => Math.max(m, Number(it.score || 0)), 0);
+  const maxComments = items.reduce((m, it) => Math.max(m, Number(it.comment_count || 0)), 0);
 
   const cardW = width - d.layout.pageInset * 2;
   const cardH = d.getCardMaxHeight;
@@ -231,7 +331,8 @@ export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }
         left: d.layout.pageInset,
         top: d.layout.topInset,
         width: cardW,
-        height: cardH,
+        minHeight: cardH,
+        maxHeight: cardH,
         ...glassCard,
         boxShadow: glassCardShadow,
         padding: `${padY}px ${padX}px`,
@@ -270,7 +371,7 @@ export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }
               width: d.scaled(3),
               height: d.scaled(14),
               borderRadius: 2,
-              background: COLORS.accent,
+              background: tone.accent,
               flexShrink: 0,
             }}
           />
@@ -279,7 +380,7 @@ export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }
               fontFamily: FONTS.sans,
               fontSize: d.fs.bodySmall,
               fontWeight: FW.semibold,
-              color: COLORS.accentLight,
+              color: tone.labelText,
               letterSpacing: 0.4,
             }}
           >
@@ -331,6 +432,8 @@ export const QuickRoundupCard: React.FC<ElementProps> = ({ elementProps, width }
               index={i}
               frame={frame}
               totalStories={storyCount}
+              maxScore={maxScore}
+              maxComments={maxComments}
             />
           ))}
         </div>

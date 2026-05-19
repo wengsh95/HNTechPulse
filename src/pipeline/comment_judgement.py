@@ -75,19 +75,13 @@ def _normalize_discussion_mode(value: Any) -> str:
     return mode if mode in DISCUSSION_MODES else "field_notes"
 
 
-def _normalize_confidence(value: Any) -> float:
-    return round(max(0.0, min(1.0, _safe_float(value, 0.0))), 4)
-
-
 def _validate_claim(value: Any, max_chars: int = 28) -> str:
     text = str(value or "").strip()
     if not text:
         raise ValueError("comment_lanes claim is required")
     text = " ".join(text.split())
     if len(text) > max_chars:
-        raise ValueError(
-            f"comment_lanes claim exceeds {max_chars} characters: {text}"
-        )
+        raise ValueError(f"comment_lanes claim exceeds {max_chars} characters: {text}")
     return text.strip("，。；：、,.!?！？;:）)]】")
 
 
@@ -119,37 +113,23 @@ def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
 
 
 def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
-    """Normalize LLM comment judgement output into a canonical form.
-    """
+    """Normalize LLM comment judgement output into a canonical form."""
     valid_ids = {str(c.source_id) for c in item.comments if c.source_id is not None}
     candidates = []
     seen = set()
 
-    notes_by_id = {}
-    for note in raw.get("notes", []) or []:
-        if isinstance(note, dict):
-            note_id = note.get("comment_id")
-            if note_id is not None:
-                notes_by_id[str(note_id)] = note
-
-    for rank, comment_id in enumerate(raw.get("selected_comment_ids", []) or []):
-        comment_id = str(comment_id)
-        if comment_id not in valid_ids or comment_id in seen:
-            continue
-        note = notes_by_id.get(comment_id, {})
-        candidates.append(
-            {
-                "comment_id": comment_id,
-                "quote_score": round(max(0.0, 1.0 - rank * 0.08), 4),
-                "category": str(note.get("category") or "viewpoint"),
-                "stance": str(note.get("stance") or "neutral"),
-                "claim": "",
-                "has_viewpoint": True,
-                "reject_for_quote": False,
-                "reason": "LLM selected",
-            }
-        )
-        seen.add(comment_id)
+    # Derive quote_candidates from comment_lanes instead of a separate selected_comment_ids.
+    # comment_lanes already contains structured, lane-categorized candidates with claims and scores.
+    comment_lanes_raw = raw.get("comment_lanes", {}) or {}
+    for lane_key in COMMENT_LANES:
+        for entry in comment_lanes_raw.get(lane_key, []) or []:
+            if not isinstance(entry, dict):
+                continue
+            candidate = _normalize_candidate(entry, valid_ids)
+            if candidate is None or candidate["comment_id"] in seen:
+                continue
+            seen.add(candidate["comment_id"])
+            candidates.append(candidate)
 
     for entry in raw.get("quote_candidates", []) or []:
         if not isinstance(entry, dict):
@@ -200,14 +180,12 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
 
     discussion_mode = _normalize_discussion_mode(raw.get("discussion_mode"))
     discussion_summary = str(raw.get("discussion_summary") or "").strip()[:180]
-    confidence = _normalize_confidence(raw.get("confidence"))
     comment_lanes = _normalize_comment_lanes(raw, valid_ids)
 
     return {
         "story_id": comment_judgement_key(item),
         "discussion_mode": discussion_mode,
         "discussion_summary": discussion_summary,
-        "confidence": confidence,
         "comment_lanes": comment_lanes,
         "quote_candidates": candidates,
         "rejected": rejected,
@@ -240,7 +218,6 @@ def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> di
         "story_id": comment_judgement_key(item),
         "discussion_mode": "field_notes",
         "discussion_summary": "",
-        "confidence": 0.0,
         "comment_lanes": {
             "representative": candidates[:2],
             "counterpoint": candidates[2:3],

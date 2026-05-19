@@ -100,8 +100,8 @@ const _LAYOUT = {
   chromeHeight: grid(5),
   progressInsetX: grid(4),
   progressBottom: grid(2),
-  subtitleBottom: grid(8),
-  subtitleBottomMinimal: grid(7),
+  subtitleBottom: grid(10),
+  subtitleBottomMinimal: grid(9),
   cardRadius: 16,
   panelRadius: 12,
   chipRadius: 8,
@@ -207,6 +207,117 @@ export const DesignProvider: React.FC<{
 }> = ({ width, height, children }) => {
   const tokens = useMemo(() => createDesignTokens(width, height), [width, height]);
   return React.createElement(DesignContext.Provider, { value: tokens }, children);
+};
+
+// ── Chapter token map ──
+//
+// 每张卡所属的"章节"决定了它的 accent 配色（强调条、tag、轻量装饰）。
+// 共性骨架（卡壳 / 字号 / 间距 / 进场动画）保持一致；只通过 chapter 注入差异。
+//
+// motion / viz 是为后续 Layer B/C 预留的字段，目前仅 accent 被消费。
+
+export type ChapterName = "cover" | "focus" | "atmosphere" | "compact" | "quick" | "closing";
+
+export interface ChapterTone {
+  /** 主 accent 色 —— SectionLabel 的强调条 / KeywordTag 文本色 / chrome pill 文本色 */
+  accent: string;
+  /** Accent 的浅色变体 */
+  accentLight: string;
+  /** 弱化背景（用于 KeywordTag / chrome pill 背景） */
+  accentBg: string;
+  /** 边框 */
+  accentBorder: string;
+  /** SectionLabel 副文本色（标题旁的章节名） */
+  labelText: string;
+  /** 后续 Layer B 用 */
+  motion: "heroFadeUp" | "highlightPen" | "countUp" | "wordCascade" | "typewriter";
+  /** 后续 Layer C 用 */
+  viz: "miniBars" | "imageHero" | "pieChart" | "imageSide" | "barList" | "tally";
+}
+
+export const CHAPTERS: Record<ChapterName, ChapterTone> = {
+  cover: {
+    accent: COLORS.brand,
+    accentLight: COLORS.brandLight,
+    accentBg: COLORS.brandBg,
+    accentBorder: COLORS.brandBorderSubtle,
+    labelText: COLORS.brandLight,
+    motion: "heroFadeUp",
+    viz: "miniBars",
+  },
+  focus: {
+    accent: COLORS.brand,
+    accentLight: COLORS.brandLight,
+    accentBg: COLORS.brandBg,
+    accentBorder: COLORS.brandBorderSubtle,
+    labelText: COLORS.brandLight,
+    motion: "highlightPen",
+    viz: "imageHero",
+  },
+  atmosphere: {
+    accent: COLORS.purple,
+    accentLight: COLORS.purple,
+    accentBg: "rgba(191,90,242,0.10)",
+    accentBorder: "rgba(191,90,242,0.30)",
+    labelText: COLORS.purple,
+    motion: "countUp",
+    viz: "pieChart",
+  },
+  compact: {
+    accent: COLORS.accent,
+    accentLight: COLORS.accentLight,
+    accentBg: COLORS.accentBg,
+    accentBorder: COLORS.accentBorder,
+    labelText: COLORS.accentLight,
+    motion: "wordCascade",
+    viz: "imageSide",
+  },
+  quick: {
+    accent: COLORS.green,
+    accentLight: COLORS.green,
+    accentBg: "rgba(52,199,89,0.10)",
+    accentBorder: "rgba(52,199,89,0.30)",
+    labelText: COLORS.green,
+    motion: "typewriter",
+    viz: "barList",
+  },
+  closing: {
+    accent: COLORS.accent,
+    accentLight: COLORS.accentLight,
+    accentBg: COLORS.accentBg,
+    accentBorder: COLORS.accentBorder,
+    labelText: COLORS.accentLight,
+    motion: "heroFadeUp",
+    viz: "tally",
+  },
+};
+
+const ChapterContext = createContext<ChapterName>("focus");
+
+/** 当前章节 */
+export function useChapter(): ChapterName {
+  return useContext(ChapterContext);
+}
+
+/** 当前章节的配色令牌 */
+export function useChapterTone(): ChapterTone {
+  return CHAPTERS[useContext(ChapterContext)];
+}
+
+export const ChapterProvider: React.FC<{
+  chapter: ChapterName;
+  children: React.ReactNode;
+}> = ({ chapter, children }) =>
+  React.createElement(ChapterContext.Provider, { value: chapter }, children);
+
+/** element_type → chapter 的标准映射（GlobalChrome / 卡片均可用） */
+export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
+  cover_card: "cover",
+  event_card: "focus",
+  atmosphere_card: "atmosphere",
+  story_compact_card: "compact",
+  quick_roundup_card: "quick",
+  closing_card: "closing",
 };
 
 /** 毛玻璃卡片样式（Keynote 风格） */
@@ -337,6 +448,9 @@ export const WATERMARK_TOP_OFFSET = 6;
 
 /** Standard compact title font size (headline fallback) */
 export const COMPACT_TITLE_SIZE = 40;
+
+/** Standard focus card title size (slightly larger than headline for hierarchy) */
+export const FOCUS_TITLE_SIZE = 44;
 
 /** Standard hero font size for compact mode */
 export const COMPACT_HERO_SIZE = 48;
