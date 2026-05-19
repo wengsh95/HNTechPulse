@@ -14,7 +14,6 @@ import {
   GRADIENTS,
 } from "./design";
 import {
-  dividerStyle,
   GlassShimmer,
   HighlightEntry,
   MedalBadge,
@@ -24,10 +23,8 @@ import {
   SectionLabel,
   useCardPad,
   useCardAnimations,
-  bodySectionGap,
   heroFontSize,
   subheadFontSize,
-  CardKeywordsFooter,
   CARD_ENTRANCE_Y,
   HERO_ENTRANCE_Y,
   ROW_STAGGER,
@@ -157,9 +154,6 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
 
   const headline = p(elementProps, "headline", "HN每日观察");
   const sectionCounts = (elementProps.section_counts as SectionCounts | undefined) ?? {};
-  const keywords = Array.isArray(elementProps.keywords)
-    ? elementProps.keywords.filter((k): k is string => typeof k === "string")
-    : [];
   const highlightEntries = Array.isArray(elementProps.highlight_entries)
     ? (elementProps.highlight_entries as HighlightEntry[]).slice(0, 3)
     : [];
@@ -171,7 +165,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
   const cardH = d.getCardMaxHeight;
 
   const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress, footerProgress } = useCardAnimations(frame);
+  const { cardProgress, titleProgress, bodyProgress } = useCardAnimations(frame);
 
   return (
     <div
@@ -347,18 +341,6 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
         </div>
       )}
 
-      {/* Keywords */}
-      {keywords.length > 0 && (
-        <>
-          <div style={dividerStyle} />
-          <CardKeywordsFooter
-            keywords={keywords.slice(0, 3)}
-            progress={footerProgress}
-            frame={frame}
-            delayBase={20}
-          />
-        </>
-      )}
     </div>
   );
 };

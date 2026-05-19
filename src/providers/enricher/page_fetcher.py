@@ -375,6 +375,10 @@ class PageFetcher:
                         self.logger.debug(f"PDF too large ({cl} bytes) for {url}")
                         return None
                     body = await resp.content.read(max_size)
+                    if cl and len(body) < int(cl):
+                        raise aiohttp.ClientError(
+                            f"Truncated PDF: received {len(body)} of {cl} bytes"
+                        )
                     return body
 
         try:

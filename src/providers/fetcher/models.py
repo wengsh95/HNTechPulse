@@ -10,7 +10,7 @@ class HNStory:
     score: int
     descendants: int
     time: int
-    text: Optional[str]
+    text: Optional[str] = None
     by: Optional[str] = None
 
 

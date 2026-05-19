@@ -130,7 +130,6 @@ const QuickRow: React.FC<{
   const score = Number(item.score || 0);
   const commentCount = Number(item.comment_count || 0);
   const domain = cleanText(item.source_domain || "");
-  const label = cleanText(item.quick_label || item.heat_level || "");
   // Bar fill grows from 0 → final ratio over its own delay window
   const barGrow = interpolate(frame, [delay + 4, delay + 4 + 18], [0, 1], {
     extrapolateLeft: "clamp",
@@ -185,30 +184,25 @@ const QuickRow: React.FC<{
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "baseline",
             gap: d.scaled(8),
-            marginBottom: d.scaled(5),
             minWidth: 0,
           }}
         >
-          {label && (
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.fs.caption,
-                fontWeight: FW.bold,
-                color: COLORS.accentLight,
-                backgroundColor: COLORS.accentBg,
-                border: `1px solid ${COLORS.accentBorderMid}`,
-                borderRadius: d.scaled(4),
-                padding: `${d.scaled(2)}px ${d.scaled(7)}px`,
-                lineHeight: 1.3,
-                flexShrink: 0,
-              }}
-            >
-              {label}
-            </span>
-          )}
+          <span
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: d.fs.bodyLg,
+              fontWeight: FW.heavy,
+              color: COLORS.text,
+              lineHeight: 1.25,
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+              ...lineClamp(2),
+            }}
+          >
+            {title}
+          </span>
           {domain && (
             <span
               style={{
@@ -216,28 +210,13 @@ const QuickRow: React.FC<{
                 fontSize: d.fs.caption,
                 color: COLORS.textFaint,
                 lineHeight: 1.3,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {domain}
             </span>
           )}
-        </div>
-        <div
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.bodyLg,
-            fontWeight: FW.heavy,
-            color: COLORS.text,
-            lineHeight: 1.25,
-            overflowWrap: "anywhere",
-            wordBreak: "break-word",
-            ...lineClamp(2),
-          }}
-        >
-          {title}
         </div>
         {takeaway && (
           <div
