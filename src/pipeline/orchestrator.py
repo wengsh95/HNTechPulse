@@ -12,7 +12,6 @@ from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.comment_analyzer import CommentAnalyzer
 from src.pipeline.comment_judge import CommentJudge
 from src.pipeline.prefilter import Prefilter
-from src.pipeline.markdown_generator import MarkdownGenerator
 from src.pipeline.html_generator import HtmlGenerator
 from src.utils.logger import setup_logger
 
@@ -49,7 +48,6 @@ class Orchestrator:
             llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug
         )
         self.prefilter = Prefilter(llm_provider, config, debug=debug)
-        self.markdown_generator = MarkdownGenerator(debug=debug, level=log_level)
         self.html_generator = HtmlGenerator(debug=debug, level=log_level)
         timing_cfg = config.get("timing", {})
         self._timing = TimingEngine(
@@ -64,15 +62,13 @@ class Orchestrator:
             "enrich",
             "script",
             "translate",
-            "markdown",
             "html",
         ]
 
         if steps is None:
-            steps = [s for s in _ALL_STEPS if s not in ("markdown", "html")]
+            steps = [s for s in _ALL_STEPS if s != "html"]
         else:
             _standalone = {
-                "markdown",
                 "html",
             }
             pipeline_steps = [
@@ -131,10 +127,7 @@ class Orchestrator:
         if "translate" in steps:
             content, script = self._step_translate(content, script, date)
 
-        # ── standalone steps ───────────────────────────────────────
-        if "markdown" in steps:
-            self._step_markdown(content, script, date)
-
+        # ── standalone steps ────────────────────────────────────────
         if "html" in steps:
             self._step_html(content, script, date)
 
@@ -266,25 +259,6 @@ class Orchestrator:
         return content, script
 
     # ── Standalone Steps ──────────────────────────────────────────
-
-    def _step_markdown(self, content, script, date: str) -> None:
-        self.logger.info("Step: Generate markdown document")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping markdown generation")
-            return
-        if content is None:
-            try:
-                content = self.content_preparer.load_content(date)
-            except FileNotFoundError:
-                self.logger.error("Content not found, cannot generate markdown")
-                return
-        if script is None:
-            try:
-                script = self.script_writer.load_script(date)
-            except FileNotFoundError:
-                self.logger.error("Script not found, cannot generate markdown")
-                return
-        self.markdown_generator.generate(content, script, date)
 
     def _step_html(self, content, script, date: str) -> None:
         self.logger.info("Step: Generate HTML document")

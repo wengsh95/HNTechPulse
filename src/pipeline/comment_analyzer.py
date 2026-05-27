@@ -6,7 +6,7 @@ Results cached to data/{date}/comment_analysis.json.
 
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import yaml
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -246,12 +246,12 @@ class CommentAnalyzer:
             comment.quality_score = self._compute_quality_score(comment, item)
 
     def _compute_quality_score(
-        self, comment: ContentComment, item: ContentItem = None
+        self, comment: ContentComment, item: Optional[ContentItem] = None
     ) -> float:
         return compute_comment_quality(comment, item)
 
     def get_top_comments(
-        self, item: ContentItem, n: int = None
+        self, item: ContentItem, n: Optional[int] = None
     ) -> List[ContentComment]:
         if n is None:
             n = self.max_comments_for_llm
@@ -262,7 +262,7 @@ class CommentAnalyzer:
         return scored[:n]
 
     def get_judge_candidates(
-        self, item: ContentItem, n: int = None
+        self, item: ContentItem, n: Optional[int] = None
     ) -> List[ContentComment]:
         if n is None:
             n = self.max_comments_for_llm
@@ -277,13 +277,9 @@ class CommentAnalyzer:
 
     def _save_cache(self, content: ContentPackage, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "schema_version": ANALYSIS_SCHEMA_VERSION,
-            "date": content.date,
-            "items": [],
-        }
+        items_list: list[dict[str, object]] = []
         for item in content.items:
-            item_data = {
+            item_data: dict[str, object] = {
                 "source_id": item.source_id,
                 "comments": [
                     {
@@ -294,7 +290,12 @@ class CommentAnalyzer:
                     for c in item.comments
                 ],
             }
-            data["items"].append(item_data)
+            items_list.append(item_data)
+        data = {
+            "schema_version": ANALYSIS_SCHEMA_VERSION,
+            "date": content.date,
+            "items": items_list,
+        }
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

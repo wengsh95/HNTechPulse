@@ -27,15 +27,15 @@ def load_config(config_path: str = "config/") -> Dict[str, Any]:
         yaml_files = sorted(path.glob("*.yaml")) + sorted(path.glob("*.yml"))
         if not yaml_files:
             raise FileNotFoundError(f"No YAML files found in: {config_path}")
-        for f in yaml_files:
-            with open(f, "r", encoding="utf-8") as fh:
+        for yaml_file in yaml_files:
+            with open(yaml_file, "r", encoding="utf-8") as fh:
                 data = yaml.safe_load(fh)
                 if data:
                     _deep_merge(config, data)
         return config
 
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    with open(path, "r", encoding="utf-8") as cfg_f:
+        return yaml.safe_load(cfg_f)
 
 
 def get_env(key: str, default: Any = None) -> Any:

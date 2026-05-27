@@ -1,7 +1,7 @@
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from src.core.models import ContentItem
 from src.pipeline.comment_selection import clean_comment_text, is_quotable_comment
@@ -196,7 +196,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
 
 
 def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> dict:
-    candidates = []
+    candidates: list[dict[str, float | str]] = []
     for comment in item.comments:
         if comment.source_id is None or not is_quotable_comment(comment):
             continue
@@ -213,7 +213,7 @@ def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> di
                 "reason": "Heuristic fallback candidate",
             }
         )
-    candidates.sort(key=lambda c: c["quote_score"], reverse=True)
+    candidates.sort(key=lambda c: cast(float, c["quote_score"]), reverse=True)
     return {
         "story_id": comment_judgement_key(item),
         "discussion_mode": "field_notes",

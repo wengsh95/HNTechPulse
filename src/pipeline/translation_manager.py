@@ -30,8 +30,8 @@ class TranslationManager:
         self.logger = setup_logger(__name__, debug=debug, level=level)
 
     @staticmethod
-    def _selected_ids_by_story(script) -> dict:
-        selected = {}
+    def _selected_ids_by_story(script) -> dict[int, list[str]]:
+        selected: dict[int, list[str]] = {}
         if script is None:
             return selected
         for seg in script.segments:

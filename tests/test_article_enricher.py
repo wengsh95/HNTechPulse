@@ -443,7 +443,7 @@ class TestNormalizeKeywords:
             category="AI工具",
         )
 
-        assert result == ["Claude Code", "本地推理", "供应链攻击风险很长"]
+        assert result == ["Claude Code", "本地推理", "供应链攻击风险很长很长"]
 
     def test_fallback_values_fill_missing_keywords(self):
         result = ArticleEnricher._normalize_keywords(

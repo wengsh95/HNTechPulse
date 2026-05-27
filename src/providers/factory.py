@@ -1,8 +1,8 @@
 from src.utils.logger import setup_logger
 
 
-_FETCHER_REGISTRY = {}
-_LLM_REGISTRY = {}
+_FETCHER_REGISTRY: dict[str, type] = {}
+_LLM_REGISTRY: dict[str, type] = {}
 
 _logger = setup_logger(__name__)
 

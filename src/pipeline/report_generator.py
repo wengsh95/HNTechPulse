@@ -27,7 +27,11 @@ class ReportGenerator:
                                     "story_index", item.get("display_index")
                                 )
                                 try:
-                                    idx = int(story_index)
+                                    idx = (
+                                        int(story_index)
+                                        if story_index is not None
+                                        else len(seen)
+                                    )
                                 except (TypeError, ValueError):
                                     idx = len(seen)
                                 key = ("quick", idx)
@@ -46,9 +50,12 @@ class ReportGenerator:
                         continue
 
                     story_index = props.get("story_index", props.get("display_index"))
-                    try:
-                        idx = int(story_index)
-                    except (TypeError, ValueError):
+                    if story_index is not None:
+                        try:
+                            idx = int(story_index)
+                        except (TypeError, ValueError):
+                            idx = len(seen)
+                    else:
                         idx = len(seen)
                     key = (tier, idx)
                     if key not in seen:
@@ -105,7 +112,7 @@ class ReportGenerator:
                 )
 
         # ── 富化统计 ──
-        source_counts = Counter()
+        source_counts: Counter[str] = Counter()
         total_images = 0
         if content and content.items:
             for item in content.items:
@@ -140,7 +147,9 @@ class ReportGenerator:
 
         # ── 脚本概览 ──
         if script and script.segments:
-            seg_stats = defaultdict(lambda: {"count": 0, "est": 0.0, "act": 0.0})
+            seg_stats: defaultdict[str, dict[str, float]] = defaultdict(
+                lambda: {"count": 0.0, "est": 0.0, "act": 0.0}
+            )
             for seg in script.segments:
                 st = seg.segment_type
                 seg_stats[st]["count"] += 1

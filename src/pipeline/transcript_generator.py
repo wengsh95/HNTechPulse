@@ -1,7 +1,10 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from src.core.models import Script, ContentPackage
+
+if TYPE_CHECKING:
+    from src.core.models import ContentItem
 
 
 def generate_brief_transcript(
@@ -112,7 +115,9 @@ def generate_brief_transcript(
         card_idx = 0
         for i in sorted(story_elems.keys()):
             elems = story_elems[i]
-            item = content.items[i] if content and i < len(content.items) else None
+            story_item: Optional["ContentItem"] = (
+                content.items[i] if content and i < len(content.items) else None
+            )
 
             event_elem = next(
                 (e for e in elems if e.element_type == "event_card"), None
@@ -130,7 +135,7 @@ def generate_brief_transcript(
             display_idx = event_elem.props.get("display_index", i) if event_elem else i
 
             lines.append(
-                f"### {display_idx + 1}. {event_summary or (item.title if item else '')}"
+                f"### {display_idx + 1}. {event_summary or (story_item.title if story_item else '')}"
             )
             lines.append("")
 
@@ -152,20 +157,20 @@ def generate_brief_transcript(
             # Meta info
             meta_parts = []
             image_parts = []
-            if item:
-                if item.score:
-                    meta_parts.append(f"▲ {item.score}")
-                if item.comment_count:
-                    meta_parts.append(f"💬 {item.comment_count}")
-                if item.url:
-                    meta_parts.append(f"[原文]({item.url})")
-                if item.article_images:
-                    for img in item.article_images:
+            if story_item:
+                if story_item.score:
+                    meta_parts.append(f"▲ {story_item.score}")
+                if story_item.comment_count:
+                    meta_parts.append(f"💬 {story_item.comment_count}")
+                if story_item.url:
+                    meta_parts.append(f"[原文]({story_item.url})")
+                if story_item.article_images:
+                    for img in story_item.article_images:
                         image_parts.append(f"🖼 {img}")
-                if item.screenshot_image:
-                    image_parts.append(f"📸 {item.screenshot_image}")
-                if item.logo_image:
-                    image_parts.append(f"🏷 {item.logo_image}")
+                if story_item.screenshot_image:
+                    image_parts.append(f"📸 {story_item.screenshot_image}")
+                if story_item.logo_image:
+                    image_parts.append(f"🏷 {story_item.logo_image}")
             if meta_parts:
                 lines.append(" · ".join(meta_parts))
                 lines.append("")
