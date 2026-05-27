@@ -129,7 +129,9 @@ class TestGenerate:
         with patch("src.pipeline.report_generator.setup_logger"):
             gen = ReportGenerator()
 
-        content = _make_content_package(items=[_make_item(source_id=str(i)) for i in range(10)])
+        content = _make_content_package(
+            items=[_make_item(source_id=str(i)) for i in range(10)]
+        )
         script = _make_script(
             segments=[
                 ScriptSegment(

@@ -233,7 +233,9 @@ class TestGetJudgeCandidates:
 
     def test_balanced_filters_resource_only_comments(self):
         with patch("src.pipeline.comment_analyzer.setup_logger"):
-            analyzer = CommentAnalyzer(_make_config(judge_candidate_strategy="balanced"))
+            analyzer = CommentAnalyzer(
+                _make_config(judge_candidate_strategy="balanced")
+            )
         item = _make_item(
             comments=[
                 _make_comment(

@@ -249,4 +249,3 @@ class TestQuickRoundupComposition:
             "快扫旁白 5",
             "快扫旁白 6",
         ]
-

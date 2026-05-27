@@ -166,6 +166,4 @@ class TestJudge:
             item, n=judge.judge_candidate_count
         )
         mock_llm.judge_story_comments.assert_called_once()
-        assert mock_llm.judge_story_comments.call_args.kwargs["candidates"] == [
-            comment
-        ]
+        assert mock_llm.judge_story_comments.call_args.kwargs["candidates"] == [comment]

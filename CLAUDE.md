@@ -28,30 +28,13 @@ uv run vulture src/ --min-confidence 80             # dead code
 uv run mypy src/ --ignore-missing-imports           # type check
 ```
 
-Script editor:
-
-```bash
-uv run streamlit run src/editor/app.py --server.port 8501
-```
-
-Remotion dev server:
-
-```bash
-cd src/providers/renderer/remotion
-npm install && npm run start
-```
-
 ## Architecture
 
 - **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)
-- **Providers** ([src/providers/](src/providers/)): fetcher, llm, tts, renderer, enricher — auto-register via [factory.py](src/providers/factory.py)
-- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM judging), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [translation_manager.py](src/pipeline/translation_manager.py), [tts_processor.py](src/pipeline/tts_processor.py), [content_preparer.py](src/pipeline/content_preparer.py)
-- **Remotion** ([src/providers/renderer/remotion/](src/providers/renderer/remotion/)): React sub-project. Key cards: CoverCard, EventCard, StoryCompactCard, QuickItemCard, AtmosphereCard, ClosingCard. Shared primitives in [HighlightShared.tsx](src/providers/renderer/remotion/src/Components/HighlightShared.tsx), design tokens in [design.ts](src/providers/renderer/remotion/src/Components/design.ts). Legacy cards in [LegacyCards.tsx](src/providers/renderer/remotion/src/Components/LegacyCards.tsx).
-- **Editor** ([src/editor/](src/editor/)): Streamlit app for manual script editing.
+- **Providers** ([src/providers/](src/providers/)): fetcher, llm, enricher — auto-register via [factory.py](src/providers/factory.py)
+- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM judging), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [translation_manager.py](src/pipeline/translation_manager.py), [tts_processor.py](src/pipeline/tts_processor.py), [content_preparer.py](src/pipeline/content_preparer.py), [prefilter.py](src/pipeline/prefilter.py)
 
 Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `render`
-
-Script structure (daily_brief): **opening** (cover_card 承担 dashboard 角色：headline + Top-3 highlights + section_counts) → **story_scan** (per-story LLM segments) → **closing**
 
 ### Data Flow
 
@@ -79,7 +62,7 @@ HN API
   ↓
 [tts] TTSProcessor: per-subtitle synthesis, timing alignment
   ↓
-[render] Remotion: chunked parallel rendering → output.mp4
+[render] Remotion (external): chunked parallel rendering → output.mp4
 ```
 
 **Key principle**: CommentAnalyzer scores all comments once → CommentJudge selects top candidates via `get_top_comments()` → ScriptWriter consumes `quote_candidates` directly. No independent re-selection downstream.
@@ -95,12 +78,9 @@ HN API
 | [prompts/comment_analyze.md](prompts/comment_analyze.md) | CommentJudge | `{{ story_json }}` |
 | [prompts/translate.md](prompts/translate.md) | TranslationManager | `{{ items_json }}` |
 | [prompts/article_enrich.md](prompts/article_enrich.md) | Article enricher | `{{ title }}`, `{{ article_text }}` |
+| [prompts/prefilter.md](prompts/prefilter.md) | Prefilter | `{{ stories_json }}` |
 
 All steps cache to `data/{date}/` and resume from disk. Config: [config/](config/) directory (YAML deep-merged), env vars in `.env`.
-
-## Current Product State
-
-Three story output tiers: **quick** (quick_item_card, ~8s) / **standard** (story_compact_card, ~14s) / **full** (event_card + atmosphere_card). All cards share unified glass-card shell, ChapterWatermark, accent-bar header, MetricPill row, and entrance animations via [HighlightShared.tsx](src/providers/renderer/remotion/src/Components/HighlightShared.tsx). Comment pipeline: VADER scoring → LLM judging → quote_candidates consumed by story script. AtmosphereCard gets debate_focus + stance_distribution from judge. Next priorities in [ROADMAP.md](ROADMAP.md).
 
 ## Key Patterns
 
@@ -110,9 +90,7 @@ Three story output tiers: **quick** (quick_item_card, ~8s) / **standard** (story
 - **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). `render_prompt()` raises `ValueError` on typos.
 - **TTS Consistency Check**: Bigram similarity < 0.6 between cached timings and `audio_text` triggers re-synthesis.
-- **Remotion Props**: Renderer writes `public/props.json` for Studio preview. Composition id: `HNTechPulseComposition`.
-- **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes, Streamlit `session_state` attributes.
-- **Image Selection**: Prefer strong article/page candidates and screenshots before weaker search images; enforce configured minimum dimensions.
+- **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes.
 
 ---
 
@@ -126,10 +104,6 @@ Drives mount as `/c/`, `/d/` etc. — **not** `C:\` or `D:\`. Prefer `Bash` with
 |------|---------|-------|
 | `Bash` | `cd /d/code/HNTechPulse/...` | `cd d:\code\HNTechPulse\...` |
 | `PowerShell` | `Set-Location "D:\code\..." ; cmd` | `cd "D:\..." && cmd` |
-
-### Serial agents for shared files
-
-When multiple agents edit the same files (e.g., HighlightShared.tsx), run them **serially**. Parallel is safe only for disjoint file sets.
 
 ---
 

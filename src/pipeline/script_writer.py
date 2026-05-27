@@ -1,7 +1,7 @@
 import json
 import time
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Optional
 
 from src.core.models import (

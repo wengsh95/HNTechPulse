@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
+from src.core.interfaces import ContentFetcher, LLMProvider
 from src.core.models import ContentPackage, Script
 from src.pipeline.orchestrator import Orchestrator
 
@@ -17,14 +17,10 @@ def _make_orchestrator(dry_run=True):
     config = _make_config()
     mock_fetcher = MagicMock(spec=ContentFetcher)
     mock_llm = MagicMock(spec=LLMProvider)
-    mock_tts = MagicMock(spec=TTSProvider)
-    mock_renderer = MagicMock(spec=Renderer)
     return Orchestrator(
         config=config,
         content_fetcher=mock_fetcher,
         llm_provider=mock_llm,
-        tts_provider=mock_tts,
-        renderer=mock_renderer,
         debug=True,
         dry_run=dry_run,
     )
@@ -63,15 +59,3 @@ class TestStepScript:
         assert isinstance(result, Script)
         assert len(result.segments) >= 1
         assert result.segments[0].segment_type == "opening"
-
-
-class TestStepProduce:
-    def test_dry_run_returns_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        content = ContentPackage(date="2026-04-26", items=[])
-        script = Script(title="T", description="", tags=[], segments=[])
-        result_content, result_script = orch._step_produce(
-            content, script, "2026-04-26"
-        )
-        assert result_content is content
-        assert result_script is script

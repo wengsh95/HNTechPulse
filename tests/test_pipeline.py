@@ -10,7 +10,7 @@ from src.core.models import (
     SceneElement,
     SelectionResult,
 )
-from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
+from src.core.interfaces import ContentFetcher, LLMProvider
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.orchestrator import Orchestrator
@@ -228,79 +228,18 @@ class TestOrchestrator:
         config = _make_config()
         mock_fetcher = MagicMock(spec=ContentFetcher)
         mock_llm = MagicMock(spec=LLMProvider)
-        mock_tts = MagicMock(spec=TTSProvider)
-        mock_renderer = MagicMock(spec=Renderer)
+        mock_renderer = None
 
         orch = Orchestrator(
             config=config,
             content_fetcher=mock_fetcher,
             llm_provider=mock_llm,
-            tts_provider=mock_tts,
-            renderer=mock_renderer,
+            article_enricher=mock_renderer,
             debug=True,
             dry_run=True,
         )
         orch.run(date="2026-04-26", steps=["fetch"])
         mock_fetcher.fetch.assert_not_called()
-
-    def test_dry_run_tts(self):
-        config = _make_config()
-        mock_fetcher = MagicMock(spec=ContentFetcher)
-        mock_llm = MagicMock(spec=LLMProvider)
-        mock_tts = MagicMock(spec=TTSProvider)
-        mock_renderer = MagicMock(spec=Renderer)
-
-        orch = Orchestrator(
-            config=config,
-            content_fetcher=mock_fetcher,
-            llm_provider=mock_llm,
-            tts_provider=mock_tts,
-            renderer=mock_renderer,
-            debug=True,
-            dry_run=True,
-        )
-
-        script = _make_script()
-        content = _make_content_package()
-        _, result = orch._step_produce(content, script, "2026-04-26")
-        assert result.total_duration == 30.0
-        for seg in result.segments:
-            assert seg.actual_duration is not None
-
-    def test_compute_timeline(self):
-        config = _make_config()
-        mock_fetcher = MagicMock(spec=ContentFetcher)
-        mock_llm = MagicMock(spec=LLMProvider)
-        mock_tts = MagicMock(spec=TTSProvider)
-        mock_renderer = MagicMock(spec=Renderer)
-
-        orch = Orchestrator(
-            config=config,
-            content_fetcher=mock_fetcher,
-            llm_provider=mock_llm,
-            tts_provider=mock_tts,
-            renderer=mock_renderer,
-            debug=True,
-            dry_run=True,
-        )
-
-        script = Script(
-            title="Test",
-            description="",
-            tags=[],
-            segments=[
-                ScriptSegment(segment_type="a", audio_text="x", estimated_duration=5.0),
-                ScriptSegment(
-                    segment_type="b", audio_text="y", estimated_duration=10.0
-                ),
-            ],
-        )
-        result = orch._timing.compute_timeline(script)
-        assert result.segments[0].start_time == 0.0
-        assert result.segments[0].end_time == 5.0
-        assert result.segments[1].start_time == 5.0
-        assert result.segments[1].end_time == 15.0
-        assert result.total_duration == 15.0
 
 
 class TestLLMProviderInterface:
@@ -324,14 +263,12 @@ class TestSubtitleVisualAlignment:
         config = _make_config()
         mock_fetcher = MagicMock(spec=ContentFetcher)
         mock_llm = MagicMock(spec=LLMProvider)
-        mock_tts = MagicMock(spec=TTSProvider)
-        mock_renderer = MagicMock(spec=Renderer)
+        mock_renderer = None
         return Orchestrator(
             config=config,
             content_fetcher=mock_fetcher,
             llm_provider=mock_llm,
-            tts_provider=mock_tts,
-            renderer=mock_renderer,
+            article_enricher=mock_renderer,
             debug=True,
             dry_run=True,
         )

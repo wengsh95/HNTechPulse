@@ -22,8 +22,9 @@ hn:
   granular_cache: true            # 评论级细粒度缓存（支持断点续传，中断重跑跳过已缓存故事）
 
 video:
-  resolution: [1920, 1080]      
+  resolution: [1920, 1080]
   fps: 24                        # 24fps 电影感足够（比 30fps 快 20%）
+  theme: xhs-pastel                    # "dark" (毛玻璃暗色) | "xhs-pastel" (马卡龙柔和色)
 
 timing:
   segment_gap: 0.0          # 非 story 段之间的停顿（由 fade-in/out 处理过渡）
