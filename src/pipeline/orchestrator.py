@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -8,7 +7,6 @@ from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.translation_manager import TranslationManager
-from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.comment_analyzer import CommentAnalyzer
 from src.pipeline.comment_judge import CommentJudge
 from src.pipeline.prefilter import Prefilter
@@ -42,7 +40,6 @@ class Orchestrator:
         self.translation_manager = TranslationManager(
             llm_provider, self.content_preparer, config, debug=debug, level=log_level
         )
-        self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
         self.comment_judge = CommentJudge(
             llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug
@@ -82,7 +79,6 @@ class Orchestrator:
             else:
                 steps = [s for s in steps if s in _ALL_STEPS]
 
-        t_start = time.monotonic()
         self.logger.info(
             f"Running pipeline, date={date}, steps={steps}, product=daily_brief"
         )
@@ -106,12 +102,12 @@ class Orchestrator:
             if content and any(
                 item.enrichment_source in ("fetch_failed", "extraction_failed")
                 for item in content.items
+                if item.enrichment_source not in ("skipped", "none", "manual_override")
             ):
                 self.logger.warning(
-                    "Pipeline stopped: some items need manual intervention. "
-                    "Re-run after placing HTML files in downloaded_pages/."
+                    "Some items could not be fetched automatically. "
+                    "Continuing anyway..."
                 )
-                return
 
         # ── script (analyze + script generation) ───────────────────
         if "script" in steps:
@@ -130,13 +126,6 @@ class Orchestrator:
         # ── standalone steps ────────────────────────────────────────
         if "html" in steps:
             self._step_html(content, script, date)
-
-        # Save transcript
-        if script and ("script" in steps or "translate" in steps):
-            self.script_writer.save_transcript(script, date, content)
-
-        elapsed = time.monotonic() - t_start
-        self.report_generator.generate(date, steps, elapsed, content, script)
 
         self.logger.info("Pipeline completed")
 
