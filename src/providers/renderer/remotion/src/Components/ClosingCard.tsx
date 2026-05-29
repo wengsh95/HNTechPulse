@@ -34,7 +34,6 @@ const CompletionStrip: React.FC<{ frame: number; delay: number }> = ({ frame, de
   const segments = [
     { color: CHAPTERS.focus.accent, key: "focus" },
     { color: CHAPTERS.compact.accent, key: "compact" },
-    { color: CHAPTERS.quick.accent, key: "quick" },
   ];
   return (
     <div

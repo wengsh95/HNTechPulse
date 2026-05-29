@@ -23,10 +23,6 @@ import {
   FOOTER_ENTRANCE_Y,
   IMAGE_ENTRANCE_X,
   WATERMARK_TOP_OFFSET,
-  COMPACT_TITLE_SIZE,
-  COMPACT_HERO_SIZE,
-  COMPACT_SUBHEAD_SIZE,
-  FOCUS_TITLE_SIZE,
   ITEM_DURATION,
   PILL_DURATION,
   SECTION_BAR,
@@ -69,7 +65,6 @@ export {
   ROW_STAGGER,
   KEYWORD_TAG_PAD,
   CAPSULE_PAD,
-  FOCUS_TITLE_SIZE,
 } from "./design";
 
 export interface HighlightEntry {
@@ -643,26 +638,24 @@ export function bodySectionGap(compact: boolean): number {
   return compact ? BODY_SECTION_GAP.compact : BODY_SECTION_GAP.normal;
 }
 
-/** Resolve title font size (compact fallback to shared constant) */
-export function titleFontSize(d: ReturnType<typeof useDesign>, compact: boolean): number {
-  return compact ? Math.round(COMPACT_TITLE_SIZE * d.scale) : d.fs.headline;
+/** Resolve title font size */
+export function titleFontSize(d: ReturnType<typeof useDesign>): number {
+  return d.fs.headline;
 }
 
 /** Resolve hero font size */
-export function heroFontSize(d: ReturnType<typeof useDesign>, compact: boolean): number {
-  return compact ? Math.round(COMPACT_HERO_SIZE * d.scale) : d.fs.hero;
+export function heroFontSize(d: ReturnType<typeof useDesign>): number {
+  return d.fs.hero;
 }
 
 /** Resolve subhead font size */
-export function subheadFontSize(d: ReturnType<typeof useDesign>, compact: boolean): number {
-  return compact ? Math.round(COMPACT_SUBHEAD_SIZE * d.scale) : d.fs.subhead;
+export function subheadFontSize(d: ReturnType<typeof useDesign>): number {
+  return d.fs.subhead;
 }
 
-/** Resolve focus card title font size (slightly larger than headline for hierarchy) */
-export function focusTitleFontSize(d: ReturnType<typeof useDesign>, compact: boolean): number {
-  return compact
-    ? Math.round(COMPACT_TITLE_SIZE * d.scale)
-    : Math.round(FOCUS_TITLE_SIZE * d.scale * 1.18);
+/** Resolve focus card title font size */
+export function focusTitleFontSize(d: ReturnType<typeof useDesign>): number {
+  return d.fs.headline;
 }
 
 /** Shared chapter watermark component */

@@ -23,8 +23,6 @@ import {
   CoverCard,
   EventCard,
   AtmosphereCard,
-  StoryCompactCard,
-  QuickRoundupCard,
 } from "./Elements";
 import {
   CommentCard,
@@ -47,7 +45,6 @@ import {
   FONTS,
   FW,
   S,
-  DesignProvider,
   useDesign,
 } from "./design";
 import { segmentTransitionOpacity } from "./timing";
@@ -71,8 +68,6 @@ type StoryEvent = {
 
 const STORY_MARKER_TYPES = new Set([
   "event_card",
-  "story_compact_card",
-  "quick_roundup_card",
   "story_header",
   "news_carousel_card",
   "story_scan_card",
@@ -132,8 +127,6 @@ const ELEMENT_RENDERERS: Record<
   cover_card: (props) => <CoverCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
-  story_compact_card: (props) => <StoryCompactCard {...props} />,
-  quick_roundup_card: (props) => <QuickRoundupCard {...props} />,
   story_header: (props) => <StoryHeaderCard {...props} />,
   discussion_overview: (props) => <DiscussionOverviewCard {...props} />,
   comment_card: (props) => <CommentCard {...props} />,
@@ -538,69 +531,67 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
 
   return (
     <AbsoluteFill style={{ background: bgColor || COLORS.bg }}>
-      <DesignProvider width={width} height={height}>
-        {/* Background atmosphere: glow spots + micro grid */}
-        <BackgroundAtmosphere width={width} height={height} />
+      {/* Background atmosphere: glow spots + micro grid */}
+      <BackgroundAtmosphere width={width} height={height} />
 
-        {/* 遍历所有 segments，按时间线排列视觉内容 */}
-        {segments.map((segment, index) => (
-          <SegmentRenderer
-            key={`seg-${index}`}
-            segment={segment}
-            index={index}
-            width={width}
-            height={height}
-            fps={fps}
-            isLastSegment={index === segments.length - 1}
-          />
+      {/* 遍历所有 segments，按时间线排列视觉内容 */}
+      {segments.map((segment, index) => (
+        <SegmentRenderer
+          key={`seg-${index}`}
+          segment={segment}
+          index={index}
+          width={width}
+          height={height}
+          fps={fps}
+          isLastSegment={index === segments.length - 1}
+        />
+      ))}
+
+      {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
+      {segments
+        .filter((seg) => seg.audio_path && seg.duration > 0)
+        .map((segment, index) => (
+          <Sequence
+            key={`audio-${index}`}
+            from={Math.floor(segment.start_time * fps)}
+            durationInFrames={Math.max(1, Math.ceil(segment.duration * fps))}
+            name={`audio-seg-${index}`}
+            layout="none"
+          >
+            <Audio src={staticFile(segment.audio_path!)} />
+          </Sequence>
         ))}
 
-        {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
-        {segments
-          .filter((seg) => seg.audio_path && seg.duration > 0)
-          .map((segment, index) => (
-            <Sequence
-              key={`audio-${index}`}
-              from={Math.floor(segment.start_time * fps)}
-              durationInFrames={Math.max(1, Math.ceil(segment.duration * fps))}
-              name={`audio-seg-${index}`}
-              layout="none"
-            >
-              <Audio src={staticFile(segment.audio_path!)} />
-            </Sequence>
-          ))}
+      {/* Per-subtitle 音频轨道 (story_scan 使用) */}
+      {segments
+        .filter((seg) => seg.subtitle_audios && seg.subtitle_audios.length > 0)
+        .flatMap((segment) =>
+          (segment.subtitle_audios ?? []).map((sa, i) => ({
+            key: `sub-audio-${segment.start_time}-${i}`,
+            absoluteStart: segment.start_time + sa.start_time,
+            duration: sa.end_time - sa.start_time,
+            audioPath: sa.audio_path,
+          })),
+        )
+        .filter((item) => item.duration > 0)
+        .map((item) => (
+          <Sequence
+            key={item.key}
+            from={Math.floor(item.absoluteStart * fps)}
+            durationInFrames={Math.max(1, Math.ceil(item.duration * fps))}
+            layout="none"
+          >
+            <Audio src={staticFile(item.audioPath)} />
+          </Sequence>
+        ))}
 
-        {/* Per-subtitle 音频轨道 (story_scan 使用) */}
-        {segments
-          .filter((seg) => seg.subtitle_audios && seg.subtitle_audios.length > 0)
-          .flatMap((segment) =>
-            (segment.subtitle_audios ?? []).map((sa, i) => ({
-              key: `sub-audio-${segment.start_time}-${i}`,
-              absoluteStart: segment.start_time + sa.start_time,
-              duration: sa.end_time - sa.start_time,
-              audioPath: sa.audio_path,
-            })),
-          )
-          .filter((item) => item.duration > 0)
-          .map((item) => (
-            <Sequence
-              key={item.key}
-              from={Math.floor(item.absoluteStart * fps)}
-              durationInFrames={Math.max(1, Math.ceil(item.duration * fps))}
-              layout="none"
-            >
-              <Audio src={staticFile(item.audioPath)} />
-            </Sequence>
-          ))}
-
-        {/* 底部进度条 */}
-        <ProgressBar
-          totalDuration={totalDuration}
-          storyBoundaries={storyBoundaries}
-          activeStoryIndex={activeStoryIndex}
-        />
-        <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
-      </DesignProvider>
+      {/* 底部进度条 */}
+      <ProgressBar
+        totalDuration={totalDuration}
+        storyBoundaries={storyBoundaries}
+        activeStoryIndex={activeStoryIndex}
+      />
+      <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
     </AbsoluteFill>
   );
 };

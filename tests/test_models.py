@@ -45,7 +45,6 @@ class TestContentModels:
         cp = ContentPackage(date="2026-04-26", items=[])
         assert cp.deep_dive_indices == []
         assert cp.brief_indices == []
-        assert cp.quick_news_indices == []
 
 
 class TestScriptModels:

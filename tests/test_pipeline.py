@@ -22,8 +22,6 @@ def _make_config():
         "pipeline": {
             "target_story_count": 10,
             "focus_items": 3,
-            "standard_items": 3,
-            "quick_items": 4,
         },
         "llm": {"model": "test-model"},
     }
@@ -52,7 +50,6 @@ def _make_content_package():
         items=items,
         deep_dive_indices=[0],
         brief_indices=[1, 2],
-        quick_news_indices=[3, 4, 5, 6, 7, 8],
     )
 
 
@@ -99,7 +96,6 @@ class TestContentPreparer:
         assert loaded.date == content.date
         assert loaded.deep_dive_indices == content.deep_dive_indices
         assert loaded.brief_indices == content.brief_indices
-        assert loaded.quick_news_indices == content.quick_news_indices
         assert len(loaded.items) == len(content.items)
         for original, loaded_item in zip(content.items, loaded.items):
             assert loaded_item.source == original.source
@@ -131,7 +127,10 @@ class TestScriptWriter:
 
         script = writer.write(content)
 
-        assert mock_llm.generate_single_story_segment.call_count == len(content.items)
+        assert (
+            mock_llm.generate_single_story_segment.call_count
+            == config["pipeline"]["focus_items"]
+        )
         assert len(script.segments) >= 2  # at least opening + closing
 
     def test_write_passes_comment_judgement_to_story_generation(

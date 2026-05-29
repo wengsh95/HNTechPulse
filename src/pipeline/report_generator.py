@@ -10,38 +10,18 @@ class ReportGenerator:
 
     def _coverage_counts(self, content, script) -> dict[str, int]:
         """Count planned story coverage from script visuals, falling back to legacy indices."""
-        counts = {"focus": 0, "standard": 0, "quick": 0}
+        counts = {"focus": 0}
         seen: set[tuple[str, int]] = set()
 
         if script:
             for seg in script.segments:
                 for elem in seg.scene_elements:
                     props = elem.props or {}
-                    if elem.element_type == "quick_roundup_card":
-                        items = props.get("items", [])
-                        if isinstance(items, list):
-                            for item in items:
-                                if not isinstance(item, dict):
-                                    continue
-                                story_index = item.get(
-                                    "story_index", item.get("display_index")
-                                )
-                                try:
-                                    idx = int(story_index)  # type: ignore[arg-type]
-                                except (TypeError, ValueError):
-                                    idx = len(seen)
-                                key = ("quick", idx)
-                                if key not in seen:
-                                    seen.add(key)
-                                    counts["quick"] += 1
-                        continue
 
                     tier = props.get("coverage_tier")
                     if not tier:
                         if elem.element_type in {"event_card", "atmosphere_card"}:
                             tier = "focus"
-                        elif elem.element_type == "story_compact_card":
-                            tier = "standard"
                     if tier not in counts:
                         continue
 
@@ -61,8 +41,6 @@ class ReportGenerator:
         if content:
             return {
                 "focus": len(content.deep_dive_indices),
-                "standard": len(content.brief_indices),
-                "quick": len(content.quick_news_indices),
             }
 
         return counts
@@ -82,8 +60,6 @@ class ReportGenerator:
             coverage_counts = self._coverage_counts(content, script)
             lines.append(f"| 故事总数 | {len(content.items)} |")
             lines.append(f"| 深度报道 | {coverage_counts['focus']} |")
-            lines.append(f"| 简要速览 | {coverage_counts['standard']} |")
-            lines.append(f"| 快讯 | {coverage_counts['quick']} |")
         else:
             lines.append("| 故事总数 | N/A |")
 

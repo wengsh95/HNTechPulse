@@ -66,7 +66,6 @@ class ContentPackage:
     items: List[ContentItem]
     deep_dive_indices: List[int] = field(default_factory=list)
     brief_indices: List[int] = field(default_factory=list)
-    quick_news_indices: List[int] = field(default_factory=list)
 
 
 # ================= LLM 交互模型 =================

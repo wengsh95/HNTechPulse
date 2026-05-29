@@ -18,7 +18,6 @@ from src.providers.renderer.remotion_props import (
     _expand_news_carousel_card,
     _expand_highlight_entries,
     _expand_event_card,
-    _expand_quick_roundup_card,
     _expand_atmosphere_card,
     expand_element_props,
     sanitize_props,
@@ -66,7 +65,6 @@ def _make_content_package():
         items=items,
         deep_dive_indices=[0],
         brief_indices=[1],
-        quick_news_indices=[2],
     )
 
 
@@ -113,7 +111,6 @@ class TestSafeGetItem:
             items=[],
             deep_dive_indices=[],
             brief_indices=[],
-            quick_news_indices=[],
         )
         assert _safe_get_item(content, 0) is None
 
@@ -306,36 +303,6 @@ class TestExpandEventCard:
         result = _expand_event_card({"story_index": 0}, content)
 
         assert result["why_it_matters"] == "改变开发工作流"
-
-
-class TestExpandQuickRoundupCard:
-    def test_expands_roundup_items_from_content(self):
-        content = _make_content_package()
-        content.items[1].category = "开源"
-        content.items[1].keywords = ["archive", "books"]
-
-        result = _expand_quick_roundup_card(
-            {
-                "items": [
-                    {
-                        "story_index": 1,
-                        "display_title": "古腾堡继续变好",
-                        "micro_takeaway": "老项目仍在进化",
-                    }
-                ]
-            },
-            content,
-        )
-
-        item = result["items"][0]
-        assert item["source_title"] == "Story 1"
-        assert item["display_title"] == "古腾堡继续变好"
-        assert item["micro_takeaway"] == "老项目仍在进化"
-        assert item["source_domain"] == "example.com"
-        assert item["score"] == 90
-        assert item["comment_count"] == 2
-        assert item["category"] == "开源"
-        assert item["keywords"] == ["archive", "books"]
 
 
 # ── _expand_atmosphere_card ────────────────────────────────────────────

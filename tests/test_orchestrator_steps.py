@@ -8,7 +8,7 @@ from src.pipeline.orchestrator import Orchestrator
 def _make_config():
     return {
         "logging": {"level": "WARNING"},
-        "pipeline": {"num_deep_dive": 1, "num_brief": 2, "num_quick_news": 6},
+        "pipeline": {"num_deep_dive": 1, "num_brief": 2},
         "llm": {"model": "test-model"},
     }
 

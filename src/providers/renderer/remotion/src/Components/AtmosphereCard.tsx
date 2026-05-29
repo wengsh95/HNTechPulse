@@ -294,7 +294,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, he
   const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } =
     useCardAnimations(frame);
 
-  const resolvedTitleFontSize = titleFontSize(d, compact);
+  const resolvedTitleFontSize = titleFontSize(d);
 
   const showStanceFocusRow = hasFocus || hasStances;
   const colGap = d.scaled(compact ? 20 : 28);

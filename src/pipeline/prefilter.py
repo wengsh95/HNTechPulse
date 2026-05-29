@@ -117,13 +117,9 @@ class Prefilter:
     def _rebuild_indices(self, content: ContentPackage):
         pipeline_cfg = self.config.get("pipeline", {})
         num_deep_dive = pipeline_cfg.get("focus_items", 3)
-        num_brief = pipeline_cfg.get("standard_items", 3)
         n = len(content.items)
         content.deep_dive_indices = list(range(min(num_deep_dive, n)))
-        content.brief_indices = list(
-            range(num_deep_dive, min(num_deep_dive + num_brief, n))
-        )
-        content.quick_news_indices = list(range(num_deep_dive + num_brief, n))
+        content.brief_indices = list(range(num_deep_dive, n))
 
     def _load_cache(self, date: str):
         cache_path = Path(f"data/{date}/prefilter.json")

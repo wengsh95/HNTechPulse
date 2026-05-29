@@ -111,7 +111,6 @@ class ContentPreparer:
                 items=items,
                 deep_dive_indices=content_dict.get("deep_dive_indices", []),
                 brief_indices=content_dict.get("brief_indices", []),
-                quick_news_indices=content_dict.get("quick_news_indices", []),
             )
         except (KeyError, TypeError) as e:
             raise ValueError(

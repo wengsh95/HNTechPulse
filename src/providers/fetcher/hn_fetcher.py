@@ -623,7 +623,6 @@ class HNFetcher(ContentFetcher):
             items=items,
             deep_dive_indices=[],
             brief_indices=list(range(len(items))),
-            quick_news_indices=[],
         )
 
     def _load_stories_from_cache(

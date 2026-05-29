@@ -8,8 +8,8 @@ import mimetypes
 from pathlib import Path
 from typing import Any
 
-IMAGE_CARD_TYPES = {"event_card", "story_compact_card"}
-STORY_CARD_TYPES = IMAGE_CARD_TYPES | {"atmosphere_card", "quick_roundup_card"}
+IMAGE_CARD_TYPES = {"event_card"}
+STORY_CARD_TYPES = IMAGE_CARD_TYPES | {"atmosphere_card"}
 
 
 def _path_to_data_url(path: str, data_dir: Path) -> str:
@@ -73,22 +73,6 @@ def _extract_stories(script: dict) -> dict[int, dict]:
             if et not in STORY_CARD_TYPES:
                 continue
             props = elem.get("props", {})
-
-            if et == "quick_roundup_card":
-                for item in props.get("items", []):
-                    si = item.get("story_index")
-                    if si is not None:
-                        stories[si] = {
-                            "story_index": si,
-                            "card_type": "quick",
-                            "display_title": item.get("display_title", ""),
-                            "source_title": item.get("source_title", ""),
-                            "micro_takeaway": item.get("micro_takeaway", ""),
-                            "quick_label": item.get("quick_label", ""),
-                            "keywords": item.get("keywords", []),
-                            "category": item.get("category", ""),
-                        }
-                continue
 
             si = props.get("story_index")
             if si is None:
@@ -200,13 +184,6 @@ body{font-family:"Georgia","Songti SC","SimSun",serif;background:#f8f5f0;color:#
 .upload-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1rem;font-family:"Courier New",monospace;font-size:.8rem;background:#fdf8f0;border:2px dashed #c9a961;border-radius:2px;cursor:pointer;color:#8b7355;transition:all .2s;font-weight:600;letter-spacing:.05em}
 .upload-btn:hover{background:#f5ede0;border-color:#8b7355;color:#5c4a32}
 .no-image{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;border-radius:2px;background:#f5ede0;color:#8b7355;font-family:"Courier New",monospace;font-size:.75rem}
-.quick-card{background:#fffbf5;border-radius:2px;margin-bottom:1.5rem;padding:1.5rem 2rem;box-shadow:0 2px 8px rgba(44,36,22,.06);border:1px solid #e8dcc4}
-.quick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-top:.75rem}
-.quick-item{padding:.85rem 1rem;background:#fdf8f0;border-radius:2px;border:1px solid #e8dcc4;transition:all .2s}
-.quick-item:hover{border-color:#c9a961;transform:translateY(-1px);box-shadow:0 3px 6px rgba(44,36,22,.1)}
-.quick-title{font-family:"Georgia",serif;font-size:.9rem;font-weight:600;margin-bottom:.3rem;line-height:1.4;color:#2c2416}
-.quick-take{font-size:.85rem;color:#5c4a32;line-height:1.55}
-.quick-label{font-family:"Courier New",monospace;font-size:.7rem;color:#c9a961;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem}
 .export-bar{position:fixed;bottom:0;left:0;right:0;background:#2c2416;color:#f8f5f0;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;z-index:100;box-shadow:0 -2px 12px rgba(44,36,22,.2);border-top:2px solid #c9a961}
 .export-btn{background:#c9a961;color:#2c2416;border:none;padding:.65rem 1.75rem;border-radius:2px;font-family:"Courier New",monospace;font-size:.85rem;cursor:pointer;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transition:all .2s}
 .export-btn:hover{background:#d4b876;transform:translateY(-1px);box-shadow:0 3px 8px rgba(44,36,22,.3)}
@@ -456,7 +433,6 @@ _HTML_TEMPLATE = """\
 </div>
 <div class="container">
 {story_cards}
-{quick_section}
 </div>
 <div class="export-bar">
 <span class="export-info" id="export-info">已选图: 0/0</span>
@@ -489,34 +465,9 @@ def generate_html(date: str) -> str:
     page_data = _build_page_data(script, content_items, enrichment, data_dir)
 
     story_cards = []
-    quick_items = []
 
     for story in page_data:
-        if story.get("card_type") == "quick":
-            quick_items.append(story)
-        else:
-            story_cards.append(_story_html(story))
-
-    quick_html = ""
-    if quick_items:
-        items_inner = []
-        for qi in quick_items:
-            label = qi.get("quick_label", "")
-            title = qi.get("display_title") or qi.get("source_title", "")
-            take = qi.get("micro_takeaway", "")
-            items_inner.append(
-                f'<div class="quick-item">'
-                f'<div class="quick-label">{label}</div>'
-                f'<div class="quick-title">{title}</div>'
-                f'<div class="quick-take">{take}</div>'
-                f"</div>"
-            )
-        quick_html = (
-            '<div class="quick-card">'
-            '<div class="section-label">快扫</div>'
-            f'<div class="quick-grid">{"".join(items_inner)}</div>'
-            "</div>"
-        )
+        story_cards.append(_story_html(story))
 
     page_json = json.dumps(page_data, ensure_ascii=False)
     title = script.get("title", "HN TechPulse")
@@ -527,7 +478,6 @@ def generate_html(date: str) -> str:
         story_count=len(page_data),
         css=_CSS,
         story_cards="".join(story_cards),
-        quick_section=quick_html,
         page_data_json=page_json,
         js=_JS,
     )

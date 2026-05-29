@@ -288,56 +288,6 @@ def _expand_event_card(props, content, score_ranks=None):
     return result
 
 
-def _expand_quick_roundup_card(props, content, score_ranks=None):
-    """Expand quick_roundup_card items with content-backed story metadata."""
-    result = dict(props)
-    items = []
-    for raw in props.get("items", []) or []:
-        if not isinstance(raw, dict):
-            continue
-        story_index = raw.get("story_index")
-        try:
-            story_index = int(story_index)
-        except (TypeError, ValueError):
-            raise ValueError("quick_roundup_card item requires integer story_index")
-        item = _safe_get_item(content, story_index)
-        if item is None:
-            raise ValueError(
-                f"quick_roundup_card item story_index out of range: {story_index}"
-            )
-
-        expanded = dict(raw)
-        expanded["story_index"] = story_index
-        expanded["source_title"] = item.title
-        expanded["display_title"] = (
-            expanded.get("display_title")
-            or item.editor_angle
-            or item.title_cn
-            or item.title
-        )
-        expanded["title_cn"] = item.title_cn or ""
-        expanded["source_domain"] = _extract_domain(item.url) if item.url else ""
-        expanded["score"] = item.score or 0
-        expanded["comment_count"] = item.comment_count or 0
-        expanded["category"] = expanded.get("category") or item.category or ""
-        expanded["keywords"] = expanded.get("keywords") or item.keywords or []
-        expanded["micro_takeaway"] = (
-            expanded.get("micro_takeaway") or item.why_it_matters or item.dek or ""
-        )
-        if score_ranks and item.source_id is not None:
-            rank = score_ranks.get(item.source_id)
-            total = len(score_ranks)
-            expanded["heat_level"] = _heat_level_from_rank(rank, total) if rank else ""
-        else:
-            expanded["heat_level"] = ""
-        items.append(expanded)
-
-    if not items:
-        raise ValueError("quick_roundup_card requires at least one item")
-    result["items"] = items
-    return result
-
-
 def _expand_atmosphere_card(props, content):
     """Expand atmosphere_card: inject controversy score, stance/distribution, and representative quotes."""
     import math
@@ -445,8 +395,6 @@ ELEMENT_EXPANDERS = {
     "news_carousel_card": _expand_news_carousel_card,
     "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
-    "story_compact_card": _expand_event_card,
-    "quick_roundup_card": _expand_quick_roundup_card,
     "atmosphere_card": _expand_atmosphere_card,
 }
 
@@ -455,11 +403,6 @@ def expand_element_props(
     element_type: str, props: Dict[str, Any], content, logger, score_ranks=None
 ) -> Dict[str, Any]:
     """Dispatch to the per-type expander; fall back to raw props on failure or unknown type."""
-    if element_type == "quick_item_card":
-        raise ValueError(
-            "quick_item_card is no longer a renderable element; delete script.json "
-            "and regenerate so quick stories are grouped into quick_roundup_card"
-        )
     if content is None:
         return props
     expander = ELEMENT_EXPANDERS.get(element_type)
@@ -468,8 +411,6 @@ def expand_element_props(
     try:
         if element_type in {
             "event_card",
-            "story_compact_card",
-            "quick_roundup_card",
         }:
             result = expander(props, content, score_ranks=score_ranks)  # type: ignore[call-arg]
         else:

@@ -1,15 +1,9 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext } from "react";
 import { Easing } from "remotion";
 
-/** 基准分辨率宽度（设计稿基于 1080p） */
-const BASE_WIDTH = 1920;
+/** 硬编码 1080p 输出，不做分辨率缩放 */
 
-/** 根据实际宽度计算缩放因子 */
-export function designScale(width: number): number {
-  return width / BASE_WIDTH;
-}
-
-/** Keynote 风格暗色设计系统（基准值，对应 1080p） */
+/** Keynote 风格暗色设计系统（1080p 固定值） */
 export const GRID_UNIT = 8;
 export const grid = (units: number) => units * GRID_UNIT;
 export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
@@ -90,80 +84,52 @@ export const COLORS = {
   textLight: "rgba(245,245,247,0.60)",
 };
 
-/** 基准 LAYOUT 值（1080p 设计稿） */
-const _LAYOUT = {
-  pageInset: grid(12),
-  topInset: grid(12),
-  bottomSafe: grid(18),
-  chromeInsetX: grid(6),
-  chromeTop: grid(5),
-  chromeHeight: grid(5),
-  progressInsetX: grid(4),
-  progressBottom: grid(2),
-  subtitleBottom: grid(10),
-  subtitleBottomMinimal: grid(9),
+/** 1080p 固定布局值 */
+export const LAYOUT = {
+  pageInset: 96,
+  topInset: 96,
+  bottomSafe: 144,
+  chromeInsetX: 48,
+  chromeTop: 40,
+  chromeHeight: 40,
+  progressInsetX: 32,
+  progressBottom: 16,
+  subtitleBottom: 80,
+  subtitleBottomMinimal: 72,
   cardRadius: 16,
   panelRadius: 12,
   chipRadius: 8,
-  cardPaddingX: grid(5),
-  cardPaddingY: grid(4),
-  contentMaxWidth: grid(120),
-  contentWideMaxWidth: grid(150),
-  subtitleMaxWidth: grid(152),
+  cardPaddingX: 40,
+  cardPaddingY: 32,
+  contentMaxWidth: 960,
+  contentWideMaxWidth: 1200,
+  subtitleMaxWidth: 1216,
 };
 
-export const LAYOUT = _LAYOUT;
+/** 1080p 固定字号（基准值 × 1.18 高度增强） */
+export const FS = {
+  hero: 66,
+  headline: 50,
+  subhead: 35,
+  closing: 61,
 
-/** 基准字号（1080p 设计稿） */
-const _FS = {
-  hero: 56,
-  headline: 42,
-  subhead: 30,
-  closing: 52,
+  body: 26,
+  bodySmall: 21,
+  bodyLg: 24,
+  subtitle2: 21,
 
-  body: 22,
-  bodySmall: 18,
-  bodyLg: 20,
-  subtitle2: 18,
+  label: 21,
+  caption: 18,
+  pill: 14,
+  micro: 13,
 
-  label: 18,
-  caption: 15,
-  pill: 12,
-  micro: 11,
-
-  watermark: 72,
-  watermarkLg: 96,
-  subtitle: 28,
+  watermark: 85,
+  watermarkLg: 113,
+  subtitle: 33,
 };
-
-export const FS = _FS;
-
-/** 缩放数值（递归处理嵌套对象，仅缩放 number 类型值） */
-function scaleNumber<T>(value: T, scale: number): T {
-  if (typeof value === "number") {
-    return (value * scale) as unknown as T;
-  }
-  if (Array.isArray(value)) {
-    return value.map((v) => scaleNumber(v, scale)) as unknown as T;
-  }
-  if (value && typeof value === "object") {
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(value as Record<string, unknown>)) {
-      result[key] = scaleNumber((value as Record<string, unknown>)[key], scale);
-    }
-    return result as T;
-  }
-  return value;
-}
-
-/** 缩放后的 grid */
-function scaledGrid(scale: number, units: number): number {
-  return Math.round(units * GRID_UNIT * scale);
-}
 
 export interface DesignTokens {
-  scale: number;
-  /** Scale a raw pixel value to current resolution */
+  /** Scale a pixel value (1080p 固定：等价于 Math.round) */
   scaled: (px: number) => number;
   layout: typeof LAYOUT;
   fs: typeof FS;
@@ -172,42 +138,20 @@ export interface DesignTokens {
   getCardMaxHeight: number;
 }
 
-function createDesignTokens(width: number, height: number): DesignTokens {
-  const s = designScale(width);
-  const isLargeScreen = height >= 1000;
-  const heightBoost = isLargeScreen ? 1.18 : 1;
-  const layout = scaleNumber(_LAYOUT, s);
-  const g = (units: number) => scaledGrid(s, units);
-  return {
-    scale: s,
-    scaled: (px: number) => Math.round(px * s * (isLargeScreen && px > 16 ? heightBoost : 1)),
-    layout,
-    fs: scaleNumber(_FS, s * heightBoost),
-    grid: g,
-    isCompactHeight: height <= 900 * s,
-    getCardMaxHeight: Math.max(g(40), height - layout.topInset - layout.bottomSafe),
-  };
-}
-
-const DesignContext = createContext<DesignTokens | null>(null);
-
-/** 获取缩放后的设计令牌（必须在 <DesignProvider> 内使用） */
-export function useDesign(): DesignTokens {
-  const ctx = useContext(DesignContext);
-  if (!ctx) {
-    throw new Error("useDesign() must be used within <DesignProvider>");
-  }
-  return ctx;
-}
-
-export const DesignProvider: React.FC<{
-  width: number;
-  height: number;
-  children: React.ReactNode;
-}> = ({ width, height, children }) => {
-  const tokens = useMemo(() => createDesignTokens(width, height), [width, height]);
-  return React.createElement(DesignContext.Provider, { value: tokens }, children);
+/** 1080p 预计算的设计令牌 */
+const _tokens: DesignTokens = {
+  scaled: Math.round,
+  layout: LAYOUT,
+  fs: FS,
+  grid: (units: number) => units * GRID_UNIT,
+  isCompactHeight: false,
+  getCardMaxHeight: 840,
 };
+
+/** 获取设计令牌（1080p 固定值） */
+export function useDesign(): DesignTokens {
+  return _tokens;
+}
 
 // ── Chapter token map ──
 //
@@ -216,7 +160,7 @@ export const DesignProvider: React.FC<{
 //
 // motion / viz 是为后续 Layer B/C 预留的字段，目前仅 accent 被消费。
 
-export type ChapterName = "cover" | "focus" | "atmosphere" | "compact" | "quick" | "closing";
+export type ChapterName = "cover" | "focus" | "atmosphere" | "closing";
 
 export interface ChapterTone {
   /** 主 accent 色 —— SectionLabel 的强调条 / KeywordTag 文本色 / chrome pill 文本色 */
@@ -263,24 +207,6 @@ export const CHAPTERS: Record<ChapterName, ChapterTone> = {
     motion: "countUp",
     viz: "pieChart",
   },
-  compact: {
-    accent: COLORS.accent,
-    accentLight: COLORS.accentLight,
-    accentBg: COLORS.accentBg,
-    accentBorder: COLORS.accentBorder,
-    labelText: COLORS.accentLight,
-    motion: "wordCascade",
-    viz: "imageSide",
-  },
-  quick: {
-    accent: COLORS.green,
-    accentLight: COLORS.green,
-    accentBg: "rgba(52,199,89,0.10)",
-    accentBorder: "rgba(52,199,89,0.30)",
-    labelText: COLORS.green,
-    motion: "typewriter",
-    viz: "barList",
-  },
   closing: {
     accent: COLORS.accent,
     accentLight: COLORS.accentLight,
@@ -315,8 +241,6 @@ export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
   cover_card: "cover",
   event_card: "focus",
   atmosphere_card: "atmosphere",
-  story_compact_card: "compact",
-  quick_roundup_card: "quick",
   closing_card: "closing",
 };
 
@@ -445,18 +369,6 @@ export const IMAGE_ENTRANCE_X = 28;
 
 /** Standard chapter watermark offset from top padding */
 export const WATERMARK_TOP_OFFSET = 6;
-
-/** Standard compact title font size (headline fallback) */
-export const COMPACT_TITLE_SIZE = 40;
-
-/** Standard focus card title size (slightly larger than headline for hierarchy) */
-export const FOCUS_TITLE_SIZE = 44;
-
-/** Standard hero font size for compact mode */
-export const COMPACT_HERO_SIZE = 48;
-
-/** Standard subhead font size for compact mode */
-export const COMPACT_SUBHEAD_SIZE = 26;
 
 /** Standard item sub-component animation duration (frames) */
 export const ITEM_DURATION = 18;

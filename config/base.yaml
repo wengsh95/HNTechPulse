@@ -6,8 +6,6 @@ logging:
 pipeline:
   target_story_count: 10        # 正式日报条目数量
   focus_items: 3                # 深讲：事件卡 + 讨论卡
-  standard_items: 3             # 速读：单条紧凑卡
-  quick_items: 4                # 快扫：一句话卡片
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
 hn:

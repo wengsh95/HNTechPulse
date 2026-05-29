@@ -34,8 +34,6 @@ const COVER_SUBTITLE_COLOR = COLORS.textSecondary;
 
 type SectionCounts = {
   focus?: number;
-  standard?: number;
-  quick?: number;
 };
 
 const SectionCountsStrip: React.FC<{
@@ -45,9 +43,7 @@ const SectionCountsStrip: React.FC<{
 }> = ({ counts, frame, delay }) => {
   const d = useDesign();
   const focus = Number(counts.focus || 0);
-  const standard = Number(counts.standard || 0);
-  const quick = Number(counts.quick || 0);
-  const total = focus + standard + quick;
+  const total = focus;
   if (total <= 0) return null;
   const grow = interpolate(frame, [delay, delay + 22], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -60,8 +56,6 @@ const SectionCountsStrip: React.FC<{
   });
   const segments: { count: number; color: string; label: string; key: string }[] = [
     { count: focus, color: CHAPTERS.focus.accent, label: "重点", key: "focus" },
-    { count: standard, color: CHAPTERS.compact.accent, label: "速读", key: "standard" },
-    { count: quick, color: CHAPTERS.quick.accent, label: "快扫", key: "quick" },
   ].filter((s) => s.count > 0);
 
   return (
@@ -203,7 +197,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
           style={{
             fontFamily: FONTS.bold,
             fontWeight: FW.bold,
-            fontSize: heroFontSize(d, compact),
+            fontSize: heroFontSize(d),
             color: COLORS.text,
             lineHeight: 1.1,
             letterSpacing: -0.5,
@@ -273,7 +267,7 @@ export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height 
                     <div
                       style={{
                         fontFamily: FONTS.bold,
-                        fontSize: subheadFontSize(d, compact),
+                        fontSize: subheadFontSize(d),
                         lineHeight: 1.35,
                         fontWeight: FW.bold,
                         color: COLORS.text,

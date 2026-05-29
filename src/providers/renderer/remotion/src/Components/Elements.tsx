@@ -3,5 +3,3 @@ export { ClosingCard } from "./ClosingCard";
 export { CoverCard } from "./CoverCard";
 export { EventCard } from "./EventCard";
 export { AtmosphereCard } from "./AtmosphereCard";
-export { StoryCompactCard } from "./StoryCompactCard";
-export { QuickRoundupCard } from "./QuickRoundupCard";

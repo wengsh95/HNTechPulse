@@ -76,12 +76,10 @@ def generate_fixed_opening(
 
     entries = highlight_entries or []
     focus_count = len([e for e in entries if e.get("coverage_tier") == "focus"])
-    standard_count = len([e for e in entries if e.get("coverage_tier") == "standard"])
-    quick_count = len([e for e in entries if e.get("coverage_tier") == "quick"])
     if len(entries) > 3:
         audio_text = (
             f"早上好，这里是 HN每日观察。今天选了{len(entries)}条讨论，"
-            f"{focus_count}条重点，{standard_count}条速读，{quick_count}条快扫。"
+            f"{focus_count}条重点。"
         )
         duration = 8
     else:
@@ -140,8 +138,6 @@ def generate_fixed_opening(
                     "lineup_entries": entries,
                     "section_counts": {
                         "focus": focus_count,
-                        "standard": standard_count,
-                        "quick": quick_count,
                     },
                 }
                 | (

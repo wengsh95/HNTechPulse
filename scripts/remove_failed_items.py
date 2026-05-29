@@ -20,7 +20,6 @@ content["items"] = [
 
 # Rebuild indices - now only 8 items remain
 content["brief_indices"] = list(range(len(content["items"])))
-content["quick_news_indices"] = []
 
 print(f"\nItems remaining: {len(content['items'])}")
 print(f"brief_indices: {content['brief_indices']}")

@@ -107,8 +107,6 @@ class PipelineProgress:
         fast_model = config.get("llm", {}).get("fast_model", "same")
         target = config.get("pipeline", {}).get("target_story_count", 10)
         focus = config.get("pipeline", {}).get("focus_items", 3)
-        standard = config.get("pipeline", {}).get("standard_items", 3)
-        quick = config.get("pipeline", {}).get("quick_items", 4)
 
         lines = [
             "=" * 60,
@@ -117,7 +115,7 @@ class PipelineProgress:
             f"  Date:   {self.date}",
             f"  Model:  {model} (fast: {fast_model})",
             f"  Steps:  {' → '.join(self.steps)}",
-            f"  Target: {target} stories ({focus} focus / {standard} standard / {quick} quick)",
+            f"  Target: {target} stories ({focus} focus)",
         ]
 
         if force and "render" in self.steps:

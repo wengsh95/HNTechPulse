@@ -195,7 +195,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height 
     const textColW = hasImage
       ? Math.max(d.scaled(320), Math.min(availableTextW, cardW - padX * 2))
       : Math.min(cardW - padX * 2, d.layout.contentWideMaxWidth);
-    const resolvedTitleFontSize = focusTitleFontSize(d, compact);
+    const resolvedTitleFontSize = focusTitleFontSize(d);
     return { cardW, cardMaxH, mediaW, mediaH, heroImage, gap, availableTextW, textColW, resolvedTitleFontSize };
   }, [width, d, compact, padX, padY, hasImage, isLogo]);
   const { cardW, cardMaxH, mediaW, mediaH, heroImage, gap, textColW, resolvedTitleFontSize } = layout;

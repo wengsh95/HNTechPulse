@@ -55,10 +55,7 @@ HN API
   │     Cached to data/{date}/comment_analysis.json + comment_judgement.json
   │     Then ScriptWriter.write():
   ├── Selection: top N stories by HN score (no LLM)
-  ├── Three tiers per story (mode: quick / standard / full):
-  │     quick → story_script_quick.md → quick_item_card (1 subtitle, ~8s)
-  │     standard → story_script_standard.md → story_compact_card (3 subtitles, ~14s)
-  │     full → story_script.md → event_card + atmosphere_card
+  ├── Each story uses full mode: story_script.md → event_card + atmosphere_card
   ├── _normalize_story_cards() injects common metadata (score, comment_count, keywords, etc.) into all card types
   ├── _normalize_quote_card_selection() replaces LLM-picked comment IDs with judge candidates
   └── _normalize_atmosphere_card() injects debate_focus + stance_distribution from judge
@@ -83,9 +80,7 @@ HN API
 | Template | Used By | Placeholders |
 |----------|---------|-------------|
 | [prompts/persona.md](prompts/persona.md) | All LLM calls (prepended) | `{{ persona }}` |
-| [prompts/story_script.md](prompts/story_script.md) | full mode | `{{ story_json }}`, `{{ story_index }}`, `{{ date }}` |
-| [prompts/story_script_standard.md](prompts/story_script_standard.md) | standard mode | `{{ story_json }}`, `{{ story_index }}`, `{{ date }}` |
-| [prompts/story_script_quick.md](prompts/story_script_quick.md) | quick mode | `{{ story_json }}`, `{{ story_index }}`, `{{ date }}` |
+| [prompts/story_script.md](prompts/story_script.md) | story scripts | `{{ story_json }}`, `{{ story_index }}`, `{{ date }}` |
 | [prompts/comment_analyze.md](prompts/comment_analyze.md) | CommentJudge | `{{ story_json }}` |
 | [prompts/translate.md](prompts/translate.md) | TranslationManager | `{{ items_json }}` |
 | [prompts/article_enrich.md](prompts/article_enrich.md) | Article enricher | `{{ title }}`, `{{ article_text }}` |

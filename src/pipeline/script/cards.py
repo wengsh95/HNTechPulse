@@ -72,8 +72,6 @@ def normalize_story_cards(
         if elem.element_type not in {
             "event_card",
             "atmosphere_card",
-            "story_compact_card",
-            "quick_roundup_card",
         }:
             continue
         props = dict(elem.props or {})
@@ -104,12 +102,7 @@ def normalize_story_cards(
 
 def coerce_card_narrations_for_mode(segment: ScriptSegment, mode: str) -> None:
     """Keep LLM output within the configured tier shape."""
-    if mode == "quick":
-        expected = ["quick_item_card"]
-    elif mode == "standard":
-        expected = ["story_compact_card"]
-    else:
-        expected = ["event_card", "atmosphere_card"]
+    expected = ["event_card", "atmosphere_card"]
 
     card_narrations = segment.meta.get("card_narrations", []) or []
     filtered = [card for card in card_narrations if card.get("card_type") in expected]
