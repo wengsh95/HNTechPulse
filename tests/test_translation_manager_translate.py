@@ -11,7 +11,7 @@ from src.core.models import (
     Script,
     ScriptSegment,
 )
-from src.pipeline.content_preparer import ContentPreparer
+from src.pipeline.content_io import ContentPreparer
 from src.pipeline.translation_manager import TranslationManager
 
 

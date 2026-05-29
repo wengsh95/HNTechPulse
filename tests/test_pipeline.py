@@ -10,10 +10,10 @@ from src.core.models import (
     SelectionResult,
 )
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
-from src.pipeline.content_preparer import ContentPreparer
-from src.pipeline.script_writer import ScriptWriter
+from src.pipeline.content_io import ContentPreparer
+from src.pipeline.script import ScriptWriter
 from src.pipeline.orchestrator import Orchestrator
-from src.pipeline.comment_judgement import save_comment_judgements
+from src.pipeline.comment import save_comment_judgements
 
 
 def _make_config():

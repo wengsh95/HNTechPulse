@@ -1,9 +1,9 @@
 from src.core.models import ContentComment, ContentItem
-from src.pipeline.comment_judgement import (
+from src.pipeline.comment import (
     candidate_ids_for_story,
     normalize_story_judgement,
+    select_quote_comments,
 )
-from src.pipeline.comment_selection import select_quote_comments
 
 
 def _item():

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
-from src.pipeline.comment_analyzer import CommentAnalyzer, ANALYSIS_SCHEMA_VERSION
+from src.pipeline.comment import CommentAnalyzer, ANALYSIS_SCHEMA_VERSION
 
 
 def _make_config(**overrides):
@@ -56,7 +56,7 @@ def _make_content_package(items=None):
 class TestAnalyze:
     def test_analyze_sets_sentiment_and_quality_score(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config())
         comment = _make_comment()
         content = _make_content_package([_make_item(comments=[comment])])
@@ -69,7 +69,7 @@ class TestAnalyze:
 
     def test_analyze_disabled_returns_unchanged(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config(enabled=False))
         content = _make_content_package()
 
@@ -103,7 +103,7 @@ class TestAnalyze:
         }
         cache_path.write_text(json.dumps(cache_data), encoding="utf-8")
 
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config())
         result = analyzer.analyze(content, "2026-04-26")
 
@@ -113,7 +113,7 @@ class TestAnalyze:
 
 class TestGetTopComments:
     def test_returns_highest_quality(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config(min_quality_score=0.0))
         comments = [
             _make_comment(
@@ -137,7 +137,7 @@ class TestGetTopComments:
         assert top[0].quality_score >= top[1].quality_score
 
     def test_respects_n_limit(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config())
         comments = [
             _make_comment(
@@ -153,7 +153,7 @@ class TestGetTopComments:
         assert len(top) == 3
 
     def test_filters_below_min_quality(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(_make_config(min_quality_score=0.5))
         comments = [
             _make_comment(
@@ -174,7 +174,7 @@ class TestGetTopComments:
 
 class TestGetJudgeCandidates:
     def test_balanced_keeps_minority_negative_and_deep_replies(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(
                 _make_config(
                     judge_candidate_strategy="balanced",
@@ -232,7 +232,7 @@ class TestGetJudgeCandidates:
         assert len(selected) <= 8
 
     def test_balanced_filters_resource_only_comments(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(
                 _make_config(judge_candidate_strategy="balanced")
             )
@@ -259,7 +259,7 @@ class TestGetJudgeCandidates:
         assert [c.source_id for c in selected] == ["view"]
 
     def test_top_quality_strategy_uses_original_ranking(self):
-        with patch("src.pipeline.comment_analyzer.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(
                 _make_config(
                     judge_candidate_strategy="top_quality",

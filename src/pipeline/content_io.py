@@ -1,8 +1,33 @@
-import json
-from pathlib import Path
+"""Content I/O: save/load ContentPackage with enrichment overlay."""
 
-from src.core.models import ContentPackage
+import json
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.utils.logger import setup_logger
+
+
+# ── Enrichment overlay fields ──────────────────────────────────────────
+
+ENRICHMENT_FIELDS = (
+    "article_text",
+    "article_summary",
+    "editor_angle",
+    "dek",
+    "key_points",
+    "keywords",
+    "category",
+    "why_it_matters",
+    "logo_image",
+    "screenshot_image",
+    "enrichment_source",
+    "enrichment_error",
+)
+
+
+# ── ContentPreparer ────────────────────────────────────────────────────
 
 
 class ContentPreparer:
@@ -16,53 +41,7 @@ class ContentPreparer:
         content_path = Path(f"data/{date}/content.json")
         content_path.parent.mkdir(parents=True, exist_ok=True)
 
-        content_dict = {
-            "date": content.date,
-            "items": [
-                {
-                    "source": item.source,
-                    "source_id": item.source_id,
-                    "title": item.title,
-                    "title_cn": item.title_cn,
-                    "url": item.url,
-                    "score": item.score,
-                    "comment_count": item.comment_count,
-                    "published_at": item.published_at,
-                    "comments": [
-                        {
-                            "author": c.author,
-                            "content": c.content,
-                            "content_cn": c.content_cn,
-                            "source_id": c.source_id,
-                            "upvotes": c.upvotes,
-                            "depth": c.depth,
-                            "published_at": c.published_at,
-                            "sentiment": c.sentiment,
-                            "quality_score": c.quality_score,
-                        }
-                        for c in item.comments
-                    ],
-                    "article_text": item.article_text,
-                    "article_images": item.article_images,
-                    "image_candidates": item.image_candidates,
-                    "article_summary": item.article_summary,
-                    "editor_angle": item.editor_angle,
-                    "dek": item.dek,
-                    "key_points": item.key_points,
-                    "keywords": item.keywords,
-                    "category": item.category,
-                    "why_it_matters": item.why_it_matters,
-                    "logo_image": item.logo_image,
-                    "screenshot_image": item.screenshot_image,
-                    "enrichment_source": item.enrichment_source,
-                    "enrichment_error": item.enrichment_error,
-                }
-                for item in content.items
-            ],
-            "deep_dive_indices": content.deep_dive_indices,
-            "brief_indices": content.brief_indices,
-            "quick_news_indices": content.quick_news_indices,
-        }
+        content_dict = asdict(content)
 
         with open(content_path, "w", encoding="utf-8") as f:
             json.dump(content_dict, f, ensure_ascii=False, indent=2)
@@ -70,8 +49,6 @@ class ContentPreparer:
         self.logger.info(f"Saved content to {content_path}")
 
     def load_content(self, date: str) -> ContentPackage:
-        from src.core.models import ContentItem, ContentComment
-
         content_path = Path(f"data/{date}/content.json")
         if not content_path.exists():
             raise FileNotFoundError(f"Content file not found: {content_path}")
@@ -140,3 +117,77 @@ class ContentPreparer:
             raise ValueError(
                 f"Content file {content_path} has unexpected structure: {e}"
             ) from e
+
+
+# ── Enrichment overlay ─────────────────────────────────────────────────
+
+
+def load_hydrated_content(date: str, config: dict, logger=None) -> ContentPackage:
+    """Load content.json and apply enrichment.json as render-time overrides."""
+    content = ContentPreparer(config).load_content(date)
+    merge_enrichment_into_content(content, date, logger=logger)
+    return content
+
+
+def merge_enrichment_into_content(
+    content: ContentPackage | None,
+    date: str,
+    logger=None,
+) -> ContentPackage | None:
+    """Merge enrichment/editor data into content in place."""
+    if content is None:
+        return None
+
+    enrichment_path = Path(f"data/{date}/enrichment.json")
+    if not enrichment_path.exists():
+        return content
+
+    try:
+        enrich_data = json.loads(enrichment_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        if logger:
+            logger.info(f"Failed to load enrichment overlay {enrichment_path}: {e}")
+        return content
+
+    enrich_items = enrich_data.get("items", {})
+    if not isinstance(enrich_items, dict):
+        return content
+
+    for item in content.items:
+        entry = enrich_items.get(str(item.source_id))
+        if not isinstance(entry, dict):
+            continue
+        _merge_enrichment_entry(item, entry)
+
+    return content
+
+
+def _merge_enrichment_entry(item: Any, entry: dict) -> None:
+    for field in ENRICHMENT_FIELDS:
+        if field not in entry:
+            continue
+        value = entry.get(field)
+        if value not in (None, "", []):
+            setattr(item, field, value)
+
+    article_images = entry.get("article_images")
+    if isinstance(article_images, list):
+        item.article_images = _merge_unique_strings(
+            article_images,
+            getattr(item, "article_images", []) or [],
+        )
+
+    image_candidates = entry.get("image_candidates")
+    if isinstance(image_candidates, list) and image_candidates:
+        item.image_candidates = image_candidates
+
+
+def _merge_unique_strings(primary: list, secondary: list) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for value in [*primary, *secondary]:
+        if not isinstance(value, str) or not value or value in seen:
+            continue
+        seen.add(value)
+        merged.append(value)
+    return merged

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from src.core.models import ContentItem, ContentPackage
-from src.pipeline.content_hydrator import merge_enrichment_into_content
+from src.pipeline.content_io import merge_enrichment_into_content
 
 
 def test_merge_enrichment_overlay_updates_render_fields(tmp_path, monkeypatch):

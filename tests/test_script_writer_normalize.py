@@ -1,5 +1,5 @@
 from src.core.models import ContentComment, ContentItem, ScriptSegment, SceneElement
-from src.pipeline.script_writer import ScriptWriter
+from src.pipeline.script import ScriptWriter
 
 
 def _make_comment(**kwargs):

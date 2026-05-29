@@ -4,8 +4,7 @@ import pytest
 
 from src.core.interfaces import LLMProvider
 from src.core.models import ContentComment, ContentItem, ContentPackage
-from src.pipeline.comment_judge import CommentJudge
-from src.pipeline.comment_judgement import comment_judgement_key
+from src.pipeline.comment import CommentJudge, comment_judgement_key
 
 
 def _make_config(**overrides):
@@ -58,7 +57,7 @@ def _make_content_package(items=None):
 
 def _make_judge(**config_overrides):
     mock_llm = MagicMock(spec=LLMProvider)
-    with patch("src.pipeline.comment_judge.setup_logger"):
+    with patch("src.pipeline.comment.judge.setup_logger"):
         judge = CommentJudge(mock_llm, _make_config(**config_overrides))
     return judge, mock_llm
 
@@ -94,7 +93,7 @@ class TestJudge:
             "stance_distribution": {},
         }
 
-        with patch("src.pipeline.comment_judge.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             judge = CommentJudge(mock_llm, _make_config())
         result = judge.judge(content, "2026-04-26")
 
@@ -112,7 +111,7 @@ class TestJudge:
         mock_llm = MagicMock(spec=LLMProvider)
         mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
 
-        with patch("src.pipeline.comment_judge.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             judge = CommentJudge(
                 mock_llm, _make_config(comment_judge_fallback_on_error=True)
             )
@@ -131,7 +130,7 @@ class TestJudge:
         mock_llm = MagicMock(spec=LLMProvider)
         mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
 
-        with patch("src.pipeline.comment_judge.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             judge = CommentJudge(
                 mock_llm,
                 _make_config(
@@ -157,7 +156,7 @@ class TestJudge:
         analyzer = MagicMock()
         analyzer.get_judge_candidates.return_value = [comment]
 
-        with patch("src.pipeline.comment_judge.setup_logger"):
+        with patch("src.pipeline.comment.judge.setup_logger"):
             judge = CommentJudge(mock_llm, _make_config(), comment_analyzer=analyzer)
 
         judge.judge(content, "2026-04-26")

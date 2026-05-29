@@ -12,13 +12,13 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
-from src.pipeline.content_hydrator import merge_enrichment_into_content
-from src.pipeline.comment_selection import (
+from src.pipeline.content_io import merge_enrichment_into_content
+from src.pipeline.comment import (
     clean_comment_text,
     classify_comment_stance,
     select_quote_comments,
 )
-from src.pipeline.comment_judgement import (
+from src.pipeline.comment import (
     comment_judgement_key,
     load_comment_judgements,
 )
@@ -635,8 +635,8 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
         logger = setup_logger(__name__)
 
     # Load script and content
-    from src.pipeline.script_io import load_script as _load_script
-    from src.pipeline.content_preparer import ContentPreparer as _ContentPreparer
+    from src.pipeline.script.io import load_script as _load_script
+    from src.pipeline.content_io import ContentPreparer as _ContentPreparer
 
     script = _load_script(date)
     cp = _ContentPreparer(config)

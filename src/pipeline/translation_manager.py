@@ -2,13 +2,13 @@ import json
 from pathlib import Path
 
 from src.core.interfaces import LLMProvider
-from src.pipeline.content_preparer import ContentPreparer
-from src.pipeline.comment_selection import (
+from src.pipeline.content_io import ContentPreparer
+from src.pipeline.comment import (
     clean_comment_text,
     comment_key,
     select_quote_comments,
 )
-from src.pipeline.comment_judgement import (
+from src.pipeline.comment import (
     comment_judgement_key,
     load_comment_judgements,
 )

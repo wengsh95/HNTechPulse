@@ -5,12 +5,12 @@ from typing import Any, Dict, List, Optional
 from src.core.models import ScriptSegment, SceneElement, ContentPackage, ContentItem
 from src.core.interfaces import LLMProvider
 from src.core.prompts import render_prompt
-from src.pipeline.comment_selection import (
+from src.pipeline.comment import (
     clean_comment_text,
     compute_comment_quality,
     is_resource_pointer_comment,
 )
-from src.pipeline.comment_judgement import normalize_story_judgement
+from src.pipeline.comment import normalize_story_judgement
 from src.providers.llm.llm_client import (
     LLMClient,
     _clamp_index_in_place,

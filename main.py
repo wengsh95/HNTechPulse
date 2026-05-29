@@ -51,7 +51,7 @@ def main():
         "--steps",
         type=str,
         default="fetch,enrich,script,produce,preview",
-        help="Steps to run (comma-separated: fetch,enrich,script,produce,render,preview,editor,sync_preview)",
+        help="Steps to run (comma-separated: fetch,enrich,script,produce,render,preview,editor)",
     )
     parser.add_argument(
         "--config", type=str, default="config/", help="Config directory or file path"

@@ -28,7 +28,7 @@ from src.providers.renderer.cue_builder import (
     build_cues,
     _split_into_cues,
 )
-from src.pipeline.comment_selection import (
+from src.pipeline.comment import (
     compute_comment_quality,
     is_resource_pointer_comment,
     select_representative_comments,

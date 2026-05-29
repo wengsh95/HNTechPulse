@@ -91,22 +91,6 @@ def render_sidebar():
             state.save()
             state.save_enrichment()
             st.session_state.dirty = False
-            st.toast("已保存 script.json")
-        if c2.button("🔄 重新加载", use_container_width=True):
-            state.load()
-            st.session_state.dirty = False
-            st.rerun()
-
-        st.divider()
-
-        if st.button(
-            "🔁 同步到预览",
-            use_container_width=True,
-            help="保存并重新生成 Remotion Studio 用到的 props.json",
-        ):
-            state.save()
-            state.save_enrichment()
-            st.session_state.dirty = False
             try:
                 config = load_config()
                 from src.providers.renderer.remotion_props import (
@@ -114,10 +98,15 @@ def render_sidebar():
                 )
 
                 regenerate_preview_props(date, config)
-                st.toast("已同步到预览！Remotion Studio 将自动刷新")
-            except Exception as e:
-                st.error(f"同步失败: {e}")
+                st.toast("已保存并同步到预览！Remotion Studio 将自动刷新")
+            except Exception:
+                st.toast("已保存 script.json")
+        if c2.button("🔄 重新加载", use_container_width=True):
+            state.load()
+            st.session_state.dirty = False
+            st.rerun()
 
+        st.divider()
         st.caption(f"数据目录: data/{date}/")
         st.caption(f"段落数: {len(segments)}")
 
