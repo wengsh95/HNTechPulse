@@ -6,7 +6,7 @@ import shutil
 import socket
 import struct
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 from urllib.parse import urlparse
 
 import aiohttp
@@ -95,6 +95,15 @@ def _dns_resolve_sync(
             data, _ = sock.recvfrom(512)
         finally:
             sock.close()
+
+        if len(data) < 12:
+            return None
+        resp_tx_id = struct.unpack("!H", data[:2])[0]
+        if resp_tx_id != tx_id:
+            return None
+        flags = struct.unpack("!H", data[2:4])[0]
+        if flags & 0x000F != 0:
+            return None
 
         # Skip header (12) + question section
         idx = 12
@@ -297,7 +306,10 @@ class PageFetcher:
             self.logger.debug(f"Fetch failed for {url}: {e}")
 
         # DNS fallback: resolve via third-party DNS and retry with IP + Host header
-        ip = await _resolve_with_fallback(parsed.hostname, self.logger)
+        hostname = parsed.hostname
+        if not hostname:
+            return None
+        ip = await _resolve_with_fallback(hostname, self.logger)
         if not ip:
             return None
 
@@ -308,7 +320,7 @@ class PageFetcher:
 
         try:
             headers = _make_headers()
-            headers["Host"] = parsed.hostname
+            headers["Host"] = str(parsed.hostname or "")
             timeout = aiohttp.ClientTimeout(total=self.request_timeout)
             async with aiohttp.ClientSession(
                 timeout=timeout,
@@ -400,7 +412,7 @@ class PageFetcher:
             self.logger.info("playwright not installed, skipping browser batch")
             return items
 
-        launch_kwargs = {"headless": headless, "args": _CHROME_LAUNCH_ARGS}
+        launch_kwargs: dict = {"headless": headless, "args": _CHROME_LAUNCH_ARGS}
         if self.browser_executable:
             launch_kwargs["executable_path"] = self.browser_executable
 
@@ -411,9 +423,11 @@ class PageFetcher:
 
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
+                browser = await pw.chromium.launch(**cast(dict, launch_kwargs))
                 try:
                     for item in items:
+                        if self.request_delay > 0:
+                            await asyncio.sleep(self.request_delay)
                         try:
                             context = await browser.new_context(
                                 user_agent=random.choice(_USER_AGENTS),
@@ -427,18 +441,12 @@ class PageFetcher:
                                 await stealth_async(page)
                             except ImportError:
                                 pass
-
-                            if self.request_delay > 0:
-                                await asyncio.sleep(self.request_delay)
-
                             await page.goto(
                                 item.url,
                                 wait_until="domcontentloaded",
                                 timeout=self.request_timeout * 1000,
                             )
                             await asyncio.sleep(1.5)
-
-                            # Auto-wait for Cloudflare challenge to resolve
                             block_reason = await _wait_for_cloudflare(
                                 page, item.url, self.logger, max_wait=8
                             )
@@ -452,7 +460,6 @@ class PageFetcher:
                                 )
                                 await context.close()
                                 continue
-
                             html = await page.content()
                             if html and len(html) > 500:
                                 html_path = pages_dir / f"{item.source_id}.html"
@@ -464,7 +471,6 @@ class PageFetcher:
                                 self.logger.debug(
                                     f"[{strategy_name}] {item.title[:50]} ({len(html)} bytes)"
                                 )
-
                                 if self.screenshot_enabled:
                                     screenshot_dest = (
                                         image_dir / f"{item.source_id}_screenshot.jpg"
@@ -528,7 +534,7 @@ class PageFetcher:
 
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
+                browser = await pw.chromium.launch(**cast(dict, launch_kwargs))
                 context = await browser.new_context(
                     user_agent=random.choice(_USER_AGENTS),
                     viewport={"width": 1280, "height": 720},
@@ -578,7 +584,7 @@ class PageFetcher:
 
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(**launch_kwargs)
+                browser = await pw.chromium.launch(**cast(dict, launch_kwargs))
                 context = await browser.new_context(
                     user_agent=random.choice(_USER_AGENTS),
                     viewport={"width": 1280, "height": 720},

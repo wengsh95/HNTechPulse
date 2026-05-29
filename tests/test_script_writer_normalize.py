@@ -38,13 +38,15 @@ class TestNormalizeAtmosphereCard:
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
-            estimated_duration=10.0,
+            duration=10.0,
+            start_time=0.0,
+            end_time=10.0,
             scene_elements=[
                 SceneElement(
                     element_type="atmosphere_card",
-                    start_time=0,
-                    end_time=0,
                     props={"story_index": 0},
+                    start_time=0.0,
+                    end_time=10.0,
                 )
             ],
         )
@@ -67,13 +69,15 @@ class TestNormalizeAtmosphereCard:
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
-            estimated_duration=10.0,
+            duration=10.0,
+            start_time=0.0,
+            end_time=10.0,
             scene_elements=[
                 SceneElement(
                     element_type="atmosphere_card",
-                    start_time=0,
-                    end_time=0,
                     props=dict(original_props),
+                    start_time=0.0,
+                    end_time=10.0,
                 )
             ],
         )
@@ -90,13 +94,15 @@ class TestNormalizeAtmosphereCard:
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
-            estimated_duration=10.0,
+            duration=10.0,
+            start_time=0.0,
+            end_time=10.0,
             scene_elements=[
                 SceneElement(
                     element_type="atmosphere_card",
-                    start_time=0,
-                    end_time=0,
                     props={"story_index": 0},
+                    start_time=0.0,
+                    end_time=10.0,
                 )
             ],
         )
@@ -126,13 +132,15 @@ class TestNormalizeAtmosphereCard:
         segment = ScriptSegment(
             segment_type="story_scan",
             audio_text="test",
-            estimated_duration=10.0,
+            duration=10.0,
+            start_time=0.0,
+            end_time=10.0,
             scene_elements=[
                 SceneElement(
                     element_type="atmosphere_card",
-                    start_time=0,
-                    end_time=0,
                     props={"story_index": 0},
+                    start_time=0.0,
+                    end_time=10.0,
                 )
             ],
         )
@@ -179,7 +187,9 @@ class TestQuickRoundupComposition:
                 ScriptSegment(
                     segment_type="story_scan_item",
                     audio_text=f"速读 {idx}",
-                    estimated_duration=5,
+                    duration=5,
+                    start_time=0.0,
+                    end_time=5.0,
                     meta={
                         "presentation_mode": "standard",
                         "story_index": idx,
@@ -193,9 +203,9 @@ class TestQuickRoundupComposition:
                     scene_elements=[
                         SceneElement(
                             element_type="story_compact_card",
-                            start_time=0,
-                            end_time=0,
                             props={"story_index": idx, "display_title": f"速读 {idx}"},
+                            start_time=0.0,
+                            end_time=5.0,
                         )
                     ],
                 )
@@ -205,7 +215,9 @@ class TestQuickRoundupComposition:
                 ScriptSegment(
                     segment_type="story_scan_item",
                     audio_text=f"快扫 {idx}",
-                    estimated_duration=4,
+                    duration=4,
+                    start_time=0.0,
+                    end_time=4.0,
                     meta={
                         "presentation_mode": "quick",
                         "story_index": idx,
@@ -219,13 +231,13 @@ class TestQuickRoundupComposition:
                     scene_elements=[
                         SceneElement(
                             element_type="quick_item_card",
-                            start_time=0,
-                            end_time=0,
                             props={
                                 "story_index": idx,
                                 "display_title": f"快扫 {idx}",
                                 "micro_takeaway": f"记忆点 {idx}",
                             },
+                            start_time=0.0,
+                            end_time=4.0,
                         )
                     ],
                 )

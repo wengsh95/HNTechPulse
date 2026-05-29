@@ -31,24 +31,14 @@ def load_script(date: str) -> Script:
             title=script_dict["title"],
             description=script_dict["description"],
             tags=script_dict["tags"],
+            total_duration=script_dict.get("total_duration"),
             segments=[
                 ScriptSegment(
                     segment_type=s["segment_type"],
                     audio_text=s["audio_text"],
-                    estimated_duration=s["estimated_duration"],
-                    actual_duration=s.get("actual_duration"),
+                    duration=s["duration"],
                     emotion=s.get("emotion", "warm"),
-                    scene_elements=[
-                        SceneElement(
-                            element_type=e["element_type"],
-                            start_time=e["start_time"],
-                            end_time=e["end_time"],
-                            props=e["props"],
-                            sub_segment_index=e.get("sub_segment_index"),
-                        )
-                        for e in s.get("scene_elements", [])
-                    ],
-                    meta=s.get("meta", {}),
+                    actual_duration=s.get("actual_duration"),
                     start_time=s.get("start_time"),
                     end_time=s.get("end_time"),
                     audio_path=s.get("audio_path"),
@@ -60,10 +50,20 @@ def load_script(date: str) -> Script:
                         )
                         for c in s.get("cues", [])
                     ],
+                    scene_elements=[
+                        SceneElement(
+                            element_type=e["element_type"],
+                            start_time=e.get("start_time", 0.0),
+                            end_time=e.get("end_time", 0.0),
+                            props=e["props"],
+                            sub_segment_index=e.get("sub_segment_index"),
+                        )
+                        for e in s.get("scene_elements", [])
+                    ],
+                    meta=s.get("meta", {}),
                 )
                 for s in script_dict["segments"]
             ],
-            total_duration=script_dict.get("total_duration"),
         )
     except (KeyError, TypeError) as e:
         raise ValueError(f"Script file {path} has unexpected structure: {e}") from e

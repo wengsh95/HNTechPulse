@@ -1,5 +1,5 @@
 prefilter:
   enabled: true
-  batch_size: 20
+  batch_size: 30
   min_keep: 5
   temperature: 0.1

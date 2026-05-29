@@ -67,12 +67,12 @@ def test_collect_comment_refs_uses_selected_ids_then_fills_to_three():
             ScriptSegment(
                 segment_type="story_scan",
                 audio_text="",
-                estimated_duration=1,
+                duration=1,
                 scene_elements=[
                     SceneElement(
                         element_type="quote_card",
-                        start_time=0,
-                        end_time=1,
+                        start_time=0.0,
+                        end_time=5.0,
                         props={"story_index": 0, "selected_comment_ids": ["view"]},
                     )
                 ],
@@ -161,12 +161,12 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
             ScriptSegment(
                 segment_type="story_scan",
                 audio_text="",
-                estimated_duration=1,
+                duration=1,
                 scene_elements=[
                     SceneElement(
                         element_type="atmosphere_card",
-                        start_time=0,
-                        end_time=1,
+                        start_time=0.0,
+                        end_time=5.0,
                         props={
                             "story_index": 0,
                             "quotes": [

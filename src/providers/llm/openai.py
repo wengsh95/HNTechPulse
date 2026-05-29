@@ -165,9 +165,10 @@ class OpenAILLMProvider(LLMProvider):
         scene_elements = [
             SceneElement(
                 element_type=e["element_type"],
-                start_time=0.0,
-                end_time=0.0,
+                start_time=e.get("start_time", 0.0),
+                end_time=e.get("end_time", 0.0),
                 props=e["props"],
+                sub_segment_index=e.get("sub_segment_index"),
             )
             for e in seg_dict.get("scene_elements", [])
         ]
@@ -180,8 +181,7 @@ class OpenAILLMProvider(LLMProvider):
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),
             audio_text=seg_dict.get("audio_text", ""),
-            estimated_duration=0.0,
-            emotion=seg_dict.get("emotion", "neutral"),
+            duration=0.0,
             scene_elements=scene_elements,
             meta=meta,
         )

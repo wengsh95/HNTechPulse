@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, cast
 from urllib.parse import urlparse
 
 from openai import OpenAI
@@ -18,6 +18,7 @@ from src.providers.enricher.page_fetcher import (
 )
 from src.providers.enricher.image_handler import ImageHandler
 from src.providers.enricher.baidu_search import BaiduSearchProvider
+from src.utils.async_helper import run_async
 
 
 class ArticleEnricher:
@@ -53,7 +54,7 @@ class ArticleEnricher:
         self.max_images = enrich_cfg.get("max_images", 3)
         self.max_image_size = enrich_cfg.get("max_image_size", 5 * 1024 * 1024)
         self.request_timeout = enrich_cfg.get("request_timeout", 15)
-        self.max_concurrent = enrich_cfg.get("max_concurrent", 5)
+        self.max_concurrent = enrich_cfg.get("max_concurrent", 10)
         self.summary_max_tokens = enrich_cfg.get("summary_max_tokens", 512)
         self.retry_count = enrich_cfg.get("retry_count", 3)
         self.request_delay = enrich_cfg.get("request_delay", 0.5)
@@ -175,17 +176,7 @@ class ArticleEnricher:
             self.logger.info("All items already enriched, skipping")
             return content
 
-        try:
-            asyncio.get_running_loop()
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(
-                    asyncio.run, self._enrich_items(content, date, classified)
-                )
-                future.result()
-        except RuntimeError:
-            asyncio.run(self._enrich_items(content, date, classified))
+        run_async(self._enrich_items(content, date, classified))
 
         self._generate_image_selection(content, date)
         self._save_to_cache(content, cache_path)
@@ -208,7 +199,12 @@ class ArticleEnricher:
 
     def _classify_items(self, content: ContentPackage, date: str) -> dict:
         pages_dir = self._pages_dir(date)
-        result = {"done": [], "phase2_only": [], "full": [], "skipped": []}
+        result: Dict[str, list] = {
+            "done": [],
+            "phase2_only": [],
+            "full": [],
+            "skipped": [],
+        }
 
         for item in content.items:
             if item.article_text is not None or item.article_summary is not None:
@@ -264,7 +260,6 @@ class ArticleEnricher:
 
     async def _phase1_fetch_all(self, content: ContentPackage, date: str, items: list):
         pages_dir = self._pages_dir(date)
-        len(items)
 
         # Strategy 0: GitHub API (for github.com URLs)
         github_ok, remaining = [], list(items)
@@ -300,6 +295,8 @@ class ArticleEnricher:
         for r in results:
             if isinstance(r, Exception):
                 self.logger.debug(f"[aiohttp] concurrent fetch error: {r}")
+                continue
+            if not isinstance(r, tuple):
                 continue
             item, strategy = r
             if strategy:
@@ -534,8 +531,14 @@ class ArticleEnricher:
                     )
 
                 bing_candidates = []
+                # Skip Bing if page already has suitable images (≥640x360)
+                has_suitable_page_images = any(
+                    self.image_handler.candidate_has_suitable_size(c)
+                    for c in page_candidates
+                )
                 if (
                     not cached_image_candidates
+                    and not has_suitable_page_images
                     and self.bing_image_search
                     and item.title
                 ):
@@ -698,7 +701,7 @@ class ArticleEnricher:
         except ImportError:
             return []
 
-        candidates = []
+        candidates: list = []
         try:
             with pdfplumber.open(str(pdf_path)) as pdf:
                 for page_idx, page in enumerate(pdf.pages):
@@ -762,7 +765,7 @@ class ArticleEnricher:
                 temperature=self.llm_temperature,
             )
 
-            raw = response.choices[0].message.content.strip()
+            raw = (response.choices[0].message.content or "").strip()
             if not raw or len(raw) < 10:
                 return None
 
@@ -871,11 +874,12 @@ class ArticleEnricher:
     def _generate_image_selection(self, content: ContentPackage, date: str):
         sel_path = Path(f"data/{date}/image_selection.json")
         existed = sel_path.exists()
-        data = {"date": date, "items": {}}
+        data: Dict[str, Any] = {"date": date, "items": {}}
         if existed:
             try:
                 with open(sel_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    raw = json.load(f)
+                data = cast(Dict[str, Any], raw)
                 data.setdefault("date", date)
                 data.setdefault("items", {})
             except Exception as e:
@@ -887,7 +891,7 @@ class ArticleEnricher:
             if not item.image_candidates:
                 continue
             key = str(item.source_id)
-            existing_entry = data["items"].get(key, {})
+            existing_entry = data["items"].get(key, {})  # type: ignore[union-attr]
             candidates = self.image_handler.merge_image_candidates(
                 existing_entry.get("candidates", []),
                 item.image_candidates,
@@ -907,7 +911,6 @@ class ArticleEnricher:
                         selected_candidate["selection_reason"] = (
                             self.image_handler.selection_reason(selected_candidate)
                         )
-
             new_entry = {
                 "title": item.title,
                 "url": item.url,
@@ -915,7 +918,7 @@ class ArticleEnricher:
                 "selected_image": selected,
             }
             if existing_entry != new_entry:
-                data["items"][key] = new_entry
+                data["items"][key] = new_entry  # type: ignore[union-attr]
                 changed = True
 
         if not data["items"] or (existed and not changed):
@@ -931,10 +934,10 @@ class ArticleEnricher:
 
     def _save_to_cache(self, content: ContentPackage, cache_path: Path):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"date": content.date, "items": {}}
+        items_dict: Dict[str, Dict[str, Any]] = {}
         for item in content.items:
             if item.article_text is not None or item.article_summary is not None:
-                data["items"][str(item.source_id)] = {
+                items_dict[str(item.source_id)] = {
                     "article_text": item.article_text,
                     "article_images": item.article_images,
                     "article_summary": item.article_summary,
@@ -950,6 +953,7 @@ class ArticleEnricher:
                     "screenshot_image": item.screenshot_image,
                     "image_candidates": item.image_candidates,
                 }
+        data: Dict[str, Any] = {"date": content.date, "items": items_dict}
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         self.logger.debug(f"Saved enrichment cache to {cache_path}")

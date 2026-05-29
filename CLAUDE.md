@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**HN TechPulse** — Python app that generates Chinese tech news videos from Hacker News content, producing a daily technical-community briefing with editorial judgment and a recognizable show format.
+**HN TechPulse** — Python app that generates a video tech news briefing from Hacker News content, producing a daily digest with editorial judgment.
 
 ## Commands
 
@@ -31,10 +31,11 @@ uv run mypy src/ --ignore-missing-imports           # type check
 ## Architecture
 
 - **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)
-- **Providers** ([src/providers/](src/providers/)): fetcher, llm, enricher — auto-register via [factory.py](src/providers/factory.py)
-- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM judging), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [translation_manager.py](src/pipeline/translation_manager.py), [tts_processor.py](src/pipeline/tts_processor.py), [content_preparer.py](src/pipeline/content_preparer.py), [prefilter.py](src/pipeline/prefilter.py)
+- **Providers** ([src/providers/](src/providers/)): fetcher, llm, enricher, renderer (Remotion) — auto-register via [factory.py](src/providers/factory.py)
+- **Pipeline** ([src/pipeline/](src/pipeline/)): [orchestrator.py](src/pipeline/orchestrator.py) (step execution), [script_writer.py](src/pipeline/script_writer.py) (LLM script generation), [comment_analyzer.py](src/pipeline/comment_analyzer.py) (VADER + quality scoring), [comment_judge.py](src/pipeline/comment_judge.py) (LLM judging), [comment_judgement.py](src/pipeline/comment_judgement.py) (judge orchestration helpers), [comment_selection.py](src/pipeline/comment_selection.py) (selection helpers), [translation_manager.py](src/pipeline/translation_manager.py), [content_preparer.py](src/pipeline/content_preparer.py), [content_hydrator.py](src/pipeline/content_hydrator.py), [prefilter.py](src/pipeline/prefilter.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [transcript_generator.py](src/pipeline/transcript_generator.py), [script_io.py](src/pipeline/script_io.py), [report_generator.py](src/pipeline/report_generator.py)
+- **Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.
 
-Pipeline steps: `fetch` → `enrich` → `analyze` → `script` → `translate` → `tts` → `render`
+Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render` → `preview` → `editor` → `sync_preview`
 
 ### Data Flow
 
@@ -43,12 +44,11 @@ HN API
   ↓
 [fetch] ContentPackage with items + all comments
   ↓
-[enrich] Article text, images, editor_angle, key_points per item
+[enrich] Prefilter → comment fetch → article text, images, editor_angle, key_points per item
   ↓
-[analyze] CommentAnalyzer (VADER + quality scores) → CommentJudge (LLM top-15 → quote_candidates, debate_focus, stance_distribution)
+[script] CommentAnalyzer (VADER + quality scores) → CommentJudge (LLM top-15 → quote_candidates, debate_focus, stance_distribution)
   │     Cached to data/{date}/comment_analysis.json + comment_judgement.json
-  ↓
-[script] ScriptWriter.write()
+  │     Then ScriptWriter.write():
   ├── Selection: top N stories by HN score (no LLM)
   ├── Three tiers per story (mode: quick / standard / full):
   │     quick → story_script_quick.md → quick_item_card (1 subtitle, ~8s)
@@ -58,11 +58,17 @@ HN API
   ├── _normalize_quote_card_selection() replaces LLM-picked comment IDs with judge candidates
   └── _normalize_atmosphere_card() injects debate_focus + stance_distribution from judge
   ↓
-[translate] TranslationManager: titles, comments (batched LLM calls with fast model)
+[produce] TranslationManager (titles, comments via batched LLM fast-model calls) → TTSProcessor (audio synthesis + text alignment)
   ↓
-[tts] TTSProcessor: per-subtitle synthesis, timing alignment
+[render] Remotion video render → data/{date}/output.mp4 (skipped by default; opt-in via --steps render)
   ↓
-[render] Remotion (external): chunked parallel rendering → output.mp4
+[preview] Remotion live preview for manual review
+  ↓
+[editor] Streamlit story editor UI for manual script adjustments
+  ↓
+[sync_preview] Regenerate Remotion preview props after editor changes
+  ↓
+[always] ReportGenerator: data/{date}/report.md (enrichment stats, timing, issues) — runs unconditionally at pipeline end
 ```
 
 **Key principle**: CommentAnalyzer scores all comments once → CommentJudge selects top candidates via `get_top_comments()` → ScriptWriter consumes `quote_candidates` directly. No independent re-selection downstream.
@@ -89,7 +95,6 @@ All steps cache to `data/{date}/` and resume from disk. Config: [config/](config
 - **Concurrency**: `llm.max_workers` for story generation, `analyze.comment_judge_max_workers` for comment judging. Cache schema version bump via `llm.cache_schema_version` when segment-cache semantics change.
 - **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). `render_prompt()` raises `ValueError` on typos.
-- **TTS Consistency Check**: Bigram similarity < 0.6 between cached timings and `audio_text` triggers re-synthesis.
 - **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes.
 
 ---

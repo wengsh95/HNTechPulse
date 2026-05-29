@@ -26,11 +26,8 @@ from src.pipeline.script_io import (
     save_script as _save_script,
     load_script as _load_script,
 )
-from src.pipeline.transcript_generator import (
-    save_transcript as _save_transcript,
-)
 from src.utils.logger import setup_logger
-from src.core.models import SceneElement, Cue
+from src.core.models import SceneElement
 
 
 CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
@@ -182,12 +179,12 @@ class ScriptWriter:
         return ScriptSegment(
             segment_type="opening",
             audio_text=audio_text,
-            estimated_duration=duration,
+            duration=duration,
             scene_elements=[
                 SceneElement(
                     element_type="cover_card",
                     start_time=0.0,
-                    end_time=float(duration),
+                    end_time=duration,
                     props={
                         "headline": "每日技术速览",
                         "subtitle": date_display,
@@ -210,7 +207,6 @@ class ScriptWriter:
                     ),
                 )
             ],
-            cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
             meta={"highlights": {"entries": entries}} if highlight_entries else {},
         )
 
@@ -347,12 +343,12 @@ class ScriptWriter:
         return ScriptSegment(
             segment_type="closing",
             audio_text=audio_text,
-            estimated_duration=duration,
+            duration=duration,
             scene_elements=[
                 SceneElement(
                     element_type="closing_card",
                     start_time=0.0,
-                    end_time=float(duration),
+                    end_time=duration,
                     props={
                         "signal_label": "今日信号",
                         "signal": signal,
@@ -366,7 +362,6 @@ class ScriptWriter:
                     },
                 )
             ],
-            cues=[Cue(text=audio_text, start_time=0.0, end_time=float(duration))],
             meta={},
         )
 
@@ -504,7 +499,7 @@ class ScriptWriter:
                     SceneElement(
                         element_type=card_type,
                         start_time=0.0,
-                        end_time=0.0,
+                        end_time=5.0,
                         props={"story_index": story_index},
                     )
                 )
@@ -775,7 +770,7 @@ class ScriptWriter:
         elem = SceneElement(
             element_type="quick_roundup_card",
             start_time=0.0,
-            end_time=0.0,
+            end_time=duration,
             sub_segment_index=sub_idx,
             props={
                 "section": "快扫",
@@ -841,7 +836,7 @@ class ScriptWriter:
         return ScriptSegment(
             segment_type="story_scan",
             audio_text=" ".join(combined_audio_parts),
-            estimated_duration=sum(sub_segment_estimated_durations),
+            duration=sum(sub_segment_estimated_durations),
             scene_elements=combined_scene_elements,
             meta={
                 "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
@@ -1057,11 +1052,6 @@ class ScriptWriter:
 
     def save_script(self, script: Script, date: str) -> None:
         _save_script(script, date, logger=self.logger)
-
-    def save_transcript(
-        self, script: Script, date: str, content: Optional[ContentPackage] = None
-    ) -> Path:
-        return _save_transcript(script, date, content, logger=self.logger)
 
     def load_script(self, date: str) -> Script:
         return _load_script(date)

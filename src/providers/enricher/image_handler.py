@@ -1,9 +1,10 @@
+import asyncio
 import io
 import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from urllib.parse import quote_plus, urljoin, urlparse
 
 import aiohttp
@@ -111,13 +112,13 @@ class ImageHandler:
 
             # 1. og:image
             for og_img in soup.find_all("meta", property="og:image"):
-                add_image(og_img.get("content"))
+                add_image(cast(Optional[str], og_img.get("content")))
 
             # 2. twitter:image
             for tw_img in soup.find_all(
                 "meta", attrs={"name": re.compile(r"twitter:image", re.I)}
             ):
-                add_image(tw_img.get("content"))
+                add_image(cast(Optional[str], tw_img.get("content")))
 
             # 3. Article/body images, including lazy-loaded and responsive images
             containers = []
@@ -148,9 +149,11 @@ class ImageHandler:
                     height = img.get("height", "")
                     if width and height:
                         try:
-                            if int(width) < 100 or int(height) < 100:
+                            w = int(str(width))
+                            h = int(str(height))
+                            if w < 100 or h < 100:
                                 continue
-                        except ValueError:
+                        except (ValueError, TypeError):
                             pass
                     add_image(raw_url)
 
@@ -166,11 +169,21 @@ class ImageHandler:
                 "tracking",
                 "analytics",
                 "camo.githubusercontent.com",
+                # Additional patterns to avoid small/utility images
+                "favicon",
+                "sprite",
+                "emoji",
             ]
             for img_url in images:
                 lower = img_url.lower()
                 if lower.endswith(".svg") or ".svg?" in lower:
                     self.logger.debug(f"Image filtered out (svg): {img_url}")
+                    continue
+                # Skip URLs with small dimension patterns like 92x92, 160x160, max-100x100
+                if re.search(r"\b\d{2,3}x\d{2,3}\b", lower):
+                    self.logger.debug(
+                        f"Image filtered out (dimension pattern): {img_url}"
+                    )
                     continue
                 if not any(p in lower for p in skip_patterns):
                     filtered.append(img_url)
@@ -329,6 +342,22 @@ class ImageHandler:
         ) -> Optional[bytes]:
             headers = _make_headers()
             headers["Accept"] = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+
+            # HEAD precheck to avoid downloading oversized images
+            try:
+                async with session.head(
+                    url, headers=headers, allow_redirects=True
+                ) as head_resp:
+                    if head_resp.status == 200:
+                        cl = head_resp.headers.get("Content-Length")
+                        if cl and int(cl) > self.max_image_size:
+                            self.logger.debug(
+                                f"Image precheck too large ({cl} bytes) for {url}"
+                            )
+                            return None
+            except Exception:
+                pass  # HEAD not supported, fall through to GET
+
             async with session.get(url, headers=headers) as resp:
                 if resp.status != 200:
                     self.logger.warning(f"Image HTTP {resp.status} for {url}")
@@ -357,64 +386,81 @@ class ImageHandler:
                 return data
 
         async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-            for idx, url in enumerate(urls):
-                try:
-                    filename = f"{source_id}_{idx}.jpg"
-                    dest = image_dir / filename
-                    if dest.exists():
-                        candidates.append(
-                            {
-                                "path": f"images/{filename}",
-                                "source": source,
-                                "label": label,
-                                "origin_url": url,
-                                "rank": idx,
-                            }
-                        )
-                        continue
-
+            # Parallelize network downloads
+            async def _download_one(idx: int, url: str):
+                filename = f"{source_id}_{idx}.jpg"
+                dest = image_dir / filename
+                if dest.exists():
+                    return idx, url, dest, None, True
+                data = await _fetch_one(session, url)
+                if data is None:
+                    self.logger.debug(f"Image fetch retry: {url}")
                     data = await _fetch_one(session, url)
-                    if data is None:
-                        self.logger.debug(f"Image fetch retry: {url}")
-                        data = await _fetch_one(session, url)
-                    if data is None:
-                        self.logger.warning(f"Image fetch failed after retry: {url}")
+                if data is None:
+                    self.logger.warning(f"Image fetch failed after retry: {url}")
+                    return idx, url, dest, None, False
+                return idx, url, dest, data, False
+
+            results = await asyncio.gather(
+                *[_download_one(idx, url) for idx, url in enumerate(urls)],
+                return_exceptions=True,
+            )
+
+            # Process downloads in order (sequential PIL processing)
+            for r in results:
+                if isinstance(r, Exception):
+                    self.logger.debug(f"Image download error: {r}")
+                    continue
+                idx, url, dest, data, was_cached = r
+                if was_cached:
+                    candidates.append(
+                        {
+                            "path": f"images/{dest.name}",
+                            "source": source,
+                            "label": label,
+                            "origin_url": url,
+                            "rank": idx,
+                        }
+                    )
+                    continue
+                if data is None:
+                    continue
+
+                self.logger.debug(f"Image fetched {len(data)} bytes from {url}")
+                try:
+                    img: Any = Image.open(io.BytesIO(data))
+                    img = img.convert("RGB")
+
+                    if img.width < 200 or img.height < 200:
+                        self.logger.debug(
+                            f"Image skipped (too small: {img.width}x{img.height}): {url}"
+                        )
                         continue
 
-                    self.logger.debug(f"Image fetched {len(data)} bytes from {url}")
-                    try:
-                        img = Image.open(io.BytesIO(data))
-                        img = img.convert("RGB")
-
-                        if (
-                            img.width > self.image_target_width
-                            or img.height > self.image_target_height
-                        ):
-                            img.thumbnail(
-                                (self.image_target_width, self.image_target_height),
-                                Image.Resampling.LANCZOS,
-                            )
-
-                        img.save(dest, "JPEG", quality=85)
-                        candidates.append(
-                            {
-                                "path": f"images/{filename}",
-                                "source": source,
-                                "label": label,
-                                "origin_url": url,
-                                "rank": idx,
-                                "width": img.width,
-                                "height": img.height,
-                            }
+                    if (
+                        img.width > self.image_target_width
+                        or img.height > self.image_target_height
+                    ):
+                        img.thumbnail(
+                            (self.image_target_width, self.image_target_height),
+                            Image.Resampling.LANCZOS,
                         )
-                        self.logger.debug(
-                            f"Image saved: {dest} ({img.width}x{img.height})"
-                        )
-                    except Exception as e:
-                        self.logger.warning(f"Image decode failed for {url}: {e}")
 
+                    img.save(dest, "JPEG", quality=85)
+                    candidates.append(
+                        {
+                            "path": f"images/{dest.name}",
+                            "source": source,
+                            "label": label,
+                            "origin_url": url,
+                            "rank": idx,
+                            "width": img.width,
+                            "height": img.height,
+                        }
+                    )
+                    self.logger.debug(f"Image saved: {dest} ({img.width}x{img.height})")
                 except Exception as e:
-                    self.logger.warning(f"Image download failed for {url}: {e}")
+                    self.logger.warning(f"Image decode failed for {url}: {e}")
 
         return candidates
 
@@ -425,7 +471,7 @@ class ImageHandler:
         domain = urlparse(url).hostname or ""
         queries = []
         if domain:
-            queries.append(f"{title} {domain}".strip())
+            queries.append(f"{title} site:{domain}".strip())
         queries.append(title.strip())
 
         try:
@@ -477,9 +523,9 @@ class ImageHandler:
                 "a", class_="iusc", limit=self.bing_max_results * 2
             ):
                 m_attr = a_tag.get("m")
-                if m_attr:
+                if isinstance(m_attr, str):
                     try:
-                        m_data = json.loads(m_attr)
+                        m_data: dict = json.loads(m_attr)
                         img_url = m_data.get("murl") or m_data.get("turl")
                         if img_url and img_url not in urls:
                             urls.append(img_url)

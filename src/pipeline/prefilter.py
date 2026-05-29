@@ -13,7 +13,7 @@ class Prefilter:
         self.config = config
         prefilter_cfg = config.get("prefilter", {})
         self.enabled = prefilter_cfg.get("enabled", True)
-        self.batch_size = prefilter_cfg.get("batch_size", 20)
+        self.batch_size = prefilter_cfg.get("batch_size", 30)
         self.min_keep = prefilter_cfg.get("min_keep", 5)
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
@@ -77,9 +77,9 @@ class Prefilter:
             batch_decisions = self.llm_provider.prefilter_stories(stories)
             for d in batch_decisions:
                 idx = d.get("index")
-                if idx is None or idx < 0 or idx >= len(items):
+                if idx is None or idx < 0 or idx >= len(batch):
                     continue
-                source_id = items[idx].source_id
+                source_id = batch[idx].source_id
                 decisions[str(source_id)] = {
                     "keep": bool(d.get("keep", True)),
                     "reason": d.get("reason", ""),

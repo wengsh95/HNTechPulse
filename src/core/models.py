@@ -105,7 +105,7 @@ class Cue:
 class ScriptSegment:
     segment_type: str
     audio_text: str
-    estimated_duration: float
+    duration: float
     actual_duration: Optional[float] = None
     emotion: str = "warm"
 

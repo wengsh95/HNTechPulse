@@ -6,11 +6,24 @@ from typing import Optional, Union
 
 
 class FlushStreamHandler(logging.StreamHandler):
-    """强制 flush 的控制台 Handler，解决 PowerShell 输出缓冲问题"""
+    """强制 flush 的控制台 Handler，解决 PowerShell 输出缓冲问题。
+    在 Windows GBK 控制台下，Unicode 字符可能无法编码，使用 replace 模式避免崩溃。"""
 
     def emit(self, record):
-        super().emit(record)
-        self.flush()
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            try:
+                stream.write(msg + self.terminator)
+            except UnicodeEncodeError:
+                encoding = getattr(stream, "encoding", "utf-8") or "utf-8"
+                safe = msg.encode(encoding, errors="replace").decode(
+                    encoding, errors="replace"
+                )
+                stream.write(safe + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 
 class LogFormatter(logging.Formatter):

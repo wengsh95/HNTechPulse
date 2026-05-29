@@ -24,7 +24,6 @@
       ]
     }
   ],
-  "emotion": "neutral",
   "scene_elements": [
     {
       "element_type": "quick_item_card",

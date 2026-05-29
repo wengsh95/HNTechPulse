@@ -3,7 +3,7 @@ import re
 import time
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 from contextlib import contextmanager
 
 from openai import (
@@ -127,7 +127,7 @@ class LLMClient:
         }
         if extra_body:
             kwargs["extra_body"] = extra_body
-        return self.client.chat.completions.create(**kwargs)
+        return self.client.chat.completions.create(**cast(dict, kwargs))
 
     def call_llm_with_json_retry(
         self,
@@ -290,9 +290,8 @@ class LLMClient:
             except json.JSONDecodeError:
                 pass
 
-        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text)
-        if json_match:
-            json_str = json_match.group(0)
+        json_str = self._extract_balanced_braces(text)
+        if json_str is not None:
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError:
@@ -322,6 +321,36 @@ class LLMClient:
             f"Failed to extract JSON from response (first 500 chars): {text[:500]}"
         )
         raise ValueError("No valid JSON found in response")
+
+    @staticmethod
+    def _extract_balanced_braces(text: str) -> Optional[str]:
+        start = text.find("{")
+        if start == -1:
+            return None
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                if in_string:
+                    escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+        return None
 
     def _repair_json(self, json_str: str) -> dict:
         repaired = re.sub(r",\s*([}\]])", r"\1", json_str)
@@ -500,15 +529,21 @@ class LLMClient:
             return
 
         def _animate():
-            symbols = "⠋⠙⠹⠸⠼⠴⠦⠧⠏"
+            symbols = "|/-\\|/-\\"
             i = 0
             while not stop_event.is_set():
                 elapsed_sec = int(time.monotonic() - t0)
                 line = f"  {symbols[i % len(symbols)]} {label} elapsed {elapsed_sec}s"
-                print(line, end="\r", flush=True)
+                try:
+                    print(line, end="\r", flush=True)
+                except UnicodeEncodeError:
+                    pass
                 time.sleep(0.5)
                 i += 1
-            print(" " * 80, end="\r", flush=True)
+            try:
+                print(" " * 80, end="\r", flush=True)
+            except UnicodeEncodeError:
+                pass
 
         thread = threading.Thread(target=_animate, daemon=True)
         thread.start()

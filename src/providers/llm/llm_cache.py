@@ -9,7 +9,7 @@ from src.core.models import ScriptSegment, SceneElement
 class LLMCache:
     """Segment-level cache for LLM-generated script segments."""
 
-    def __init__(self, logger, cache_schema_version: int = 3):
+    def __init__(self, logger, cache_schema_version: int = 4):
         self.logger = logger
         self.cache_schema_version = cache_schema_version
 
@@ -45,14 +45,16 @@ class LLMCache:
                     start_time=e.get("start_time", 0.0),
                     end_time=e.get("end_time", 0.0),
                     props=e["props"],
+                    sub_segment_index=e.get("sub_segment_index"),
                 )
                 for e in seg_dict.get("scene_elements", [])
             ]
             segment = ScriptSegment(
                 segment_type=seg_dict["segment_type"],
                 audio_text=seg_dict["audio_text"],
-                estimated_duration=seg_dict["estimated_duration"],
-                emotion=seg_dict.get("emotion", "neutral"),
+                duration=seg_dict.get(
+                    "duration", seg_dict.get("estimated_duration", 0.0)
+                ),
                 scene_elements=scene_elements,
                 meta=seg_dict.get("meta", {}),
             )
@@ -74,14 +76,14 @@ class LLMCache:
             "_cache": cache_meta or {},
             "segment_type": segment.segment_type,
             "audio_text": segment.audio_text,
-            "estimated_duration": segment.estimated_duration,
-            "emotion": segment.emotion,
+            "duration": segment.duration,
             "scene_elements": [
                 {
                     "element_type": e.element_type,
                     "start_time": e.start_time,
                     "end_time": e.end_time,
                     "props": e.props,
+                    "sub_segment_index": e.sub_segment_index,
                 }
                 for e in segment.scene_elements
             ],

@@ -5,7 +5,6 @@ from src.core.models import (
     ContentItem,
     ContentPackage,
     SceneElement,
-    Cue,
     ScriptSegment,
     Script,
     SelectionResult,
@@ -56,22 +55,18 @@ class TestScriptModels:
             start_time=0.0,
             end_time=5.0,
             props={"text": "Hello"},
+            sub_segment_index=0,
         )
         assert se.element_type == "subtitle"
-
-    def test_cue(self):
-        cue = Cue(text="Hello", start_time=0.0, end_time=2.0)
-        assert cue.text == "Hello"
+        assert se.props == {"text": "Hello"}
 
     def test_script_segment(self):
         seg = ScriptSegment(
             segment_type="opening",
             audio_text="Welcome",
-            estimated_duration=10.0,
+            duration=10.0,
         )
-        assert seg.emotion == "warm"
         assert seg.scene_elements == []
-        assert seg.actual_duration is None
 
     def test_script(self):
         script = Script(
@@ -80,23 +75,22 @@ class TestScriptModels:
             tags=["tech"],
             segments=[],
         )
-        assert script.total_duration is None
+        assert script.title == "Test"
 
     def test_script_serialization_roundtrip(self):
         seg = ScriptSegment(
             segment_type="opening",
             audio_text="Hello world",
-            estimated_duration=15.0,
-            emotion="energetic",
+            duration=15.0,
             scene_elements=[
                 SceneElement(
                     element_type="subtitle",
                     start_time=0.0,
                     end_time=5.0,
                     props={"text": "Hi"},
+                    sub_segment_index=0,
                 )
             ],
-            cues=[Cue(text="Hello", start_time=0.0, end_time=5.0)],
             meta={"key": "value"},
         )
         script = Script(
@@ -110,4 +104,4 @@ class TestScriptModels:
         parsed = json.loads(json_str)
         assert parsed["title"] == "Test Script"
         assert len(parsed["segments"]) == 1
-        assert parsed["segments"][0]["emotion"] == "energetic"
+        assert parsed["segments"][0]["duration"] == 15.0

@@ -1,10 +1,7 @@
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
-from src.core.models import Script, ContentPackage
-
-if TYPE_CHECKING:
-    from src.core.models import ContentItem
+from src.core.models import Script, ContentPackage, ContentItem
 
 
 def generate_brief_transcript(
@@ -115,7 +112,7 @@ def generate_brief_transcript(
         card_idx = 0
         for i in sorted(story_elems.keys()):
             elems = story_elems[i]
-            story_item: Optional["ContentItem"] = (
+            story_item: ContentItem | None = (
                 content.items[i] if content and i < len(content.items) else None
             )
 

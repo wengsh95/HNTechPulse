@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 
 from src.core.models import (
@@ -10,7 +9,7 @@ from src.core.models import (
     SceneElement,
     SelectionResult,
 )
-from src.core.interfaces import ContentFetcher, LLMProvider
+from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.pipeline.content_preparer import ContentPreparer
 from src.pipeline.script_writer import ScriptWriter
 from src.pipeline.orchestrator import Orchestrator
@@ -73,21 +72,14 @@ def _make_script():
             ScriptSegment(
                 segment_type="opening",
                 audio_text="Hello",
-                estimated_duration=10.0,
-                actual_duration=10.0,
-                start_time=0.0,
-                end_time=10.0,
+                duration=10.0,
             ),
             ScriptSegment(
                 segment_type="quick_news",
                 audio_text="News",
-                estimated_duration=20.0,
-                actual_duration=20.0,
-                start_time=10.0,
-                end_time=30.0,
+                duration=10.0,
             ),
         ],
-        total_duration=30.0,
     )
 
 
@@ -130,8 +122,7 @@ class TestScriptWriter:
         mock_llm.generate_single_story_segment.return_value = ScriptSegment(
             segment_type="story_scan_item",
             audio_text="test",
-            estimated_duration=10.0,
-            emotion="upbeat",
+            duration=10.0,
         )
 
         writer = ScriptWriter(config, mock_llm, debug=True)
@@ -152,13 +143,12 @@ class TestScriptWriter:
         mock_llm.generate_single_story_segment.return_value = ScriptSegment(
             segment_type="story_scan_item",
             audio_text="test",
-            estimated_duration=10.0,
-            emotion="upbeat",
+            duration=10.0,
             scene_elements=[
                 SceneElement(
                     element_type="quote_card",
-                    start_time=0,
-                    end_time=0,
+                    start_time=0.0,
+                    end_time=5.0,
                     props={"story_index": 0, "selected_comment_ids": []},
                 )
             ],
@@ -228,13 +218,15 @@ class TestOrchestrator:
         config = _make_config()
         mock_fetcher = MagicMock(spec=ContentFetcher)
         mock_llm = MagicMock(spec=LLMProvider)
-        mock_renderer = None
+        mock_tts = MagicMock(spec=TTSProvider)
+        mock_renderer = MagicMock(spec=Renderer)
 
         orch = Orchestrator(
             config=config,
             content_fetcher=mock_fetcher,
             llm_provider=mock_llm,
-            article_enricher=mock_renderer,
+            tts_provider=mock_tts,
+            renderer=mock_renderer,
             debug=True,
             dry_run=True,
         )
@@ -254,173 +246,3 @@ class TestLLMProviderInterface:
         sig = inspect.signature(LLMProvider.generate_single_story_segment)
         assert "content" in sig.parameters
         assert "story_index" in sig.parameters
-
-
-class TestSubtitleVisualAlignment:
-    """Verify scene_element and cue times are consistent after TTS."""
-
-    def _make_orchestrator(self):
-        config = _make_config()
-        mock_fetcher = MagicMock(spec=ContentFetcher)
-        mock_llm = MagicMock(spec=LLMProvider)
-        mock_renderer = None
-        return Orchestrator(
-            config=config,
-            content_fetcher=mock_fetcher,
-            llm_provider=mock_llm,
-            article_enricher=mock_renderer,
-            debug=True,
-            dry_run=True,
-        )
-
-    def test_scene_elements_span_full_segment(self):
-        """After _set_scene_element_times, each scene_element spans [0, duration]."""
-        orch = self._make_orchestrator()
-        script = Script(
-            title="Test",
-            description="",
-            tags=[],
-            segments=[
-                ScriptSegment(
-                    segment_type="opening",
-                    audio_text="Hello",
-                    estimated_duration=7.0,
-                    actual_duration=6.5,
-                    scene_elements=[
-                        SceneElement(
-                            element_type="cover_card",
-                            start_time=0,
-                            end_time=0,
-                            props={},
-                        )
-                    ],
-                ),
-                ScriptSegment(
-                    segment_type="closing",
-                    audio_text="Bye",
-                    estimated_duration=8.0,
-                    actual_duration=7.2,
-                    scene_elements=[
-                        SceneElement(
-                            element_type="closing_card",
-                            start_time=0,
-                            end_time=0,
-                            props={},
-                        )
-                    ],
-                ),
-            ],
-        )
-        orch._timing.set_scene_element_times(script)
-        for seg in script.segments:
-            duration = seg.actual_duration
-            for elem in seg.scene_elements:
-                assert elem.start_time == 0.0
-                assert elem.end_time == duration
-
-    def test_combined_segment_proportional_layout(self):
-        """story_scan with sub_segment_estimated_durations lays out elements proportionally."""
-        orch = self._make_orchestrator()
-        script = Script(
-            title="Test",
-            description="",
-            tags=[],
-            segments=[
-                ScriptSegment(
-                    segment_type="story_scan",
-                    audio_text="A B C",
-                    estimated_duration=40.0,
-                    actual_duration=50.0,
-                    scene_elements=[
-                        SceneElement(
-                            element_type="story_scan_card",
-                            start_time=0,
-                            end_time=0,
-                            props={"story_index": i},
-                        )
-                        for i in range(3)
-                    ],
-                    meta={"sub_segment_estimated_durations": [10.0, 20.0, 10.0]},
-                ),
-            ],
-        )
-        orch._timing.set_scene_element_times(script)
-        seg = script.segments[0]
-        assert seg.scene_elements[0].start_time == 0.0
-        assert seg.scene_elements[0].end_time == pytest.approx(12.5)
-        assert seg.scene_elements[1].start_time == pytest.approx(12.5)
-        assert seg.scene_elements[1].end_time == pytest.approx(37.5)
-        assert seg.scene_elements[2].start_time == pytest.approx(37.5)
-        assert seg.scene_elements[2].end_time == pytest.approx(50.0)
-
-    def test_no_time_out_of_bounds(self):
-        """No scene_element time exceeds segment duration."""
-        orch = self._make_orchestrator()
-        script = Script(
-            title="Test",
-            description="",
-            tags=[],
-            segments=[
-                ScriptSegment(
-                    segment_type="story_scan",
-                    audio_text="A B",
-                    estimated_duration=20.0,
-                    actual_duration=18.0,
-                    scene_elements=[
-                        SceneElement(
-                            element_type="story_scan_card",
-                            start_time=0,
-                            end_time=0,
-                            props={},
-                        ),
-                        SceneElement(
-                            element_type="story_scan_card",
-                            start_time=0,
-                            end_time=0,
-                            props={},
-                        ),
-                    ],
-                    meta={"sub_segment_estimated_durations": [10.0, 10.0]},
-                ),
-            ],
-        )
-        orch._timing.set_scene_element_times(script)
-        seg = script.segments[0]
-        for elem in seg.scene_elements:
-            assert 0.0 <= elem.start_time <= seg.actual_duration
-            assert 0.0 <= elem.end_time <= seg.actual_duration
-            assert elem.end_time > elem.start_time
-
-    def test_time_monotonicity(self):
-        """scene_element end_time > start_time, and elements don't overlap backwards."""
-        orch = self._make_orchestrator()
-        script = Script(
-            title="Test",
-            description="",
-            tags=[],
-            segments=[
-                ScriptSegment(
-                    segment_type="story_scan",
-                    audio_text="A B C",
-                    estimated_duration=30.0,
-                    actual_duration=28.0,
-                    scene_elements=[
-                        SceneElement(
-                            element_type="story_scan_card",
-                            start_time=0,
-                            end_time=0,
-                            props={},
-                        )
-                        for _ in range(3)
-                    ],
-                    meta={"sub_segment_estimated_durations": [8.0, 15.0, 7.0]},
-                ),
-            ],
-        )
-        orch._timing.set_scene_element_times(script)
-        seg = script.segments[0]
-        prev_end = 0.0
-        for elem in seg.scene_elements:
-            assert elem.end_time > elem.start_time
-            assert elem.start_time >= prev_end
-            prev_end = elem.end_time

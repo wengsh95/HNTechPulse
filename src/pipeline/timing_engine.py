@@ -18,7 +18,7 @@ class TimingEngine:
         current_time = 0.0
         for i, seg in enumerate(script.segments):
             if seg.actual_duration is None:
-                seg.actual_duration = seg.estimated_duration
+                seg.actual_duration = seg.duration
 
             if i > 0:
                 current_time += self.segment_gap
@@ -69,7 +69,7 @@ class TimingEngine:
                     # Extend last element to fill any gap from MP3 concat
                     # overhead (individual durations may not sum to the
                     # concatenated segment audio duration exactly).
-                    segment_duration = seg.actual_duration or seg.estimated_duration
+                    segment_duration = seg.actual_duration or seg.duration
                     if current < segment_duration:
                         for elem in reversed(seg.scene_elements):
                             if not elem.props.get("is_audio_marker"):
@@ -79,7 +79,7 @@ class TimingEngine:
                             seg.cues[-1].end_time = round(segment_duration, 3)
                     continue
 
-            duration = seg.actual_duration or seg.estimated_duration
+            duration = seg.actual_duration or seg.duration
             if duration <= 0:
                 continue
 
@@ -113,12 +113,8 @@ class TimingEngine:
         short_segments = []
 
         for idx, seg in enumerate(script.segments):
-            if (
-                seg.actual_duration
-                and seg.estimated_duration
-                and seg.estimated_duration > 0
-            ):
-                ratio = seg.actual_duration / seg.estimated_duration
+            if seg.actual_duration and seg.duration and seg.duration > 0:
+                ratio = seg.actual_duration / seg.duration
                 seg.meta["duration_ratio"] = round(ratio, 2)
                 if ratio < RATIO_THRESHOLD and seg.segment_type not in (
                     "opening",
@@ -126,14 +122,14 @@ class TimingEngine:
                 ):
                     self.logger.info(
                         f"  Duration check: segment {idx} [{seg.segment_type}] "
-                        f"actual={seg.actual_duration:.1f}s vs estimated={seg.estimated_duration:.1f}s "
+                        f"actual={seg.actual_duration:.1f}s vs estimated={seg.duration:.1f}s "
                         f"(ratio={ratio:.2f} < {RATIO_THRESHOLD})"
                     )
                     short_segments.append((idx, ratio))
 
         if short_segments:
             total_actual = sum(s.actual_duration or 0 for s in script.segments)
-            total_estimated = sum(s.estimated_duration for s in script.segments)
+            total_estimated = sum(s.duration for s in script.segments)
             self.logger.info(
                 f"  {len(short_segments)} segments are significantly shorter than estimated. "
                 f"Total actual: {total_actual:.1f}s vs estimated: {total_estimated:.1f}s. "

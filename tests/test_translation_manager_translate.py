@@ -64,7 +64,7 @@ def _make_script():
             ScriptSegment(
                 segment_type="opening",
                 audio_text="Hello",
-                estimated_duration=10.0,
+                duration=10.0,
             ),
         ],
     )

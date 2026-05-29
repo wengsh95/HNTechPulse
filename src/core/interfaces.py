@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .models import ContentPackage, ScriptSegment
+    from .models import Script, ContentPackage, ScriptSegment
 
 
 class ContentFetcher(ABC):
@@ -64,4 +64,57 @@ class LLMProvider(ABC):
         prompt_template_path: str = "prompts/prefilter.md",
     ) -> list:
         """Judge technical relevance of stories. Returns list of {index, keep, reason}."""
+        pass
+
+
+class TTSResult:
+    """TTS 合成结果"""
+
+    def __init__(self, duration: float):
+        self.duration = duration
+
+
+class TTSProvider(ABC):
+    """TTS 抽象"""
+
+    @abstractmethod
+    def synthesize(
+        self, text: str, output_path: str, emotion: Optional[str] = None
+    ) -> "TTSResult":
+        """合成音频，返回 TTSResult"""
+        pass
+
+
+class Renderer(ABC):
+    """渲染器抽象"""
+
+    @abstractmethod
+    def render(
+        self,
+        script: "Script",
+        audio_dir: str,
+        output_path: str,
+        content: Optional["ContentPackage"] = None,
+        date: str = "",
+    ) -> None:
+        pass
+
+    def preview(
+        self,
+        script: "Script",
+        audio_dir: str,
+        content: Optional["ContentPackage"] = None,
+        date: str = "",
+    ) -> None:
+        """启动预览模式（可选实现）。"""
+        pass
+
+    def sync_props(
+        self,
+        script: "Script",
+        audio_dir: str,
+        content: Optional["ContentPackage"] = None,
+        date: str = "",
+    ) -> None:
+        """重新生成 props.json 和静态资源，不启动预览服务。"""
         pass

@@ -200,15 +200,13 @@ class HtmlGenerator:
         if script and script.segments:
             parts.append('<section class="section">')
             parts.append('  <h2 class="section-title">脚本概览</h2>')
-            total_duration = sum(
-                seg.actual_duration or seg.estimated_duration for seg in script.segments
-            )
+            total_duration = sum(seg.duration for seg in script.segments)
             parts.append(
                 f'  <div class="script-meta">总时长 {total_duration:.1f}s / {len(script.segments)} 段</div>'
             )
             for seg in script.segments:
                 seg_type = html_mod.escape(seg.segment_type)
-                duration = seg.actual_duration or seg.estimated_duration
+                duration = seg.duration
                 text = html_mod.escape(seg.audio_text.strip())
                 type_class = f"seg-type-{seg.segment_type}"
                 parts.append(

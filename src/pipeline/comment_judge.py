@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from src.core.interfaces import LLMProvider
 from src.core.models import ContentPackage
@@ -134,6 +135,7 @@ class CommentJudge:
                     f"{len(stories)}/{len(content.items)} stories"
                 )
         else:
+            save_lock = threading.Lock()
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(judge_one, idx_item): idx_item
@@ -141,8 +143,9 @@ class CommentJudge:
                 }
                 for future in as_completed(futures):
                     key, judgement = future.result()
-                    stories[key] = judgement
-                    save_comment_judgements(date, stories)
+                    with save_lock:
+                        stories[key] = judgement
+                        save_comment_judgements(date, stories)
                     self.logger.info(
                         f"  Saved comment judgement checkpoint: "
                         f"{len(stories)}/{len(content.items)} stories"

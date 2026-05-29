@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.core.interfaces import ContentFetcher, LLMProvider
+from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script
 from src.pipeline.orchestrator import Orchestrator
 
@@ -17,10 +17,14 @@ def _make_orchestrator(dry_run=True):
     config = _make_config()
     mock_fetcher = MagicMock(spec=ContentFetcher)
     mock_llm = MagicMock(spec=LLMProvider)
+    mock_tts = MagicMock(spec=TTSProvider)
+    mock_renderer = MagicMock(spec=Renderer)
     return Orchestrator(
         config=config,
         content_fetcher=mock_fetcher,
         llm_provider=mock_llm,
+        tts_provider=mock_tts,
+        renderer=mock_renderer,
         debug=True,
         dry_run=dry_run,
     )

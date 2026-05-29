@@ -19,19 +19,7 @@ from src.providers.fetcher.models import HNStory, HNComment
 from src.core.models import ContentItem, ContentComment, ContentPackage
 from src.core.interfaces import ContentFetcher
 from src.utils.logger import setup_logger
-
-
-def _run_async(coro):
-    """Run an async coroutine, handling the case where an event loop is already running."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    # Already inside a running loop — create a new one in a separate thread
-    import concurrent.futures
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, coro).result()
+from src.utils.async_helper import run_async as _run_async
 
 
 class HNFetcher(ContentFetcher):
@@ -84,6 +72,7 @@ class HNFetcher(ContentFetcher):
         date: str,
         num_deep_dive: int = 1,
         num_brief: int = 2,
+        **kwargs,
     ) -> ContentPackage:
         import time as _time
 
@@ -243,6 +232,9 @@ class HNFetcher(ContentFetcher):
             if isinstance(result, Exception):
                 self.logger.error(f"  Story id={sid} fetch failed: {result}")
             elif result is not None:
+                assert isinstance(result, HNStory), (
+                    f"Expected HNStory, got {type(result)}"
+                )
                 stories.append(result)
         return stories
 
@@ -415,7 +407,7 @@ class HNFetcher(ContentFetcher):
                     continue
                 if result is None:
                     continue
-
+                assert isinstance(result, dict), f"Expected dict, got {type(result)}"
                 if result.get("deleted") or result.get("dead"):
                     continue
 

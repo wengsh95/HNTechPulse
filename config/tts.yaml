@@ -1,0 +1,28 @@
+# ── TTS 语音合成配置 ──
+
+tts:
+  provider: "mimo"
+  voice: "冰糖"
+  model: "mimo-v2.5-tts"
+  base_url: "https://api.xiaomimimo.com/v1"
+  format: "pcm16"
+  sample_rate: 24000
+  temperature: 0.1                 # 越低越稳定（0-2），播报推荐 0.1-0.3
+  top_p: 0.9                     # 核采样，与 temperature 二选一；不设置则用 API 默认
+  seed: 42                       # 固定种子可复现相同语音；不设置则每次随机
+  # ── Whisper 对齐（每段 TTS 后用 Whisper 获取字幕时间戳，不切割音频）──
+  whisper_model: "small"         # Whisper 模型：tiny / base / small / medium / large-v3
+  whisper_model_path: "whisper"  # 本地 .pt 模型目录（相对项目根），留空则自动下载
+
+# tts:
+#   provider: "minimax"
+#   model: "speech-2.8-hd"
+#   voice_id: "male-qn-qingse"
+#   speed: 1
+#   vol: 1
+#   pitch: 0
+#   english_normalization: false
+#   sample_rate: 32000
+#   bitrate: 128000
+#   format: "mp3"
+#   channel: 1

@@ -28,7 +28,6 @@
       ]
     }
   ],
-  "emotion": "curious",
   "scene_elements": [
     {
       "element_type": "story_compact_card",
