@@ -9,7 +9,7 @@ export const grid = (units: number) => units * GRID_UNIT;
 export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
 
 export const FONTS = {
-  mono: '"SF Mono", "Menlo", "Source Code Pro", monospace',
+  mono: '"JetBrains Mono", "SF Mono", "Menlo", "Source Code Pro", monospace',
   sans: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
   bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
 };
@@ -96,9 +96,9 @@ export const LAYOUT = {
   progressBottom: 16,
   subtitleBottom: 80,
   subtitleBottomMinimal: 72,
-  cardRadius: 16,
-  panelRadius: 12,
-  chipRadius: 8,
+  cardRadius: 20,
+  panelRadius: 14,
+  chipRadius: 10,
   cardPaddingX: 40,
   cardPaddingY: 32,
   contentMaxWidth: 960,
@@ -247,13 +247,13 @@ export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
 /** 毛玻璃卡片样式（Keynote 风格） */
 export const glassCard: React.CSSProperties = {
   background: COLORS.surface,
-  border: "none",
+  border: `1px solid ${COLORS.borderLow}`,
   borderRadius: LAYOUT.cardRadius,
   backdropFilter: "blur(40px) saturate(1.4)",
   WebkitBackdropFilter: "blur(40px) saturate(1.4)",
 };
 
-export const glassCardShadow = `0 4px 24px rgba(0,0,0,0.40), 0 1px 6px rgba(0,0,0,0.25)`;
+export const glassCardShadow = `0 4px 32px rgba(0,0,0,0.40), 0 1px 4px rgba(0,0,0,0.20)`;
 
 export const innerPanel: React.CSSProperties = {
   background: COLORS.surfaceFaint,
@@ -378,9 +378,9 @@ export const PILL_DURATION = 14;
 
 /** Standard SectionLabel accent bar dimensions */
 export const SECTION_BAR = {
-  width: 3,
-  height: 14,
-  borderRadius: 2,
+  width: 4,
+  height: 18,
+  borderRadius: 3,
 } as const;
 
 /** Standard pill border radius (fully rounded) */
