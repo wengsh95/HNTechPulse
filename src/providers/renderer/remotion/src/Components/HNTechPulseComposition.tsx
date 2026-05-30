@@ -346,7 +346,10 @@ const SegmentRenderer: React.FC<{
               width={width}
               height={height}
               fps={fps}
-              extraProps={extraProps}
+              extraProps={{
+                ...extraProps,
+                audio_path: segment.audio_path,
+              }}
             />
           );
         })}

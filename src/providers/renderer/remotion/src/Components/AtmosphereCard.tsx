@@ -7,21 +7,24 @@
      - Debate topics (left) + stance distribution bars (right) — two columns
      - Quoted opinions (stripe + quote text + author + likes)
 
-   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
    adds entrance animation via useCurrentFrame/interpolate.
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, Easing } from "remotion";
+import { useCurrentFrame, interpolate, Easing, staticFile } from "remotion";
 import type {
   AtmosphereCardProps,
   ControversyLevel,
   Stance,
   Quote,
 } from "./cardTypes";
-import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import { COLORS, CARD_REF } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
+import { CardAudioWaveform } from "./CardAudioWaveform";
+import { useDesign, FONTS, FW } from "./design";
+import { WatermarkCharacter } from "./WatermarkCharacter";
 
 /* ---- label maps ---- */
 
@@ -55,233 +58,63 @@ const STANCE_ORDER: Stance[] = [
   "worry",
 ];
 
-/* ---- inline-styles object ---- */
-
-function buildStyles(scaled: (px: number) => number) {
-  return {
-    card: {
-      width: scaled(CARD_REF.width),
-      height: "100%" as const,
-      background: COLORS.bg,
-      position: "relative" as const,
-      overflow: "hidden",
-    } as React.CSSProperties,
-    inner: {
-      padding: `${scaled(80)}px ${scaled(100)}px`,
-      height: "100%",
-      display: "flex",
-      flexDirection: "column" as const,
-      justifyContent: "center" as const,
-      gap: scaled(42),
-    } as React.CSSProperties,
-    /* ---- score row ---- */
-    scoreRow: {
-      display: "flex",
-      alignItems: "center",
-      gap: scaled(24),
-    } as React.CSSProperties,
-    score: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(72),
-      fontWeight: 900,
-      lineHeight: 1,
-      color: COLORS.fg,
-    } as React.CSSProperties,
-    scoreSlash: {
-      fontSize: scaled(42),
-      color: COLORS.dim,
-      fontWeight: 300,
-    } as React.CSSProperties,
-    levelTag: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: scaled(8),
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(15),
-      fontWeight: 700,
-      letterSpacing: "0.1em",
-      padding: `${scaled(8)}px ${scaled(22)}px`,
-      borderRadius: scaled(999),
-      background: COLORS.brownBg,
-      color: COLORS.warmBrown,
-      border: `1px solid #d4b896`,
-    } as React.CSSProperties,
-    levelDot: {
-      width: scaled(9),
-      height: scaled(9),
-      borderRadius: "50%",
-      background: COLORS.warmBrown,
-    } as React.CSSProperties,
-    commentsCount: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(17),
-      color: COLORS.dim,
-      display: "flex",
-      alignItems: "center",
-      gap: scaled(8),
-      marginLeft: "auto",
-    } as React.CSSProperties,
-    commentsCountStrong: {
-      color: COLORS.warmGold,
-      fontSize: scaled(28),
-      fontWeight: 700,
-    } as React.CSSProperties,
-
-    /* ---- two-column section ---- */
-    twoCol: {
-      display: "flex",
-      gap: scaled(80),
-    } as React.CSSProperties,
-    debateCol: {
-      flex: `0 0 ${scaled(540)}px`,
-      display: "flex",
-      flexDirection: "column" as const,
-      gap: scaled(20),
-    } as React.CSSProperties,
-    sectionTitle: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(15),
-      fontWeight: 700,
-      letterSpacing: "0.15em",
-      textTransform: "uppercase" as const,
-      color: COLORS.warmGold,
-      marginBottom: scaled(6),
-    } as React.CSSProperties,
-    debateItem: {
-      display: "flex",
-      gap: scaled(14),
-      alignItems: "flex-start" as const,
-    } as React.CSSProperties,
-    debateNum: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(20),
-      fontWeight: 800,
-      color: COLORS.warmBrown,
-      flexShrink: 0,
-      width: scaled(36),
-      textAlign: "right" as const,
-    } as React.CSSProperties,
-    debateText: {
-      fontSize: scaled(24),
-      fontWeight: 600,
-      lineHeight: 1.4,
-      color: COLORS.fg,
-    } as React.CSSProperties,
-
-    /* ---- stance column ---- */
-    stanceCol: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column" as const,
-      gap: scaled(18),
-    } as React.CSSProperties,
-    stanceRow: {
-      display: "flex",
-      alignItems: "center",
-      gap: scaled(14),
-    } as React.CSSProperties,
-    stanceLabel: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(14),
-      fontWeight: 600,
-      width: scaled(60),
-      textAlign: "right" as const,
-      color: COLORS.muted,
-    } as React.CSSProperties,
-    stanceTrack: {
-      flex: 1,
-      height: scaled(22),
-      background: COLORS.surface2,
-      borderRadius: scaled(4),
-      overflow: "hidden",
-      position: "relative" as const,
-    } as React.CSSProperties,
-    stanceFill: (pct: number, color: string) =>
-      ({
-        height: "100%",
-        borderRadius: scaled(4),
-        transition: "width 1.2s ease",
-        width: `${pct}%`,
-        background: color,
-      }) as React.CSSProperties,
-    stancePct: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(14),
-      fontWeight: 700,
-      width: scaled(48),
-      color: COLORS.fg,
-    } as React.CSSProperties,
-
-    /* ---- quotes ---- */
-    quotesList: {
-      display: "flex",
-      flexDirection: "column" as const,
-      gap: scaled(18),
-      maxWidth: scaled(1400),
-    } as React.CSSProperties,
-    quoteItem: {
-      display: "flex",
-      gap: scaled(16),
-      padding: `${scaled(18)}px 0`,
-      borderBottom: `1px solid ${COLORS.border}`,
-    } as React.CSSProperties,
-    quoteLast: {
-      display: "flex",
-      gap: scaled(16),
-      padding: `${scaled(18)}px 0`,
-    } as React.CSSProperties,
-    quoteStripe: (color: string) =>
-      ({
-        width: scaled(4),
-        borderRadius: scaled(2),
-        flexShrink: 0,
-        background: color,
-      }) as React.CSSProperties,
-    quoteBody: {
-      display: "flex",
-      flexDirection: "column" as const,
-      gap: scaled(8),
-    } as React.CSSProperties,
-    quoteText: {
-      fontSize: scaled(22),
-      lineHeight: 1.5,
-      color: COLORS.fg,
-      fontStyle: "italic",
-    } as React.CSSProperties,
-    quoteAuthor: {
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(14),
-      color: COLORS.dim,
-      display: "flex",
-      alignItems: "center",
-      gap: scaled(10),
-    } as React.CSSProperties,
-    quoteLikes: {
-      color: COLORS.warmGold,
-      fontWeight: 600,
-    } as React.CSSProperties,
-  };
-}
-
 /* ---- sub-components ---- */
 
 function StanceBar({
   stance,
   pct,
-  S,
+  d,
 }: {
   stance: Stance;
   pct: number;
-  S: ReturnType<typeof buildStyles>;
+  d: ReturnType<typeof useDesign>;
 }) {
   const color = STANCE_COLORS[stance];
   return (
-    <div style={S.stanceRow}>
-      <span style={S.stanceLabel}>{STANCE_LABELS[stance]}</span>
-      <div style={S.stanceTrack}>
-        <div style={S.stanceFill(pct, color)} />
+    <div style={{ display: "flex", alignItems: "center", gap: d.scaled(14) }}>
+      <span
+        style={{
+          fontFamily: FONTS.mono,
+          fontSize: d.fs.caption,
+          fontWeight: FW.semibold,
+          width: d.scaled(60),
+          textAlign: "right" as const,
+          color: COLORS.muted,
+        }}
+      >
+        {STANCE_LABELS[stance]}
+      </span>
+      <div
+        style={{
+          flex: 1,
+          height: d.scaled(22),
+          background: COLORS.surface2,
+          borderRadius: d.scaled(4),
+          overflow: "hidden",
+          position: "relative" as const,
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            borderRadius: d.scaled(4),
+            transition: "width 1.2s ease",
+            width: `${pct}%`,
+            background: color,
+          }}
+        />
       </div>
-      <span style={S.stancePct}>{pct}%</span>
+      <span
+        style={{
+          fontFamily: FONTS.mono,
+          fontSize: d.fs.caption,
+          fontWeight: FW.bold,
+          width: d.scaled(48),
+          color: COLORS.fg,
+        }}
+      >
+        {pct}%
+      </span>
     </div>
   );
 }
@@ -289,21 +122,55 @@ function StanceBar({
 function QuoteBlock({
   q,
   last,
-  S,
+  d,
 }: {
   q: Quote;
   last: boolean;
-  S: ReturnType<typeof buildStyles>;
+  d: ReturnType<typeof useDesign>;
 }) {
   const color = STANCE_COLORS[q.stance];
   return (
-    <div style={last ? S.quoteLast : S.quoteItem}>
-      <div style={S.quoteStripe(color)} />
-      <div style={S.quoteBody}>
-        <div style={S.quoteText}>&ldquo;{q.text}&rdquo;</div>
-        <div style={S.quoteAuthor}>
+    <div
+      style={{
+        display: "flex",
+        gap: d.scaled(16),
+        padding: `${d.scaled(18)}px 0`,
+        borderBottom: last ? undefined : `1px solid ${COLORS.border}`,
+      }}
+    >
+      <div
+        style={{
+          width: d.scaled(4),
+          borderRadius: d.scaled(2),
+          flexShrink: 0,
+          background: color,
+        }}
+      />
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
+        <div
+          style={{
+            fontSize: d.fs.body,
+            lineHeight: 1.5,
+            color: COLORS.fg,
+            fontStyle: "italic",
+          }}
+        >
+          &ldquo;{q.text}&rdquo;
+        </div>
+        <div
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: d.fs.caption,
+            color: COLORS.dim,
+            display: "flex",
+            alignItems: "center",
+            gap: d.scaled(10),
+          }}
+        >
           {q.author}
-          <span style={S.quoteLikes}>&#x1F44D; {q.likes}</span>
+          <span style={{ color: COLORS.warmGold, fontWeight: FW.semibold }}>
+            &#x1F44D; {q.likes}
+          </span>
         </div>
       </div>
     </div>
@@ -314,12 +181,11 @@ function QuoteBlock({
 
 export const AtmosphereCard: React.FC<ElementProps> = ({
   elementProps,
-  width,
-  height,
+  width: _width,
+  height: _height,
 }) => {
   const frame = useCurrentFrame();
-  const d = useTheme();
-  const S = buildStyles(d.scaled);
+  const d = useDesign();
 
   const typed = extractAtmosphereProps(elementProps);
   const {
@@ -367,31 +233,95 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
   return (
     <div
       style={{
-        ...S.card,
+        width: d.scaled(CARD_REF.width),
+        height: "100%" as const,
+        background: COLORS.bg,
+        position: "relative" as const,
+        overflow: "hidden",
         opacity: cardProgress,
         transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      <div style={S.inner}>
+      <div
+        style={{
+          padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+          height: "100%",
+          display: "flex",
+          flexDirection: "column" as const,
+          justifyContent: "center" as const,
+          gap: d.scaled(42),
+          position: "relative" as const,
+        }}
+      >
         {/* Score row */}
         <div
           style={{
-            ...S.scoreRow,
+            display: "flex",
+            alignItems: "center",
+            gap: d.scaled(24),
             opacity: titleProgress,
             transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
           }}
         >
-          <span style={S.score}>
+          <span
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.subhead,
+              fontWeight: FW.heavy,
+              lineHeight: 1,
+              color: COLORS.fg,
+            }}
+          >
             {controversyScore.toFixed(1)}
-            <span style={S.scoreSlash}>/10</span>
+            <span style={{ fontSize: d.fs.subhead, color: COLORS.dim, fontWeight: 300 }}>
+              /10
+            </span>
           </span>
-          <span style={S.levelTag}>
-            <span style={S.levelDot} />
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: d.scaled(8),
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.caption,
+              fontWeight: FW.bold,
+              letterSpacing: "0.1em",
+              padding: `${d.scaled(8)}px ${d.scaled(22)}px`,
+              borderRadius: d.scaled(999),
+              background: COLORS.brownBg,
+              color: COLORS.warmBrown,
+              border: `1px solid #d4b896`,
+            }}
+          >
+            <span
+              style={{
+                width: d.scaled(9),
+                height: d.scaled(9),
+                borderRadius: "50%",
+                background: COLORS.warmBrown,
+              }}
+            />
             {CONTROVERSY_LABELS[controversyLevel]}
           </span>
-          <span style={S.commentsCount}>
+          <span
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.bodySmall,
+              color: COLORS.dim,
+              display: "flex",
+              alignItems: "center",
+              gap: d.scaled(8),
+              marginLeft: "auto",
+            }}
+          >
             评论总数{" "}
-            <strong style={S.commentsCountStrong}>
+            <strong
+              style={{
+                color: COLORS.warmGold,
+                fontSize: d.fs.body,
+                fontWeight: FW.bold,
+              }}
+            >
               {totalComments.toLocaleString()}
             </strong>
           </span>
@@ -400,30 +330,76 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         {/* Debate + Stance two-column */}
         <div
           style={{
-            ...S.twoCol,
+            display: "flex",
+            gap: d.scaled(80),
             opacity: bodyProgress,
             transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
           }}
         >
-          <div style={S.debateCol}>
-            <h3 style={S.sectionTitle}>辩论焦点</h3>
+          <div style={{ flex: `0 0 ${d.scaled(540)}px`, display: "flex", flexDirection: "column" as const, gap: d.scaled(20) }}>
+            <h3
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: d.fs.caption,
+                fontWeight: FW.bold,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase" as const,
+                color: COLORS.warmGold,
+                marginBottom: d.scaled(6),
+              }}
+            >
+              辩论焦点
+            </h3>
             {debateTopics.map((topic, i) => (
-              <div key={i} style={S.debateItem}>
-                <span style={S.debateNum}>{i + 1}.</span>
-                <span style={S.debateText}>{topic}</span>
+              <div key={i} style={{ display: "flex", gap: d.scaled(14), alignItems: "flex-start" as const }}>
+                <span
+                  style={{
+                    fontFamily: FONTS.mono,
+                    fontSize: d.fs.bodySmall,
+                    fontWeight: FW.bold,
+                    color: COLORS.warmBrown,
+                    flexShrink: 0,
+                    width: d.scaled(36),
+                    textAlign: "right" as const,
+                  }}
+                >
+                  {i + 1}.
+                </span>
+                <span
+                  style={{
+                    fontSize: d.fs.body,
+                    fontWeight: FW.semibold,
+                    lineHeight: 1.4,
+                    color: COLORS.fg,
+                  }}
+                >
+                  {topic}
+                </span>
               </div>
             ))}
             {debateTopics.length === 0 && (
-              <span style={{ color: COLORS.dim, fontSize: d.scaled(20) }}>
+              <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>
                 暂无显著辩论焦点
               </span>
             )}
           </div>
 
-          <div style={S.stanceCol}>
-            <h3 style={S.sectionTitle}>立场分布</h3>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(18) }}>
+            <h3
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: d.fs.caption,
+                fontWeight: FW.bold,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase" as const,
+                color: COLORS.warmGold,
+                marginBottom: d.scaled(6),
+              }}
+            >
+              立场分布
+            </h3>
             {STANCE_ORDER.map((s) => (
-              <StanceBar key={s} stance={s} pct={stancePcts[s]} S={S} />
+              <StanceBar key={s} stance={s} pct={stancePcts[s]} d={d} />
             ))}
           </div>
         </div>
@@ -432,21 +408,25 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         {quotes.length > 0 && (
           <div
             style={{
-              ...S.quotesList,
+              display: "flex",
+              flexDirection: "column" as const,
+              gap: d.scaled(18),
+              maxWidth: d.scaled(1400),
               opacity: bodyProgress,
               transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
             }}
           >
             {quotes.map((q, i) => (
-              <QuoteBlock
-                key={i}
-                q={q}
-                last={i === quotes.length - 1}
-                S={S}
-              />
+              <QuoteBlock key={i} q={q} last={i === quotes.length - 1} d={d} />
             ))}
           </div>
         )}
+
+        <WatermarkCharacter />
+
+        <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
+          <CardAudioWaveform src={elementProps.audio_path as string | undefined} />
+        </div>
       </div>
     </div>
   );

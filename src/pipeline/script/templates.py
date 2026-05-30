@@ -132,7 +132,7 @@ def generate_fixed_opening(
                 start_time=0.0,
                 end_time=duration,
                 props={
-                    "headline": "每日技术速览",
+                    "headline": "每日HN观察",
                     "subtitle": date_display,
                     "keywords": keywords[:3],
                     "lineup_entries": entries,

@@ -18,6 +18,8 @@ import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
 import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractEventProps } from "./propsExtractors";
+import { CardAudioWaveform } from "./CardAudioWaveform";
+import { WatermarkCharacter } from "./WatermarkCharacter";
 
 /* ---- helpers ---- */
 
@@ -214,24 +216,28 @@ function buildStyles(scaled: (px: number) => number) {
       letterSpacing: "0.04em",
     } as React.CSSProperties,
     imageCol: {
-      width: "48%",
-      height: "100%",
-      position: "relative" as const,
+      width: scaled(750),
+      position: "absolute" as const,
+      top: 0,
+      bottom: 0,
+      right: scaled(100),
+      display: "flex",
+      alignItems: "center",
       overflow: "hidden",
       borderRadius: scaled(8),
-      flexShrink: 0,
     } as React.CSSProperties,
     imageImg: {
       width: "100%",
-      height: "100%",
-      objectFit: "cover" as const,
+      height: "auto",
+      objectFit: "contain" as const,
+      transform: `translateY(${scaled(-70)}px)`,
     } as React.CSSProperties,
     imageMask: {
       position: "absolute" as const,
       bottom: 0,
       left: 0,
       right: 0,
-      height: "40%",
+      height: scaled(120),
       background: `linear-gradient(to top, ${COLORS.bg}, transparent)`,
     } as React.CSSProperties,
     logoBox: {
@@ -361,6 +367,7 @@ export const EventCard: React.FC<ElementProps> = ({
         height: "100%",
         gap: d.scaled(60),
         alignItems: hasImage ? "stretch" : "center",
+        position: "relative" as const,
       }
     : {
         padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
@@ -433,7 +440,15 @@ export const EventCard: React.FC<ElementProps> = ({
             <img src={staticFile(logoUrl!)} alt="logo" style={S.logoImg} />
           </div>
         )}
+
+        {/* Waveform */}
+        <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
+          <CardAudioWaveform src={elementProps.audio_path as string | undefined} />
+        </div>
       </div>
+
+      {/* Watermark character */}
+      <WatermarkCharacter />
     </div>
   );
 };

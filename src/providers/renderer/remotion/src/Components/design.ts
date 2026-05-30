@@ -62,10 +62,6 @@ export const COLORS = {
   gray: "#b0a595",
   white: "#ffffff",
 
-  textBody: "rgba(44,36,22,0.88)",
-  textDim: "rgba(44,36,22,0.72)",
-  textFaint: "rgba(44,36,22,0.28)",
-
   surfaceSubtle: "rgba(44,36,22,0.03)",
   surfaceFaint: "rgba(44,36,22,0.04)",
   surfaceLow: "rgba(44,36,22,0.06)",
@@ -85,8 +81,6 @@ export const COLORS = {
   bgTint75: "rgba(254,252,248,0.75)",
   bgTint88: "rgba(254,252,248,0.88)",
   bgStroke: "rgba(254,252,248,0.6)",
-
-  dim: "rgba(44,36,22,0.55)",
   cardBg: "rgba(44,36,22,0.04)",
   background: "#fefcf8",
   border: "#e5ddd0",
@@ -118,24 +112,24 @@ export const LAYOUT = {
 
 /** 1080p 参考字号（运行时按实际尺寸缩放） */
 export const FS = {
-  hero: 66,
-  headline: 50,
-  subhead: 35,
-  closing: 61,
+  hero: 80,
+  headline: 58,
+  subhead: 40,
+  closing: 72,
 
-  body: 26,
-  bodySmall: 21,
-  bodyLg: 24,
-  subtitle2: 21,
+  body: 32,
+  bodySmall: 26,
+  bodyLg: 30,
+  subtitle2: 26,
 
-  label: 21,
-  caption: 18,
-  pill: 14,
-  micro: 13,
+  label: 26,
+  caption: 22,
+  pill: 17,
+  micro: 15,
 
   watermark: 85,
   watermarkLg: 113,
-  subtitle: 33,
+  subtitle: 40,
 };
 
 export interface DesignTokens {
