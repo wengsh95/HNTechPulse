@@ -229,9 +229,7 @@ def _expand_event_card(props, content, score_ranks=None):
     result["story_title"] = item.title
     result["source_title"] = result.get("source_title") or item.title
     result["title_cn"] = item.title_cn or ""
-    result["editor_angle"] = (
-        result.get("editor_angle") or item.editor_angle or item.title_cn or item.title
-    )
+    result["editor_angle"] = item.editor_angle
     result["key_points"] = result.get("key_points") or item.key_points or []
     result["why_it_matters"] = result.get("why_it_matters") or item.why_it_matters or ""
     result["source_domain"] = _extract_domain(item.url) if item.url else ""

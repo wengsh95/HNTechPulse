@@ -41,6 +41,17 @@ class ImageHandler:
         self.bing_max_queries = bing_max_queries
         self.request_timeout = request_timeout
 
+    # Phrases that indicate session/auth boilerplate, not article content
+    _GARBAGE_PATTERNS = (
+        "signed in with another tab",
+        "signed out in another tab",
+        "reload to refresh your session",
+        "dismiss alert",
+        "checking your browser",
+        "just a moment",
+        "enable javascript",
+    )
+
     def extract_text(
         self, html: str, base_url: str, max_text_length: int = 8000
     ) -> Optional[str]:
@@ -50,9 +61,18 @@ class ImageHandler:
             text = trafilatura.extract(
                 html, include_comments=False, include_tables=True, favor_precision=True
             )
-            if text and len(text.strip()) > 100:
-                return text.strip()[:max_text_length]
-            return None
+            if not text or len(text.strip()) < 200:
+                return None
+            stripped = text.strip()
+            # Reject session/auth boilerplate (e.g. GitHub login notifications)
+            lower = stripped.lower()
+            if any(pat in lower for pat in self._GARBAGE_PATTERNS):
+                self.logger.debug(
+                    f"Rejected garbage text ({len(stripped)} chars): "
+                    f"{stripped[:80]}..."
+                )
+                return None
+            return stripped[:max_text_length]
         except Exception as e:
             self.logger.debug(f"trafilatura failed: {e}")
             return None

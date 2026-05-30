@@ -7,7 +7,7 @@
 输出格式只能是：
 {
   "discussion_mode": "debate",
-  "discussion_summary": "评论区主要在争论企业采用 AI 是理性提效还是 FOMO 跟风",
+  "discussion_summary": "AI 提效 vs FOMO 跟风之争",
   "comment_lanes": {
     "representative": [
       {"comment_id": "评论id1", "role": "experience", "stance": "中立", "claim": "短金句观点", "quote_score": 0.9}
@@ -42,8 +42,9 @@ discussion_mode（讨论类型）:
 - 不要把所有帖子都判成 debate；只有真实分歧清楚时才用 debate。
 
 discussion_summary（讨论摘要）:
-- 18-40 个中文字符，说明评论区主要在做什么。
-- 不要宏大总结，不要复制评论原文。
+- 8-16 个中文字符，一句话概括评论区的核心动态。
+- 像新闻标题一样短、直、快。不要"评论区在讨论…"这类废话前缀。
+- 例如："安全性之争""迁移成本激辩""社区反馈两极分化"。
 
 comment_lanes（按用途分组的评论候选）:
 - representative：最能代表评论区主讨论的 1-2 条。

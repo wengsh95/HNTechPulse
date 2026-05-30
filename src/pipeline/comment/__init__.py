@@ -25,11 +25,11 @@ from src.pipeline.comment.judge import (
     CommentJudge,
     comment_judgement_key,
     normalize_story_judgement,
-    heuristic_story_judgement,
     load_comment_judgements,
     save_comment_judgements,
     candidate_ids_for_story,
 )
+from src.pipeline.comment.refiner import CommentRefiner
 
 __all__ = [
     "clean_comment_text",
@@ -53,8 +53,8 @@ __all__ = [
     "CommentJudge",
     "comment_judgement_key",
     "normalize_story_judgement",
-    "heuristic_story_judgement",
     "load_comment_judgements",
     "save_comment_judgements",
     "candidate_ids_for_story",
+    "CommentRefiner",
 ]

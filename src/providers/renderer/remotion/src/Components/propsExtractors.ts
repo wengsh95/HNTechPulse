@@ -12,6 +12,7 @@ import type {
   AnalysisItem,
   Quote,
   StanceDistribution,
+  StanceConcerns,
   CompletedStory,
   DigestStats,
   HeatLevel,
@@ -215,6 +216,21 @@ export function extractAtmosphereProps(
 
   const totalComments = num(elementProps.comment_count);
 
+  // discussion_summary
+  const discussionSummary = str(elementProps.discussion_summary);
+
+  // stance_concerns
+  const rawConcerns = obj(elementProps.stance_concerns);
+  const stanceConcerns: StanceConcerns = {
+    support: str(rawConcerns.support) || str(rawConcerns["支持"]) || undefined,
+    skeptic:
+      str(rawConcerns.skeptic) ||
+      str(rawConcerns["质疑"]) ||
+      str(rawConcerns.skeptical) ||
+      undefined,
+    neutral: str(rawConcerns.neutral) || str(rawConcerns["中立"]) || undefined,
+  };
+
   // quotes
   const rawQuotes = arr<Record<string, unknown>>(elementProps.quotes);
   const quotes: Quote[] = rawQuotes.slice(0, 3).map((q) => ({
@@ -227,8 +243,10 @@ export function extractAtmosphereProps(
   return {
     controversyScore,
     controversyLevel,
+    discussionSummary,
     debateTopics,
     stanceDistribution,
+    stanceConcerns,
     totalComments,
     quotes,
     displayIndex: num(elementProps.display_index),
@@ -255,6 +273,7 @@ export function extractClosingProps(
     .map((item) => ({
       category: str(item.category, ""),
       title: str(item.title, ""),
+      signal: str(item.signal, ""),
     }));
 
   const takeaways = arr<string>(elementProps.takeaways)

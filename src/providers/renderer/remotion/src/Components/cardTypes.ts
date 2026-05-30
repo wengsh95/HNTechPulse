@@ -85,11 +85,19 @@ export interface StanceDistribution {
   worry: number;
 }
 
+export interface StanceConcerns {
+  support?: string;
+  skeptic?: string;
+  neutral?: string;
+}
+
 export interface AtmosphereCardProps {
   controversyScore: number;
   controversyLevel: ControversyLevel;
+  discussionSummary: string;
   debateTopics: string[];
   stanceDistribution: StanceDistribution;
+  stanceConcerns: StanceConcerns;
   totalComments: number;
   quotes: Quote[];
   displayIndex: number;
@@ -102,6 +110,7 @@ export interface AtmosphereCardProps {
 export interface CompletedStory {
   category: string;
   title: string;
+  signal: string;
 }
 
 export interface DigestStats {

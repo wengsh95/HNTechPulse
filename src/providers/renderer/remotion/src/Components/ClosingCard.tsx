@@ -3,12 +3,9 @@
    ================================================================
 
    Layout: single-column centered vertical
-     - Summary statement (large headline)
-     - Keyword tags row
-     - Takeaways list (numbered items)
-     - Completed stories list (✓ check + category + title)
-     - Stats row (stories / points / comments)
-     - Vibe tag
+     - "今日信号" headline
+     - Gradient divider (same as EventCard)
+     - Signal entries: one per story (category · title · note)
 
    Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
    adds entrance animation via useCurrentFrame/interpolate.
@@ -38,7 +35,7 @@ export const ClosingCard: React.FC<ElementProps> = ({
   const typed = extractClosingProps(elementProps);
   const {
     summary,
-    takeaways,
+    completedStories,
   } = typed;
 
   // Entrance animation — unified via ANIM_PRESETS
@@ -106,51 +103,69 @@ export const ClosingCard: React.FC<ElementProps> = ({
           </h1>
         )}
 
-        {/* Takeaways */}
-        {takeaways.length > 0 && (
+        {/* Divider — same style as EventCard */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: d.scaled(900),
+            height: d.scaled(6),
+            borderRadius: d.scaled(3),
+            background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+            opacity: titleProgress,
+          }}
+        />
+
+        {/* Signal entries — one per story */}
+        {completedStories.length > 0 && (
           <div
             style={{
               display: "flex",
               flexDirection: "column" as const,
-              gap: d.scaled(14),
+              gap: d.scaled(20),
               width: "100%",
               maxWidth: d.scaled(900),
               opacity: bodyProgress,
               transform: `translateY(${bodyY}px)`,
             }}
           >
-            {takeaways.map((t, i) => (
+            {completedStories.map((story, i) => (
               <div
                 key={i}
                 style={{
                   display: "flex",
-                  alignItems: "flex-start",
-                  gap: d.scaled(12),
-                  fontSize: d.fs.body,
-                  color: COLORS.fg,
-                  lineHeight: 1.5,
+                  flexDirection: "column" as const,
+                  gap: d.scaled(6),
                 }}
               >
+                {/* Title */}
                 <span
                   style={{
-                    fontFamily: FONTS.mono,
-                    color: COLORS.warmGold,
-                    fontWeight: FW.bold,
-                    fontSize: d.fs.caption,
-                    width: d.scaled(28),
-                    flexShrink: 0,
-                    fontVariantNumeric: "tabular-nums",
+                    fontSize: d.fs.body,
+                    fontWeight: FW.heavy,
+                    color: COLORS.fg,
+                    lineHeight: 1.3,
                   }}
                 >
-                  {String(i + 1).padStart(2, "0")}
+                  {story.title}
                 </span>
-                <span>{t}</span>
+                {/* Signal (debate_focus) */}
+                {story.signal && (
+                  <span
+                    style={{
+                      fontSize: d.fs.bodySmall,
+                      color: COLORS.muted,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {story.signal}
+                  </span>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        <WatermarkCharacter />
+        <WatermarkCharacter expression="closing_card.png" />
 
         <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
           <CardAudioWaveform src={elementProps.audio_path as string | undefined} />

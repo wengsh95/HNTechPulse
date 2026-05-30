@@ -219,7 +219,7 @@ export const CoverCard: React.FC<ElementProps> = ({
         </div>
 
         {/* Watermark */}
-        <WatermarkCharacter />
+        <WatermarkCharacter expression="cover_card.png" />
       </div>
     </div>
   );

@@ -101,8 +101,14 @@ class TranslationManager:
                 content, translations, selected_ids_by_story, judgements
             )
         else:
-            # 1. Translate all titles
-            content = self.llm_provider.translate_titles(content, "translate.md")
+            # 1. Translate titles (skip if already translated during enrich step)
+            items_needing_translation = [
+                item for item in content.items if item.title and not item.title_cn
+            ]
+            if items_needing_translation:
+                content = self.llm_provider.translate_titles(content, "translate.md")
+            else:
+                self.logger.info("  All titles already translated, skipping")
             for idx, item in enumerate(content.items):
                 if item.title_cn:
                     # Store by source_id for stable cache keys; keep index key for backward compat
@@ -166,7 +172,7 @@ class TranslationManager:
         """Collect the exact comments AtmosphereCard will display for translation.
 
         LLM-selected ids are honored first, then the shared fallback selector fills
-        to three quotable comments.
+        to three quotable comments (one per stance: 支持/质疑/中立).
         """
         selected_ids_by_story = selected_ids_by_story or {}
         if judgements is None:
@@ -176,6 +182,7 @@ class TranslationManager:
             selected = self._pick_quote_comments(
                 item.comments,
                 selected_ids_by_story.get(story_idx, []),
+                max_n=3,
                 judgement=judgements.get(comment_judgement_key(item), {}),
             )
             for i, c in enumerate(selected):

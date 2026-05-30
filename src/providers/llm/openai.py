@@ -177,6 +177,8 @@ class OpenAILLMProvider(LLMProvider):
             meta["card_narrations"] = seg_dict["card_narrations"]
         if "debate_focus" in seg_dict:
             meta["debate_focus"] = seg_dict["debate_focus"]
+        if "signal" in seg_dict:
+            meta["signal"] = seg_dict["signal"]
 
         segment = ScriptSegment(
             segment_type=seg_dict.get("segment_type", segment_type),

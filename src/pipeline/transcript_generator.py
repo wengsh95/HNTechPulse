@@ -56,10 +56,8 @@ def generate_brief_transcript(
         if highlight_entries:
             for entry in highlight_entries:
                 rank = entry.get("rank", "")
-                title = entry.get("original_title", "") or entry.get("title", "")
-                title_cn = entry.get("title_translation", "") or entry.get(
-                    "title_cn", ""
-                )
+                title = entry.get("original_title", "")
+                title_cn = entry.get("title_cn", "")
                 score = entry.get("score", "")
                 comments = entry.get("comment_count", "")
                 score_str = f" ▲ {score}" if score else ""

@@ -376,7 +376,6 @@ export const EventCard: React.FC<ElementProps> = ({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         gap: d.scaled(20),
       };
 
@@ -386,7 +385,6 @@ export const EventCard: React.FC<ElementProps> = ({
         display: "flex",
         flexDirection: "column",
         gap: d.scaled(20),
-        justifyContent: "center",
         marginRight: d.scaled(CARD_REF.width * 0.4 + 20),
       }
     : { display: "flex", flexDirection: "column", gap: d.scaled(20) };
@@ -451,7 +449,7 @@ export const EventCard: React.FC<ElementProps> = ({
       </div>
 
       {/* Watermark character — always show */}
-      <WatermarkCharacter />
+      <WatermarkCharacter expression="event_card.png" />
     </div>
   );
 };

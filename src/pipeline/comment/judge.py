@@ -4,7 +4,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 import yaml
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -13,10 +13,7 @@ from src.core.interfaces import LLMProvider
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment.text import clean_comment_text
 from src.pipeline.comment.scoring import compute_comment_quality
-from src.pipeline.comment.selection import (
-    is_quotable_comment,
-    select_judge_candidate_comments,
-)
+from src.pipeline.comment.selection import select_judge_candidate_comments
 from src.utils.logger import setup_logger
 
 
@@ -353,34 +350,30 @@ class CommentJudge:
         llm_provider: LLMProvider,
         config: dict,
         comment_analyzer=None,
+        comment_refiner=None,
         debug: bool = False,
     ):
         self.llm_provider = llm_provider
         self.config = config
         self.comment_analyzer = comment_analyzer
+        self.comment_refiner = comment_refiner
         analyze_cfg = config.get("analyze", {})
         self.enabled = analyze_cfg.get("comment_judge_enabled", True)
         self.max_workers = int(analyze_cfg.get("comment_judge_max_workers", 2) or 1)
-        self.fallback_on_error = analyze_cfg.get(
-            "comment_judge_fallback_on_error", True
-        )
         self.prompt_template_path = analyze_cfg.get(
             "comment_judge_prompt",
             "prompts/comment_analyze.md",
         )
-        self.judge_candidate_count = analyze_cfg.get("max_comments_for_judge", 15)
+        self.judge_candidate_count = analyze_cfg.get("max_comments_for_judge", 8)
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
     def judge(self, content: ContentPackage, date: str) -> dict:
         if not self.enabled:
-            self.logger.info("Comment judge disabled, using heuristic candidates")
-            stories = {
-                comment_judgement_key(item): heuristic_story_judgement(item)
-                for item in content.items
-            }
-            save_comment_judgements(date, stories)
-            return stories
+            raise RuntimeError(
+                "Comment judge disabled — enable comment_judge_enabled or remove "
+                "the script step dependency on comment judge."
+            )
 
         stories = load_comment_judgements(date)
         cached_count = 0
@@ -414,49 +407,44 @@ class CommentJudge:
                 f"[{idx + 1}/{len(content.items)}] {item.source_id} {item.title[:80]}"
             )
             if not item.comments:
-                self.logger.info(f"  {label}: no comments, using heuristic fallback")
-                return comment_judgement_key(item), heuristic_story_judgement(item)
-            try:
-                pre_filtered = None
-                if self.comment_analyzer:
-                    if hasattr(self.comment_analyzer, "get_judge_candidates"):
-                        pre_filtered = self.comment_analyzer.get_judge_candidates(
-                            item, n=self.judge_candidate_count
-                        )
-                    else:
-                        pre_filtered = self.comment_analyzer.get_top_comments(
-                            item, n=self.judge_candidate_count
-                        )
-                self.logger.info(
-                    f"  {label}: judging {len(pre_filtered or item.comments)} comments "
-                    f"(model request starting)"
-                )
-                result = self.llm_provider.judge_story_comments(
-                    item,
-                    idx,
-                    self.prompt_template_path,
-                    candidates=pre_filtered,
-                )
-                normalized = normalize_story_judgement(result, item)
-                candidate_count = len(normalized.get("quote_candidates", []) or [])
-                rejected_count = len(normalized.get("rejected", []) or [])
-                self.logger.info(
-                    f"  {label}: done, candidates={candidate_count}, rejected={rejected_count}"
-                )
-                return comment_judgement_key(item), normalized
-            except Exception as e:
-                if not self.fallback_on_error:
-                    self.logger.error(f"  {label}: comment judge failed: {e}")
-                    raise
-                self.logger.warning(
-                    f"  {label}: comment judge failed, using heuristic fallback: {e}"
-                )
-                fallback = heuristic_story_judgement(item)
-                self.logger.info(
-                    f"  {label}: fallback candidates="
-                    f"{len(fallback.get('quote_candidates', []) or [])}"
-                )
-                return comment_judgement_key(item), fallback
+                raise ValueError(f"  {label}: no comments, cannot judge")
+            pre_filtered = None
+            if self.comment_analyzer:
+                if hasattr(self.comment_analyzer, "get_judge_candidates"):
+                    pre_filtered = self.comment_analyzer.get_judge_candidates(
+                        item, n=self.judge_candidate_count
+                    )
+                else:
+                    pre_filtered = self.comment_analyzer.get_top_comments(
+                        item, n=self.judge_candidate_count
+                    )
+
+            # Optional: refine stance/quality/topic with cheap LLM
+            if self.comment_refiner and pre_filtered:
+                refinements = self.comment_refiner.refine(item, pre_filtered)
+                if refinements:
+                    self._apply_refinements(pre_filtered, refinements)
+                    self.logger.info(
+                        f"  {label}: refined {len(refinements)} comments"
+                    )
+
+            self.logger.info(
+                f"  {label}: judging {len(pre_filtered or item.comments)} comments "
+                f"(model request starting)"
+            )
+            result = self.llm_provider.judge_story_comments(
+                item,
+                idx,
+                self.prompt_template_path,
+                candidates=pre_filtered,
+            )
+            normalized = normalize_story_judgement(result, item)
+            candidate_count = len(normalized.get("quote_candidates", []) or [])
+            rejected_count = len(normalized.get("rejected", []) or [])
+            self.logger.info(
+                f"  {label}: done, candidates={candidate_count}, rejected={rejected_count}"
+            )
+            return comment_judgement_key(item), normalized
 
         if workers == 1:
             for idx_item in missing:
@@ -487,6 +475,23 @@ class CommentJudge:
         save_comment_judgements(date, stories)
         self.logger.info(f"Saved comment judgements for {len(stories)} stories")
         return stories
+
+    @staticmethod
+    def _apply_refinements(
+        candidates: list, refinements: dict
+    ) -> None:
+        """Apply refiner adjustments to candidate comments in-place."""
+        for comment in candidates:
+            cid = str(comment.source_id) if comment.source_id is not None else None
+            if cid is None or cid not in refinements:
+                continue
+            ref = refinements[cid]
+            # Adjust quality score
+            adjust = ref.get("quality_adjust", 0.0)
+            if adjust and comment.quality_score is not None:
+                comment.quality_score = round(
+                    max(0.0, min(1.0, comment.quality_score + adjust)), 4
+                )
 
 
 # ── Judgement normalization and cache I/O ──────────────────────────────
@@ -639,7 +644,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
                 stance_concerns[str(k)] = v.strip()[:24]
 
     discussion_mode = _normalize_discussion_mode(raw.get("discussion_mode"))
-    discussion_summary = str(raw.get("discussion_summary") or "").strip()[:180]
+    discussion_summary = str(raw.get("discussion_summary") or "").strip()[:48]
     comment_lanes = _normalize_comment_lanes(raw, valid_ids)
 
     return {
@@ -652,40 +657,6 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         "debate_focus": debate_focus,
         "stance_distribution": stance_distribution,
         "stance_concerns": stance_concerns,
-    }
-
-
-def heuristic_story_judgement(item: ContentItem, max_candidates: int = 12) -> dict:
-    candidates: list[dict[str, float | str]] = []
-    for comment in item.comments:
-        if comment.source_id is None or not is_quotable_comment(comment):
-            continue
-        text = clean_comment_text(comment.content or "")
-        candidates.append(
-            {
-                "comment_id": str(comment.source_id),
-                "quote_score": round(float(comment.quality_score or 0.0), 4),
-                "category": "viewpoint",
-                "stance": "neutral",
-                "claim": text[:180],
-                "has_viewpoint": True,
-                "reject_for_quote": False,
-                "reason": "Heuristic fallback candidate",
-            }
-        )
-    candidates.sort(key=lambda c: cast(float, c["quote_score"]), reverse=True)
-    return {
-        "story_id": comment_judgement_key(item),
-        "discussion_mode": "field_notes",
-        "discussion_summary": "",
-        "comment_lanes": {
-            "representative": candidates[:2],
-            "counterpoint": candidates[2:3],
-            "detail": candidates[3:5],
-            "color": [],
-        },
-        "quote_candidates": candidates[:max_candidates],
-        "rejected": [],
     }
 
 

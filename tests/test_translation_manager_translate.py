@@ -105,11 +105,12 @@ class TestTranslate:
     def test_calls_llm_for_missing_titles(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         manager, mock_llm = _make_manager()
-        content = _make_content_package()
+        item_with_cn = _make_item(source_id="100", title_cn="翻译标题")
+        item_without_cn = _make_item(source_id="101", title="Another Story")
+        content = _make_content_package(items=[item_with_cn, item_without_cn])
         script = _make_script()
 
         mock_llm.translate_titles.return_value = content
-        content.items[0].title_cn = "翻译标题"
 
         # Ensure no cache exists
         with patch.object(manager, "collect_comment_refs", return_value={}):

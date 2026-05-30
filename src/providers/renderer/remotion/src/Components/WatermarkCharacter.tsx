@@ -10,12 +10,14 @@ import React from "react";
 import { staticFile } from "remotion";
 import { useTheme } from "./theme";
 
-export const WatermarkCharacter: React.FC = () => {
+export const WatermarkCharacter: React.FC<{ expression?: string }> = ({
+  expression = "46f7d3ff4a5c075370fbcaaccf5bca0d.jpg",
+}) => {
   const d = useTheme();
 
   return (
     <img
-      src={staticFile("46f7d3ff4a5c075370fbcaaccf5bca0d.jpg")}
+      src={staticFile(expression)}
       alt=""
       style={{
         position: "absolute" as const,

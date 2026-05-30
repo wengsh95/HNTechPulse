@@ -251,6 +251,7 @@ class ArticleEnricher:
 
         # Strategy 0: GitHub API (for github.com URLs)
         github_ok, remaining = [], list(items)
+        github_fallback = []  # GitHub API failed → skip aiohttp, go straight to headless
         github_items = [item for item in remaining if _parse_github_url(item.url or "")]
         if github_items:
             for item in github_items:
@@ -265,8 +266,12 @@ class ArticleEnricher:
                         remaining.remove(item)
                         self.logger.debug(f"[github_api] {item.title[:50]}")
                         continue
+                # GitHub pages are JS-rendered — aiohttp can't extract README,
+                # skip straight to headless browser
+                remaining.remove(item)
+                github_fallback.append(item)
                 self.logger.debug(
-                    f"[github_api] failed, will try aiohttp: {item.title[:50]}"
+                    f"[github_api] failed, will try headless: {item.title[:50]}"
                 )
 
         # Strategy 1: aiohttp (concurrent)
@@ -294,6 +299,8 @@ class ArticleEnricher:
                 aiohttp_failed.append(item)
 
         aiohttp_ok = len(remaining) - len(aiohttp_failed)
+        # GitHub API failures skip aiohttp (JS-rendered pages), go straight to headless
+        aiohttp_failed.extend(github_fallback)
         if remaining:
             self.logger.info(
                 f"Phase 1 aiohttp: {aiohttp_ok}/{len(remaining)} ok, "

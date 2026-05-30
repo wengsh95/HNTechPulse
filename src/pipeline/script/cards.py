@@ -4,7 +4,7 @@ from src.core.models import ContentItem, SceneElement, ScriptSegment
 from src.pipeline.comment import (
     candidate_ids_for_story,
     classify_comment_stance,
-    select_quote_comments,
+    select_comments_by_ids,
 )
 
 
@@ -14,7 +14,6 @@ def normalize_atmosphere_card(
     """Inject debate_focus, stance_distribution, and selected_comment_ids from comment judgement into atmosphere_card props."""
     debate_focus = judgement.get("debate_focus") or []
     stance_distribution = judgement.get("stance_distribution") or {}
-    preferred_ids = candidate_ids_for_story(judgement, max_n=12)
 
     for elem in segment.scene_elements:
         if elem.element_type != "atmosphere_card":
@@ -25,18 +24,14 @@ def normalize_atmosphere_card(
         if stance_distribution:
             props["stance_distribution"] = stance_distribution
 
+        # Determine quote_cap based on stance diversity
         selected_ids = props.get("selected_comment_ids") or []
-        combined_ids = list(selected_ids)
-        for comment_id in preferred_ids:
-            if comment_id not in combined_ids:
-                combined_ids.append(comment_id)
-
         comments_by_id = {
             str(c.source_id): c for c in item.comments if c.source_id is not None
         }
         preselected_stances = {
             classify_comment_stance(comments_by_id[str(cid)])
-            for cid in combined_ids
+            for cid in selected_ids
             if str(cid) in comments_by_id
         }
         quote_cap = 2
@@ -47,19 +42,20 @@ def normalize_atmosphere_card(
             if dominant_share >= 0.6 and dominant_stance not in preselected_stances:
                 quote_cap = 3
 
-        selected_comments = select_quote_comments(
-            item.comments,
-            selected_ids=combined_ids,
-            judgement=judgement,
-            max_n=quote_cap,
+        # Trust LLM ordering: take top candidates directly by ID
+        preferred_ids = candidate_ids_for_story(judgement, max_n=quote_cap + 2)
+        combined_ids = list(selected_ids)
+        for comment_id in preferred_ids:
+            if comment_id not in combined_ids:
+                combined_ids.append(comment_id)
+
+        selected_comments = select_comments_by_ids(
+            item.comments, combined_ids, max_n=quote_cap
         )
+
         props["selected_comment_ids"] = [
             str(c.source_id) for c in selected_comments if c.source_id is not None
         ]
-        if not props["selected_comment_ids"] and combined_ids:
-            props["selected_comment_ids"] = [
-                str(cid) for cid in combined_ids[:quote_cap]
-            ]
 
         elem.props = props
 
@@ -68,6 +64,9 @@ def normalize_story_cards(
     segment: ScriptSegment, item: ContentItem, judgement: dict
 ) -> None:
     """Inject common story metadata into all visual story card variants."""
+    assert item.editor_angle, f"Story {item.source_id} missing editor_angle"
+    assert item.title_cn, f"Story {item.source_id} missing title_cn"
+
     for elem in segment.scene_elements:
         if elem.element_type not in {
             "event_card",
@@ -76,10 +75,8 @@ def normalize_story_cards(
             continue
         props = dict(elem.props or {})
         props.setdefault("source_title", item.title)
-        if item.title_cn:
-            props.setdefault("title_cn", item.title_cn)
-        if item.editor_angle:
-            props.setdefault("editor_angle", item.editor_angle)
+        props.setdefault("title_cn", item.title_cn)
+        props.setdefault("editor_angle", item.editor_angle)
         if item.key_points:
             props.setdefault("key_points", item.key_points)
         if item.keywords:

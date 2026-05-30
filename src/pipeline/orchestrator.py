@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script, ScriptSegment
-from src.pipeline.comment import CommentAnalyzer, CommentJudge
+from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.content_io import ContentPreparer, merge_enrichment_into_content
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
@@ -78,8 +78,13 @@ class Orchestrator:
         )
         self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
+        self.comment_refiner = CommentRefiner(llm_provider, config, debug=debug)
         self.comment_judge = CommentJudge(
-            llm_provider, config, comment_analyzer=self.comment_analyzer, debug=debug
+            llm_provider,
+            config,
+            comment_analyzer=self.comment_analyzer,
+            comment_refiner=self.comment_refiner,
+            debug=debug,
         )
         self.prefilter = Prefilter(llm_provider, config, debug=debug)
         timing_cfg = config.get("timing", {})
@@ -233,6 +238,10 @@ class Orchestrator:
             )
             self.content_preparer.save_content(content, date)
             return content
+
+        self.logger.info("Step: Enrich — translate titles")
+        if not self.dry_run:
+            content = self.llm_provider.translate_titles(content, "translate.md")
 
         self.content_preparer.save_content(content, date)
         return content

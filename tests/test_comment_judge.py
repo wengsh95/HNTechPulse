@@ -12,9 +12,8 @@ def _make_config(**overrides):
         "logging": {"level": "WARNING"},
         "analyze": {
             "comment_judge_enabled": True,
-            "comment_judge_fallback_on_error": True,
             "comment_judge_max_workers": 1,
-            "max_comments_for_judge": 15,
+            "max_comments_for_judge": 8,
         },
     }
     cfg["analyze"].update(overrides)
@@ -63,17 +62,15 @@ def _make_judge(**config_overrides):
 
 
 class TestJudge:
-    def test_disabled_uses_heuristic_fallback(self, tmp_path, monkeypatch):
+    def test_disabled_raises_error(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         comment = _make_comment(source_id="c1", quality_score=0.6)
         item = _make_item(comments=[comment], source_id="100")
         content = _make_content_package([item])
 
         judge, mock_llm = _make_judge(comment_judge_enabled=False)
-        result = judge.judge(content, "2026-04-26")
-
-        key = comment_judgement_key(item)
-        assert key in result
+        with pytest.raises(RuntimeError, match="Comment judge disabled"):
+            judge.judge(content, "2026-04-26")
         mock_llm.judge_story_comments.assert_not_called()
 
     def judge_uses_llm_provider(self, tmp_path, monkeypatch):
@@ -102,7 +99,7 @@ class TestJudge:
         assert key in result
         assert len(result[key]["quote_candidates"]) > 0
 
-    def test_fallback_on_error(self, tmp_path, monkeypatch):
+    def test_raises_on_llm_error(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         comment = _make_comment(source_id="c1", quality_score=0.6)
         item = _make_item(comments=[comment], source_id="100")
@@ -112,33 +109,8 @@ class TestJudge:
         mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
 
         with patch("src.pipeline.comment.judge.setup_logger"):
-            judge = CommentJudge(
-                mock_llm, _make_config(comment_judge_fallback_on_error=True)
-            )
-        result = judge.judge(content, "2026-04-26")
-
-        key = comment_judgement_key(item)
-        assert key in result
-        assert len(result[key]["quote_candidates"]) >= 0
-
-    def test_raises_on_error_without_fallback(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        comment = _make_comment(source_id="c1", quality_score=0.6)
-        item = _make_item(comments=[comment], source_id="100")
-        content = _make_content_package([item])
-
-        mock_llm = MagicMock(spec=LLMProvider)
-        mock_llm.judge_story_comments.side_effect = RuntimeError("LLM failed")
-
-        with patch("src.pipeline.comment.judge.setup_logger"):
-            judge = CommentJudge(
-                mock_llm,
-                _make_config(
-                    comment_judge_fallback_on_error=False,
-                    comment_judge_enabled=True,
-                ),
-            )
-        with pytest.raises(RuntimeError):
+            judge = CommentJudge(mock_llm, _make_config())
+        with pytest.raises(RuntimeError, match="LLM failed"):
             judge.judge(content, "2026-04-26")
 
     def test_uses_balanced_prefilter_when_available(self, tmp_path, monkeypatch):

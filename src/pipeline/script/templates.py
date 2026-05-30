@@ -44,17 +44,13 @@ def highlight_audio_text(entries: list[dict]) -> str:
     """Summarize the lineup for listeners who are not watching the screen."""
     labels = []
     for idx, entry in enumerate(entries[:3]):
-        title = (
-            entry.get("title_translation")
-            or entry.get("editor_angle")
-            or entry.get("original_title")
-            or ""
-        )
+        title = entry.get("title_translation")
+        assert title, f"Story {idx} missing title_translation"
         title = str(title).strip()
         if len(title) > 18:
             title = title[:18].rstrip("，。！？；：,.!?;:") + "…"
         ordinal = CHINESE_ORDINALS[idx] if idx < len(CHINESE_ORDINALS) else str(idx + 1)
-        labels.append(f"第{ordinal}，{title}" if title else f"第{ordinal}条")
+        labels.append(f"第{ordinal}，{title}")
     if not labels:
         return "来看今天的三个技术信号，我们一条条听。"
     return f"今天看{len(labels)}条：" + "；".join(labels) + "。我们一条条听。"
@@ -91,11 +87,7 @@ def generate_fixed_opening(
         for seg in story_scan_segs[:3]:
             for elem in seg.scene_elements:
                 if elem.element_type == "event_card":
-                    title = (
-                        elem.props.get("editor_angle")
-                        or elem.props.get("title_cn")
-                        or ""
-                    )
+                    title = elem.props.get("editor_angle")
                     if title:
                         top3_titles.append(str(title))
                     break
@@ -132,7 +124,7 @@ def generate_fixed_opening(
                 start_time=0.0,
                 end_time=duration,
                 props={
-                    "headline": "每日HN观察",
+                    "headline": "每日HN AI观察",
                     "subtitle": date_display,
                     "keywords": keywords[:3],
                     "lineup_entries": entries,
@@ -182,21 +174,15 @@ def closing_summary_items(
 ) -> list[dict]:
     items: list[dict] = []
     for entry in (highlight_entries or [])[:3]:
-        title = (
-            entry.get("editor_angle")
-            or entry.get("title_translation")
-            or entry.get("original_title")
-            or ""
-        )
-        note = entry.get("why_it_matters") or ""
+        title = entry.get("title_translation")
+        assert title, f"Story missing title_translation"
+        signal = entry.get("signal") or entry.get("editor_angle") or ""
         category = entry.get("category") or "观察"
-        if not title and not note:
-            continue
         items.append(
             {
                 "category": str(category),
                 "title": str(title),
-                "note": str(note),
+                "signal": str(signal),
             }
         )
 
@@ -240,15 +226,9 @@ def closing_totals(highlight_entries: Optional[list[dict]] = None) -> dict:
 def closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[str]:
     takeaways: list[str] = []
     for entry in (highlight_entries or [])[:3]:
-        text = (
-            entry.get("why_it_matters")
-            or entry.get("editor_angle")
-            or entry.get("title_translation")
-            or ""
-        )
+        text = entry.get("why_it_matters")
+        assert text, f"Story missing why_it_matters"
         text = str(text).strip()
-        if not text:
-            continue
         if len(text) > 34:
             text = text[:34].rstrip("，。！？；：,.!?;:") + "…"
         takeaways.append(text)
@@ -271,11 +251,7 @@ def generate_fixed_closing(
         audio_text = "今天的 HN 速览就到这里，我们明天继续看哪些讨论值得停一下。"
     duration = 8
     takeaways = closing_takeaways(highlight_entries)
-    signal = (
-        "今天值得带走的，是这些讨论各自提出的具体问题。"
-        if highlight_entries and len(highlight_entries) > 3
-        else (takeaways[0] if takeaways else "今天的技术讨论，先记住问题，再看答案。")
-    )
+    signal = "今日信号"
     kw = closing_keywords(highlight_entries)
     summary_items = closing_summary_items(highlight_entries)
     totals = closing_totals(highlight_entries)
@@ -314,6 +290,7 @@ def build_highlight_entries(
     """Build the opening highlight list from selected stories."""
     entries = []
     angle_by_story = {}
+    signal_by_story: dict[int, str] = {}
     for idx, seg in enumerate(story_scan_segs or []):
         story_index = None
         for elem in seg.scene_elements:
@@ -330,24 +307,31 @@ def build_highlight_entries(
         angle = story_angle_from_segment(seg, item=item)
         if story_index is not None:
             angle_by_story[int(story_index)] = angle
+            # Extract LLM-generated signal from segment meta
+            sig = seg.meta.get("signal")
+            if sig:
+                signal_by_story[int(story_index)] = str(sig)
 
     for i, bi in enumerate(selection.brief_items):
         story_idx = bi.get("story_index")
         if story_idx is not None and story_idx < len(content.items):
             item = content.items[story_idx]
             angle = angle_by_story.get(story_idx, {})
+            editor_angle = (
+                angle.get("editor_angle")
+                or angle.get("dek")
+                or angle.get("event_summary")
+            )
+            assert editor_angle, f"Story {story_idx} missing editor_angle, dek, and event_summary"
             entries.append(
                 {
                     "rank": i + 1,
                     "story_index": story_idx,
                     "original_title": item.title,
                     "title_translation": item.title_cn,
-                    "editor_angle": angle.get("editor_angle")
-                    or angle.get("dek")
-                    or angle.get("event_summary")
-                    or item.title_cn
-                    or item.title,
+                    "editor_angle": editor_angle,
                     "why_it_matters": angle.get("why_it_matters") or "",
+                    "signal": signal_by_story.get(story_idx, ""),
                     "category": angle.get("category") or "",
                     "keywords": angle.get("keywords") or [],
                     "score": item.score,

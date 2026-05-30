@@ -41,6 +41,8 @@ def _make_content_package():
                 score=100 - i * 10,
                 comment_count=3,
                 published_at=1700000000 + i * 100,
+                editor_angle=f"角度 {i}",
+                why_it_matters=f"重要性 {i}",
                 comments=comments,
             )
         )
@@ -110,19 +112,35 @@ class TestContentPreparer:
                 assert load_c.content == orig_c.content
 
 
+def _make_mock_story_segment(**kwargs):
+    """Build a realistic story_scan_item segment for mock LLM calls."""
+    story_index = kwargs.get("story_index", 0)
+    return ScriptSegment(
+        segment_type="story_scan_item",
+        audio_text="test",
+        duration=10.0,
+        scene_elements=[
+            SceneElement(
+                element_type="event_card",
+                start_time=0.0,
+                end_time=5.0,
+                props={"story_index": story_index},
+            ),
+        ],
+    )
+
+
 class TestScriptWriter:
     def test_write_calls_llm_provider(self, tmp_path):
         config = _make_config()
         mock_llm = MagicMock()
-        mock_llm.generate_single_story_segment.return_value = ScriptSegment(
-            segment_type="story_scan_item",
-            audio_text="test",
-            duration=10.0,
-        )
+        mock_llm.generate_single_story_segment.side_effect = _make_mock_story_segment
 
         writer = ScriptWriter(config, mock_llm, debug=True)
 
         content = _make_content_package()
+        for item in content.items:
+            item.title_cn = f"故事 {item.source_id}"
 
         script = writer.write(content)
 
@@ -138,20 +156,10 @@ class TestScriptWriter:
         monkeypatch.chdir(tmp_path)
         config = _make_config()
         mock_llm = MagicMock()
-        mock_llm.generate_single_story_segment.return_value = ScriptSegment(
-            segment_type="story_scan_item",
-            audio_text="test",
-            duration=10.0,
-            scene_elements=[
-                SceneElement(
-                    element_type="quote_card",
-                    start_time=0.0,
-                    end_time=5.0,
-                    props={"story_index": 0, "selected_comment_ids": []},
-                )
-            ],
-        )
+        mock_llm.generate_single_story_segment.side_effect = _make_mock_story_segment
         content = _make_content_package()
+        for item in content.items:
+            item.title_cn = f"故事 {item.source_id}"
         content.items[0].comments = [
             ContentComment(
                 author="u",
@@ -189,17 +197,21 @@ class TestScriptWriter:
                 {
                     "category": "AI",
                     "keywords": ["Agents", "Infra", "Agents"],
+                    "title_translation": "AI 正从产品功能，变成开发工作流的底层能力。",
+                    "why_it_matters": "AI 正在改变开发者的工作方式。",
                 },
                 {
                     "category": "Developer Tools",
                     "keywords": ["Open Source"],
+                    "title_translation": "开源工具链持续进化。",
+                    "why_it_matters": "开源生态正在重塑开发工具。",
                 },
             ],
         )
 
         props = segment.scene_elements[0].props
         assert props["signal_label"] == "今日信号"
-        assert props["signal"] == "今天的技术讨论，先记住问题，再看答案。"
+        assert props["signal"] == "今日信号"
         assert props["keywords_label"] == "今日关键词"
         assert props["keywords"] == ["AI", "Agents", "Infra"]
         assert props["summary_label"] == "今日脉络"

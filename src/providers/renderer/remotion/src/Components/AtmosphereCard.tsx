@@ -2,17 +2,17 @@
    AtmosphereCard — 社区回声卡 (Warm Paper Theme)
    ================================================================
 
-   Layout: single-column vertical
-     - Controversy score row (score + level tag + total comments)
-     - Debate topics (left) + stance distribution bars (right) — two columns
-     - Quoted opinions (stripe + quote text + author + likes)
+   Layout: four sections top-to-bottom
+     ① Discussion summary + controversy level tag
+     ② Debate topics (left) + stance distribution with concerns (right)
+     ③ Quoted opinions (stripe + quote text + author + stance label)
 
    Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
    adds entrance animation via useCurrentFrame/interpolate.
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, Easing, staticFile } from "remotion";
+import { useCurrentFrame, interpolate, Easing } from "remotion";
 import type {
   AtmosphereCardProps,
   ControversyLevel,
@@ -23,7 +23,7 @@ import { COLORS, CARD_REF } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
 import { CardAudioWaveform } from "./CardAudioWaveform";
-import { useDesign, FONTS, FW } from "./design";
+import { useDesign, FONTS, FW, CARD_PAD } from "./design";
 import { WatermarkCharacter } from "./WatermarkCharacter";
 
 /* ---- label maps ---- */
@@ -50,71 +50,82 @@ const STANCE_COLORS: Record<Stance, string> = {
   worry: COLORS.warmBrown,
 };
 
-const STANCE_ORDER: Stance[] = [
-  "support",
-  "skeptic",
-  "neutral",
-  "tease",
-  "worry",
-];
+/** Only the 3 core stances rendered on the card. */
+const CORE_STANCES: Stance[] = ["support", "skeptic", "neutral"];
 
 /* ---- sub-components ---- */
 
-function StanceBar({
+function StanceBarWithConcern({
   stance,
   pct,
+  concern,
   d,
 }: {
   stance: Stance;
   pct: number;
+  concern: string | undefined;
   d: ReturnType<typeof useDesign>;
 }) {
   const color = STANCE_COLORS[stance];
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: d.scaled(14) }}>
-      <span
-        style={{
-          fontFamily: FONTS.mono,
-          fontSize: d.fs.caption,
-          fontWeight: FW.semibold,
-          width: d.scaled(60),
-          textAlign: "right" as const,
-          color: COLORS.muted,
-        }}
-      >
-        {STANCE_LABELS[stance]}
-      </span>
-      <div
-        style={{
-          flex: 1,
-          height: d.scaled(22),
-          background: COLORS.surface2,
-          borderRadius: d.scaled(4),
-          overflow: "hidden",
-          position: "relative" as const,
-        }}
-      >
+    <div style={{ display: "flex", flexDirection: "column" as const, gap: d.scaled(6) }}>
+      <div style={{ display: "flex", alignItems: "center", gap: d.scaled(14) }}>
+        <span
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: d.fs.caption,
+            fontWeight: FW.semibold,
+            width: d.scaled(60),
+            textAlign: "right" as const,
+            color: COLORS.muted,
+          }}
+        >
+          {STANCE_LABELS[stance]}
+        </span>
         <div
           style={{
-            height: "100%",
+            flex: 1,
+            height: d.scaled(22),
+            background: COLORS.surface2,
             borderRadius: d.scaled(4),
-            transition: "width 1.2s ease",
-            width: `${pct}%`,
-            background: color,
+            overflow: "hidden",
+            position: "relative" as const,
           }}
-        />
+        >
+          <div
+            style={{
+              height: "100%",
+              borderRadius: d.scaled(4),
+              transition: "width 1.2s ease",
+              width: `${pct}%`,
+              background: color,
+            }}
+          />
+        </div>
+        <span
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: d.fs.caption,
+            fontWeight: FW.bold,
+            width: d.scaled(48),
+            color: COLORS.fg,
+          }}
+        >
+          {pct}%
+        </span>
       </div>
-      <span
-        style={{
-          fontFamily: FONTS.mono,
-          fontSize: d.fs.caption,
-          fontWeight: FW.bold,
-          width: d.scaled(48),
-          color: COLORS.fg,
-        }}
-      >
-        {pct}%
-      </span>
+      {concern && (
+        <div
+          style={{
+            paddingLeft: d.scaled(74),
+            fontSize: d.fs.caption,
+            color: COLORS.dim,
+            lineHeight: 1.3,
+          }}
+        >
+          {concern}
+        </div>
+      )}
     </div>
   );
 }
@@ -129,12 +140,13 @@ function QuoteBlock({
   d: ReturnType<typeof useDesign>;
 }) {
   const color = STANCE_COLORS[q.stance];
+  const stanceLabel = STANCE_LABELS[q.stance];
   return (
     <div
       style={{
         display: "flex",
         gap: d.scaled(16),
-        padding: `${d.scaled(18)}px 0`,
+        padding: `${d.scaled(12)}px 0`,
         borderBottom: last ? undefined : `1px solid ${COLORS.border}`,
       }}
     >
@@ -149,7 +161,7 @@ function QuoteBlock({
       <div style={{ display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
         <div
           style={{
-            fontSize: d.fs.body,
+            fontSize: d.fs.caption,
             lineHeight: 1.5,
             color: COLORS.fg,
             fontStyle: "italic",
@@ -157,14 +169,29 @@ function QuoteBlock({
         >
           &ldquo;{q.text}&rdquo;
         </div>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: d.fs.caption,
-            color: COLORS.dim,
-          }}
-        >
-          {q.author}
+        <div style={{ display: "flex", alignItems: "center", gap: d.scaled(12) }}>
+          <span
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.caption,
+              color: COLORS.dim,
+            }}
+          >
+            {q.author}
+          </span>
+          <span
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.caption,
+              fontWeight: FW.semibold,
+              color,
+              background: `${color}18`,
+              padding: `${d.scaled(2)}px ${d.scaled(8)}px`,
+              borderRadius: d.scaled(3),
+            }}
+          >
+            {stanceLabel}
+          </span>
         </div>
       </div>
     </div>
@@ -183,29 +210,26 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
 
   const typed = extractAtmosphereProps(elementProps);
   const {
-    controversyScore,
     controversyLevel,
+    discussionSummary,
     debateTopics,
     stanceDistribution,
+    stanceConcerns,
     quotes,
     displayIndex,
     storyCount,
   } = typed;
 
-  // Compute percentages for stance bars
+  // Compute percentages for stance bars (only core 3)
   const totalStance =
     stanceDistribution.support +
     stanceDistribution.skeptic +
-    stanceDistribution.neutral +
-    stanceDistribution.tease +
-    stanceDistribution.worry;
+    stanceDistribution.neutral;
 
-  const stancePcts: Record<Stance, number> = {
+  const stancePcts: Record<string, number> = {
     support: totalStance > 0 ? Math.round((stanceDistribution.support / totalStance) * 100) : 0,
     skeptic: totalStance > 0 ? Math.round((stanceDistribution.skeptic / totalStance) * 100) : 0,
     neutral: totalStance > 0 ? Math.round((stanceDistribution.neutral / totalStance) * 100) : 0,
-    tease: totalStance > 0 ? Math.round((stanceDistribution.tease / totalStance) * 100) : 0,
-    worry: totalStance > 0 ? Math.round((stanceDistribution.worry / totalStance) * 100) : 0,
   };
 
   // Entrance animation
@@ -237,7 +261,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      {/* Watermark — same style as EventCard */}
+      {/* Watermark */}
       {storyCount > 0 && (
         <div
           style={{
@@ -258,75 +282,58 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
 
       <div
         style={{
-          padding: `${d.scaled(80)}px ${d.scaled(56)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
+          padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(180)}px ${d.scaled(100)}px`,
           height: "100%",
           display: "flex",
           flexDirection: "column" as const,
-          justifyContent: "center" as const,
-          gap: d.scaled(28),
+          gap: d.scaled(14),
           position: "relative" as const,
         }}
       >
-        {/* Score hero row */}
-        <div
+        {/* ① Controversy title + discussion summary subtitle */}
+        <h1
           style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: d.scaled(28),
+            fontFamily: FONTS.sans,
+            fontSize: d.fs.headline,
+            fontWeight: FW.heavy,
+            lineHeight: 1.15,
+            letterSpacing: "-0.015em",
+            color: COLORS.warmBrown,
             opacity: titleProgress,
             transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
           }}
         >
-          {/* Hero: big score — same style as EventCard title */}
-          <span
-            style={{
-              fontFamily: FONTS.sans,
-              fontSize: d.fs.headline,
-              fontWeight: FW.heavy,
-              lineHeight: 1.15,
-              color: COLORS.fg,
-              letterSpacing: "-0.015em",
-            }}
-          >
-            {controversyScore.toFixed(1)}
-            <span
-              style={{
-                fontSize: d.fs.body,
-                color: COLORS.dim,
-                fontWeight: 300,
-                marginLeft: d.scaled(4),
-              }}
-            >
-              /10
-            </span>
-          </span>
-          {/* Controversy level — same style as EventCard title */}
-          <span
-            style={{
-              fontFamily: FONTS.sans,
-              fontSize: d.fs.headline,
-              fontWeight: FW.heavy,
-              lineHeight: 1.15,
-              color: COLORS.warmBrown,
-              letterSpacing: "-0.015em",
-            }}
-          >
-            {CONTROVERSY_LABELS[controversyLevel]}
-          </span>
-        </div>
+          争议指数 {typed.controversyScore.toFixed(1)} · {CONTROVERSY_LABELS[controversyLevel]}
+        </h1>
+        <p
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: d.fs.body,
+            fontWeight: FW.semibold,
+            lineHeight: 1.4,
+            color: COLORS.dim,
+            marginTop: d.scaled(-8),
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
+          }}
+        >
+          {(discussionSummary || "社区讨论").slice(0, 40)}
+        </p>
 
-        {/* Gradient divider — same as EventCard */}
+        {/* Divider line */}
         <div
           style={{
             width: "100%",
             maxWidth: d.scaled(900),
             height: d.scaled(6),
             borderRadius: d.scaled(3),
+            marginTop: d.scaled(4),
+            marginBottom: d.scaled(4),
             background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
           }}
         />
 
-        {/* Debate + Stance two-column */}
+        {/* ②③ Debate topics + Stance distribution two-column */}
         <div
           style={{
             display: "flex",
@@ -335,6 +342,33 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
           }}
         >
+          {/* Left: stance distribution with concerns */}
+          <div style={{ flex: 1, maxWidth: d.scaled(800), display: "flex", flexDirection: "column" as const, gap: d.scaled(12) }}>
+            <h3
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: d.fs.caption,
+                fontWeight: FW.bold,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase" as const,
+                color: COLORS.warmGold,
+                marginBottom: d.scaled(6),
+              }}
+            >
+              立场分布
+            </h3>
+            {CORE_STANCES.map((s) => (
+              <StanceBarWithConcern
+                key={s}
+                stance={s}
+                pct={stancePcts[s]}
+                concern={stanceConcerns[s as keyof typeof stanceConcerns]}
+                d={d}
+              />
+            ))}
+          </div>
+
+          {/* Right: debate topics */}
           <div style={{ flex: `0 0 ${d.scaled(540)}px`, display: "flex", flexDirection: "column" as const, gap: d.scaled(20) }}>
             <h3
               style={{
@@ -350,7 +384,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
               辩论焦点
             </h3>
             {debateTopics.map((topic, i) => (
-              <div key={i} style={{ display: "flex", gap: d.scaled(14), alignItems: "flex-start" as const }}>
+              <div key={i} style={{ display: "flex", gap: d.scaled(14), alignItems: "center" as const }}>
                 <span
                   style={{
                     fontFamily: FONTS.mono,
@@ -382,46 +416,38 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
               </span>
             )}
           </div>
-
-          <div style={{ flex: 1, maxWidth: d.scaled(800), display: "flex", flexDirection: "column" as const, gap: d.scaled(18) }}>
-            <h3
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: d.fs.caption,
-                fontWeight: FW.bold,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase" as const,
-                color: COLORS.warmGold,
-                marginBottom: d.scaled(6),
-              }}
-            >
-              立场分布
-            </h3>
-            {STANCE_ORDER.map((s) => (
-              <StanceBar key={s} stance={s} pct={stancePcts[s]} d={d} />
-            ))}
-          </div>
         </div>
 
-        {/* Quotes */}
+        {/* ④ Quotes */}
         {quotes.length > 0 && (
           <div
             style={{
               display: "flex",
               flexDirection: "column" as const,
-              gap: d.scaled(18),
+              gap: d.scaled(12),
               maxWidth: d.scaled(1400),
               opacity: bodyProgress,
               transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
             }}
           >
+            <h3
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: d.fs.caption,
+                fontWeight: FW.semibold,
+                color: COLORS.warmGold,
+                marginBottom: d.scaled(2),
+              }}
+            >
+              评论金句
+            </h3>
             {quotes.map((q, i) => (
               <QuoteBlock key={i} q={q} last={i === quotes.length - 1} d={d} />
             ))}
           </div>
         )}
 
-        <WatermarkCharacter />
+        <WatermarkCharacter expression="atmosphere_card.jpg" />
 
         <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
           <CardAudioWaveform src={elementProps.audio_path as string | undefined} />

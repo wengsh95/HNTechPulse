@@ -666,7 +666,11 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
     """Fetch README content from a GitHub repo via the GitHub API.
 
     Returns HTML string with the README content, or None on failure.
+    Supports GITHUB_TOKEN / GH_TOKEN env vars for authenticated requests
+    (5000 req/hr vs 60 unauthenticated).
     """
+    import os
+
     parsed = _parse_github_url(url)
     if not parsed:
         return None
@@ -681,10 +685,21 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
         api_url = f"https://api.github.com/repos/{owner}/{repo}/readme"
         headers = {"Accept": "application/vnd.github.v3.html"}
 
+    # Authenticate if token available — avoids 60 req/hr rate limit
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    else:
+        logger.debug(
+            "No GITHUB_TOKEN set — GitHub API rate limit is 60 req/hr"
+        )
+
     try:
-        async with aiohttp.ClientSession(headers=headers, trust_env=True) as session:
+        async with aiohttp.ClientSession(trust_env=True) as session:
             async with session.get(
-                api_url, timeout=aiohttp.ClientTimeout(total=10)
+                api_url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
                     logger.debug(f"GitHub API {resp.status} for {api_url}")

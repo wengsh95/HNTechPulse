@@ -18,6 +18,7 @@ _HOST_KEY_MAP: dict[str, str] = {
     "api.openai.com": "OPENAI_API_KEY",
     "api.moonshot.cn": "MOONSHOT_API_KEY",
     "api.minimax.chat": "MINIMAX_API_KEY",
+    "api.minimaxi.com": "MINIMAX_API_KEY",
 }
 
 # Default timeout used when creating an OpenAI client

@@ -4,7 +4,7 @@ from pathlib import Path
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 1
+_CACHE_SCHEMA_VERSION = 2
 
 
 class Prefilter:
@@ -49,7 +49,20 @@ class Prefilter:
             f"Prefilter result: kept {len(content.items)}, removed {filtered_count}"
         )
 
-        # Cap to target_story_count (items already sorted by score from fetcher)
+        # Sort by priority (1 > 2 > 3) before capping
+        priority_map = {
+            str(item.source_id): decisions.get(str(item.source_id), {}).get("priority")
+            for item in content.items
+        }
+        content.items = sorted(
+            content.items,
+            key=lambda x: (
+                priority_map.get(str(x.source_id), 999) or 999,
+                -(x.score or 0),
+            ),
+        )
+
+        # Cap to target_story_count (items already sorted by priority then score)
         target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
         if len(content.items) > target_count:
             self.logger.info(
@@ -83,6 +96,7 @@ class Prefilter:
                 decisions[str(source_id)] = {
                     "keep": bool(d.get("keep", True)),
                     "reason": d.get("reason", ""),
+                    "priority": d.get("priority"),
                 }
 
         # Default to keep for any item not in LLM response

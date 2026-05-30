@@ -57,3 +57,5 @@ whisper/
 # OS
 .DS_Store
 Thumbs.db
+
+tmp_frames/

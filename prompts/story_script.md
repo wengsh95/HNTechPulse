@@ -31,6 +31,7 @@
 
 ```json
 {
+  "signal": "一句话，这条新闻指向什么趋势或张力，来自评论区视角，15-25字",
   "card_narrations": [
     {
       "card_type": "event_card",

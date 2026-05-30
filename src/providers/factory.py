@@ -42,6 +42,13 @@ def _auto_register():
             register_llm,
         ),
         (
+            "llm",
+            "minimax",
+            "src.providers.llm.minimax",
+            "MiniMaxLLMProvider",
+            register_llm,
+        ),
+        (
             "tts",
             "edge-tts",
             "src.providers.tts.edge_tts",

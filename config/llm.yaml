@@ -1,16 +1,31 @@
 # ── LLM 配置 ──
 
 llm:
-  provider: "openai"
-  model: "deepseek-v4-flash"
-  max_tokens: 16384
+  provider: "minimax"
+  model: "MiniMax-M2.7"
+  base_url: "https://api.minimaxi.com/anthropic"
+  max_tokens: 8192
   temperature: 0.4
-  base_url: "https://api.deepseek.com"
+  api_key_env: "MINIMAX_API_KEY"
   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数
   max_completion_tokens_cap: 32768     # Auto-expand cap when output is truncated
   max_workers: 3                       # Concurrent story script generation
   cache_schema_version: 3              # Segment cache fingerprint version
   fast:                                # 低成本模型，用于翻译等轻量任务
-    model: "deepseek-v4-flash"         # TODO: 应与主模型不同以节省成本/延迟
+    model: "MiniMax-M2.7"
     max_tokens: 4096
     temperature: 0.1
+
+# ── DeepSeek 配置示例 ──
+# 切换回 DeepSeek 时，修改上方 provider 并取消注释以下配置：
+#
+# llm:
+#   provider: "openai"
+#   model: "deepseek-v4-flash"
+#   base_url: "https://api.deepseek.com"
+#   max_tokens: 16384
+#   temperature: 0.4
+#   fast:
+#     model: "deepseek-v4-flash"
+#     max_tokens: 4096
+#     temperature: 0.1
