@@ -111,6 +111,53 @@ All steps cache to `data/{date}/` and resume from disk. Config: [config/](config
 |------|-------------|
 | `mmx vision describe` | Image understanding — supports local files, URLs, file IDs |
 | `mmx search query` | Built-in web search |
+| `mmx image generate` | AI image generation (supports `--prompt`, `--aspect-ratio`, `--out`) |
+
+### Cover & Title Generation
+
+**标题思路**：基于每日内容的争议点生成，不要强行归纳。标题应直接点出当天最吸引人的矛盾或反差。
+
+风格参考：
+- 争议点切入：「免费的最贵：开源要你千万营收，打扫要你隐私，代码要你忽略错误」
+- 反差感：「号称开源，但许可证限制营收千万的公司」
+- 简洁有力：一句话概括 2-3 个故事的核心冲突
+
+**封面思路**：参考《经济学人》《纽约时报》风格——大插图 + 粗标题 + 干净排版。
+
+- 用第一个帖子的内容调 `mmx image generate` 生成卡通/插画风格新闻图
+- 封面 = AI 生成的插图 + 标题文字叠加
+- 生成命令：`mmx image generate --prompt "<基于第一帖内容的英文prompt>" --aspect-ratio 16:9 --out data/{date}/cover.png`
+- **禁止**在 prompt 中引用品牌名称（如 The Economist、NYT 等），否则会生成带 logo 的侵权图片
+
+**封面 prompt 模板**（提炼自主流新闻刊物的视觉语言，不引用品牌）：
+
+核心风格描述：
+```
+editorial illustration in bold flat style, strong central visual metaphor,
+limited warm color palette (amber, burnt orange, deep teal), clean composition
+with minimal clutter, satirical or conceptual tone, solid textured background,
+simple bold shapes with strong silhouettes, scale contrast (tiny vs huge),
+hand-drawn feel with clean edges, modern magazine cover aesthetic
+```
+
+完整 prompt 结构：
+```
+A {风格描述} about {帖子核心概念的视觉化比喻}. {具体场景描述}.
+No logos, no text, no watermarks, no brand references.
+```
+
+**封面文字叠加**：AI 生图不可靠生成文字，必须分两步：
+1. mmx 生成纯插画（prompt 中加 `No text`）
+2. Remotion 渲染封面帧 — 新建 `CoverThumbnail` 组件，背景为生成的插画，上层叠加标题文字
+   - 复用现有 design system（`useDesign()`、`COLORS`、`FONTS`）
+   - 标题文字粗体大字号，白色 + 半透明黑色底条保证可读性
+   - 用 `npx remotion still` 渲染单帧静态图：
+     ```bash
+     cd src/providers/renderer/remotion
+     npx remotion still CoverThumbnail --props="data/{date}/cover_props.json" --frame=0 --output="data/{date}/cover.png"
+     ```
+   - `cover_props.json` 格式：`{"backgroundImage": "cover.png", "title": "...", "subtitle": "...", "dateLabel": "..."}`
+   - 背景图需先放到 `src/providers/renderer/remotion/public/` 目录
 
 ---
 

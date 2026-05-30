@@ -2,6 +2,7 @@ import React from "react";
 import { Composition } from "remotion";
 
 import { HNTechPulseComposition } from "./Components/HNTechPulseComposition";
+import { CoverThumbnail } from "./Components/CoverThumbnail";
 import { ScriptProps } from "./types";
 
 /**
@@ -68,15 +69,31 @@ const ValidatedComposition: React.FC<Record<string, unknown>> = (rawProps) => {
 /** 根组件：Remotion registerRoot 要求无参数函数组件，props 通过 Composition 机制传递 */
 export const Root: React.FC = () => {
   return (
-    <Composition
-      id="HNTechPulseComposition"
-      component={ValidatedComposition}
-      durationInFrames={240}
-      fps={24}
-      width={1920}
-      height={1080}
-      defaultProps={defaultProps}
-      calculateMetadata={calcMeta}
-    />
+    <>
+      <Composition
+        id="HNTechPulseComposition"
+        component={ValidatedComposition}
+        durationInFrames={240}
+        fps={24}
+        width={1920}
+        height={1080}
+        defaultProps={defaultProps}
+        calculateMetadata={calcMeta}
+      />
+      <Composition
+        id="CoverThumbnail"
+        component={CoverThumbnail}
+        durationInFrames={1}
+        fps={24}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          backgroundImage: "cover_test.png",
+          title: "开源、隐私、和一行没写的代码",
+          subtitle: "Liquid AI 发布 1.5B MoE 模型，但许可证争议不断",
+          dateLabel: "2026-05-31",
+        }}
+      />
+    </>
   );
 };
