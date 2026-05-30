@@ -8,18 +8,26 @@
      - With logo: left-text + right-logo (logo 220px wide, contain centered)
      - Watermark "index / total" at top-right
 
-   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
    adds entrance animation via useCurrentFrame/interpolate.
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, staticFile, Easing } from "remotion";
+import { useCurrentFrame, interpolate, staticFile } from "remotion";
 import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
-import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import { COLORS, CARD_REF } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractEventProps } from "./propsExtractors";
 import { CardAudioWaveform } from "./CardAudioWaveform";
 import { WatermarkCharacter } from "./WatermarkCharacter";
+import {
+  useDesign,
+  FONTS,
+  FW,
+  ANIM,
+  EASE_CARD,
+  CARD_PAD,
+} from "./design";
 
 /* ---- helpers ---- */
 
@@ -53,12 +61,12 @@ const PULSE = `
   50% { opacity: 0.35; }
 }`;
 
-/* ---- inline-styles object ---- */
+/* ---- inline-styles builder (design-system aligned) ---- */
 
-function buildStyles(scaled: (px: number) => number) {
+function buildStyles(d: ReturnType<typeof useDesign>) {
   return {
     card: {
-      width: scaled(CARD_REF.width),
+      width: d.scaled(CARD_REF.width),
       height: "100%" as const,
       background: COLORS.bg,
       position: "relative" as const,
@@ -66,18 +74,18 @@ function buildStyles(scaled: (px: number) => number) {
     } as React.CSSProperties,
     watermark: {
       position: "absolute" as const,
-      top: scaled(96),
-      right: scaled(56),
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(16),
-      fontWeight: 600,
+      top: d.scaled(96),
+      right: d.scaled(56),
+      fontFamily: FONTS.mono,
+      fontSize: d.fs.watermarkLg,
+      fontWeight: FW.heavy,
       color: COLORS.dim,
       letterSpacing: "0.1em",
       zIndex: 5,
     } as React.CSSProperties,
     dot: {
-      width: scaled(7),
-      height: scaled(7),
+      width: d.scaled(7),
+      height: d.scaled(7),
       borderRadius: "50%",
       background: COLORS.warmBrown,
       animation: "ec-pulse-dot 1.4s infinite",
@@ -85,163 +93,163 @@ function buildStyles(scaled: (px: number) => number) {
     badge: {
       display: "inline-flex",
       alignItems: "center",
-      gap: scaled(6),
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(13),
-      fontWeight: 700,
+      gap: d.scaled(6),
+      fontFamily: FONTS.mono,
+      fontSize: d.fs.caption,
+      fontWeight: FW.bold,
       letterSpacing: "0.12em",
       textTransform: "uppercase" as const,
-      padding: `${scaled(6)}px ${scaled(16)}px`,
-      borderRadius: scaled(4),
+      padding: `${d.scaled(6)}px ${d.scaled(16)}px`,
+      borderRadius: d.scaled(4),
       background: COLORS.warmBrown,
       color: "#fff",
     } as React.CSSProperties,
     divider: {
       width: "100%",
-      maxWidth: scaled(900),
-      height: scaled(6),
-      borderRadius: scaled(3),
+      maxWidth: d.scaled(900),
+      height: d.scaled(6),
+      borderRadius: d.scaled(3),
       background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
     } as React.CSSProperties,
     domain: {
-      fontSize: scaled(16),
+      fontSize: d.fs.bodySmall,
       color: COLORS.dim,
-      fontFamily: TYPOGRAPHY.fontMono,
+      fontFamily: FONTS.mono,
       letterSpacing: "0.04em",
     } as React.CSSProperties,
-    title: (maxW = 1100) =>
+    title: (maxW: number) =>
       ({
-        fontSize: scaled(64),
-        fontWeight: 900,
+        fontSize: d.fs.headline,
+        fontWeight: FW.heavy,
         lineHeight: 1.15,
         letterSpacing: "-0.015em",
         color: COLORS.fg,
-        maxWidth: scaled(maxW),
+        maxWidth: d.scaled(maxW),
       }) as React.CSSProperties,
     titleEn: {
-      fontSize: scaled(22),
-      fontWeight: 400,
+      fontSize: d.fs.body,
+      fontWeight: FW.regular,
       color: COLORS.dim,
-      fontFamily: TYPOGRAPHY.fontMono,
-      marginTop: scaled(-18),
-      marginBottom: scaled(4),
+      fontFamily: FONTS.mono,
+      marginTop: d.scaled(-18),
+      marginBottom: d.scaled(4),
     } as React.CSSProperties,
     header: {
       display: "flex",
       alignItems: "center",
-      gap: scaled(16),
+      gap: d.scaled(16),
     } as React.CSSProperties,
     stats: {
       display: "flex",
       alignItems: "center",
-      gap: scaled(20),
+      gap: d.scaled(20),
       flexWrap: "wrap" as const,
     } as React.CSSProperties,
     heatLevel: (level: HeatLevel) =>
       ({
         display: "inline-flex",
         alignItems: "center",
-        gap: scaled(6),
-        fontFamily: TYPOGRAPHY.fontMono,
-        fontSize: scaled(15),
-        fontWeight: 700,
-        padding: `${scaled(6)}px ${scaled(18)}px`,
-        borderRadius: scaled(999),
+        gap: d.scaled(6),
+        fontFamily: FONTS.mono,
+        fontSize: d.fs.caption,
+        fontWeight: FW.bold,
+        padding: `${d.scaled(6)}px ${d.scaled(18)}px`,
+        borderRadius: d.scaled(999),
         letterSpacing: "0.08em",
         background: HEAT_COLORS[level].bg,
         color: HEAT_COLORS[level].fg,
       }) as React.CSSProperties,
     statNum: (color: string) =>
       ({
-        fontFamily: TYPOGRAPHY.fontMono,
-        fontSize: scaled(28),
-        fontWeight: 700,
+        fontFamily: FONTS.mono,
+        fontSize: d.fs.body,
+        fontWeight: FW.bold,
         color,
       }) as React.CSSProperties,
     statLabel: {
-      fontSize: scaled(15),
+      fontSize: d.fs.bodySmall,
       color: COLORS.dim,
     } as React.CSSProperties,
     sep: {
       color: COLORS.border,
-      fontSize: scaled(20),
+      fontSize: d.fs.body,
     } as React.CSSProperties,
     analysis: {
       display: "flex",
       flexDirection: "column" as const,
-      gap: scaled(14),
-      maxWidth: scaled(1100),
+      gap: d.scaled(14),
+      maxWidth: d.scaled(1100),
     } as React.CSSProperties,
     anItem: {
       display: "flex",
-      gap: scaled(16),
+      gap: d.scaled(16),
       alignItems: "flex-start" as const,
     } as React.CSSProperties,
     anBar: (color: string) =>
       ({
-        width: scaled(4),
-        minHeight: scaled(56),
-        borderRadius: scaled(2),
+        width: d.scaled(4),
+        minHeight: d.scaled(56),
+        borderRadius: d.scaled(2),
         flexShrink: 0,
         background: color,
       }) as React.CSSProperties,
     anLabel: (color: string) =>
       ({
-        fontFamily: TYPOGRAPHY.fontMono,
-        fontSize: scaled(13),
-        fontWeight: 700,
+        fontFamily: FONTS.mono,
+        fontSize: d.fs.caption,
+        fontWeight: FW.bold,
         letterSpacing: "0.1em",
         textTransform: "uppercase" as const,
         color,
       }) as React.CSSProperties,
     anText: {
-      fontSize: scaled(22),
+      fontSize: d.fs.body,
       lineHeight: 1.5,
       color: COLORS.fg,
     } as React.CSSProperties,
     tags: {
       display: "flex",
-      gap: scaled(12),
+      gap: d.scaled(12),
       flexWrap: "wrap" as const,
     } as React.CSSProperties,
     tag: {
       display: "inline-flex",
-      fontFamily: TYPOGRAPHY.fontMono,
-      fontSize: scaled(13),
-      fontWeight: 600,
-      padding: `${scaled(6)}px ${scaled(16)}px`,
-      borderRadius: scaled(4),
+      fontFamily: FONTS.mono,
+      fontSize: d.fs.caption,
+      fontWeight: FW.semibold,
+      padding: `${d.scaled(6)}px ${d.scaled(16)}px`,
+      borderRadius: d.scaled(4),
       border: `1px solid ${COLORS.border}`,
       color: COLORS.muted,
       letterSpacing: "0.04em",
     } as React.CSSProperties,
     imageCol: {
-      width: scaled(750),
+      width: d.scaled(750),
       position: "absolute" as const,
       top: 0,
       bottom: 0,
-      right: scaled(100),
+      right: d.scaled(100),
       display: "flex",
       alignItems: "center",
       overflow: "hidden",
-      borderRadius: scaled(8),
+      borderRadius: d.scaled(8),
     } as React.CSSProperties,
     imageImg: {
       width: "100%",
       height: "auto",
       objectFit: "contain" as const,
-      transform: `translateY(${scaled(-70)}px)`,
+      transform: `translateY(${d.scaled(-70)}px)`,
     } as React.CSSProperties,
     imageMask: {
       position: "absolute" as const,
       bottom: 0,
       left: 0,
       right: 0,
-      height: scaled(120),
+      height: d.scaled(120),
       background: `linear-gradient(to top, ${COLORS.bg}, transparent)`,
     } as React.CSSProperties,
     logoBox: {
-      width: scaled(220),
+      width: d.scaled(220),
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -334,8 +342,8 @@ export const EventCard: React.FC<ElementProps> = ({
   height,
 }) => {
   const frame = useCurrentFrame();
-  const d = useTheme();
-  const S = buildStyles(d.scaled);
+  const d = useDesign();
+  const S = buildStyles(d);
 
   const typed = extractEventProps(elementProps);
   const { index, total, imageUrl, logoUrl } = typed;
@@ -343,19 +351,19 @@ export const EventCard: React.FC<ElementProps> = ({
   const hasLogo = Boolean(logoUrl);
   const isTwoCol = hasImage || hasLogo;
 
-  // Entrance animation
-  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  // Entrance animation — using shared ANIM constants
+  const cardProgress = interpolate(frame, [ANIM.cardStart, ANIM.cardEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const innerProgress = interpolate(frame, [8, 26], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  const innerProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const imageProgress = interpolate(frame, [6, 26], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  const imageProgress = interpolate(frame, [ANIM.imageStart, ANIM.imageEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -363,14 +371,14 @@ export const EventCard: React.FC<ElementProps> = ({
   const inner: React.CSSProperties = isTwoCol
     ? {
         display: "flex",
-        padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px`,
         height: "100%",
         gap: d.scaled(60),
         alignItems: hasImage ? "stretch" : "center",
         position: "relative" as const,
       }
     : {
-        padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px`,
         height: "100%",
         display: "flex",
         flexDirection: "column",

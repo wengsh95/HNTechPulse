@@ -53,17 +53,17 @@ function HighlightRow({
         {h.rank}
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
-        <div
-          style={{
-            fontSize: d.fs.subhead,
-            fontWeight: FW.bold,
-            lineHeight: 1.3,
-            color: COLORS.fg,
-          }}
-        >
-          {h.editorAngle}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: d.scaled(16), flexWrap: "wrap" as const }}>
+        <div style={{ display: "flex", alignItems: "center", gap: d.scaled(12), flexWrap: "wrap" as const }}>
+          <span
+            style={{
+              fontSize: d.fs.subhead,
+              fontWeight: FW.bold,
+              lineHeight: 1.3,
+              color: COLORS.fg,
+            }}
+          >
+            {h.editorAngle}
+          </span>
           <span
             style={{
               display: "inline-flex",
@@ -96,18 +96,18 @@ function HighlightRow({
           >
             &#x1F4AC; {h.commentCount.toLocaleString()}
           </span>
-          {h.originalTitle && (
-            <span
-              style={{
-                fontSize: d.fs.caption,
-                color: COLORS.dim,
-                fontFamily: FONTS.mono,
-              }}
-            >
-              {h.originalTitle}
-            </span>
-          )}
         </div>
+        {h.originalTitle && (
+          <div
+            style={{
+              fontSize: d.fs.body,
+              color: COLORS.muted,
+              fontFamily: FONTS.mono,
+            }}
+          >
+            {h.originalTitle}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -158,43 +158,15 @@ export const CoverCard: React.FC<ElementProps> = ({
     >
       <div
         style={{
-          padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+          padding: `${d.scaled(20)}px ${d.scaled(300)}px ${d.scaled(60)}px ${d.scaled(100)}px`,
           height: "100%",
           display: "flex",
           flexDirection: "column" as const,
           justifyContent: "center" as const,
-          gap: d.scaled(52),
+          gap: d.scaled(40),
           position: "relative" as const,
         }}
       >
-        {/* Section label */}
-        <span
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: d.fs.caption,
-            fontWeight: FW.semibold,
-            letterSpacing: "0.28em",
-            textTransform: "uppercase" as const,
-            color: COLORS.warmGold,
-            paddingLeft: d.scaled(20),
-            position: "relative" as const,
-          }}
-        >
-          <span
-            style={{
-              position: "absolute" as const,
-              left: 0,
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: d.scaled(8),
-              height: d.scaled(8),
-              borderRadius: "50%",
-              background: COLORS.warmBrown,
-            }}
-          />
-          {dateLabel}
-        </span>
-
         {/* Headline */}
         <h1
           style={{
@@ -211,35 +183,17 @@ export const CoverCard: React.FC<ElementProps> = ({
           {headline}
         </h1>
 
-        {/* Category count bar */}
-        {categories.length > 0 && (
-          <div
-            style={{
-              opacity: bodyProgress,
-              display: "flex",
-              gap: d.scaled(4),
-              height: d.scaled(6),
-              maxWidth: d.scaled(900),
-            }}
-          >
-            {categories.map((c) => (
-              <div
-                key={c.label}
-                style={{
-                  flex: c.flex,
-                  height: "100%",
-                  borderRadius: d.scaled(3),
-                  background:
-                    c.color === "red"
-                      ? COLORS.warmBrown
-                      : c.color === "amber"
-                        ? COLORS.warmGold
-                        : COLORS.dim,
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Divider line */}
+        <div
+          style={{
+            opacity: bodyProgress,
+            width: "100%",
+            maxWidth: d.scaled(900),
+            height: d.scaled(6),
+            borderRadius: d.scaled(3),
+            background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+          }}
+        />
 
         {/* Highlights */}
         {hasHighlights && (
@@ -247,7 +201,7 @@ export const CoverCard: React.FC<ElementProps> = ({
             style={{
               display: "flex",
               flexDirection: "column" as const,
-              gap: d.scaled(24),
+              gap: d.scaled(32),
               width: "100%",
               opacity: bodyProgress,
               transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
