@@ -27,6 +27,7 @@ import {
   ANIM,
   EASE_CARD,
   CARD_PAD,
+  LAYOUT,
 } from "./design";
 
 /* ---- helpers ---- */
@@ -124,7 +125,7 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
         lineHeight: 1.15,
         letterSpacing: "-0.015em",
         color: COLORS.fg,
-        maxWidth: d.scaled(maxW),
+        maxWidth: maxW,
       }) as React.CSSProperties,
     titleEn: {
       fontSize: d.fs.body,
@@ -262,7 +263,7 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
   };
 }
 
-function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>) {
+function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d: ReturnType<typeof useDesign>) {
   const {
     domain,
     title,
@@ -274,7 +275,7 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>) {
     keywords,
     imageUrl,
   } = props;
-  const maxTitleW = imageUrl ? 700 : 1100;
+  const maxTitleW = imageUrl ? d.layout.contentMaxWidth : d.layout.contentWideMaxWidth;
 
   return (
     <>
@@ -312,7 +313,7 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>) {
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: 4,
+                    gap: d.scaled(4),
                   }}
                 >
                   <span style={S.anLabel(m.labelColor)}>{m.label}</span>
@@ -419,7 +420,7 @@ export const EventCard: React.FC<ElementProps> = ({
             transform: `translateY(${interpolate(innerProgress, [0, 1], [16, 0])}px)`,
           }}
         >
-          {TextContent(typed, S)}
+          {TextContent(typed, S, d)}
         </div>
 
         {/* Right image */}
