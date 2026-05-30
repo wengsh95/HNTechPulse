@@ -114,10 +114,7 @@ export interface ClosingCardProps {
   signalLabel: string;
   summary: string;
   keywords: string[];
-  progressDone: number;
-  progressTotal: number;
-  focusPct: number;
-  atmospherePct: number;
+  takeaways: string[];
   completedStories: CompletedStory[];
   stats: DigestStats;
   vibe: string;

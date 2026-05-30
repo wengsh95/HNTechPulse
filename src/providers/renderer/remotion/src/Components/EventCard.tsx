@@ -132,11 +132,9 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       fontWeight: FW.medium,
       color: COLORS.muted,
       fontFamily: FONTS.sans,
-      marginTop: d.scaled(2),
-      marginBottom: d.scaled(4),
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap" as const,
+      marginTop: d.scaled(-12),
+      marginBottom: d.scaled(2),
+      lineHeight: 1.4,
     } as React.CSSProperties,
     header: {
       display: "flex",
@@ -179,7 +177,7 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
     analysis: {
       display: "flex",
       flexDirection: "column" as const,
-      gap: d.scaled(4),
+      gap: d.scaled(8),
       maxWidth: d.scaled(1100),
     } as React.CSSProperties,
     anItem: {
@@ -198,12 +196,12 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
     anLabel: (color: string) =>
       ({
         fontFamily: FONTS.sans,
-        fontSize: d.fs.bodySmall,
+        fontSize: d.fs.caption,
         fontWeight: FW.semibold,
         color,
       }) as React.CSSProperties,
     anText: {
-      fontSize: d.fs.body,
+      fontSize: d.fs.bodySmall,
       lineHeight: 1.5,
       color: COLORS.fg,
     } as React.CSSProperties,
@@ -282,18 +280,12 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
 
   return (
     <>
-      <div style={S.header}>
-        <div style={S.badge}>
-          <span style={S.dot} /> 重点观察
-        </div>
-        {category && <span style={S.domain}>{category}</span>}
-        {domain && <span style={S.domain}>{domain}</span>}
-      </div>
       <h1 style={S.title(maxTitleW)}>{title}</h1>
       {englishTitle && englishTitle !== title && (
         <p style={S.titleEn}>{englishTitle}</p>
       )}
-      <div style={S.divider} />
+      {domain && <span style={{...S.domain, marginTop: d.scaled(-4)}}>{domain}</span>}
+      <div style={{...S.divider, marginTop: d.scaled(4)}} />
       <div style={{...S.stats, marginTop: d.scaled(-4)}}>
         <span style={S.heatLevel(heatLevel)}>{heatLabel || HEAT_LABELS[heatLevel]}</span>
         <span style={S.metricPill(COLORS.brownBg, COLORS.warmBrown)}>
@@ -326,7 +318,7 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
         </div>
       )}
       {keywords.length > 0 && (
-        <div style={{...S.tags, marginTop: d.scaled(-24)}}>
+        <div style={{...S.tags, marginTop: d.scaled(-4)}}>
           {keywords.map((kw) => (
             <span key={kw} style={S.tag}>
               {kw}
@@ -373,19 +365,19 @@ export const EventCard: React.FC<ElementProps> = ({
   const inner: React.CSSProperties = isTwoCol
     ? {
         display: "flex",
-        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px`,
+        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
         height: "100%",
         gap: d.scaled(60),
         alignItems: hasImage ? "stretch" : "center",
         position: "relative" as const,
       }
     : {
-        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px`,
+        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
         height: "100%",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        gap: d.scaled(16),
+        gap: d.scaled(20),
       };
 
   const contentMaxW: React.CSSProperties = isTwoCol
@@ -393,10 +385,11 @@ export const EventCard: React.FC<ElementProps> = ({
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        gap: d.scaled(16),
+        gap: d.scaled(20),
         justifyContent: "center",
+        marginRight: d.scaled(CARD_REF.width * 0.4 + 20),
       }
-    : { display: "flex", flexDirection: "column", gap: d.scaled(16) };
+    : { display: "flex", flexDirection: "column", gap: d.scaled(20) };
 
   return (
     <div

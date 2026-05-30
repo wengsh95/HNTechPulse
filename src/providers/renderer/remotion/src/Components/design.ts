@@ -98,7 +98,7 @@ export const LAYOUT = {
   chromeHeight: 40,
   progressInsetX: 32,
   progressBottom: 16,
-  subtitleBottom: 80,
+  subtitleBottom: 100,
   subtitleBottomMinimal: 72,
   cardRadius: 20,
   panelRadius: 14,

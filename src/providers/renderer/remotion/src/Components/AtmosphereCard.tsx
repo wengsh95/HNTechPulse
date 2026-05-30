@@ -258,12 +258,12 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
 
       <div
         style={{
-          padding: `${d.scaled(80)}px ${d.scaled(56)}px ${d.scaled(140)}px`,
+          padding: `${d.scaled(80)}px ${d.scaled(56)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
           height: "100%",
           display: "flex",
           flexDirection: "column" as const,
           justifyContent: "center" as const,
-          gap: d.scaled(42),
+          gap: d.scaled(28),
           position: "relative" as const,
         }}
       >
@@ -314,6 +314,17 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             {CONTROVERSY_LABELS[controversyLevel]}
           </span>
         </div>
+
+        {/* Gradient divider — same as EventCard */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: d.scaled(900),
+            height: d.scaled(6),
+            borderRadius: d.scaled(3),
+            background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+          }}
+        />
 
         {/* Debate + Stance two-column */}
         <div
@@ -372,7 +383,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             )}
           </div>
 
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(18) }}>
+          <div style={{ flex: 1, maxWidth: d.scaled(800), display: "flex", flexDirection: "column" as const, gap: d.scaled(18) }}>
             <h3
               style={{
                 fontFamily: FONTS.mono,

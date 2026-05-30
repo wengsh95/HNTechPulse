@@ -33,58 +33,65 @@ export const StaticRemotionProvider: React.FC<StaticRemotionProviderProps> = ({
   fps = 24,
   children,
 }) => {
+  // Remotion 内部类型频繁变化，用 as any 绕过以保证兼容性
   const compositionContextValue = React.useMemo(
-    () => ({
-      compositions: [
-        {
-          id: "static-preview",
-          width,
-          height,
-          fps,
-          durationInFrames: 300,
-          defaultProps: {},
-          // calculateMetadata 留空避免需要 ResolveCompositionContext
-          calculateMetadata: null,
-          // Canvas 内容需要匹配此 id
-          component: (() => null) as unknown as React.ComponentType<unknown>,
-          schema: null,
-          folderName: null as string | null,
-          parentFolderName: null as string | null,
-          nonce: 0,
+    () =>
+      ({
+        compositions: [
+          {
+            id: "static-preview",
+            width,
+            height,
+            fps,
+            durationInFrames: 300,
+            defaultProps: {},
+            calculateMetadata: null,
+            component: (() => null) as unknown as React.ComponentType<unknown>,
+            schema: null,
+            folderName: null as string | null,
+            parentFolderName: null as string | null,
+            nonce: 0,
+            stack: null,
+          },
+        ],
+        canvasContent: {
+          type: "composition" as const,
+          compositionId: "static-preview",
         },
-      ],
-      // canvasContent 必须设置 type 和 compositionId，useVideo() 才会找到匹配的 composition
-      canvasContent: {
-        type: "composition" as const,
-        compositionId: "static-preview",
-      },
-      currentCompositionMetadata: null,
-      setCanvasContent: () => {},
-      setCompositions: () => {},
-      setCurrentCompositionMetadata: () => {},
-    }),
+        currentCompositionMetadata: null,
+        folders: [],
+        setCanvasContent: () => {},
+        setCompositions: () => {},
+        setCurrentCompositionMetadata: () => {},
+      }) as any,
     [width, height, fps],
   );
 
   const timelineContextValue = React.useMemo(
-    () => ({
-      frame,
-      playing: false,
-      playbackRate: 1,
-      imperativePlaying: { current: false },
-      setFrame: () => {},
-      setPlaying: () => {},
-      setPlaybackRate: () => {},
-      setImperativePlaying: () => {},
-    }),
+    () =>
+      ({
+        frame: { "static-preview": frame },
+        playing: false,
+        playbackRate: 1,
+        imperativePlaying: { current: false },
+        setFrame: () => {},
+        setPlaying: () => {},
+        setPlaybackRate: () => {},
+        setImperativePlaying: () => {},
+        rootId: "static-preview",
+        audioAndVideoTags: { current: [] },
+      }) as any,
     [frame],
   );
 
   const setTimelineContextValue = React.useMemo(
-    () => ({
-      setTimelineState: () => {},
-      setHasFiredDelayedRender: () => {},
-    }),
+    () =>
+      ({
+        setTimelineState: () => {},
+        setHasFiredDelayedRender: () => {},
+        setFrame: () => {},
+        setPlaying: () => {},
+      }) as any,
     [],
   );
 

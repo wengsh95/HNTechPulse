@@ -257,10 +257,11 @@ export function extractClosingProps(
       title: str(item.title, ""),
     }));
 
-  const totals = obj(elementProps.totals);
-  const progressTotal = num(totals.story_count, completedStories.length);
-  const progressDone = progressTotal; // assume all done for closing
+  const takeaways = arr<string>(elementProps.takeaways)
+    .filter((t): t is string => typeof t === "string" && t.length > 0)
+    .slice(0, 3);
 
+  const totals = obj(elementProps.totals);
   const stats: DigestStats = {
     storyCount: num(totals.story_count),
     points: num(totals.score_total),
@@ -269,25 +270,11 @@ export function extractClosingProps(
 
   const vibe = str(elementProps.visual_mood, "");
 
-  // Compute pie percentages from stance distribution if available
-  const rawDist = obj(elementProps.stance_distribution);
-  const totalStance =
-    num(rawDist.support) +
-    num(rawDist.skeptic) +
-    num(rawDist.neutral) +
-    num(rawDist.tease) +
-    num(rawDist.worry);
-  const focusPct = totalStance > 0 ? 62 : 0; // default
-  const atmospherePct = totalStance > 0 ? 38 : 0;
-
   return {
     signalLabel,
     summary,
     keywords,
-    progressDone,
-    progressTotal,
-    focusPct,
-    atmospherePct,
+    takeaways,
     completedStories,
     stats,
     vibe,
