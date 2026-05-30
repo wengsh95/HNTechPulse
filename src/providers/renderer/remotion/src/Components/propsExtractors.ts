@@ -81,6 +81,9 @@ const HEAT_ORDER: HeatLevel[] = ["L1", "L2", "L3"];
 function toHeatLevel(val: string): HeatLevel {
   const upper = val.toUpperCase();
   if (upper === "L1" || upper === "L2" || upper === "L3") return upper as HeatLevel;
+  // Chinese labels
+  if (val === "今日最热" || val === "高热度") return "L3";
+  if (val === "中等热度" || val === "较高热度") return "L2";
   // try numeric
   const n = Number(val);
   if (n >= 3) return "L3";
@@ -120,7 +123,10 @@ export function extractEventProps(
   const englishTitle =
     sourceTitle !== title ? sourceTitle : undefined;
 
-  const heatLevel = toHeatLevel(str(elementProps.heat_level, "L1"));
+  const heatLevelRaw = str(elementProps.heat_level, "L1");
+  const heatLevel = toHeatLevel(heatLevelRaw);
+  const heatLabel = heatLevelRaw;
+  const category = str(elementProps.category);
   const hnScore = num(elementProps.score);
   const commentCount = num(elementProps.comment_count);
   const analysis = extractAnalysis(arr(elementProps.key_points));
@@ -144,6 +150,8 @@ export function extractEventProps(
     title,
     englishTitle,
     heatLevel,
+    heatLabel,
+    category,
     hnScore,
     commentCount,
     analysis,

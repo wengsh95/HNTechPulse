@@ -206,6 +206,9 @@ class ImageHandler:
         height = candidate.get("height")
         if not isinstance(width, int) or not isinstance(height, int):
             return False
+        # Height must not be greater than width (landscape or square preferred)
+        if height > width:
+            return False
         return width >= self.image_min_width and height >= self.image_min_height
 
     def choose_auto_image_candidate(
@@ -430,6 +433,13 @@ class ImageHandler:
                 try:
                     img: Any = Image.open(io.BytesIO(data))
                     img = img.convert("RGB")
+
+                    # Skip portrait images (height > width)
+                    if img.height > img.width:
+                        self.logger.debug(
+                            f"Image skipped (portrait: {img.width}x{img.height}): {url}"
+                        )
+                        continue
 
                     if img.width < 200 or img.height < 200:
                         self.logger.debug(

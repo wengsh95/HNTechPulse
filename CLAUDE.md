@@ -28,6 +28,14 @@ uv run vulture src/ --min-confidence 80             # dead code
 uv run mypy src/ --ignore-missing-imports           # type check
 ```
 
+Remotion test rendering (单帧渲染调试):
+
+```bash
+# 使用 cli_props.json（与 preview 一致的数据源）
+cd src/providers/renderer/remotion
+npx remotion still --props="E:/Code/HNTechPulse/data/2026-05-30/cli_props.json" --frame=30 --output="E:/Code/HNTechPulse/tmp_frames/test.png"
+```
+
 ## Architecture
 
 - **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)

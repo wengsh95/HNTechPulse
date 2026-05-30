@@ -57,6 +57,8 @@ export interface EventCardProps {
   title: string;
   englishTitle?: string;
   heatLevel: HeatLevel;
+  heatLabel: string;
+  category: string;
   hnScore: number;
   commentCount: number;
   analysis: AnalysisItem[];

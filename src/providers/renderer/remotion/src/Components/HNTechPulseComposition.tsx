@@ -368,18 +368,13 @@ const SegmentRenderer: React.FC<{
 
 const GlobalChrome: React.FC<{
   dateLabel: string;
-  chapters: StoryChapter[];
   startTime: number;
-}> = ({ dateLabel, chapters, startTime }) => {
+}> = ({ dateLabel, startTime }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { layout, fs, scaled } = useDesign();
   const currentTime = frame / fps;
 
-  const activeChapter = chapters.find(
-    (chapter) => currentTime >= chapter.startTime && currentTime < chapter.endTime,
-  );
-  const showChapter = Boolean(activeChapter);
   if (currentTime < startTime) {
     return null;
   }
@@ -391,7 +386,6 @@ const GlobalChrome: React.FC<{
   });
 
   const chromeH = layout.chromeHeight;
-  const pillH = Math.round(chromeH * 0.75);
 
   return (
     <div
@@ -430,54 +424,7 @@ const GlobalChrome: React.FC<{
         )}
       </div>
 
-      {showChapter && activeChapter && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: scaled(8),
-            height: pillH,
-            padding: `0 ${scaled(12)}px`,
-            borderRadius: 999,
-            background: CHAPTERS[activeChapter.chapter].accentBg,
-            border: `1px solid ${CHAPTERS[activeChapter.chapter].accentBorder}`,
-            boxShadow: "0 2px 8px rgba(44,36,22,0.06)",
-            boxSizing: "border-box",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: Math.round(pillH * 0.53),
-              fontFamily: FONTS.mono,
-              fontSize: fs.caption,
-              fontWeight: FW.heavy,
-              color: CHAPTERS[activeChapter.chapter].accentLight,
-              lineHeight: 1,
-            }}
-          >
-            {String(activeChapter.displayIndex).padStart(2, "0")}/
-            {String(activeChapter.total).padStart(2, "0")}
-          </span>
-          {activeChapter.category && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: Math.round(pillH * 0.53),
-                fontFamily: FONTS.sans,
-                fontSize: fs.caption,
-                fontWeight: FW.bold,
-                color: COLORS.muted,
-                lineHeight: 1,
-              }}
-            >
-              {activeChapter.category}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Chapter pill removed per user request */}
     </div>
   );
 };
@@ -594,7 +541,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
         storyBoundaries={storyBoundaries}
         activeStoryIndex={activeStoryIndex}
       />
-      <GlobalChrome dateLabel={dateLabel} chapters={storyChapters} startTime={0} />
+      <GlobalChrome dateLabel={dateLabel} startTime={0} />
     </AbsoluteFill>
   );
 };
