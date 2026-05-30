@@ -225,11 +225,11 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       letterSpacing: "0.04em",
     } as React.CSSProperties,
     imageCol: {
-      width: d.scaled(750),
+      width: d.scaled(CARD_REF.width * 0.4),
       position: "absolute" as const,
       top: 0,
       bottom: 0,
-      right: d.scaled(100),
+      right: d.scaled(CARD_PAD.xNormal),
       display: "flex",
       alignItems: "center",
       overflow: "hidden",
@@ -239,7 +239,6 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       width: "100%",
       height: "auto",
       objectFit: "contain" as const,
-      transform: `translateY(${d.scaled(-70)}px)`,
     } as React.CSSProperties,
     imageMask: {
       position: "absolute" as const,
@@ -456,8 +455,8 @@ export const EventCard: React.FC<ElementProps> = ({
         </div>
       </div>
 
-      {/* Watermark character */}
-      <WatermarkCharacter />
+      {/* Watermark character — skip when image is present to avoid overlap */}
+      {!hasImage && <WatermarkCharacter />}
     </div>
   );
 };
