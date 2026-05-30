@@ -162,15 +162,9 @@ function QuoteBlock({
             fontFamily: FONTS.mono,
             fontSize: d.fs.caption,
             color: COLORS.dim,
-            display: "flex",
-            alignItems: "center",
-            gap: d.scaled(10),
           }}
         >
           {q.author}
-          <span style={{ color: COLORS.warmGold, fontWeight: FW.semibold }}>
-            &#x1F44D; {q.likes}
-          </span>
         </div>
       </div>
     </div>
@@ -193,8 +187,9 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
     controversyLevel,
     debateTopics,
     stanceDistribution,
-    totalComments,
     quotes,
+    displayIndex,
+    storyCount,
   } = typed;
 
   // Compute percentages for stance bars
@@ -242,9 +237,28 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
+      {/* Watermark — same style as EventCard */}
+      {storyCount > 0 && (
+        <div
+          style={{
+            position: "absolute" as const,
+            top: d.scaled(96),
+            right: d.scaled(56),
+            fontFamily: FONTS.mono,
+            fontSize: d.fs.watermarkLg,
+            fontWeight: FW.heavy,
+            color: COLORS.dim,
+            letterSpacing: "0.1em",
+            zIndex: 5,
+          }}
+        >
+          {displayIndex + 1} / {storyCount}
+        </div>
+      )}
+
       <div
         style={{
-          padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+          padding: `${d.scaled(80)}px ${d.scaled(56)}px ${d.scaled(140)}px`,
           height: "100%",
           display: "flex",
           flexDirection: "column" as const,
@@ -253,77 +267,51 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
           position: "relative" as const,
         }}
       >
-        {/* Score row */}
+        {/* Score hero row */}
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: d.scaled(24),
+            alignItems: "flex-end",
+            gap: d.scaled(28),
             opacity: titleProgress,
             transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
           }}
         >
+          {/* Hero: big score — same style as EventCard title */}
           <span
             style={{
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.subhead,
+              fontFamily: FONTS.sans,
+              fontSize: d.fs.headline,
               fontWeight: FW.heavy,
-              lineHeight: 1,
+              lineHeight: 1.15,
               color: COLORS.fg,
+              letterSpacing: "-0.015em",
             }}
           >
             {controversyScore.toFixed(1)}
-            <span style={{ fontSize: d.fs.subhead, color: COLORS.dim, fontWeight: 300 }}>
+            <span
+              style={{
+                fontSize: d.fs.body,
+                color: COLORS.dim,
+                fontWeight: 300,
+                marginLeft: d.scaled(4),
+              }}
+            >
               /10
             </span>
           </span>
+          {/* Controversy level — same style as EventCard title */}
           <span
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: d.scaled(8),
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.caption,
-              fontWeight: FW.bold,
-              letterSpacing: "0.1em",
-              padding: `${d.scaled(8)}px ${d.scaled(22)}px`,
-              borderRadius: d.scaled(999),
-              background: COLORS.brownBg,
+              fontFamily: FONTS.sans,
+              fontSize: d.fs.headline,
+              fontWeight: FW.heavy,
+              lineHeight: 1.15,
               color: COLORS.warmBrown,
-              border: `1px solid #d4b896`,
+              letterSpacing: "-0.015em",
             }}
           >
-            <span
-              style={{
-                width: d.scaled(9),
-                height: d.scaled(9),
-                borderRadius: "50%",
-                background: COLORS.warmBrown,
-              }}
-            />
             {CONTROVERSY_LABELS[controversyLevel]}
-          </span>
-          <span
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.bodySmall,
-              color: COLORS.dim,
-              display: "flex",
-              alignItems: "center",
-              gap: d.scaled(8),
-              marginLeft: "auto",
-            }}
-          >
-            评论总数{" "}
-            <strong
-              style={{
-                color: COLORS.warmGold,
-                fontSize: d.fs.body,
-                fontWeight: FW.bold,
-              }}
-            >
-              {totalComments.toLocaleString()}
-            </strong>
           </span>
         </div>
 

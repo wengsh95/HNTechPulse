@@ -231,6 +231,8 @@ export function extractAtmosphereProps(
     stanceDistribution,
     totalComments,
     quotes,
+    displayIndex: num(elementProps.display_index),
+    storyCount: num(elementProps.story_count),
   };
 }
 

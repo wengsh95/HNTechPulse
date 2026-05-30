@@ -179,6 +179,7 @@ class ScriptWriter:
                 elem.sub_segment_index = sub_idx
                 if elem.element_type in {
                     "event_card",
+                    "atmosphere_card",
                 }:
                     elem.props["display_index"] = story_i
                     elem.props["story_count"] = total_stories
@@ -210,7 +211,7 @@ class ScriptWriter:
             durations.append(sum(max(2.0, len(t) / SPEECH_CPS) for t in texts))
             for elem in segment.scene_elements:
                 elem.sub_segment_index = start_sub_idx
-                if elem.element_type == "event_card":
+                if elem.element_type in {"event_card", "atmosphere_card"}:
                     elem.props["display_index"] = story_i
                     elem.props["story_count"] = total_stories
                 elem.props["subtitle_texts"] = texts

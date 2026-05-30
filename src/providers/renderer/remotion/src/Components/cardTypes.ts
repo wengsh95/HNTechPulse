@@ -92,6 +92,8 @@ export interface AtmosphereCardProps {
   stanceDistribution: StanceDistribution;
   totalComments: number;
   quotes: Quote[];
+  displayIndex: number;
+  storyCount: number;
 }
 
 // ================================================================
