@@ -1,500 +1,439 @@
-import React, { useMemo } from "react";
-import { interpolate, Easing, staticFile, useCurrentFrame } from "remotion";
+/* ================================================================
+   EventCard — 事件卡 (Warm Paper Theme)
+   ================================================================
 
-import {
-  COLORS,
-  FONTS,
-  FW,
-  useDesign,
-  useChapterTone,
-  glassCard,
-  glassCardShadow,
-  glassGlow,
-  S,
-} from "./design";
-import {
-  dividerStyle,
-  GlassShimmer,
-  highlightKeywords,
-  lineClamp,
-  MetricPill,
-  overshootTranslateY,
-  useCardPad,
-  useCardAnimations,
-  headerMargin,
-  titleBodyGap,
-  bodySectionGap,
-  titleFontSize,
-  focusTitleFontSize,
-  ChapterWatermark,
-  CardKeywordsFooter,
-  CARD_ENTRANCE_Y,
-  TITLE_ENTRANCE_Y,
-  BODY_ENTRANCE_Y,
-  HEADER_ENTRANCE_Y,
-  IMAGE_ENTRANCE_X,
-  ITEM_DURATION,
-  IMAGE_PANEL_RADIUS,
-  IMAGE_PANEL_SHADOW,
-  IMAGE_PANEL_BORDER,
-  IMAGE_PANEL_BG,
-} from "./HighlightShared";
-import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
+   Layout:
+     - No image: text-only centered single column
+     - With image: left-text + right-image (image 48% width, gradient mask)
+     - With logo: left-text + right-logo (logo 220px wide, contain centered)
+     - Watermark "index / total" at top-right
 
-interface KeyPoint {
-  label: string;
-  text: string;
+   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   adds entrance animation via useCurrentFrame/interpolate.
+*/
+
+import React from "react";
+import { useCurrentFrame, interpolate, staticFile, Easing } from "remotion";
+import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
+import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import type { ElementProps } from "./utils";
+import { extractEventProps } from "./propsExtractors";
+
+/* ---- helpers ---- */
+
+const HEAT_LABELS: Record<HeatLevel, string> = {
+  L1: "热度等级 L1",
+  L2: "热度等级 L2",
+  L3: "热度等级 L3",
+};
+
+const HEAT_COLORS: Record<HeatLevel, { bg: string; fg: string }> = {
+  L1: { bg: COLORS.sageBg, fg: COLORS.sage },
+  L2: { bg: COLORS.goldBg, fg: COLORS.warmGold },
+  L3: { bg: COLORS.brownBg, fg: COLORS.warmBrown },
+};
+
+const ANALYSIS_META: Record<
+  AnalysisItem["type"],
+  { label: string; barColor: string; labelColor: string }
+> = {
+  why: { label: "为何关注", barColor: COLORS.warmBrown, labelColor: COLORS.warmBrown },
+  impact: {
+    label: "影响分析",
+    barColor: COLORS.warmGold,
+    labelColor: COLORS.warmGold,
+  },
+};
+
+const PULSE = `
+@keyframes ec-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}`;
+
+/* ---- inline-styles object ---- */
+
+function buildStyles(scaled: (px: number) => number) {
+  return {
+    card: {
+      width: scaled(CARD_REF.width),
+      height: "100%" as const,
+      background: COLORS.bg,
+      position: "relative" as const,
+      overflow: "hidden",
+    } as React.CSSProperties,
+    watermark: {
+      position: "absolute" as const,
+      top: scaled(96),
+      right: scaled(56),
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(16),
+      fontWeight: 600,
+      color: COLORS.dim,
+      letterSpacing: "0.1em",
+      zIndex: 5,
+    } as React.CSSProperties,
+    dot: {
+      width: scaled(7),
+      height: scaled(7),
+      borderRadius: "50%",
+      background: COLORS.warmBrown,
+      animation: "ec-pulse-dot 1.4s infinite",
+    } as React.CSSProperties,
+    badge: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: scaled(6),
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(13),
+      fontWeight: 700,
+      letterSpacing: "0.12em",
+      textTransform: "uppercase" as const,
+      padding: `${scaled(6)}px ${scaled(16)}px`,
+      borderRadius: scaled(4),
+      background: COLORS.warmBrown,
+      color: "#fff",
+    } as React.CSSProperties,
+    divider: {
+      width: "100%",
+      maxWidth: scaled(900),
+      height: scaled(6),
+      borderRadius: scaled(3),
+      background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+    } as React.CSSProperties,
+    domain: {
+      fontSize: scaled(16),
+      color: COLORS.dim,
+      fontFamily: TYPOGRAPHY.fontMono,
+      letterSpacing: "0.04em",
+    } as React.CSSProperties,
+    title: (maxW = 1100) =>
+      ({
+        fontSize: scaled(64),
+        fontWeight: 900,
+        lineHeight: 1.15,
+        letterSpacing: "-0.015em",
+        color: COLORS.fg,
+        maxWidth: scaled(maxW),
+      }) as React.CSSProperties,
+    titleEn: {
+      fontSize: scaled(22),
+      fontWeight: 400,
+      color: COLORS.dim,
+      fontFamily: TYPOGRAPHY.fontMono,
+      marginTop: scaled(-18),
+      marginBottom: scaled(4),
+    } as React.CSSProperties,
+    header: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(16),
+    } as React.CSSProperties,
+    stats: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(20),
+      flexWrap: "wrap" as const,
+    } as React.CSSProperties,
+    heatLevel: (level: HeatLevel) =>
+      ({
+        display: "inline-flex",
+        alignItems: "center",
+        gap: scaled(6),
+        fontFamily: TYPOGRAPHY.fontMono,
+        fontSize: scaled(15),
+        fontWeight: 700,
+        padding: `${scaled(6)}px ${scaled(18)}px`,
+        borderRadius: scaled(999),
+        letterSpacing: "0.08em",
+        background: HEAT_COLORS[level].bg,
+        color: HEAT_COLORS[level].fg,
+      }) as React.CSSProperties,
+    statNum: (color: string) =>
+      ({
+        fontFamily: TYPOGRAPHY.fontMono,
+        fontSize: scaled(28),
+        fontWeight: 700,
+        color,
+      }) as React.CSSProperties,
+    statLabel: {
+      fontSize: scaled(15),
+      color: COLORS.dim,
+    } as React.CSSProperties,
+    sep: {
+      color: COLORS.border,
+      fontSize: scaled(20),
+    } as React.CSSProperties,
+    analysis: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(14),
+      maxWidth: scaled(1100),
+    } as React.CSSProperties,
+    anItem: {
+      display: "flex",
+      gap: scaled(16),
+      alignItems: "flex-start" as const,
+    } as React.CSSProperties,
+    anBar: (color: string) =>
+      ({
+        width: scaled(4),
+        minHeight: scaled(56),
+        borderRadius: scaled(2),
+        flexShrink: 0,
+        background: color,
+      }) as React.CSSProperties,
+    anLabel: (color: string) =>
+      ({
+        fontFamily: TYPOGRAPHY.fontMono,
+        fontSize: scaled(13),
+        fontWeight: 700,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase" as const,
+        color,
+      }) as React.CSSProperties,
+    anText: {
+      fontSize: scaled(22),
+      lineHeight: 1.5,
+      color: COLORS.fg,
+    } as React.CSSProperties,
+    tags: {
+      display: "flex",
+      gap: scaled(12),
+      flexWrap: "wrap" as const,
+    } as React.CSSProperties,
+    tag: {
+      display: "inline-flex",
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(13),
+      fontWeight: 600,
+      padding: `${scaled(6)}px ${scaled(16)}px`,
+      borderRadius: scaled(4),
+      border: `1px solid ${COLORS.border}`,
+      color: COLORS.muted,
+      letterSpacing: "0.04em",
+    } as React.CSSProperties,
+    imageCol: {
+      width: "48%",
+      height: "100%",
+      position: "relative" as const,
+      overflow: "hidden",
+      borderRadius: scaled(8),
+      flexShrink: 0,
+    } as React.CSSProperties,
+    imageImg: {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover" as const,
+    } as React.CSSProperties,
+    imageMask: {
+      position: "absolute" as const,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: "40%",
+      background: `linear-gradient(to top, ${COLORS.bg}, transparent)`,
+    } as React.CSSProperties,
+    logoBox: {
+      width: scaled(220),
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    } as React.CSSProperties,
+    logoImg: {
+      width: "100%",
+      objectFit: "contain" as const,
+    } as React.CSSProperties,
+  };
 }
 
-function cleanKeyPoints(value: unknown): KeyPoint[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>) {
+  const {
+    domain,
+    title,
+    englishTitle,
+    heatLevel,
+    hnScore,
+    commentCount,
+    analysis,
+    keywords,
+    imageUrl,
+  } = props;
+  const maxTitleW = imageUrl ? 700 : 1100;
 
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-      const point = item as Record<string, unknown>;
-      const label = cleanText(String(point.label ?? ""));
-      const text = cleanText(String(point.text ?? ""));
-      if (!label || !text) {
-        return null;
-      }
-      return { label, text };
-    })
-    .filter((item): item is KeyPoint => item !== null)
-    .slice(0, 2);
+  return (
+    <>
+      <div style={S.header}>
+        <div style={S.badge}>
+          <span style={S.dot} /> 重点观察
+        </div>
+        {domain && <span style={S.domain}>{domain}</span>}
+      </div>
+      <h1 style={S.title(maxTitleW)}>{title}</h1>
+      {englishTitle && englishTitle !== title && (
+        <p style={S.titleEn}>{englishTitle}</p>
+      )}
+      <div style={S.divider} />
+      <div style={S.stats}>
+        <span style={S.heatLevel(heatLevel)}>{HEAT_LABELS[heatLevel]}</span>
+        <span style={S.statNum(COLORS.warmBrown)}>
+          &#x1F525; {hnScore.toLocaleString()}
+        </span>
+        <span style={S.statLabel}>热度</span>
+        <span style={S.sep}>|</span>
+        <span style={S.statNum(COLORS.warmGold)}>
+          &#x1F4AC; {commentCount.toLocaleString()}
+        </span>
+        <span style={S.statLabel}>评论</span>
+      </div>
+      {analysis.length > 0 && (
+        <div style={S.analysis}>
+          {analysis.map((a, i) => {
+            const m = ANALYSIS_META[a.type];
+            return (
+              <div key={i} style={S.anItem}>
+                <div style={S.anBar(m.barColor)} />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  <span style={S.anLabel(m.labelColor)}>{m.label}</span>
+                  <p style={S.anText}>{a.text}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {keywords.length > 0 && (
+        <div style={S.tags}>
+          {keywords.map((kw) => (
+            <span key={kw} style={S.tag}>
+              {kw}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
-function findKeyPointText(points: KeyPoint[], labels: string[]): string {
-  const labelSet = new Set(labels);
-  return points.find((point) => labelSet.has(point.label))?.text ?? "";
-}
+export const EventCard: React.FC<ElementProps> = ({
+  elementProps,
+  width,
+  height,
+}) => {
+  const frame = useCurrentFrame();
+  const d = useTheme();
+  const S = buildStyles(d.scaled);
 
-const INFO_POINT_COLORS = [COLORS.brand, COLORS.accent, COLORS.green];
+  const typed = extractEventProps(elementProps);
+  const { index, total, imageUrl, logoUrl } = typed;
+  const hasImage = Boolean(imageUrl);
+  const hasLogo = Boolean(logoUrl);
+  const isTwoCol = hasImage || hasLogo;
 
-const InfoPoint: React.FC<{
-  point: KeyPoint;
-  delay: number;
-  frame: number;
-  index: number;
-}> = ({ point, delay, frame, index }) => {
-  const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
+  // Entrance animation
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const { fs, scaled } = useDesign();
-  const accentColor = INFO_POINT_COLORS[index % INFO_POINT_COLORS.length];
+  const innerProgress = interpolate(frame, [8, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const imageProgress = interpolate(frame, [6, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
-  return (
-    <div
-      style={{
+  const inner: React.CSSProperties = isTwoCol
+    ? {
+        display: "flex",
+        padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+        height: "100%",
+        gap: d.scaled(60),
+        alignItems: hasImage ? "stretch" : "center",
+      }
+    : {
+        padding: `${d.scaled(80)}px ${d.scaled(100)}px`,
+        height: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: scaled(4),
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [8, 0])}px)`,
-        backgroundColor: COLORS.surfaceSubtle,
-        borderRadius: scaled(8),
-        padding: `${scaled(10)}px ${scaled(14)}px`,
-        borderLeft: `${scaled(3)}px solid ${accentColor}`,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: fs.caption,
-          fontWeight: FW.bold,
-          color: accentColor,
-          lineHeight: 1.4,
-          letterSpacing: 0.2,
-        }}
-      >
-        {point.label}
-      </span>
-      <span
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: fs.body,
-          fontWeight: FW.medium,
-          color: COLORS.textBody,
-          lineHeight: 1.7,
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-          ...lineClamp(2),
-        }}
-      >
-        {point.text}
-      </span>
-    </div>
-  );
-};
+        justifyContent: "center",
+        gap: d.scaled(36),
+      };
 
-export const EventCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
-  const frame = useCurrentFrame();
-  const tone = useChapterTone();
-
-  const storyTitle = cleanText(p(elementProps, "story_title", ""));
-  const sourceTitle = cleanText(p(elementProps, "source_title", storyTitle));
-  const titleCn = cleanText(p(elementProps, "title_cn", ""));
-  const editorAngle = cleanText(p(elementProps, "editor_angle", ""));
-  const keyPoints = cleanKeyPoints(elementProps.key_points);
-  const imageSrc = p(elementProps, "image_src", "");
-  const imageType = p<string>(elementProps, "image_type", "");
-  const keywords = limitList(
-    Array.isArray(elementProps.keywords)
-      ? elementProps.keywords.filter((k): k is string => typeof k === "string")
-      : [],
-    4,
-    16,
-  );
-  const mainTitle = editorAngle || titleCn || storyTitle;
-  const showOriginalTitle = Boolean(sourceTitle && mainTitle !== sourceTitle);
-  const whyItMatters =
-    cleanText(p(elementProps, "why_it_matters", "")) ||
-    findKeyPointText(keyPoints, ["为何关注", "为什么关注"]);
-  const impactText =
-    findKeyPointText(keyPoints, ["影响", "后续影响"]) || cleanText(p(elementProps, "impact", ""));
-  const insightPoints: KeyPoint[] = [
-    whyItMatters ? { label: UI_TEXT.whyItMatters, text: whyItMatters } : null,
-    impactText ? { label: "影响", text: impactText } : null,
-  ].filter((point): point is KeyPoint => point !== null);
-  const sourceDomain = cleanText(p(elementProps, "source_domain", ""));
-  const hasBody = insightPoints.length > 0;
-  const displayIndex = Number(p(elementProps, "display_index", 0));
-  const storyCount = Number(p(elementProps, "story_count", 0));
-  const displayOrdinal = displayIndex + 1;
-  const showChapterWatermark = displayIndex >= 0 && storyCount > 0;
-  const heatScore = Number(p(elementProps, "score", 0)) || 0;
-  const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
-  const heatLevel = cleanText(p(elementProps, "heat_level", ""));
-  const showMetrics = heatScore > 0 || commentCount > 0 || heatLevel !== "";
-
-  const hasImage = imageSrc !== "";
-  const isLogo = imageType === "logo";
-  const d = useDesign();
-  const compact = d.isCompactHeight;
-
-  const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } =
-    useCardAnimations(frame);
-
-  const layout = useMemo(() => {
-    const cardW = width - d.layout.pageInset * 2;
-    const cardMaxH = d.getCardMaxHeight;
-    const mediaW = hasImage ? (isLogo ? d.scaled(220) : Math.round(cardW * 0.48)) : 0;
-    const mediaH = isLogo
-      ? Math.min(d.scaled(240), cardMaxH - padY * 2)
-      : Math.min(Math.round(mediaW * 0.62), cardMaxH - padY * 2);
-    const heroImage = hasImage && !isLogo;
-    const gap = hasImage ? d.scaled(compact ? 24 : 28) : 0;
-    const availableTextW = cardW - mediaW - gap - padX * 2;
-    const textColW = hasImage
-      ? Math.max(d.scaled(320), Math.min(availableTextW, cardW - padX * 2))
-      : Math.min(cardW - padX * 2, d.layout.contentWideMaxWidth);
-    const resolvedTitleFontSize = focusTitleFontSize(d);
-    return { cardW, cardMaxH, mediaW, mediaH, heroImage, gap, availableTextW, textColW, resolvedTitleFontSize };
-  }, [width, d, compact, padX, padY, hasImage, isLogo]);
-  const { cardW, cardMaxH, mediaW, mediaH, heroImage, gap, textColW, resolvedTitleFontSize } = layout;
+  const contentMaxW: React.CSSProperties = isTwoCol
+    ? {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: d.scaled(36),
+        justifyContent: "center",
+      }
+    : { display: "flex", flexDirection: "column", gap: d.scaled(36) };
 
   return (
     <div
       style={{
-        ...S,
-        left: d.layout.pageInset,
-        top: d.layout.topInset,
-        width: cardW,
-        minHeight: cardMaxH,
-        maxHeight: cardMaxH,
-        ...glassCard,
-        padding: `${padY}px ${padX}px`,
-        boxShadow: glassCardShadow,
-        boxSizing: "border-box",
+        ...S.card,
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
-        display: "flex",
-        gap,
-        alignItems: "stretch",
-        overflow: "hidden",
+        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      <GlassShimmer frame={frame} />
-      {showChapterWatermark && (
-        <ChapterWatermark
-          displayIndex={displayOrdinal}
-          storyCount={storyCount}
-          padX={padX}
-          padY={padY}
-          frame={frame}
-        />
-      )}
+      <style>{PULSE}</style>
 
-      <div
-        style={{
-          flex: hasImage ? `0 0 ${textColW}px` : 1,
-          maxWidth: textColW,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-          zIndex: 1,
-          alignSelf: hasImage ? undefined : "center",
-        }}
-      >
-        {/* Header row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: d.scaled(12),
-            marginBottom: headerMargin(compact),
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [HEADER_ENTRANCE_Y, 0])}px)`,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: d.scaled(10) }}>
-            <div
-              style={{
-                width: d.scaled(3),
-                height: d.scaled(14),
-                borderRadius: 2,
-                background: tone.accent,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.fs.bodySmall,
-                fontWeight: FW.semibold,
-                color: tone.labelText,
-                letterSpacing: 0.4,
-              }}
-            >
-              重点观察
-            </span>
-          </div>
-          {sourceDomain && (
-            <span
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: d.fs.caption,
-                fontWeight: FW.semibold,
-                color: COLORS.textTertiary,
-                backgroundColor: COLORS.surfaceFaint,
-                border: `1px solid ${COLORS.borderLow}`,
-                borderRadius: d.scaled(4),
-                padding: `${d.scaled(3)}px ${d.scaled(10)}px`,
-                lineHeight: 1.4,
-                letterSpacing: 0.2,
-              }}
-            >
-              {sourceDomain}
-            </span>
-          )}
-        </div>
-
-        {/* Main title */}
-        <div
-          style={{
-            fontFamily: FONTS.bold,
-            fontWeight: FW.heavy,
-            fontSize: resolvedTitleFontSize,
-            color: COLORS.text,
-            lineHeight: 1.15,
-            letterSpacing: -0.4,
-            marginBottom: showOriginalTitle ? titleBodyGap(compact) * 0.5 : titleBodyGap(compact),
-            overflowWrap: "anywhere",
-            wordBreak: "break-word",
-            maxWidth: textColW,
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [TITLE_ENTRANCE_Y, 0])}px)`,
-            ...lineClamp(2),
-          }}
-        >
-          {mainTitle}
-        </div>
-
-        {/* English subtitle */}
-        {showOriginalTitle && (
-          <div
-            style={{
-              fontFamily: FONTS.sans,
-              fontWeight: FW.regular,
-              fontSize: d.fs.bodyLg,
-              color: COLORS.textTertiary,
-              marginBottom: titleBodyGap(compact),
-              lineHeight: 1.4,
-              maxWidth: textColW,
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-              opacity: titleProgress,
-              transform: `translateY(${interpolate(titleProgress, [0, 1], [6, 0])}px)`,
-              ...lineClamp(1),
-            }}
-          >
-            {sourceTitle}
-          </div>
-        )}
-
-        {/* Metrics row */}
-        {showMetrics && (
-          <div
-            style={{
-              display: "flex",
-              gap: d.scaled(10),
-              marginBottom: hasBody ? bodySectionGap(compact) : 0,
-            }}
-          >
-            {heatLevel && (
-              <span
-                style={{
-                  fontFamily: FONTS.sans,
-                  fontSize: d.fs.pill,
-                  fontWeight: FW.bold,
-                  color: COLORS.white,
-                  background: `linear-gradient(135deg, ${COLORS.orange} 0%, ${COLORS.orangeRed}BB 100%)`,
-                  borderRadius: 999,
-                  padding: `${d.scaled(4)}px ${d.scaled(14)}px`,
-                  letterSpacing: 0.3,
-                  opacity: interpolate(frame, [12, 18], [0, 1], {
-                    extrapolateLeft: "clamp",
-                    extrapolateRight: "clamp",
-                  }),
-                  transform: `translateY(${interpolate(frame, [12, 18], [4, 0], {
-                    extrapolateLeft: "clamp",
-                    extrapolateRight: "clamp",
-                  })}px)`,
-                }}
-              >
-                {heatLevel}
-              </span>
-            )}
-            {heatScore > 0 && <MetricPill icon="🔥" value={heatScore} delay={12} frame={frame} />}
-            {commentCount > 0 && (
-              <MetricPill icon="💬" value={commentCount} delay={14} frame={frame} />
-            )}
-          </div>
-        )}
-
-        {/* Body: why it matters + impact */}
-        {hasBody && (
-          <div
-            style={{
-              opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr",
-                gap: d.scaled(compact ? 8 : 12),
-                marginBottom: keywords.length > 0 ? bodySectionGap(compact) : 0,
-                maxWidth: textColW,
-              }}
-            >
-              {insightPoints.map((point, i) => (
-                <InfoPoint
-                  key={`${point.label}-${i}`}
-                  point={{
-                    ...point,
-                    text: cleanText(point.text),
-                  }}
-                  delay={16 + i * 5}
-                  frame={frame}
-                  index={i}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Keywords row */}
-        {keywords.length > 0 && (
-          <>
-            <div style={dividerStyle} />
-            <CardKeywordsFooter
-              keywords={keywords}
-              progress={footerProgress}
-              frame={frame}
-              delayBase={20}
-            />
-          </>
-        )}
-
-        {/* Spacer when no body, no metrics, no keywords */}
-        {!hasBody && !showMetrics && keywords.length === 0 && <div style={{ flex: 1 }} />}
+      <div style={S.watermark}>
+        {index} / {total}
       </div>
 
-      {/* Right: image panel — focus chapter renders large hero, logo stays compact */}
-      {hasImage && (
+      <div style={inner}>
+        {/* Text column (full-width or left-half) */}
         <div
           style={{
-            flex: `0 0 ${mediaW}px`,
-            alignSelf: "stretch",
-            display: "flex",
-            alignItems: heroImage ? "stretch" : "center",
-            opacity: imageProgress,
-            transform: `perspective(1000px) rotateY(${interpolate(imageProgress, [0, 1], [3, -1.5])}deg) translateX(${interpolate(imageProgress, [0, 1], [IMAGE_ENTRANCE_X, 0])}px)`,
+            ...contentMaxW,
+            opacity: innerProgress,
+            transform: `translateY(${interpolate(innerProgress, [0, 1], [16, 0])}px)`,
           }}
         >
+          {TextContent(typed, S)}
+        </div>
+
+        {/* Right image */}
+        {hasImage && (
           <div
             style={{
-              borderRadius: IMAGE_PANEL_RADIUS,
-              overflow: "hidden",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: IMAGE_PANEL_BG,
-              border: IMAGE_PANEL_BORDER,
-              boxShadow: IMAGE_PANEL_SHADOW,
-              width: mediaW,
-              height: heroImage ? "100%" : mediaH,
-              position: "relative",
+              ...S.imageCol,
+              opacity: imageProgress,
+              transform: `translateX(${interpolate(imageProgress, [0, 1], [28, 0])}px)`,
             }}
           >
-            {isLogo ? (
-              <img
-                src={staticFile(imageSrc)}
-                alt=""
-                style={{
-                  maxWidth: "75%",
-                  maxHeight: "75%",
-                  objectFit: "contain",
-                }}
-              />
-            ) : (
-              <>
-                <img
-                  src={staticFile(imageSrc)}
-                  alt=""
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                />
-                {/* Bottom overlay strip — chapter accent gradient anchors the hero to the page */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: "28%",
-                    background: `linear-gradient(180deg, transparent 0%, ${tone.accentBg} 60%, rgba(0,0,0,0.30) 100%)`,
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            )}
+            <img src={staticFile(imageUrl!)} alt="" style={S.imageImg} />
+            <div style={S.imageMask} />
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Right logo */}
+        {hasLogo && !hasImage && (
+          <div
+            style={{
+              ...S.logoBox,
+              opacity: imageProgress,
+              transform: `translateX(${interpolate(imageProgress, [0, 1], [28, 0])}px)`,
+            }}
+          >
+            <img src={staticFile(logoUrl!)} alt="logo" style={S.logoImg} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

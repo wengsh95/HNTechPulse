@@ -31,7 +31,7 @@ export const StanceBar: React.FC<{
     <div style={{ display: "flex", flexDirection: "column", gap: scaled(8) }}>
       {entries.map(([label, value]) => {
         const pct = Math.round(value * 100);
-        const color = STANCE_COLORS[label] || COLORS.textSecondary;
+        const color = STANCE_COLORS[label] || COLORS.muted;
         const barW = (value / maxVal) * maxBarPx * barProgress;
 
         return (
@@ -41,7 +41,7 @@ export const StanceBar: React.FC<{
                 fontFamily: FONTS.sans,
                 fontSize: fs.bodySmall,
                 fontWeight: FW.semibold,
-                color: COLORS.textSecondary,
+                color: COLORS.muted,
                 minWidth: scaled(32),
               }}
             >
@@ -131,7 +131,7 @@ export const StancePie: React.FC<{
     const innerY2 = cy + innerR * Math.sin(revealedEndAngle - Math.PI / 2);
 
     const path = `M ${outerX1} ${outerY1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerX1} ${innerY1} Z`;
-    const color = STANCE_COLORS[label] || COLORS.textSecondary;
+    const color = STANCE_COLORS[label] || COLORS.muted;
     const pct = Math.round(value * 100);
     const quoted = quotedSet.size === 0 || quotedSet.has(label);
 
@@ -233,7 +233,7 @@ export const StancePie: React.FC<{
                       fontFamily: FONTS.sans,
                       fontSize: fs.bodySmall,
                       fontWeight: FW.semibold,
-                      color: COLORS.textSecondary,
+                      color: COLORS.muted,
                       flexShrink: 0,
                     }}
                   >
@@ -245,7 +245,7 @@ export const StancePie: React.FC<{
                         fontFamily: FONTS.sans,
                         fontSize: fs.caption,
                         fontWeight: FW.medium,
-                        color: COLORS.textTertiary,
+                        color: COLORS.dim,
                         letterSpacing: 0.2,
                         overflow: "hidden",
                         whiteSpace: "nowrap",
@@ -263,7 +263,7 @@ export const StancePie: React.FC<{
                         fontFamily: FONTS.sans,
                         fontSize: fs.caption,
                         fontWeight: FW.medium,
-                        color: COLORS.textTertiary,
+                        color: COLORS.dim,
                         letterSpacing: 0.2,
                         flexShrink: 0,
                       }}
@@ -282,7 +282,7 @@ export const StancePie: React.FC<{
                 fontFamily: FONTS.sans,
                 fontSize: fs.caption,
                 fontWeight: FW.medium,
-                color: COLORS.textTertiary,
+                color: COLORS.dim,
                 letterSpacing: 0.2,
                 textAlign: "center",
                 maxWidth: svgSize,

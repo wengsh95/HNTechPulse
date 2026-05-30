@@ -10,7 +10,7 @@ def _make_config(**overrides):
     cfg = {
         "logging": {"level": "WARNING"},
         "tts": {
-            "voice": "Chloe",
+            "voice": "茉莉",
             "model": "mimo-v2.5-tts",
             "temperature": 0.2,
             "api_key": "test-key",
@@ -25,7 +25,7 @@ class TestInit:
         with patch("src.providers.tts.mimo_tts.setup_logger"):
             with patch("src.providers.tts.mimo_tts.OpenAI"):
                 provider = MimoTTSProvider(_make_config())
-        assert provider.voice == "Chloe"
+        assert provider.voice == "茉莉"
         assert provider.model == "mimo-v2.5-tts"
         assert provider.temperature == 0.2
 

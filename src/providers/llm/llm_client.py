@@ -22,7 +22,6 @@ from tenacity import (
 )
 
 from src.utils.logger import setup_logger
-from src.utils.config import get_env
 
 
 _JSON_FENCE_START_RE = re.compile(r"^```(?:json)?\s*\n?")
@@ -66,35 +65,21 @@ class LLMClient:
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
-        api_key = get_env("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not set in environment")
+        from src.providers.llm.backend import LLMBackend
 
-        base_url = config.get("llm", {}).get("base_url") or get_env("OPENAI_BASE_URL")
-        if base_url:
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=10.0),
-            )
-            self.logger.info(f"Using OpenAI-compatible API at: {base_url}")
-        else:
-            self.client = OpenAI(
-                api_key=api_key,
-                timeout=httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=10.0),
-            )
+        self._backend = LLMBackend(config)
+        self.client = self._backend.create_client()
+        if self._backend.base_url:
+            self.logger.info(f"Using OpenAI-compatible API at: {self._backend.base_url}")
 
-        llm_cfg = config.get("llm", {})
-        self.model = llm_cfg.get("model", "gpt-4o")
-        self.max_tokens = llm_cfg.get("max_tokens", 8192)
-        self.temperature = llm_cfg.get("temperature", 0.7)
-        self.json_parse_max_retries = llm_cfg.get("json_parse_max_retries", 3)
-        self.max_completion_tokens_cap = llm_cfg.get("max_completion_tokens_cap", 32768)
-
-        fast_cfg = llm_cfg.get("fast", {})
-        self.fast_model = fast_cfg.get("model", self.model)
-        self.fast_max_tokens = fast_cfg.get("max_tokens", 4096)
-        self.fast_temperature = fast_cfg.get("temperature", 0.3)
+        self.model = self._backend.model
+        self.max_tokens = self._backend.max_tokens
+        self.temperature = self._backend.temperature
+        self.json_parse_max_retries = self._backend.json_parse_max_retries
+        self.max_completion_tokens_cap = self._backend.max_completion_tokens_cap
+        self.fast_model = self._backend.fast_model
+        self.fast_max_tokens = self._backend.fast_max_tokens
+        self.fast_temperature = self._backend.fast_temperature
 
     @retry(
         stop=stop_after_attempt(4),
@@ -515,7 +500,7 @@ class LLMClient:
             def _log_elapsed():
                 while not stop_event.wait(5.0):
                     elapsed_sec = int(time.monotonic() - t0)
-                    self.logger.info(
+                    self.logger.debug(
                         f"  {label} elapsed {elapsed_sec}s (thread={thread_name})"
                     )
 

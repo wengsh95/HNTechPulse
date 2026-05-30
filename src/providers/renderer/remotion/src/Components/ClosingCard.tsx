@@ -1,417 +1,413 @@
+/* ================================================================
+   ClosingCard — 结束卡 (Warm Paper Theme)
+   ================================================================
+
+   Layout: single-column centered vertical
+     - Signal tag (pill badge)
+     - Summary statement (large headline)
+     - Keyword tags row
+     - Progress section (title + stacked bar)
+     - Completed stories list (✓ check + category + title)
+     - Stats row (stories / points / comments)
+     - Vibe tag
+
+   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   adds entrance animation via useCurrentFrame/interpolate.
+*/
+
 import React from "react";
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate, Easing } from "remotion";
+import type { ClosingCardProps, CompletedStory } from "./cardTypes";
+import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import type { ElementProps } from "./utils";
+import { extractClosingProps } from "./propsExtractors";
 
-import { ElementProps, p } from "./utils";
-import { CHAPTERS, COLORS, FONTS, FW, useDesign, glassCard, glassCardShadow, S } from "./design";
-import {
-  GlassShimmer,
-  overshootTranslateY,
-  useCardPad,
-  useCardAnimations,
-  CARD_ENTRANCE_Y,
-  HERO_ENTRANCE_Y,
-  BODY_ENTRANCE_Y,
-  lineClamp,
-} from "./HighlightShared";
+/* ---- inline-styles object ---- */
 
-type SummaryItem = {
-  category?: string;
-  title?: string;
-};
+function buildStyles(scaled: (px: number) => number) {
+  return {
+    card: {
+      width: scaled(CARD_REF.width),
+      height: "100%" as const,
+      background: COLORS.bg,
+      position: "relative" as const,
+      overflow: "hidden",
+    } as React.CSSProperties,
+    inner: {
+      padding: `${scaled(80)}px ${scaled(140)}px`,
+      height: "100%",
+      display: "flex",
+      flexDirection: "column" as const,
+      justifyContent: "center",
+      alignItems: "flex-start",
+      textAlign: "left" as const,
+      gap: scaled(48),
+    } as React.CSSProperties,
 
-const asNumber = (value: unknown): number => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-};
+    /* ---- signal tag ---- */
+    signalTag: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: scaled(8),
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(15),
+      fontWeight: 700,
+      letterSpacing: "0.2em",
+      textTransform: "uppercase" as const,
+      padding: `${scaled(8)}px ${scaled(24)}px`,
+      borderRadius: scaled(999),
+      background: COLORS.brownBg,
+      color: COLORS.warmBrown,
+      border: `1px solid #d4b896`,
+    } as React.CSSProperties,
+    signalDot: {
+      width: scaled(8),
+      height: scaled(8),
+      borderRadius: "50%",
+      background: COLORS.warmBrown,
+    } as React.CSSProperties,
 
-/** Three-segment completion bar in chapter colors, animates from 0% to 100%. */
-const CompletionStrip: React.FC<{ frame: number; delay: number }> = ({ frame, delay }) => {
-  const d = useDesign();
-  const grow = interpolate(frame, [delay, delay + 24], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const segments = [
-    { color: CHAPTERS.focus.accent, key: "focus" },
-    { color: CHAPTERS.compact.accent, key: "compact" },
-  ];
+    /* ---- summary ---- */
+    summary: {
+      fontSize: scaled(72),
+      fontWeight: 900,
+      lineHeight: 1.2,
+      letterSpacing: "-0.015em",
+      color: COLORS.fg,
+      maxWidth: scaled(1400),
+    } as React.CSSProperties,
+
+    /* ---- keywords ---- */
+    keywords: {
+      display: "flex",
+      gap: scaled(14),
+      flexWrap: "wrap" as const,
+    } as React.CSSProperties,
+    kw: {
+      display: "inline-flex",
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(15),
+      fontWeight: 700,
+      padding: `${scaled(8)}px ${scaled(22)}px`,
+      borderRadius: scaled(6),
+      border: `1.5px solid ${COLORS.warmBrown}`,
+      color: COLORS.warmBrown,
+      letterSpacing: "0.06em",
+    } as React.CSSProperties,
+
+    /* ---- progress ---- */
+    progressSection: {
+      width: "100%",
+      maxWidth: scaled(800),
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(14),
+    } as React.CSSProperties,
+    progressTitle: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(16),
+      fontWeight: 700,
+      letterSpacing: "0.15em",
+      textTransform: "uppercase" as const,
+      color: COLORS.warmGold,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      gap: scaled(10),
+    } as React.CSSProperties,
+    progressTitleStrong: {
+      color: COLORS.fg,
+      fontSize: scaled(22),
+      fontWeight: 700,
+    } as React.CSSProperties,
+    progressBar: {
+      display: "flex",
+      gap: 0,
+      height: scaled(14),
+      borderRadius: scaled(7),
+      overflow: "hidden",
+    } as React.CSSProperties,
+    progFocus: (pct: number) =>
+      ({
+        height: "100%",
+        width: `${pct}%`,
+        background: COLORS.warmBrown,
+      }) as React.CSSProperties,
+    progAtmo: (pct: number) =>
+      ({
+        height: "100%",
+        width: `${pct}%`,
+        background: COLORS.warmGold,
+      }) as React.CSSProperties,
+    progRemain: (pct: number) =>
+      ({
+        height: "100%",
+        width: `${pct}%`,
+        background: COLORS.surface2,
+      }) as React.CSSProperties,
+
+    /* ---- completed stories ---- */
+    doneList: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(12),
+      width: "100%",
+      maxWidth: scaled(700),
+    } as React.CSSProperties,
+    doneItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(14),
+      fontSize: scaled(20),
+      color: COLORS.muted,
+    } as React.CSSProperties,
+    doneCheck: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      color: COLORS.sage,
+      fontWeight: 900,
+      fontSize: scaled(18),
+    } as React.CSSProperties,
+    doneCat: {
+      display: "inline-flex",
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(12),
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      padding: `${scaled(2)}px ${scaled(10)}px`,
+      borderRadius: scaled(4),
+      border: `1px solid ${COLORS.border}`,
+      color: COLORS.dim,
+    } as React.CSSProperties,
+    doneTitle: {
+      color: COLORS.fg,
+      fontWeight: 600,
+    } as React.CSSProperties,
+
+    /* ---- stats row ---- */
+    statsRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(28),
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(18),
+      color: COLORS.dim,
+    } as React.CSSProperties,
+    statsStrong: {
+      color: COLORS.warmGold,
+      fontSize: scaled(26),
+      fontWeight: 700,
+    } as React.CSSProperties,
+    statsSep: {
+      color: COLORS.border,
+    } as React.CSSProperties,
+
+    /* ---- vibe tag ---- */
+    vibeTag: {
+      display: "inline-flex",
+      alignItems: "center",
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(13),
+      fontWeight: 600,
+      letterSpacing: "0.14em",
+      textTransform: "uppercase" as const,
+      padding: `${scaled(6)}px ${scaled(20)}px`,
+      borderRadius: scaled(999),
+      background: COLORS.goldBg,
+      color: COLORS.warmGold,
+      border: `1px solid #c4a870`,
+    } as React.CSSProperties,
+  };
+}
+
+/* ---- sub-components ---- */
+
+function StoryItem({
+  story,
+  S,
+}: {
+  story: CompletedStory;
+  S: ReturnType<typeof buildStyles>;
+}) {
   return (
-    <div
-      style={{
-        display: "flex",
-        height: d.scaled(8),
-        width: "100%",
-        borderRadius: 999,
-        backgroundColor: COLORS.surfaceLow,
-        overflow: "hidden",
-      }}
-    >
-      {segments.map((seg, i) => {
-        const segGrow = interpolate(grow, [i * 0.18, i * 0.18 + 0.5], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        });
-        return (
-          <div
-            key={seg.key}
-            style={{
-              flex: 1,
-              height: "100%",
-              backgroundColor: seg.color,
-              opacity: 0.85 * segGrow,
-              transform: `scaleX(${segGrow})`,
-              transformOrigin: "left",
-              marginRight: i < segments.length - 1 ? d.scaled(2) : 0,
-            }}
-          />
-        );
-      })}
+    <div style={S.doneItem}>
+      <span style={S.doneCheck}>✓</span>
+      {story.category && <span style={S.doneCat}>{story.category}</span>}
+      <span style={S.doneTitle}>{story.title}</span>
     </div>
   );
-};
+}
 
-const CATEGORY_ACCENT: Record<string, string> = {
-  开源生态: COLORS.green,
-  其他: COLORS.gray,
-};
+/* ---- main component ---- */
 
-const AchievementRow: React.FC<{
-  item: SummaryItem;
-  index: number;
-  frame: number;
-}> = ({ item, index, frame }) => {
-  const d = useDesign();
-  const delay = 22 + index * 4;
-  const progress = interpolate(frame, [delay, delay + 18], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const accent = CATEGORY_ACCENT[item.category ?? ""] ?? COLORS.accentLight;
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: d.scaled(10),
-        opacity: progress,
-        transform: `translateX(${interpolate(progress, [0, 1], [-8, 0])}px)`,
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          width: d.scaled(16),
-          height: d.scaled(16),
-          borderRadius: "50%",
-          backgroundColor: accent,
-          color: COLORS.bg,
-          fontFamily: FONTS.sans,
-          fontSize: d.fs.micro,
-          fontWeight: FW.heavy,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        ✓
-      </span>
-      {item.category && (
-        <span
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.caption,
-            color: accent,
-            fontWeight: FW.heavy,
-            backgroundColor: `${accent}1A`,
-            border: `1px solid ${accent}40`,
-            borderRadius: d.scaled(4),
-            padding: `${d.scaled(2)}px ${d.scaled(8)}px`,
-            lineHeight: 1.3,
-            flexShrink: 0,
-            letterSpacing: 0.2,
-          }}
-        >
-          {item.category}
-        </span>
-      )}
-      {item.title && (
-        <span
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.bodyLg,
-            color: COLORS.text,
-            fontWeight: FW.semibold,
-            lineHeight: 1.35,
-            flex: 1,
-            minWidth: 0,
-            ...lineClamp(1),
-          }}
-        >
-          {item.title}
-        </span>
-      )}
-    </div>
-  );
-};
-
-export const ClosingCard: React.FC<ElementProps> = ({ elementProps, width }) => {
+export const ClosingCard: React.FC<ElementProps> = ({
+  elementProps,
+  width,
+  height,
+}) => {
   const frame = useCurrentFrame();
-  const d = useDesign();
-  const compact = d.isCompactHeight;
+  const d = useTheme();
+  const S = buildStyles(d.scaled);
 
-  const signalLabel = p(elementProps, "signal_label", "今日信号");
-  const signal = p(elementProps, "signal", "");
-  const keywordsLabel = p(elementProps, "keywords_label", "今日关键词");
-  const question = p(elementProps, "question", "");
-  const visualMood = p(elementProps, "visual_mood", "");
-  const mainSignal = signal || question;
-  const keywords = Array.isArray(elementProps.keywords)
-    ? elementProps.keywords.filter((k): k is string => typeof k === "string")
-    : [];
-  const summaryLabel = p(elementProps, "summary_label", "今日脉络");
-  const summaryItems = Array.isArray(elementProps.summary_items)
-    ? (elementProps.summary_items as SummaryItem[]).filter((item) => item && item.title).slice(0, 3)
-    : [];
-  const totals =
-    elementProps.totals && typeof elementProps.totals === "object"
-      ? (elementProps.totals as Record<string, unknown>)
-      : {};
-  const storyCount = asNumber(totals.story_count);
-  const scoreTotal = asNumber(totals.score_total);
-  const commentTotal = asNumber(totals.comment_total);
-  const hasTotals = storyCount > 0 || scoreTotal > 0 || commentTotal > 0;
+  const typed = extractClosingProps(elementProps);
+  const {
+    signalLabel,
+    summary,
+    keywords,
+    progressDone,
+    progressTotal,
+    focusPct,
+    atmospherePct,
+    completedStories,
+    stats,
+    vibe,
+  } = typed;
 
-  const cardW = width - d.layout.pageInset * 2;
-  const cardH = d.getCardMaxHeight;
-  const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress } = useCardAnimations(frame);
+  const remainPct = Math.max(0, 100 - focusPct - atmospherePct);
+
+  // Entrance animation
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div
       style={{
-        ...S,
-        left: d.layout.pageInset,
-        top: d.layout.topInset,
-        width: cardW,
-        minHeight: cardH,
-        maxHeight: cardH,
-        ...glassCard,
-        boxShadow: glassCardShadow,
-        padding: `${padY}px ${padX}px`,
-        boxSizing: "border-box",
+        ...S.card,
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
+        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      <GlassShimmer frame={frame} />
+      <div style={S.inner}>
+        {/* Signal tag */}
+        <div
+          style={{
+            ...S.signalTag,
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [24, 0])}px)`,
+          }}
+        >
+          <span style={S.signalDot} />
+          {signalLabel}
+        </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: 1,
-          minHeight: 0,
-        }}
-      >
-        {mainSignal && (
-          <div
+        {/* Summary */}
+        {summary && (
+          <h1
             style={{
+              ...S.summary,
               opacity: titleProgress,
-              transform: `translateY(${interpolate(titleProgress, [0, 1], [HERO_ENTRANCE_Y, 0])}px)`,
-              textAlign: "left",
-              maxWidth: "100%",
+              transform: `translateY(${interpolate(titleProgress, [0, 1], [28, 0])}px)`,
             }}
           >
-            <div
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.fs.label,
-                color: COLORS.brandLight,
-                lineHeight: 1.2,
-                fontWeight: FW.semibold,
-                letterSpacing: 0,
-                marginBottom: d.scaled(compact ? 14 : 18),
-              }}
-            >
-              {signalLabel}
-            </div>
-            <div
-              style={{
-                fontFamily: FONTS.bold,
-                fontSize: compact ? d.fs.headline : d.fs.closing,
-                color: COLORS.text,
-                lineHeight: 1.28,
-                fontWeight: FW.bold,
-                letterSpacing: 0,
-                maxWidth: d.layout.contentWideMaxWidth,
-              }}
-            >
-              {mainSignal}
-            </div>
-          </div>
+            {summary}
+          </h1>
         )}
 
+        {/* Keywords */}
         {keywords.length > 0 && (
           <div
             style={{
-              marginTop: d.scaled(compact ? 20 : 28),
+              ...S.keywords,
               opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-              textAlign: "left",
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
             }}
           >
-            <div
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.fs.bodySmall,
-                color: COLORS.textTertiary,
-                fontWeight: FW.semibold,
-                letterSpacing: 0,
-                marginBottom: d.scaled(compact ? 8 : 10),
-              }}
-            >
-              {keywordsLabel}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: d.scaled(8),
-              }}
-            >
-              {keywords.slice(0, 5).map((keyword) => (
-                <span
-                  key={keyword}
-                  style={{
-                    fontFamily: FONTS.sans,
-                    fontSize: d.fs.caption,
-                    color: COLORS.accentLight,
-                    fontWeight: FW.semibold,
-                    background: COLORS.accentSurface,
-                    border: `1px solid ${COLORS.accentBorderSubtle}`,
-                    borderRadius: 999,
-                    padding: `${d.scaled(5)}px ${d.scaled(12)}px`,
-                    letterSpacing: 0,
-                  }}
-                >
-                  {keyword}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {summaryItems.length > 0 && (
-          <div
-            style={{
-              marginTop: d.scaled(compact ? 22 : 32),
-              width: "100%",
-              maxWidth: d.layout.contentWideMaxWidth,
-              opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                marginBottom: d.scaled(compact ? 8 : 10),
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: FONTS.sans,
-                  fontSize: d.fs.bodySmall,
-                  color: COLORS.textTertiary,
-                  fontWeight: FW.semibold,
-                  letterSpacing: 0,
-                }}
-              >
-                {summaryLabel}
+            {keywords.map((k) => (
+              <span key={k} style={S.kw}>
+                {k}
               </span>
-              {storyCount > 0 && (
-                <span
-                  style={{
-                    fontFamily: FONTS.mono,
-                    fontSize: d.fs.caption,
-                    color: COLORS.textSecondary,
-                    fontWeight: FW.bold,
-                  }}
-                >
-                  {storyCount} / {storyCount} 已完成
-                </span>
-              )}
+            ))}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        {progressTotal > 0 && (
+          <div
+            style={{
+              ...S.progressSection,
+              opacity: bodyProgress,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
+            }}
+          >
+            <div style={S.progressTitle}>
+              今日脉络
+              <strong style={S.progressTitleStrong}>
+                {progressDone} / {progressTotal}
+              </strong>
+              已完成
             </div>
-            {/* Completion strip — chapter-accent color, full-width, animates in */}
-            <CompletionStrip frame={frame} delay={18} />
-            {/* Compact achievement list — checkmark + category + title, no boxes */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: d.scaled(compact ? 6 : 8),
-                marginTop: d.scaled(compact ? 12 : 14),
-              }}
-            >
-              {summaryItems.map((item, index) => (
-                <AchievementRow
-                  key={`${item.category ?? "item"}-${index}`}
-                  item={item}
-                  index={index}
-                  frame={frame}
-                />
-              ))}
+            <div style={S.progressBar}>
+              <div style={S.progFocus(focusPct)} />
+              <div style={S.progAtmo(atmospherePct)} />
+              {remainPct > 0 && <div style={S.progRemain(remainPct)} />}
             </div>
           </div>
         )}
 
-        {hasTotals && (
+        {/* Completed stories */}
+        {completedStories.length > 0 && (
           <div
             style={{
-              display: "flex",
-              gap: d.scaled(20),
-              marginTop: d.scaled(compact ? 18 : 24),
+              ...S.doneList,
               opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-              fontFamily: FONTS.mono,
-              color: COLORS.textTertiary,
-              fontSize: d.fs.caption,
-              fontWeight: FW.semibold,
-              letterSpacing: 0,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
             }}
           >
-            {storyCount > 0 && <span>{storyCount} 条主线</span>}
-            {scoreTotal > 0 && <span>{scoreTotal.toLocaleString("en-US")} points</span>}
-            {commentTotal > 0 && <span>{commentTotal.toLocaleString("en-US")} comments</span>}
+            {completedStories.map((s, i) => (
+              <StoryItem key={i} story={s} S={S} />
+            ))}
           </div>
         )}
 
-        {visualMood && (
+        {/* Stats row */}
+        <div
+          style={{
+            ...S.statsRow,
+            opacity: bodyProgress,
+            transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
+          }}
+        >
+          <span>
+            <strong style={S.statsStrong}>{stats.storyCount}</strong> 条主线
+          </span>
+          <span style={S.statsSep}>/</span>
+          <span>
+            <strong style={S.statsStrong}>
+              {stats.points.toLocaleString()}
+            </strong>{" "}
+            points
+          </span>
+          <span style={S.statsSep}>/</span>
+          <span>
+            <strong style={S.statsStrong}>
+              {stats.comments.toLocaleString()}
+            </strong>{" "}
+            comments
+          </span>
+        </div>
+
+        {/* Vibe tag */}
+        {vibe && (
           <div
             style={{
-              marginTop: d.scaled(compact ? 18 : 24),
+              ...S.vibeTag,
               opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-              textAlign: "left",
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.bodySmall,
-              color: COLORS.textTertiary,
-              fontWeight: FW.medium,
-              letterSpacing: 0,
-              textTransform: "uppercase",
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [18, 0])}px)`,
             }}
           >
-            {visualMood}
+            {vibe}
           </div>
         )}
       </div>

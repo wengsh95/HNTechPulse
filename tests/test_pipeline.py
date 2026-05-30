@@ -20,8 +20,7 @@ def _make_config():
     return {
         "logging": {"level": "WARNING"},
         "pipeline": {
-            "target_story_count": 10,
-            "focus_items": 3,
+            "target_story_count": 3,
         },
         "llm": {"model": "test-model"},
     }
@@ -129,7 +128,7 @@ class TestScriptWriter:
 
         assert (
             mock_llm.generate_single_story_segment.call_count
-            == config["pipeline"]["focus_items"]
+            == config["pipeline"]["target_story_count"]
         )
         assert len(script.segments) >= 2  # at least opening + closing
 

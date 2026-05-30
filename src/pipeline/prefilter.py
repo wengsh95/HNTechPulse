@@ -116,7 +116,7 @@ class Prefilter:
 
     def _rebuild_indices(self, content: ContentPackage):
         pipeline_cfg = self.config.get("pipeline", {})
-        num_deep_dive = pipeline_cfg.get("focus_items", 3)
+        num_deep_dive = pipeline_cfg.get("target_story_count", 3)
         n = len(content.items)
         content.deep_dive_indices = list(range(min(num_deep_dive, n)))
         content.brief_indices = list(range(num_deep_dive, n))

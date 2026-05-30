@@ -33,7 +33,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.85,
     y: 0.12,
     size: 700,
-    color: "rgba(0, 122, 255, 0.04)", // unique low-opacity accent glow
+    color: "rgba(193,125,75,0.04)", // warm brown glow
     freqX: 0.008,
     freqY: 0.006,
     phaseX: 0,
@@ -43,7 +43,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.1,
     y: 0.82,
     size: 650,
-    color: "rgba(191, 90, 242, 0.04)",
+    color: "rgba(155,126,196,0.04)", // warm purple glow
     freqX: 0.006,
     freqY: 0.009,
     phaseX: 1.2,
@@ -53,7 +53,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.15,
     y: 0.45,
     size: 600,
-    color: "rgba(255, 102, 0, 0.025)", // unique low-opacity brand glow
+    color: "rgba(212,168,84,0.03)", // warm gold glow
     freqX: 0.007,
     freqY: 0.005,
     phaseX: 2.5,
@@ -69,6 +69,8 @@ export const BackgroundAtmosphere: React.FC<{
   height: number;
 }> = ({ width, height }) => {
   const frame = useCurrentFrame();
+  const scale = Math.min(width / 1920, height / 1080);
+  const dotSize = Math.round(40 * scale);
 
   return (
     <div
@@ -87,12 +89,12 @@ export const BackgroundAtmosphere: React.FC<{
         const driftX = interpolate(
           Math.sin(spot.freqX * frame + spot.phaseX),
           [-1, 1],
-          [-DRIFT_AMPLITUDE, DRIFT_AMPLITUDE],
+          [-DRIFT_AMPLITUDE * scale, DRIFT_AMPLITUDE * scale],
         );
         const driftY = interpolate(
           Math.sin(spot.freqY * frame + spot.phaseY),
           [-1, 1],
-          [-DRIFT_AMPLITUDE, DRIFT_AMPLITUDE],
+          [-DRIFT_AMPLITUDE * scale, DRIFT_AMPLITUDE * scale],
         );
 
         return (
@@ -100,13 +102,13 @@ export const BackgroundAtmosphere: React.FC<{
             key={`glow-${i}`}
             style={{
               position: "absolute",
-              left: spot.x * width - spot.size / 2 + driftX,
-              top: spot.y * height - spot.size / 2 + driftY,
-              width: spot.size,
-              height: spot.size,
+              left: spot.x * width - Math.round(spot.size * scale) / 2 + driftX,
+              top: spot.y * height - Math.round(spot.size * scale) / 2 + driftY,
+              width: Math.round(spot.size * scale),
+              height: Math.round(spot.size * scale),
               borderRadius: "50%",
               background: `radial-gradient(circle, ${spot.color} 0%, transparent 55%)`,
-              filter: "blur(40px)",
+              filter: `blur(${Math.round(40 * scale)}px)`,
               pointerEvents: "none",
             }}
           />
@@ -122,7 +124,7 @@ export const BackgroundAtmosphere: React.FC<{
           width: "100%",
           height: "100%",
           backgroundImage: GRADIENTS.dotGrid,
-          backgroundSize: "40px 40px",
+          backgroundSize: `${dotSize}px ${dotSize}px`,
           pointerEvents: "none",
         }}
       />

@@ -118,7 +118,7 @@ export const MedalBadge: React.FC<{
             fontFamily: FONTS.mono,
             fontSize: resolvedFontSize,
             fontWeight: isTop3 ? FW.bold : FW.medium,
-            color: isTop3 ? medal!.text : COLORS.textTertiary,
+            color: isTop3 ? medal!.text : COLORS.dim,
             lineHeight: 1,
             letterSpacing: -0.5,
           }}
@@ -194,7 +194,7 @@ export const KeywordTags: React.FC<{
           style={{
             fontFamily: FONTS.sans,
             fontSize: fs.micro,
-            color: COLORS.textTertiary,
+            color: COLORS.dim,
             maxWidth,
             overflow: "hidden",
             whiteSpace: "nowrap",
@@ -309,7 +309,7 @@ export function highlightKeywords(
 }
 
 const SECTION_VARIANTS = {
-  default: { bar: COLORS.accent, text: COLORS.textSecondary },
+  default: { bar: COLORS.accent, text: COLORS.muted },
   brand: { bar: COLORS.brand, text: COLORS.brandLight },
   success: { bar: COLORS.green, text: COLORS.green },
 } as const;
@@ -343,9 +343,9 @@ export const SectionLabel: React.FC<{
     >
       <div
         style={{
-          width: SECTION_BAR.width,
-          height: SECTION_BAR.height,
-          borderRadius: SECTION_BAR.borderRadius,
+          width: scaled(SECTION_BAR.width),
+          height: scaled(SECTION_BAR.height),
+          borderRadius: scaled(SECTION_BAR.borderRadius),
           background: theme.bar,
           flexShrink: 0,
         }}
@@ -408,7 +408,7 @@ export const MetricPill: React.FC<{
         frame={frame}
         fontSize={fs.label}
         fontWeight={FW.heavy}
-        color={COLORS.textSecondary}
+        color={COLORS.muted}
         lineHeight={1}
       />
     </div>
@@ -426,7 +426,7 @@ export const KeywordTag: React.FC<{
     extrapolateRight: "clamp",
   });
   const pulse = audioPulse(frame);
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
   const tone = useChapterTone();
 
   return (
@@ -439,7 +439,7 @@ export const KeywordTag: React.FC<{
         backgroundColor: tone.accentBg,
         border: `1px solid ${tone.accentBorder}`,
         borderRadius: PILL_RADIUS,
-        padding: `${KEYWORD_TAG_PAD.y}px ${KEYWORD_TAG_PAD.x}px`,
+        padding: `${scaled(KEYWORD_TAG_PAD.y)}px ${scaled(KEYWORD_TAG_PAD.x)}px`,
         letterSpacing: 0.2,
         opacity: tagProgress * (0.95 + pulse * 0.05),
         transform: `scale(${interpolate(tagProgress, [0, 1], [0.85, 1])})`,
@@ -553,7 +553,7 @@ export const GlassShimmer: React.FC<{
 export const CapsuleBadge: React.FC<{
   text: string;
 }> = ({ text }) => {
-  const { fs } = useDesign();
+  const { fs, scaled } = useDesign();
   const tone = useChapterTone();
   return (
     <span
@@ -565,7 +565,7 @@ export const CapsuleBadge: React.FC<{
         backgroundColor: tone.accentBg,
         border: "1px solid " + tone.accentBorder,
         borderRadius: PILL_RADIUS,
-        padding: `${CAPSULE_PAD.y}px ${CAPSULE_PAD.x}px`,
+        padding: `${scaled(CAPSULE_PAD.y)}px ${scaled(CAPSULE_PAD.x)}px`,
         letterSpacing: 0.3,
       }}
     >
@@ -676,7 +676,7 @@ export const ChapterWatermark: React.FC<{
         fontFamily: FONTS.mono,
         fontSize: d.fs.watermark,
         fontWeight: FW.heavy,
-        color: `rgba(255,255,255,${breathingOpacity(frame)})`,
+        color: `rgba(44,36,22,${breathingOpacity(frame)})`,
         lineHeight: 1,
         pointerEvents: "none",
         letterSpacing: -4,

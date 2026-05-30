@@ -3,7 +3,7 @@ import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 
 import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
-import { COLORS, FONTS, FW, useDesign, GRADIENTS, S } from "./design";
+import { COLORS, FONTS, FW, useDesign } from "./design";
 
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: _height }) => {
   const frame = useCurrentFrame();
@@ -19,17 +19,14 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
   let opacity = 1;
   let slideY = 0;
   if (cues.length > 0) {
-    // Find the active cue whose time range contains currentTime
     let activeCue = cues.find(
       (c) => currentTime >= c.start_time - 0.05 && currentTime <= c.end_time + 0.05,
     );
     if (!activeCue) {
-      // No active cue — check if we're in a gap between cues
       const lastCue = cues[cues.length - 1];
       const firstCue = cues[0];
 
       if (currentTime >= lastCue.end_time) {
-        // After all cues — fade out the last cue
         const fadeOutDuration = 0.5;
         const timeSinceEnd = currentTime - lastCue.end_time;
         if (timeSinceEnd < fadeOutDuration) {
@@ -41,17 +38,14 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
           opacity = 0;
         }
       } else if (currentTime < firstCue.start_time) {
-        // Before first cue — show nothing
         displayText = "";
         opacity = 0;
       } else {
-        // In a gap between cues — show nothing
         displayText = "";
         opacity = 0;
       }
     } else {
       displayText = activeCue.text;
-      // Fade in at the start of each cue
       const cueElapsed = currentTime - activeCue.start_time;
       const cueFadeIn = interpolate(cueElapsed, [0, 0.15], [0, 1], {
         easing: Easing.bezier(0.16, 1, 0.3, 1),
@@ -67,34 +61,32 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
     return null;
   }
 
-  const isMinimal = mode === "minimal";
-
-  const subMaxWidth = Math.min(width - d.layout.pageInset * 3.2, d.scaled(isMinimal ? 560 : 640));
+  const subMaxWidth = Math.min(width - d.layout.pageInset * 2, d.layout.subtitleMaxWidth);
 
   return (
     <div
       style={{
-        ...S,
+        position: "absolute",
         left: "50%",
-        bottom:
-          (isMinimal ? d.layout.subtitleBottomMinimal : d.layout.subtitleBottom) + d.scaled(8),
+        bottom: d.layout.subtitleBottom + d.scaled(8),
         transform: `translateX(-50%) translateY(${slideY}px)`,
-        background: isMinimal ? GRADIENTS.subtitleMinimal : GRADIENTS.subtitleStandard,
+        background: "rgba(254,252,248,0.88)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: `${d.scaled(7)}px ${d.scaled(24)}px`,
         width: subMaxWidth,
-        minHeight: isMinimal ? d.scaled(34) : d.scaled(42),
-        opacity: opacity * (isMinimal ? 0.72 : 0.84),
+        minHeight: d.scaled(42),
+        opacity: opacity * 0.84,
         borderRadius: d.scaled(12),
+        border: `1px solid ${COLORS.border}`,
       }}
     >
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: Math.round(d.fs.subtitle * (isMinimal ? 0.74 : 0.8)),
-          color: isMinimal ? COLORS.textSecondary : COLORS.textBody,
+          fontSize: Math.round(d.fs.subtitle * 0.8),
+          color: COLORS.fg,
           textAlign: "center",
           lineHeight: 1.35,
           fontWeight: FW.medium,

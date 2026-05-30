@@ -36,7 +36,7 @@ def _make_content_item(index=0):
 
 
 def _make_provider():
-    with patch("src.providers.llm.llm_client.get_env", return_value="fake-key"):
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "fake-key"}):
         with patch("src.providers.llm.llm_client.OpenAI"):
             return OpenAILLMProvider(_make_config())
 
@@ -231,7 +231,7 @@ class TestSingleStoryToJson:
     def test_comment_truncation(self):
         config = _make_config()
         config["pipeline"]["max_comments_for_r1_analyze"] = 2
-        with patch("src.providers.llm.llm_client.get_env", return_value="fake-key"):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "fake-key"}):
             with patch("src.providers.llm.llm_client.OpenAI"):
                 provider = OpenAILLMProvider(config)
         item = _make_content_item(0)

@@ -1,340 +1,282 @@
+/* ================================================================
+   CoverCard — 封面卡 (Warm Paper Theme)
+   ================================================================
+
+   Layout: single-column vertical
+     - SectionLabel (mono, amber dot)
+     - Headline (display, 96px)
+     - Divider
+     - Highlights list (rank badge + title + metric pills + subtitle)
+
+   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   adds subtle entrance animation via useCurrentFrame/interpolate.
+*/
+
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
+import type { CoverCardProps, Highlight } from "./cardTypes";
+import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import type { ElementProps } from "./utils";
+import { extractCoverProps } from "./propsExtractors";
 
-import { ElementProps, p } from "./utils";
-import {
-  CHAPTERS,
-  COLORS,
-  FONTS,
-  FW,
-  useDesign,
-  glassCard,
-  glassCardShadow,
+/* ---- sub-component styles ---- */
+
+function buildStyles(scaled: (px: number) => number) {
+  return {
+    card: {
+      width: scaled(CARD_REF.width),
+      height: "100%" as const,
+      background: COLORS.bg,
+      position: "relative" as const,
+      overflow: "hidden",
+    } as React.CSSProperties,
+    inner: {
+      padding: `${scaled(80)}px ${scaled(CARD_REF.width > 0 ? 100 : 0)}px`,
+      height: "100%",
+      display: "flex",
+      flexDirection: "column" as const,
+      justifyContent: "center" as const,
+      gap: scaled(52),
+    } as React.CSSProperties,
+    sectionLabel: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(14),
+      fontWeight: 600,
+      letterSpacing: "0.28em",
+      textTransform: "uppercase" as const,
+      color: COLORS.warmGold,
+      paddingLeft: scaled(20),
+      position: "relative" as const,
+    } as React.CSSProperties,
+    dot: {
+      position: "absolute" as const,
+      left: 0,
+      top: "50%",
+      transform: "translateY(-50%)",
+      width: scaled(8),
+      height: scaled(8),
+      borderRadius: "50%",
+      background: COLORS.warmBrown,
+    } as React.CSSProperties,
+    headline: {
+      fontSize: scaled(96),
+      fontWeight: 900,
+      lineHeight: 1.1,
+      letterSpacing: "-0.02em",
+      color: COLORS.fg,
+      maxWidth: scaled(1500),
+    } as React.CSSProperties,
+    divider: {
+      width: "100%",
+      maxWidth: scaled(900),
+      height: scaled(6),
+      borderRadius: scaled(3),
+      background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+    } as React.CSSProperties,
+    highlights: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(24),
+      width: "100%",
+    } as React.CSSProperties,
+    hlItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(28),
+      padding: `${scaled(20)}px 0`,
+    } as React.CSSProperties,
+    hlBadge: (rank: number) =>
+      ({
+        width: scaled(52),
+        height: scaled(52),
+        borderRadius: scaled(8),
+        background:
+          rank === 1
+            ? COLORS.warmBrown
+            : rank === 2
+              ? COLORS.warmGold
+              : COLORS.dim,
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: scaled(22),
+        fontWeight: 900,
+        fontFamily: TYPOGRAPHY.fontMono,
+        flexShrink: 0,
+      }) as React.CSSProperties,
+    hlBody: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(8),
+    } as React.CSSProperties,
+    hlTitle: {
+      fontSize: scaled(28),
+      fontWeight: 700,
+      lineHeight: 1.3,
+      color: COLORS.fg,
+    } as React.CSSProperties,
+    hlMeta: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(16),
+      flexWrap: "wrap" as const,
+    } as React.CSSProperties,
+    pill: (color: string, bg: string) =>
+      ({
+        display: "inline-flex",
+        alignItems: "center",
+        gap: scaled(4),
+        fontFamily: TYPOGRAPHY.fontMono,
+        fontSize: scaled(14),
+        fontWeight: 600,
+        padding: `${scaled(4)}px ${scaled(12)}px`,
+        borderRadius: scaled(999),
+        background: bg,
+        color,
+      }) as React.CSSProperties,
+    originalTitle: {
+      fontSize: scaled(16),
+      color: COLORS.dim,
+      fontFamily: TYPOGRAPHY.fontMono,
+    } as React.CSSProperties,
+  };
+}
+
+/* ---- helpers ---- */
+
+function HighlightRow({
+  h,
   S,
-  GRADIENTS,
-} from "./design";
-import {
-  GlassShimmer,
-  HighlightEntry,
-  MedalBadge,
-  MetricPill,
-  overshootTranslateY,
-  rowEntryAnimation,
-  SectionLabel,
-  useCardPad,
-  useCardAnimations,
-  heroFontSize,
-  subheadFontSize,
-  CARD_ENTRANCE_Y,
-  HERO_ENTRANCE_Y,
-  ROW_STAGGER,
-} from "./HighlightShared";
+}: {
+  h: Highlight;
+  S: ReturnType<typeof buildStyles>;
+}) {
+  return (
+    <div style={S.hlItem}>
+      <div style={S.hlBadge(h.rank)}>{h.rank}</div>
+      <div style={S.hlBody}>
+        <div style={S.hlTitle}>{h.editorAngle}</div>
+        <div style={S.hlMeta}>
+          <span style={S.pill(COLORS.warmBrown, COLORS.brownBg)}>
+            &#x1F525; {h.hnScore.toLocaleString()}
+          </span>
+          <span style={S.pill(COLORS.warmGold, COLORS.goldBg)}>
+            &#x1F4AC; {h.commentCount.toLocaleString()}
+          </span>
+          {h.originalTitle && (
+            <span style={S.originalTitle}>{h.originalTitle}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-const COVER_SUBTITLE_COLOR = COLORS.textSecondary;
+/* ---- main component ---- */
 
-type SectionCounts = {
-  focus?: number;
-};
+export const CoverCard: React.FC<ElementProps> = ({
+  elementProps,
+  width,
+  height,
+}) => {
+  const frame = useCurrentFrame();
+  const d = useTheme();
 
-const SectionCountsStrip: React.FC<{
-  counts: SectionCounts;
-  frame: number;
-  delay: number;
-}> = ({ counts, frame, delay }) => {
-  const d = useDesign();
-  const focus = Number(counts.focus || 0);
-  const total = focus;
-  if (total <= 0) return null;
-  const grow = interpolate(frame, [delay, delay + 22], [0, 1], {
+  const typed = extractCoverProps(elementProps);
+  const { headline, dateLabel, categories, highlights } = typed;
+  const hasHighlights = highlights.length > 0;
+  const S = buildStyles(d.scaled);
+
+  // Entrance animation
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const opacity = interpolate(frame, [delay, delay + 14], [0, 1], {
+  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const segments: { count: number; color: string; label: string; key: string }[] = [
-    { count: focus, color: CHAPTERS.focus.accent, label: "重点", key: "focus" },
-  ].filter((s) => s.count > 0);
+  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: d.scaled(10),
-        marginTop: d.scaled(20),
-        opacity,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          height: d.scaled(10),
-          width: "100%",
-          borderRadius: 999,
-          backgroundColor: COLORS.surfaceLow,
-          overflow: "hidden",
-        }}
-      >
-        {segments.map((seg, i) => {
-          const ratio = seg.count / total;
-          const segGrow = interpolate(grow, [i * 0.18, i * 0.18 + 0.5], [0, 1], {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          });
-          return (
-            <div
-              key={seg.key}
-              style={{
-                width: `${ratio * 100 * segGrow}%`,
-                height: "100%",
-                backgroundColor: seg.color,
-                marginRight: i < segments.length - 1 ? d.scaled(2) : 0,
-              }}
-            />
-          );
-        })}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: d.scaled(20),
-          flexWrap: "wrap",
-        }}
-      >
-        {segments.map((seg) => (
-          <div
-            key={`${seg.key}-label`}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: d.scaled(6),
-              fontFamily: FONTS.sans,
-              fontSize: d.fs.bodySmall,
-              fontWeight: FW.semibold,
-              color: COLORS.textSecondary,
-            }}
-          >
-            <span
-              style={{
-                width: d.scaled(8),
-                height: d.scaled(8),
-                borderRadius: 2,
-                backgroundColor: seg.color,
-                display: "inline-block",
-              }}
-            />
-            <span>{seg.label}</span>
-            <span
-              style={{
-                fontFamily: FONTS.mono,
-                fontWeight: FW.heavy,
-                color: COLORS.text,
-              }}
-            >
-              {seg.count}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-export const CoverCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
-  const frame = useCurrentFrame();
-
-  const headline = p(elementProps, "headline", "HN每日观察");
-  const sectionCounts = (elementProps.section_counts as SectionCounts | undefined) ?? {};
-  const highlightEntries = Array.isArray(elementProps.highlight_entries)
-    ? (elementProps.highlight_entries as HighlightEntry[]).slice(0, 3)
-    : [];
-  const hasHighlights = highlightEntries.length > 0;
-
-  const d = useDesign();
-  const compact = d.isCompactHeight;
-  const cardW = width - d.layout.pageInset * 2;
-  const cardH = d.getCardMaxHeight;
-
-  const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress } = useCardAnimations(frame);
-
-  return (
-    <div
-      style={{
-        ...S,
-        left: d.layout.pageInset,
-        top: d.layout.topInset,
-        width: cardW,
-        minHeight: cardH,
-        maxHeight: cardH,
-        ...glassCard,
-        boxShadow: glassCardShadow,
-        padding: `${padY}px ${padX}px`,
-        boxSizing: "border-box",
+        ...S.card,
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
+        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      <GlassShimmer frame={frame} />
+      <div style={S.inner}>
+        {/* Section label */}
+        <span style={S.sectionLabel}>
+          <span style={S.dot} />
+          {dateLabel}
+        </span>
 
-      {/* Header row */}
-      <SectionLabel text="今日速递" delay={8} frame={frame} />
-
-      {/* Headline */}
-      <div
-        style={{
-          opacity: titleProgress,
-          transform: `translateY(${interpolate(titleProgress, [0, 1], [HERO_ENTRANCE_Y, 0])}px)`,
-        }}
-      >
-        <div
+        {/* Headline */}
+        <h1
           style={{
-            fontFamily: FONTS.bold,
-            fontWeight: FW.bold,
-            fontSize: heroFontSize(d),
-            color: COLORS.text,
-            lineHeight: 1.1,
-            letterSpacing: -0.5,
+            ...S.headline,
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [28, 0])}px)`,
           }}
         >
           {headline}
-        </div>
-        <SectionCountsStrip counts={sectionCounts} frame={frame} delay={12} />
-      </div>
+        </h1>
 
-      {/* Highlight entries */}
-      {hasHighlights && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            marginTop: d.scaled(compact ? 24 : 36),
-            flex: 1,
-            opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
-          }}
-        >
-          <SectionLabel text="今日亮点" delay={14} frame={frame} />
-          {highlightEntries.map((entry, i) => {
-            const rowProgress = rowEntryAnimation(frame, 16 + i * ROW_STAGGER, 20);
-            const angle = entry.editor_angle || "";
-            const why = entry.original_title || "";
-            const showMetrics =
-              typeof entry.score === "number" || typeof entry.comment_count === "number";
-
-            return (
+        {/* Category count bar */}
+        {categories.length > 0 && (
+          <div
+            style={{
+              opacity: bodyProgress,
+              display: "flex",
+              gap: d.scaled(4),
+              height: d.scaled(6),
+              maxWidth: d.scaled(900),
+            }}
+          >
+            {categories.map((c) => (
               <div
-                key={`${i}-${angle}`}
+                key={c.label}
                 style={{
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: d.scaled(14),
-                  padding: `${d.scaled(compact ? 14 : 18)}px 0`,
-                  opacity: rowProgress,
-                  transform: `translateY(${interpolate(rowProgress, [0, 1], [10, 0])}px)`,
-                  borderBottom:
-                    i < highlightEntries.length - 1 ? `1px solid ${COLORS.borderLow}` : undefined,
+                  flex: c.flex,
+                  height: "100%",
+                  borderRadius: d.scaled(3),
+                  background:
+                    c.color === "red"
+                      ? COLORS.warmBrown
+                      : c.color === "amber"
+                        ? COLORS.warmGold
+                        : COLORS.dim,
                 }}
-              >
-                {/* Left medal */}
-                <div
-                  style={{
-                    flexShrink: 0,
-                    alignSelf: "flex-start",
-                  }}
-                >
-                  <MedalBadge rank={i + 1} size={d.scaled(32)} fontSize={d.fs.bodySmall} />
-                </div>
+              />
+            ))}
+          </div>
+        )}
 
-                {/* Content */}
-                <div style={{ minWidth: 0, flex: 1, position: "relative", zIndex: 1 }}>
-                  {/* Title row: angle + metrics pills on the right */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      justifyContent: "space-between",
-                      gap: d.scaled(12),
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontFamily: FONTS.bold,
-                        fontSize: subheadFontSize(d),
-                        lineHeight: 1.35,
-                        fontWeight: FW.bold,
-                        color: COLORS.text,
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical" as const,
-                        flex: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      {angle}
-                    </div>
-                    {showMetrics && (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: d.scaled(8),
-                          flexShrink: 0,
-                          alignItems: "center",
-                        }}
-                      >
-                        {typeof entry.score === "number" && (
-                          <MetricPill
-                            icon="🔥"
-                            value={entry.score}
-                            delay={18 + i * ROW_STAGGER}
-                            frame={frame}
-                          />
-                        )}
-                        {typeof entry.comment_count === "number" && (
-                          <MetricPill
-                            icon="💬"
-                            value={entry.comment_count}
-                            delay={20 + i * ROW_STAGGER}
-                            frame={frame}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {why && (
-                    <div
-                      style={{
-                        fontFamily: FONTS.sans,
-                        fontSize: d.fs.bodyLg,
-                        lineHeight: 1.5,
-                        fontWeight: FW.regular,
-                        color: COVER_SUBTITLE_COLOR,
-                        marginTop: d.scaled(compact ? 5 : 8),
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 1,
-                        WebkitBoxOrient: "vertical" as const,
-                      }}
-                    >
-                      {why}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
+        {/* Highlights */}
+        {hasHighlights && (
+          <div
+            style={{
+              ...S.highlights,
+              opacity: bodyProgress,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [10, 0])}px)`,
+            }}
+          >
+            {highlights.map((h) => (
+              <HighlightRow key={h.rank} h={h} S={S} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

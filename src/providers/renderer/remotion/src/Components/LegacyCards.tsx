@@ -1,7 +1,7 @@
 import React from "react";
 import { Easing, interpolate, useCurrentFrame } from "remotion";
 
-import { COLORS, FONTS, FW, S, useDesign } from "./design";
+import { COLORS, FONTS, FW, S, useDesign, glassCardShadow } from "./design";
 import { cleanText, ElementProps, p } from "./utils";
 
 const EASE = Easing.bezier(0.16, 1, 0.3, 1);
@@ -54,10 +54,10 @@ const LegacyShell: React.FC<{
         padding: `${d.scaled(46)}px ${d.scaled(54)}px`,
         boxSizing: "border-box",
         borderRadius: d.scaled(16),
-        background: "rgba(255,255,255,0.065)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.40), 0 1px 6px rgba(0,0,0,0.25)",
-        backdropFilter: "blur(40px) saturate(1.35)",
-        WebkitBackdropFilter: "blur(40px) saturate(1.35)",
+        background: COLORS.surface,
+        boxShadow: glassCardShadow,
+        backdropFilter: "blur(24px) saturate(1.2)",
+        WebkitBackdropFilter: "blur(24px) saturate(1.2)",
         opacity: progress,
         transform: `translateY(${interpolate(progress, [0, 1], [24, 0])}px)`,
         overflow: "hidden",
@@ -85,7 +85,7 @@ const LegacyShell: React.FC<{
             fontFamily: FONTS.sans,
             fontSize: d.fs.bodySmall,
             fontWeight: FW.heavy,
-            color: COLORS.textSecondary,
+            color: COLORS.muted,
             letterSpacing: 0,
           }}
         >
@@ -113,7 +113,7 @@ const Metric: React.FC<{ label: string; value: number; color?: string }> = ({
         height: d.scaled(32),
         padding: `0 ${d.scaled(14)}px`,
         borderRadius: d.scaled(999),
-        background: "rgba(255,255,255,0.055)",
+        background: COLORS.surfaceFaint,
         border: `1px solid ${COLORS.borderLow}`,
         fontFamily: FONTS.mono,
         fontSize: d.fs.caption,
@@ -121,7 +121,7 @@ const Metric: React.FC<{ label: string; value: number; color?: string }> = ({
         color,
       }}
     >
-      <span style={{ color: COLORS.textTertiary }}>{label}</span>
+      <span style={{ color: COLORS.dim }}>{label}</span>
       {value.toLocaleString("en-US")}
     </span>
   );
@@ -184,7 +184,7 @@ export const DiscussionOverviewCard: React.FC<ElementProps> = ({ elementProps, w
             style={{
               padding: d.scaled(22),
               borderRadius: d.scaled(12),
-              background: "rgba(255,255,255,0.045)",
+              background: COLORS.surfaceSubtle,
               border: `1px solid ${COLORS.borderLow}`,
             }}
           >
@@ -193,7 +193,7 @@ export const DiscussionOverviewCard: React.FC<ElementProps> = ({ elementProps, w
                 fontFamily: FONTS.sans,
                 fontSize: d.fs.caption,
                 fontWeight: FW.bold,
-                color: COLORS.textTertiary,
+                color: COLORS.dim,
                 marginBottom: d.scaled(8),
               }}
             >
@@ -251,7 +251,7 @@ export const CommentCard: React.FC<ElementProps> = ({ elementProps, width, heigh
           display: "flex",
           alignItems: "center",
           gap: d.scaled(12),
-          color: COLORS.textTertiary,
+          color: COLORS.dim,
           fontFamily: FONTS.mono,
           fontSize: d.fs.bodySmall,
         }}
@@ -331,7 +331,7 @@ export const PerspectiveCompareCard: React.FC<ElementProps> = ({ elementProps, w
                       style={{
                         fontFamily: FONTS.mono,
                         fontSize: d.fs.caption,
-                        color: COLORS.textSecondary,
+                        color: COLORS.muted,
                       }}
                     >
                       #{kw}
@@ -422,7 +422,7 @@ export const NewsCarouselCard: React.FC<ElementProps> = ({ elementProps, width, 
         style={{
           fontFamily: FONTS.sans,
           fontSize: d.fs.bodyLg,
-          color: COLORS.textBody,
+          color: COLORS.fg,
           lineHeight: 1.65,
           marginBottom: d.scaled(20),
           maxWidth: d.scaled(960),
@@ -437,7 +437,7 @@ export const NewsCarouselCard: React.FC<ElementProps> = ({ elementProps, width, 
             style={{
               fontFamily: FONTS.mono,
               fontSize: d.fs.bodySmall,
-              color: COLORS.textTertiary,
+              color: COLORS.dim,
             }}
           >
             @{author}
@@ -475,7 +475,7 @@ export const PatternInsightCard: React.FC<ElementProps> = ({ elementProps, width
         style={{
           fontFamily: FONTS.sans,
           fontSize: d.fs.bodyLg,
-          color: COLORS.textBody,
+          color: COLORS.fg,
           lineHeight: 1.65,
           marginBottom: d.scaled(22),
           maxWidth: d.scaled(1000),
@@ -541,7 +541,7 @@ export const OutroCard: React.FC<ElementProps> = ({ elementProps, width, height 
             fontFamily: FONTS.sans,
             fontSize: d.fs.bodyLg,
             fontWeight: FW.medium,
-            color: COLORS.textSecondary,
+            color: COLORS.muted,
           }}
         >
           {subtitle}

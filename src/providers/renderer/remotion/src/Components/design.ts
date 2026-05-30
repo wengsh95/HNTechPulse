@@ -1,9 +1,11 @@
-import React, { createContext, useContext } from "react";
-import { Easing } from "remotion";
+import React, { createContext, useContext, useMemo } from "react";
+import { Easing, useVideoConfig } from "remotion";
 
-/** 硬编码 1080p 输出，不做分辨率缩放 */
+/** Reference design dimensions (1080p landscape) — all pixel values below are relative to this */
+const REF_WIDTH = 1920;
+const REF_HEIGHT = 1080;
 
-/** Keynote 风格暗色设计系统（1080p 固定值） */
+/** Keynote 风格暗色设计系统（基于 1080p 参考值，运行时按实际分辨率缩放） */
 export const GRID_UNIT = 8;
 export const grid = (units: number) => units * GRID_UNIT;
 export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
@@ -24,67 +26,75 @@ export const FW = {
 } as const;
 
 export const COLORS = {
-  bg: "#0d0d0f",
-  surface: "rgba(255,255,255,0.06)",
-  surfaceHover: "rgba(255,255,255,0.10)",
-  surfaceBorder: "transparent",
+  // ── Warm paper canvas ──
+  bg: "#fefcf8",
+  surface: "rgba(44,36,22,0.04)",
+  surfaceHover: "rgba(44,36,22,0.07)",
+  surfaceBorder: "#e5ddd0",
 
-  text: "#f5f5f7",
-  textSecondary: "rgba(245,245,247,0.60)",
-  textTertiary: "rgba(245,245,247,0.38)",
+  text: "#2c2416",
+  fg: "#2c2416", // warm paper primary text — use over text
+  textSecondary: "rgba(44,36,22,0.65)",
+  textTertiary: "rgba(44,36,22,0.42)",
+  textBody: "rgba(44,36,22,0.88)",
+  textDim: "rgba(44,36,22,0.72)",
+  textFaint: "rgba(44,36,22,0.28)",
+  muted: "#8b8070", // warm paper secondary — use over textSecondary
+  dim: "rgba(44,36,22,0.55)", // warm paper tertiary — use over textTertiary
 
-  accent: "#007AFF",
-  accentLight: "#4DA6FF",
-  accentBg: "rgba(0, 122, 255, 0.12)",
-  accentBorder: "rgba(0, 122, 255, 0.35)",
+  // ── Warm accents ──
+  accent: "#c17d4b",
+  accentLight: "#d4a854",
+  accentBg: "rgba(193,125,75,0.10)",
+  accentBorder: "rgba(193,125,75,0.28)",
 
-  brand: "#ff6600",
-  brandLight: "#ff8b36",
-  brandBg: "rgba(255, 102, 0, 0.10)",
-  brandBorder: "rgba(255, 102, 0, 0.30)",
+  brand: "#c17d4b",
+  brandLight: "#d4a854",
+  brandBg: "rgba(193,125,75,0.08)",
+  brandBorder: "rgba(193,125,75,0.25)",
 
-  green: "#34C759",
-  yellow: "#FFD60A",
-  red: "#FF453A",
-  orangeRed: "#FF5A5F",
-  purple: "#BF5AF2",
-  orange: "#FF9F0A",
-  gray: "#8E8E93",
+  green: "#5a8a6a",
+  yellow: "#d4a854",
+  red: "#c17d4b",
+  orangeRed: "#c17d4b",
+  purple: "#9b7ec4",
+  orange: "#d4a854",
+  gray: "#b0a595",
   white: "#ffffff",
 
-  textBody: "rgba(245,245,247,0.85)",
-  textDim: "rgba(245,245,247,0.70)",
-  textFaint: "rgba(255,255,255,0.22)",
+  textBody: "rgba(44,36,22,0.88)",
+  textDim: "rgba(44,36,22,0.72)",
+  textFaint: "rgba(44,36,22,0.28)",
 
-  surfaceSubtle: "rgba(255,255,255,0.03)",
-  surfaceFaint: "rgba(255,255,255,0.04)",
-  surfaceLow: "rgba(255,255,255,0.08)",
-  surfaceMid: "rgba(255,255,255,0.10)",
-  surfaceMed: "rgba(255,255,255,0.12)",
+  surfaceSubtle: "rgba(44,36,22,0.03)",
+  surfaceFaint: "rgba(44,36,22,0.04)",
+  surfaceLow: "rgba(44,36,22,0.06)",
+  surfaceMid: "rgba(44,36,22,0.08)",
+  surfaceMed: "rgba(44,36,22,0.10)",
 
-  borderSubtle: "rgba(255,255,255,0.07)",
-  borderLow: "rgba(255,255,255,0.08)",
-  borderMid: "rgba(255,255,255,0.18)",
+  borderSubtle: "rgba(44,36,22,0.06)",
+  borderLow: "rgba(44,36,22,0.08)",
+  borderMid: "rgba(44,36,22,0.15)",
 
-  accentSurface: "rgba(0,122,255,0.10)",
-  accentBorderSubtle: "rgba(0,122,255,0.18)",
-  accentBorderMid: "rgba(0,122,255,0.25)",
+  accentSurface: "rgba(193,125,75,0.08)",
+  accentBorderSubtle: "rgba(193,125,75,0.15)",
+  accentBorderMid: "rgba(193,125,75,0.22)",
 
-  brandBorderSubtle: "rgba(255,102,0,0.25)",
+  brandBorderSubtle: "rgba(193,125,75,0.22)",
 
-  bgTint75: "rgba(13,13,15,0.75)",
-  bgTint88: "rgba(13,13,15,0.88)",
-  bgStroke: "rgba(13,13,15,0.6)",
+  bgTint75: "rgba(254,252,248,0.75)",
+  bgTint88: "rgba(254,252,248,0.88)",
+  bgStroke: "rgba(254,252,248,0.6)",
 
-  dim: "rgba(245,245,247,0.60)",
-  cardBg: "rgba(255,255,255,0.06)",
-  background: "#0d0d0f",
-  border: "transparent",
-  borderLight: "rgba(255,255,255,0.06)",
-  textLight: "rgba(245,245,247,0.60)",
+  dim: "rgba(44,36,22,0.55)",
+  cardBg: "rgba(44,36,22,0.04)",
+  background: "#fefcf8",
+  border: "#e5ddd0",
+  borderLight: "rgba(44,36,22,0.06)",
+  textLight: "rgba(44,36,22,0.55)",
 };
 
-/** 1080p 固定布局值 */
+/** 1080p 参考布局值（运行时按实际尺寸缩放） */
 export const LAYOUT = {
   pageInset: 96,
   topInset: 96,
@@ -106,7 +116,7 @@ export const LAYOUT = {
   subtitleMaxWidth: 1216,
 };
 
-/** 1080p 固定字号（基准值 × 1.18 高度增强） */
+/** 1080p 参考字号（运行时按实际尺寸缩放） */
 export const FS = {
   hero: 66,
   headline: 50,
@@ -129,28 +139,89 @@ export const FS = {
 };
 
 export interface DesignTokens {
-  /** Scale a pixel value (1080p 固定：等价于 Math.round) */
+  /** Scale a pixel value relative to current composition size (reference: 1920×1080) */
   scaled: (px: number) => number;
   layout: typeof LAYOUT;
   fs: typeof FS;
   grid: (units: number) => number;
   isCompactHeight: boolean;
+  /** True when canvas height > width (e.g. 9:16 portrait) */
+  isPortrait: boolean;
   getCardMaxHeight: number;
 }
 
-/** 1080p 预计算的设计令牌 */
-const _tokens: DesignTokens = {
-  scaled: Math.round,
-  layout: LAYOUT,
-  fs: FS,
-  grid: (units: number) => units * GRID_UNIT,
-  isCompactHeight: false,
-  getCardMaxHeight: 840,
-};
+/** Build design tokens for a specific composition size */
+function createDesignTokens(width: number, height: number): DesignTokens {
+  const scale = Math.min(width / REF_WIDTH, height / REF_HEIGHT);
+  const scaled = (px: number) => Math.round(px * scale);
 
-/** 获取设计令牌（1080p 固定值） */
+  const isPortrait = height > width;
+  const isCompactHeight = scale < 0.8;
+
+  const getCardMaxHeight = isPortrait
+    ? Math.round(height * 0.55)
+    : Math.round(height * 0.78);
+
+  const layout: typeof LAYOUT = {
+    pageInset: scaled(LAYOUT.pageInset),
+    topInset: scaled(LAYOUT.topInset),
+    bottomSafe: scaled(LAYOUT.bottomSafe),
+    chromeInsetX: scaled(LAYOUT.chromeInsetX),
+    chromeTop: scaled(LAYOUT.chromeTop),
+    chromeHeight: scaled(LAYOUT.chromeHeight),
+    progressInsetX: scaled(LAYOUT.progressInsetX),
+    progressBottom: scaled(LAYOUT.progressBottom),
+    subtitleBottom: scaled(LAYOUT.subtitleBottom),
+    subtitleBottomMinimal: scaled(LAYOUT.subtitleBottomMinimal),
+    cardRadius: scaled(LAYOUT.cardRadius),
+    panelRadius: scaled(LAYOUT.panelRadius),
+    chipRadius: scaled(LAYOUT.chipRadius),
+    cardPaddingX: scaled(LAYOUT.cardPaddingX),
+    cardPaddingY: scaled(LAYOUT.cardPaddingY),
+    contentMaxWidth: scaled(LAYOUT.contentMaxWidth),
+    contentWideMaxWidth: scaled(LAYOUT.contentWideMaxWidth),
+    subtitleMaxWidth: scaled(LAYOUT.subtitleMaxWidth),
+  };
+
+  const fs: typeof FS = {
+    hero: scaled(FS.hero),
+    headline: scaled(FS.headline),
+    subhead: scaled(FS.subhead),
+    closing: scaled(FS.closing),
+    body: scaled(FS.body),
+    bodySmall: scaled(FS.bodySmall),
+    bodyLg: scaled(FS.bodyLg),
+    subtitle2: scaled(FS.subtitle2),
+    label: scaled(FS.label),
+    caption: scaled(FS.caption),
+    pill: scaled(FS.pill),
+    micro: scaled(FS.micro),
+    watermark: scaled(FS.watermark),
+    watermarkLg: scaled(FS.watermarkLg),
+    subtitle: scaled(FS.subtitle),
+  };
+
+  return {
+    scaled,
+    layout,
+    fs,
+    grid: (units: number) => scaled(units * GRID_UNIT),
+    isCompactHeight,
+    isPortrait,
+    getCardMaxHeight,
+  };
+}
+
+/** 1080p fallback tokens (for non-Remotion contexts like tests) */
+const _fallbackTokens: DesignTokens = createDesignTokens(REF_WIDTH, REF_HEIGHT);
+
+/** 获取设计令牌 — 动态适配当前合成尺寸 */
 export function useDesign(): DesignTokens {
-  return _tokens;
+  const config = useVideoConfig();
+  return useMemo(
+    () => createDesignTokens(config.width, config.height),
+    [config.width, config.height],
+  );
 }
 
 // ── Chapter token map ──
@@ -201,8 +272,8 @@ export const CHAPTERS: Record<ChapterName, ChapterTone> = {
   atmosphere: {
     accent: COLORS.purple,
     accentLight: COLORS.purple,
-    accentBg: "rgba(191,90,242,0.10)",
-    accentBorder: "rgba(191,90,242,0.30)",
+    accentBg: "rgba(155,126,196,0.10)",
+    accentBorder: "rgba(155,126,196,0.28)",
     labelText: COLORS.purple,
     motion: "countUp",
     viz: "pieChart",
@@ -244,16 +315,16 @@ export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
   closing_card: "closing",
 };
 
-/** 毛玻璃卡片样式（Keynote 风格） */
+/** 暖纸卡片样式 */
 export const glassCard: React.CSSProperties = {
   background: COLORS.surface,
   border: `1px solid ${COLORS.borderLow}`,
   borderRadius: LAYOUT.cardRadius,
-  backdropFilter: "blur(40px) saturate(1.4)",
-  WebkitBackdropFilter: "blur(40px) saturate(1.4)",
+  backdropFilter: "blur(24px) saturate(1.2)",
+  WebkitBackdropFilter: "blur(24px) saturate(1.2)",
 };
 
-export const glassCardShadow = `0 4px 32px rgba(0,0,0,0.40), 0 1px 4px rgba(0,0,0,0.20)`;
+export const glassCardShadow = `0 2px 16px rgba(44,36,22,0.08), 0 1px 3px rgba(44,36,22,0.04)`;
 
 export const innerPanel: React.CSSProperties = {
   background: COLORS.surfaceFaint,
@@ -261,11 +332,11 @@ export const innerPanel: React.CSSProperties = {
   borderRadius: LAYOUT.panelRadius,
 };
 
-export const glassGlow = `0 0 48px rgba(0,122,255,0.12), 0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)`;
+export const glassGlow = `0 0 32px rgba(193,125,75,0.06), 0 4px 16px rgba(44,36,22,0.08), 0 1px 4px rgba(44,36,22,0.04)`;
 
 export const SHADOWS = {
   card: glassCardShadow,
-  cardHover: "0 8px 32px rgba(0,0,0,0.50), 0 2px 10px rgba(0,0,0,0.30)",
+  cardHover: "0 4px 20px rgba(44,36,22,0.10), 0 1px 6px rgba(44,36,22,0.06)",
 };
 
 /** 命名渐变 */
@@ -273,11 +344,11 @@ export const GRADIENTS = {
   brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange})`,
   accentFill: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
   shimmerSweep: `linear-gradient(105deg, transparent 40%, ${COLORS.surfaceLow} 48%, ${COLORS.surfaceLow} 52%, transparent 60%)`,
-  divider: `linear-gradient(90deg, ${COLORS.surfaceMid} 0%, ${COLORS.surfaceFaint} 100%)`,
-  subtitleMinimal: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(13,13,15,0))`,
-  subtitleStandard: `linear-gradient(90deg, rgba(13,13,15,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(13,13,15,0))`,
-  keywordTagBg: `rgba(0,122,255,0.10)`,
-  dotGrid: `radial-gradient(circle, ${COLORS.surfaceSubtle} 1px, transparent 1px)`,
+  divider: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange}99, transparent)`,
+  subtitleMinimal: `linear-gradient(90deg, rgba(254,252,248,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(254,252,248,0))`,
+  subtitleStandard: `linear-gradient(90deg, rgba(254,252,248,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(254,252,248,0))`,
+  keywordTagBg: `rgba(193,125,75,0.08)`,
+  dotGrid: `radial-gradient(circle, rgba(44,36,22,0.04) 1px, transparent 1px)`,
 } as const;
 
 export const sectionLabel: React.CSSProperties = {

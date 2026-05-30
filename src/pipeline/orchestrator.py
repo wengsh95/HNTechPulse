@@ -122,19 +122,14 @@ class Orchestrator:
                     for item in content.items
                     if item.enrichment_source in ("fetch_failed", "extraction_failed")
                 ]
-                total_items = len(content.items)
-                if failed_items and len(failed_items) == total_items:
+                if failed_items:
                     self.logger.warning(
-                        "Pipeline stopped: ALL items need manual intervention. "
+                        f"Pipeline stopped: {len(failed_items)}/{len(content.items)} "
+                        "items could not be fetched. "
                         "Re-run after placing HTML files in downloaded_pages/."
                     )
                     self._print_enrich_failure_guidance(failed_items)
                     return
-                elif failed_items:
-                    self.logger.warning(
-                        f"{len(failed_items)}/{total_items} items could not be fetched. "
-                        "Continuing with successful items..."
-                    )
 
         if "script" in steps:
             with self._progress.step("script"):

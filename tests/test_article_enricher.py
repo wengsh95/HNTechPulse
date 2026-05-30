@@ -28,7 +28,7 @@ def _make_config(**overrides):
 
 
 def _make_enricher(**config_overrides):
-    with patch("src.utils.config.get_env", return_value="fake-key"):
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "fake-key"}):
         with patch("src.providers.enricher.article_enricher.OpenAI"):
             return ArticleEnricher(_make_config(**config_overrides))
 

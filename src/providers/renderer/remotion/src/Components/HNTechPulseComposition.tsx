@@ -286,7 +286,7 @@ const SegmentRenderer: React.FC<{
   );
   const subtitleMode =
     hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
-      ? "minimal"
+      ? "standard"
       : "standard";
 
   const TRANSITION_FRAMES = 12;
@@ -412,7 +412,7 @@ const GlobalChrome: React.FC<{
           alignItems: "center",
           gap: scaled(10),
           fontFamily: FONTS.sans,
-          color: COLORS.textSecondary,
+          color: COLORS.muted,
           fontSize: fs.bodySmall,
           fontWeight: FW.heavy,
           letterSpacing: 0,
@@ -421,7 +421,7 @@ const GlobalChrome: React.FC<{
         <span style={{ color: COLORS.text }}>HN每日观察</span>
         {dateLabel && (
           <>
-            <span style={{ color: COLORS.textTertiary }}>/</span>
+            <span style={{ color: COLORS.dim }}>/</span>
             <span>{dateLabel}</span>
           </>
         )}
@@ -438,7 +438,7 @@ const GlobalChrome: React.FC<{
             borderRadius: 999,
             background: CHAPTERS[activeChapter.chapter].accentBg,
             border: `1px solid ${CHAPTERS[activeChapter.chapter].accentBorder}`,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.30)",
+            boxShadow: "0 2px 8px rgba(44,36,22,0.06)",
             boxSizing: "border-box",
           }}
         >
@@ -466,7 +466,7 @@ const GlobalChrome: React.FC<{
                 fontFamily: FONTS.sans,
                 fontSize: fs.caption,
                 fontWeight: FW.bold,
-                color: COLORS.textSecondary,
+                color: COLORS.muted,
                 lineHeight: 1,
               }}
             >

@@ -297,12 +297,11 @@ class ScriptWriter:
 
     def _build_story_specs(self, content: ContentPackage) -> list[dict]:
         pipeline_cfg = self.config.get("pipeline", {})
-        total = int(pipeline_cfg.get("target_story_count", 10) or 10)
+        total = int(pipeline_cfg.get("target_story_count", 3) or 3)
         total = min(total, len(content.items))
-        focus_count = int(pipeline_cfg.get("focus_items", 3) or 3)
 
         specs: list[dict] = []
-        max_count = min(total, focus_count)
+        max_count = total
         for i in range(max_count):
             tier, mode, section = "focus", "deep", "重点观察"
             specs.append(

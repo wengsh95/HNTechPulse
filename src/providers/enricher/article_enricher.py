@@ -110,26 +110,14 @@ class ArticleEnricher:
         )
 
         # Use llm.fast (lightweight model) for summarization
-        fast_cfg = config.get("llm", {}).get("fast", {})
-        main_cfg = config.get("llm", {})
-        llm_base_url = fast_cfg.get("base_url", main_cfg.get("base_url", ""))
-        llm_model = fast_cfg.get("model", main_cfg.get("model", ""))
-        llm_max_tokens = self.summary_max_tokens
-        llm_temperature = fast_cfg.get("temperature", 0.5)
+        from src.providers.llm.backend import LLMBackend
 
-        from src.utils.config import get_env
-
-        api_key = get_env("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not set in environment")
-
-        self.llm_client = OpenAI(
-            api_key=api_key,
-            base_url=llm_base_url,
-        )
-        self.llm_model = llm_model
-        self.llm_max_tokens = llm_max_tokens
-        self.llm_temperature = llm_temperature
+        self._llm_backend = LLMBackend(config)
+        # Shorter read timeout for enrichment (lighter payloads)
+        self.llm_client = self._llm_backend.create_client(read=120.0)
+        self.llm_model = self._llm_backend.fast_model
+        self.llm_max_tokens = self.summary_max_tokens
+        self.llm_temperature = self._llm_backend.fast_temperature
 
         self.baidu_search = BaiduSearchProvider(config)
 

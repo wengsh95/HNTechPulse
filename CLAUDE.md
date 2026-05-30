@@ -97,6 +97,13 @@ All steps cache to `data/{date}/` and resume from disk. Config: [config/](config
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). `render_prompt()` raises `ValueError` on typos.
 - **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes.
 
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `mmx vision describe` | Image understanding — supports local files, URLs, file IDs |
+| `mmx search query` | Built-in web search |
+
 ---
 
 ## Tool & Environment Pitfalls

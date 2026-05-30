@@ -1,11 +1,10 @@
 # ── 基础/编排配置 ──
 
 logging:
-  level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 pipeline:
-  target_story_count: 10        # 正式日报条目数量
-  focus_items: 3                # 深讲：事件卡 + 讨论卡
+  target_story_count: 3        # 正式日报条目数量（也是深讲条数）
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
 hn:

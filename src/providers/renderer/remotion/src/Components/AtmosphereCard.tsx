@@ -1,463 +1,453 @@
+/* ================================================================
+   AtmosphereCard — 社区回声卡 (Warm Paper Theme)
+   ================================================================
+
+   Layout: single-column vertical
+     - Controversy score row (score + level tag + total comments)
+     - Debate topics (left) + stance distribution bars (right) — two columns
+     - Quoted opinions (stripe + quote text + author + likes)
+
+   Adapted for Remotion: accepts ElementProps, uses useTheme() for scaling,
+   adds entrance animation via useCurrentFrame/interpolate.
+*/
+
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
+import type {
+  AtmosphereCardProps,
+  ControversyLevel,
+  Stance,
+  Quote,
+} from "./cardTypes";
+import { COLORS, TYPOGRAPHY, CARD_REF, useTheme } from "./theme";
+import type { ElementProps } from "./utils";
+import { extractAtmosphereProps } from "./propsExtractors";
 
-import { StanceBar, STANCE_COLORS } from "./StancePie";
-import { COLORS, FONTS, FW, useDesign, glassCard, glassCardShadow, S } from "./design";
-import {
-  audioPulse,
-  GlassShimmer,
-  highlightKeywords,
-  lineClamp,
-  overshootTranslateY,
-  SectionLabel,
-  useCardPad,
-  useCardAnimations,
-  headerMargin,
-  titleBodyGap,
-  bodySectionGap,
-  titleFontSize,
-  CARD_ENTRANCE_Y,
-  BODY_ENTRANCE_Y,
-  IMAGE_ENTRANCE_X,
-  ITEM_DURATION,
-  PILL_DURATION,
-} from "./HighlightShared";
-import { cleanText, ElementProps, limitList, p, UI_TEXT } from "./utils";
+/* ---- label maps ---- */
 
-const CONTROVERSY_COLORS = {
-  green: COLORS.green,
-  yellow: COLORS.yellow,
-  red: COLORS.orangeRed,
+const CONTROVERSY_LABELS: Record<ControversyLevel, string> = {
+  consensus: "共识较强",
+  divided: "存在分歧",
+  highly_controversial: "高度争议",
 };
 
-function getControversyColor(score: number): string {
-  if (score <= 3) return CONTROVERSY_COLORS.green;
-  if (score <= 7) return CONTROVERSY_COLORS.yellow;
-  return CONTROVERSY_COLORS.red;
-}
+const STANCE_LABELS: Record<Stance, string> = {
+  support: "支持",
+  skeptic: "质疑",
+  neutral: "中立",
+  tease: "调侃",
+  worry: "担忧",
+};
 
-function getControversyLabel(score: number): string {
-  if (score <= 3) return "共识较强";
-  if (score <= 7) return "存在分歧";
-  return "高度争议";
-}
+const STANCE_COLORS: Record<Stance, string> = {
+  support: COLORS.sage,
+  skeptic: COLORS.warmGold,
+  neutral: COLORS.dim,
+  tease: COLORS.purple,
+  worry: COLORS.warmBrown,
+};
 
-function compactDistribution(distribution: Record<string, number>): Record<string, number> {
-  const entries = Object.entries(distribution)
-    .filter(([, value]) => value > 0)
-    .sort((a, b) => b[1] - a[1]);
-  const top = entries.slice(0, 3);
-  const rest = entries.slice(3).reduce((sum, [, value]) => sum + value, 0);
-  return Object.fromEntries(rest > 0 ? [...top, ["其他", rest]] : top);
-}
+const STANCE_ORDER: Stance[] = [
+  "support",
+  "skeptic",
+  "neutral",
+  "tease",
+  "worry",
+];
 
-interface Quote {
-  author: string;
-  display_text: string;
-  stance: string;
-  upvotes?: number;
-}
+/* ---- inline-styles object ---- */
 
-function getQuoteText(quote: Quote) {
-  if (!quote.display_text?.trim()) {
-    return null;
-  }
+function buildStyles(scaled: (px: number) => number) {
   return {
-    primaryText: cleanText(quote.display_text.trim()),
+    card: {
+      width: scaled(CARD_REF.width),
+      height: "100%" as const,
+      background: COLORS.bg,
+      position: "relative" as const,
+      overflow: "hidden",
+    } as React.CSSProperties,
+    inner: {
+      padding: `${scaled(80)}px ${scaled(100)}px`,
+      height: "100%",
+      display: "flex",
+      flexDirection: "column" as const,
+      justifyContent: "center" as const,
+      gap: scaled(42),
+    } as React.CSSProperties,
+    /* ---- score row ---- */
+    scoreRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(24),
+    } as React.CSSProperties,
+    score: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(72),
+      fontWeight: 900,
+      lineHeight: 1,
+      color: COLORS.fg,
+    } as React.CSSProperties,
+    scoreSlash: {
+      fontSize: scaled(42),
+      color: COLORS.dim,
+      fontWeight: 300,
+    } as React.CSSProperties,
+    levelTag: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: scaled(8),
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(15),
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      padding: `${scaled(8)}px ${scaled(22)}px`,
+      borderRadius: scaled(999),
+      background: COLORS.brownBg,
+      color: COLORS.warmBrown,
+      border: `1px solid #d4b896`,
+    } as React.CSSProperties,
+    levelDot: {
+      width: scaled(9),
+      height: scaled(9),
+      borderRadius: "50%",
+      background: COLORS.warmBrown,
+    } as React.CSSProperties,
+    commentsCount: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(17),
+      color: COLORS.dim,
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(8),
+      marginLeft: "auto",
+    } as React.CSSProperties,
+    commentsCountStrong: {
+      color: COLORS.warmGold,
+      fontSize: scaled(28),
+      fontWeight: 700,
+    } as React.CSSProperties,
+
+    /* ---- two-column section ---- */
+    twoCol: {
+      display: "flex",
+      gap: scaled(80),
+    } as React.CSSProperties,
+    debateCol: {
+      flex: `0 0 ${scaled(540)}px`,
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(20),
+    } as React.CSSProperties,
+    sectionTitle: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(15),
+      fontWeight: 700,
+      letterSpacing: "0.15em",
+      textTransform: "uppercase" as const,
+      color: COLORS.warmGold,
+      marginBottom: scaled(6),
+    } as React.CSSProperties,
+    debateItem: {
+      display: "flex",
+      gap: scaled(14),
+      alignItems: "flex-start" as const,
+    } as React.CSSProperties,
+    debateNum: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(20),
+      fontWeight: 800,
+      color: COLORS.warmBrown,
+      flexShrink: 0,
+      width: scaled(36),
+      textAlign: "right" as const,
+    } as React.CSSProperties,
+    debateText: {
+      fontSize: scaled(24),
+      fontWeight: 600,
+      lineHeight: 1.4,
+      color: COLORS.fg,
+    } as React.CSSProperties,
+
+    /* ---- stance column ---- */
+    stanceCol: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(18),
+    } as React.CSSProperties,
+    stanceRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(14),
+    } as React.CSSProperties,
+    stanceLabel: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(14),
+      fontWeight: 600,
+      width: scaled(60),
+      textAlign: "right" as const,
+      color: COLORS.muted,
+    } as React.CSSProperties,
+    stanceTrack: {
+      flex: 1,
+      height: scaled(22),
+      background: COLORS.surface2,
+      borderRadius: scaled(4),
+      overflow: "hidden",
+      position: "relative" as const,
+    } as React.CSSProperties,
+    stanceFill: (pct: number, color: string) =>
+      ({
+        height: "100%",
+        borderRadius: scaled(4),
+        transition: "width 1.2s ease",
+        width: `${pct}%`,
+        background: color,
+      }) as React.CSSProperties,
+    stancePct: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(14),
+      fontWeight: 700,
+      width: scaled(48),
+      color: COLORS.fg,
+    } as React.CSSProperties,
+
+    /* ---- quotes ---- */
+    quotesList: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(18),
+      maxWidth: scaled(1400),
+    } as React.CSSProperties,
+    quoteItem: {
+      display: "flex",
+      gap: scaled(16),
+      padding: `${scaled(18)}px 0`,
+      borderBottom: `1px solid ${COLORS.border}`,
+    } as React.CSSProperties,
+    quoteLast: {
+      display: "flex",
+      gap: scaled(16),
+      padding: `${scaled(18)}px 0`,
+    } as React.CSSProperties,
+    quoteStripe: (color: string) =>
+      ({
+        width: scaled(4),
+        borderRadius: scaled(2),
+        flexShrink: 0,
+        background: color,
+      }) as React.CSSProperties,
+    quoteBody: {
+      display: "flex",
+      flexDirection: "column" as const,
+      gap: scaled(8),
+    } as React.CSSProperties,
+    quoteText: {
+      fontSize: scaled(22),
+      lineHeight: 1.5,
+      color: COLORS.fg,
+      fontStyle: "italic",
+    } as React.CSSProperties,
+    quoteAuthor: {
+      fontFamily: TYPOGRAPHY.fontMono,
+      fontSize: scaled(14),
+      color: COLORS.dim,
+      display: "flex",
+      alignItems: "center",
+      gap: scaled(10),
+    } as React.CSSProperties,
+    quoteLikes: {
+      color: COLORS.warmGold,
+      fontWeight: 600,
+    } as React.CSSProperties,
   };
 }
 
-const ControversyPill: React.FC<{
-  score: number;
-  delay: number;
-  frame: number;
-}> = ({ score, delay, frame }) => {
-  const progress = interpolate(frame, [delay, delay + PILL_DURATION], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const { fs, scaled } = useDesign();
-  const color = getControversyColor(score);
-  const label = getControversyLabel(score);
-  const pulse = audioPulse(frame);
+/* ---- sub-components ---- */
 
+function StanceBar({
+  stance,
+  pct,
+  S,
+}: {
+  stance: Stance;
+  pct: number;
+  S: ReturnType<typeof buildStyles>;
+}) {
+  const color = STANCE_COLORS[stance];
   return (
-    <span
-      style={{
-        fontFamily: FONTS.sans,
-        fontSize: fs.pill,
-        fontWeight: FW.bold,
-        color: COLORS.white,
-        background: `linear-gradient(135deg, ${color} 0%, ${color}BB 100%)`,
-        borderRadius: 999,
-        padding: `${scaled(4)}px ${scaled(14)}px`,
-        letterSpacing: 0.3,
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [4, 0])}px) scale(${1 + pulse * 0.03})`,
-      }}
-    >
-      {label}
-    </span>
-  );
-};
-
-const FocusPoint: React.FC<{
-  index: number;
-  text: string;
-  delay: number;
-  frame: number;
-}> = ({ index, text, delay, frame }) => {
-  const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const { fs, scaled } = useDesign();
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        gap: scaled(10),
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: FONTS.mono,
-          fontSize: fs.caption,
-          fontWeight: FW.bold,
-          color: COLORS.accentLight,
-          backgroundColor: COLORS.accentBg,
-          borderRadius: scaled(4),
-          padding: `${scaled(2)}px ${scaled(6)}px`,
-          flexShrink: 0,
-          lineHeight: 1.4,
-          minWidth: scaled(24),
-          textAlign: "center",
-        }}
-      >
-        {String(index + 1).padStart(2, "0")}
-      </span>
-      <span
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: fs.body,
-          fontWeight: FW.medium,
-          color: COLORS.textSecondary,
-          lineHeight: 1.7,
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {text}
-      </span>
+    <div style={S.stanceRow}>
+      <span style={S.stanceLabel}>{STANCE_LABELS[stance]}</span>
+      <div style={S.stanceTrack}>
+        <div style={S.stanceFill(pct, color)} />
+      </div>
+      <span style={S.stancePct}>{pct}%</span>
     </div>
   );
-};
+}
 
-const UpvoteBadge: React.FC<{
-  upvotes: number;
-}> = ({ upvotes }) => {
-  const { fs, scaled } = useDesign();
+function QuoteBlock({
+  q,
+  last,
+  S,
+}: {
+  q: Quote;
+  last: boolean;
+  S: ReturnType<typeof buildStyles>;
+}) {
+  const color = STANCE_COLORS[q.stance];
   return (
-    <span
-      style={{
-        fontFamily: FONTS.mono,
-        fontSize: fs.caption,
-        fontWeight: FW.bold,
-        color: COLORS.orange,
-        lineHeight: 1,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: scaled(3),
-        backgroundColor: COLORS.surfaceFaint,
-        borderRadius: scaled(4),
-        padding: `${scaled(2)}px ${scaled(8)}px`,
-      }}
-    >
-      <span style={{ fontSize: fs.caption }}>▲</span>
-      {upvotes.toLocaleString("en-US")}
-    </span>
-  );
-};
-
-const QuoteRow: React.FC<{
-  quote: Quote;
-  index: number;
-  frame: number;
-  compact: boolean;
-  keywords: string[];
-  dense?: boolean;
-}> = ({ quote, index, frame, compact, keywords, dense = false }) => {
-  const { fs, scaled } = useDesign();
-  const delay = 16 + index * 5;
-  const progress = interpolate(frame, [delay, delay + ITEM_DURATION], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const { primaryText } = getQuoteText(quote);
-  const showUpvotes = (quote.upvotes || 0) > 0;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: scaled(10),
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [6, 0])}px)`,
-        backgroundColor: COLORS.surfaceFaint,
-        borderRadius: scaled(8),
-        padding: `${scaled(dense ? 8 : compact ? 10 : 14)}px ${scaled(compact ? 12 : 16)}px`,
-        borderLeft: `${scaled(3)}px solid ${STANCE_COLORS[quote.stance] || COLORS.textSecondary}`,
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: fs.body,
-            color: COLORS.text,
-            lineHeight: dense ? 1.5 : 1.7,
-            fontWeight: FW.regular,
-            letterSpacing: 0.1,
-            overflowWrap: "anywhere",
-            wordBreak: "break-word",
-            ...lineClamp(dense ? 2 : compact ? 2 : 3),
-          }}
-        >
-          &ldquo;{highlightKeywords(primaryText, keywords, frame, delay)}&rdquo;
-        </div>
-        <div
-          style={{
-            marginTop: scaled(6),
-            display: "flex",
-            alignItems: "center",
-            gap: scaled(8),
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: fs.body,
-              fontWeight: FW.regular,
-              color: COLORS.textFaint,
-              lineHeight: 1.4,
-            }}
-          >
-            — {quote.author}
-          </span>
-          {showUpvotes && <UpvoteBadge upvotes={quote.upvotes || 0} />}
+    <div style={last ? S.quoteLast : S.quoteItem}>
+      <div style={S.quoteStripe(color)} />
+      <div style={S.quoteBody}>
+        <div style={S.quoteText}>&ldquo;{q.text}&rdquo;</div>
+        <div style={S.quoteAuthor}>
+          {q.author}
+          <span style={S.quoteLikes}>&#x1F44D; {q.likes}</span>
         </div>
       </div>
     </div>
   );
-};
+}
 
-export const AtmosphereCard: React.FC<ElementProps> = ({ elementProps, width, height }) => {
+/* ---- main component ---- */
+
+export const AtmosphereCard: React.FC<ElementProps> = ({
+  elementProps,
+  width,
+  height,
+}) => {
   const frame = useCurrentFrame();
+  const d = useTheme();
+  const S = buildStyles(d.scaled);
 
-  const stanceDistribution = (elementProps.stance_distribution as Record<string, number>) ?? {};
-  const debateFocus = (elementProps.debate_focus as string[]) ?? [];
-  const keywords = limitList(
-    Array.isArray(elementProps.keywords)
-      ? elementProps.keywords.filter((k): k is string => typeof k === "string")
-      : [],
-    4,
-    16,
-  );
+  const typed = extractAtmosphereProps(elementProps);
+  const {
+    controversyScore,
+    controversyLevel,
+    debateTopics,
+    stanceDistribution,
+    totalComments,
+    quotes,
+  } = typed;
 
-  const controversyScore = p(elementProps, "controversy_score", 0);
-  const commentCount = Number(p(elementProps, "comment_count", 0)) || 0;
-  const scoreNum =
-    typeof controversyScore === "number" ? controversyScore : Number(controversyScore) || 0;
-  const compactStances = compactDistribution(stanceDistribution);
+  // Compute percentages for stance bars
+  const totalStance =
+    stanceDistribution.support +
+    stanceDistribution.skeptic +
+    stanceDistribution.neutral +
+    stanceDistribution.tease +
+    stanceDistribution.worry;
 
-  const quotes = ((elementProps.quotes as Quote[]) ?? []).slice(0, 3);
+  const stancePcts: Record<Stance, number> = {
+    support: totalStance > 0 ? Math.round((stanceDistribution.support / totalStance) * 100) : 0,
+    skeptic: totalStance > 0 ? Math.round((stanceDistribution.skeptic / totalStance) * 100) : 0,
+    neutral: totalStance > 0 ? Math.round((stanceDistribution.neutral / totalStance) * 100) : 0,
+    tease: totalStance > 0 ? Math.round((stanceDistribution.tease / totalStance) * 100) : 0,
+    worry: totalStance > 0 ? Math.round((stanceDistribution.worry / totalStance) * 100) : 0,
+  };
 
-  const hasStances = Object.keys(compactStances).length > 0;
-  const hasFocus = debateFocus.length > 0;
-  const hasQuotes = quotes.length > 0;
-
-  const d = useDesign();
-  const compact = d.isCompactHeight;
-  const cardW = width - d.layout.pageInset * 2;
-  const cardMaxH = d.getCardMaxHeight;
-
-  const { padX, padY } = useCardPad(compact);
-  const { cardProgress, titleProgress, bodyProgress, imageProgress, footerProgress } =
-    useCardAnimations(frame);
-
-  const resolvedTitleFontSize = titleFontSize(d);
-
-  const showStanceFocusRow = hasFocus || hasStances;
-  const colGap = d.scaled(compact ? 20 : 28);
+  // Entrance animation
+  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div
       style={{
-        ...S,
-        left: d.layout.pageInset,
-        top: d.layout.topInset,
-        width: cardW,
-        minHeight: cardMaxH,
-        maxHeight: cardMaxH,
-        ...glassCard,
-        background: `linear-gradient(135deg, rgba(255,102,0,0.035), rgba(255,255,255,0.055) 38%, rgba(52,199,89,0.03))`,
-        padding: `${padY}px ${padX}px`,
-        boxShadow: glassCardShadow,
-        boxSizing: "border-box",
+        ...S.card,
         opacity: cardProgress,
-        transform: `translateY(${overshootTranslateY(cardProgress, d.scaled(CARD_ENTRANCE_Y))}px)`,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        position: "relative",
+        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
       }}
     >
-      <GlassShimmer frame={frame} />
-
-      {/* Header row */}
-      <SectionLabel text="社区回声" delay={8} frame={frame} variant="brand" />
-
-      {/* Controversy score */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: d.scaled(10),
-          marginBottom: showStanceFocusRow ? d.scaled(compact ? 8 : 14) : 0,
-          opacity: titleProgress,
-          transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: FONTS.bold,
-            fontSize: resolvedTitleFontSize,
-            fontWeight: FW.heavy,
-            color: COLORS.text,
-            lineHeight: 1.15,
-            letterSpacing: -0.4,
-          }}
-        >
-          {scoreNum.toFixed(1)}
-        </span>
-        <span
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.subtitle2,
-            fontWeight: FW.regular,
-            color: COLORS.textTertiary,
-            lineHeight: 1.4,
-          }}
-        >
-          /10 争议度
-        </span>
-        <ControversyPill score={scoreNum} delay={10} frame={frame} />
-      </div>
-
-      <div style={{ width: "70%" }}>
-        {/* Debate focus + stance bars row */}
-        {showStanceFocusRow && (
+      <div style={S.inner}>
+        {/* Score row */}
         <div
           style={{
-            display: "flex",
-            gap: colGap,
-            alignItems: "flex-start",
-            opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
-            marginBottom: hasQuotes ? bodySectionGap(compact) : 0,
+            ...S.scoreRow,
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
           }}
         >
-          {/* Left: debate focus */}
-          {hasFocus && (
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <SectionLabel text={UI_TEXT.debateFocus} delay={18} frame={frame} variant="default" />
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: d.scaled(compact ? 4 : 8),
-                }}
-              >
-                {debateFocus.slice(0, 3).map((focus, i) => (
-                  <FocusPoint key={focus} index={i} text={focus} delay={20 + i * 5} frame={frame} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Right: stance horizontal bars */}
-          {hasStances && (
-            <div
-              style={{
-                flexShrink: 0,
-                opacity: imageProgress,
-                transform: `translateX(${interpolate(imageProgress, [0, 1], [IMAGE_ENTRANCE_X, 0])}px)`,
-                paddingLeft: hasFocus ? d.scaled(20) : 0,
-                borderLeft: hasFocus ? `1px solid ${COLORS.borderLow}` : undefined,
-              }}
-            >
-              {hasFocus && (
-                <div style={{ marginBottom: d.scaled(8) }}>
-                  <span
-                    style={{
-                      fontFamily: FONTS.mono,
-                      fontSize: d.fs.caption,
-                      fontWeight: FW.heavy,
-                      color: COLORS.textSecondary,
-                    }}
-                  >
-                    {commentCount > 0 ? `${commentCount}条评论` : "评论分布"}
-                  </span>
-                </div>
-              )}
-              <StanceBar distribution={compactStances} maxBarPx={d.scaled(compact ? 140 : 200)} />
-            </div>
-          )}
+          <span style={S.score}>
+            {controversyScore.toFixed(1)}
+            <span style={S.scoreSlash}>/10</span>
+          </span>
+          <span style={S.levelTag}>
+            <span style={S.levelDot} />
+            {CONTROVERSY_LABELS[controversyLevel]}
+          </span>
+          <span style={S.commentsCount}>
+            评论总数{" "}
+            <strong style={S.commentsCountStrong}>
+              {totalComments.toLocaleString()}
+            </strong>
+          </span>
         </div>
-      )}
-      </div>
 
-      {/* Quotes */}
-      {hasQuotes && (
+        {/* Debate + Stance two-column */}
         <div
           style={{
+            ...S.twoCol,
             opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [BODY_ENTRANCE_Y, 0])}px)`,
+            transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
           }}
         >
-          <SectionLabel text="精选观点" delay={14} frame={frame} variant="success" />
+          <div style={S.debateCol}>
+            <h3 style={S.sectionTitle}>辩论焦点</h3>
+            {debateTopics.map((topic, i) => (
+              <div key={i} style={S.debateItem}>
+                <span style={S.debateNum}>{i + 1}.</span>
+                <span style={S.debateText}>{topic}</span>
+              </div>
+            ))}
+            {debateTopics.length === 0 && (
+              <span style={{ color: COLORS.dim, fontSize: d.scaled(20) }}>
+                暂无显著辩论焦点
+              </span>
+            )}
+          </div>
 
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: d.scaled(quotes.length >= 3 ? 5 : compact ? 6 : 10),
-              marginBottom: 0,
-            }}
-          >
-            {quotes.map((quote, i) => (
-              <QuoteRow
-                key={`${quote.author}-${i}`}
-                quote={quote}
-                index={i}
-                frame={frame}
-                compact={compact}
-                keywords={keywords}
-                dense={quotes.length >= 3}
-              />
+          <div style={S.stanceCol}>
+            <h3 style={S.sectionTitle}>立场分布</h3>
+            {STANCE_ORDER.map((s) => (
+              <StanceBar key={s} stance={s} pct={stancePcts[s]} S={S} />
             ))}
           </div>
         </div>
-      )}
+
+        {/* Quotes */}
+        {quotes.length > 0 && (
+          <div
+            style={{
+              ...S.quotesList,
+              opacity: bodyProgress,
+              transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
+            }}
+          >
+            {quotes.map((q, i) => (
+              <QuoteBlock
+                key={i}
+                q={q}
+                last={i === quotes.length - 1}
+                S={S}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -225,13 +225,11 @@ class HNFetcher(ContentFetcher):
             tasks = [
                 self._async_fetch_story(session, semaphore, sid) for sid in story_ids
             ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks)
 
         stories: List[HNStory] = []
         for sid, result in zip(story_ids, results):
-            if isinstance(result, Exception):
-                self.logger.error(f"  Story id={sid} fetch failed: {result}")
-            elif result is not None:
+            if result is not None:
                 assert isinstance(result, HNStory), (
                     f"Expected HNStory, got {type(result)}"
                 )
@@ -318,44 +316,35 @@ class HNFetcher(ContentFetcher):
                         )
                         continue
 
-                try:
-                    story_comments = await self._async_fetch_all_story_comments(
-                        session, semaphore, story.id, story.descendants
-                    )
-                    result[story.id] = story_comments
-                    t_story_elapsed = _time.monotonic() - t_story_start
-                    _story_times.append(t_story_elapsed)
+                story_comments = await self._async_fetch_all_story_comments(
+                    session, semaphore, story.id, story.descendants
+                )
+                result[story.id] = story_comments
+                t_story_elapsed = _time.monotonic() - t_story_start
+                _story_times.append(t_story_elapsed)
 
-                    if self.granular_cache:
-                        self._save_granular_comment_cache(story.id, story_comments)
+                if self.granular_cache:
+                    self._save_granular_comment_cache(story.id, story_comments)
 
-                    avg_per_story = sum(_story_times) / len(_story_times)
-                    remaining = total_stories - s_idx
-                    eta_seconds = avg_per_story * remaining
+                avg_per_story = sum(_story_times) / len(_story_times)
+                remaining = total_stories - s_idx
+                eta_seconds = avg_per_story * remaining
 
-                    if eta_seconds > 3600:
-                        eta_str = f"{eta_seconds / 3600:.1f}h"
-                    elif eta_seconds > 60:
-                        eta_str = f"{eta_seconds / 60:.1f}m"
-                    else:
-                        eta_str = f"{eta_seconds:.0f}s"
+                if eta_seconds > 3600:
+                    eta_str = f"{eta_seconds / 3600:.1f}h"
+                elif eta_seconds > 60:
+                    eta_str = f"{eta_seconds / 60:.1f}m"
+                else:
+                    eta_str = f"{eta_seconds:.0f}s"
 
-                    title_short = story.title[:45] + (
-                        "..." if len(story.title) > 45 else ""
-                    )
-                    self.logger.info(
-                        f"  Story {s_idx}/{total_stories}: id={story.id}"
-                        f"  comments={len(story_comments):>4}  time={t_story_elapsed:.1f}s"
-                        f"  ETA≈{eta_str}  title='{title_short}'"
-                    )
-                except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
-                    t_story_elapsed = _time.monotonic() - t_story_start
-                    _story_times.append(t_story_elapsed)
-                    self.logger.error(
-                        f"  Story {s_idx}/{total_stories} id={story.id} failed in {t_story_elapsed:.1f}s: {e}",
-                        exc_info=True,
-                    )
-                    result[story.id] = []
+                title_short = story.title[:45] + (
+                    "..." if len(story.title) > 45 else ""
+                )
+                self.logger.info(
+                    f"  Story {s_idx}/{total_stories}: id={story.id}"
+                    f"  comments={len(story_comments):>4}  time={t_story_elapsed:.1f}s"
+                    f"  ETA≈{eta_str}  title='{title_short}'"
+                )
 
         return result
 
@@ -397,14 +386,9 @@ class HNFetcher(ContentFetcher):
                 self._async_fetch_item(session, semaphore, item_id)
                 for item_id, _depth in batch
             ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks)
 
             for (item_id, depth), result in zip(batch, results):
-                if isinstance(result, Exception):
-                    self.logger.debug(
-                        f"  [L{depth}] item={item_id} fetch failed: {result}"
-                    )
-                    continue
                 if result is None:
                     continue
                 assert isinstance(result, dict), f"Expected dict, got {type(result)}"

@@ -25,13 +25,16 @@ class TestProviderFactory:
         }
         import os
 
-        key = os.environ.pop("OPENAI_API_KEY", None)
+        saved_keys = {}
+        for env_var in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
+            saved_keys[env_var] = os.environ.pop(env_var, None)
         try:
-            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+            with pytest.raises(ValueError, match="No API key found"):
                 create_llm_provider("openai", config)
         finally:
-            if key is not None:
-                os.environ["OPENAI_API_KEY"] = key
+            for env_var, value in saved_keys.items():
+                if value is not None:
+                    os.environ[env_var] = value
 
     def test_create_llm_provider_unknown_raises(self):
         config = {"logging": {"level": "WARNING"}}

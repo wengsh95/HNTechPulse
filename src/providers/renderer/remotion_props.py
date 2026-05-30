@@ -639,7 +639,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     width = video_config.get("resolution", (1280, 720))[0]
     height = video_config.get("resolution", (1280, 720))[1]
     fps = video_config.get("fps", 24)
-    bg_color = video_config.get("bg_color", "#0d1117")
+    bg_color = video_config.get("bg_color", "#fefcf8")
 
     audio_dir = f"data/{date}/audio"
     props_data = script_to_props(
