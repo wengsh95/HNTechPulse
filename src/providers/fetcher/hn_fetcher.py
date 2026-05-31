@@ -475,26 +475,27 @@ class HNFetcher(ContentFetcher):
         self, stories: List[HNStory], date_str: str
     ) -> List[HNStory]:
         target_date = datetime.strptime(date_str, "%Y-%m-%d")
-        yesterday_beijing = target_date - timedelta(days=1)
+        yesterday = target_date - timedelta(days=1)
 
         beijing_tz = timezone(timedelta(hours=8))
 
+        # 今天早上6点 ~ 昨天早上6点（北京时区）
         start_beijing = datetime(
-            yesterday_beijing.year,
-            yesterday_beijing.month,
-            yesterday_beijing.day,
-            0,
+            yesterday.year,
+            yesterday.month,
+            yesterday.day,
+            6,
             0,
             0,
             tzinfo=beijing_tz,
         )
         end_beijing = datetime(
-            yesterday_beijing.year,
-            yesterday_beijing.month,
-            yesterday_beijing.day,
-            23,
-            59,
-            59,
+            target_date.year,
+            target_date.month,
+            target_date.day,
+            6,
+            0,
+            0,
             tzinfo=beijing_tz,
         )
 
@@ -510,7 +511,7 @@ class HNFetcher(ContentFetcher):
 
         filtered = []
         for story in stories:
-            if start_timestamp <= story.time <= end_timestamp:
+            if start_timestamp <= story.time < end_timestamp:
                 filtered.append(story)
 
         return filtered

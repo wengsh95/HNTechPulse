@@ -88,12 +88,12 @@ class TestFilterStoriesByTime:
 
     def test_boundary_start(self):
         fetcher = _make_fetcher()
-        # Exact start timestamp of yesterday Beijing
+        # Exact start boundary: yesterday 06:00 Beijing
         target_date = datetime.strptime("2024-01-15", "%Y-%m-%d")
         yesterday = target_date - timedelta(days=1)
         beijing_tz = timezone(timedelta(hours=8))
         start = datetime(
-            yesterday.year, yesterday.month, yesterday.day, 0, 0, 0, tzinfo=beijing_tz
+            yesterday.year, yesterday.month, yesterday.day, 6, 0, 0, tzinfo=beijing_tz
         )
         ts = int(start.timestamp())
         stories = [_make_story(ts=ts)]

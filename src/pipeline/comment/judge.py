@@ -542,7 +542,7 @@ def _normalize_discussion_mode(value: Any) -> str:
     return mode if mode in DISCUSSION_MODES else "field_notes"
 
 
-def _validate_claim(value: Any, max_chars: int = 28) -> str:
+def _validate_claim(value: Any, max_chars: int = 50) -> str:
     text = str(value or "").strip()
     if not text:
         raise ValueError("comment_lanes claim is required")

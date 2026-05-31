@@ -11,7 +11,7 @@ from src.pipeline.tts_processor import TTSProcessor
 def _make_config(**overrides):
     cfg = {
         "logging": {"level": "WARNING"},
-        "timing": {"segment_gap": 0.0, "story_gap": 0.0},
+        "timing": {"segment_gap": 0.0},
         "tts": {
             "whisper_model": "small",
             "whisper_model_path": "",

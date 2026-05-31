@@ -1,9 +1,10 @@
+import base64
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-from src.providers.tts.mimo_tts import MimoTTSProvider
+from src.providers.tts.mimo_tts import MimoTTSProvider, _EMOTION_MAP
 
 
 def _make_config(**overrides):

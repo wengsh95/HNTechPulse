@@ -88,8 +88,6 @@ class RemotionRenderer(Renderer):
         if content and date:
             self._prepare_image_assets(content, date)
 
-        self._prepare_sound_effects()
-
         props_data = script_to_props(
             script,
             audio_dir,
@@ -500,18 +498,6 @@ class RemotionRenderer(Renderer):
                     copied += 1
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
-
-    def _prepare_sound_effects(self) -> None:
-        """Copy story-gap click sound effect to Remotion public/."""
-        click_src = Path("double-click-computer-mouse.mp3")
-        if not click_src.exists():
-            return
-        public_dir = self.remotion_dir / "public"
-        public_dir.mkdir(parents=True, exist_ok=True)
-        dest = public_dir / click_src.name
-        if not dest.exists():
-            shutil.copy2(click_src, dest)
-            self.logger.debug(f"Copied sound effect: {click_src.name} -> public/")
 
     def _ensure_dependencies_installed(self):
         node_modules = self.remotion_dir / "node_modules"

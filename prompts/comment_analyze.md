@@ -53,7 +53,7 @@ comment_lanes（按用途分组的评论候选）:
 - color：有记忆点的类比、反问、表达，0-1 条。
 - 每条都必须包含 comment_id、role、stance、claim、quote_score。
 - claim 是给视频卡片展示的“金句”，必须短、直、可单独读懂。
-- claim 用中文概括，不复制原文，12-24 个中文字符；最长不能超过 28 个中文字符。
+- claim 用中文概括，不复制原文，12-30 个中文字符；最长不能超过 50 个中文字符。
 - claim 不要写成完整长句，不要包含背景铺垫、原因链、从句、括号解释。
 - claim 优先保留最锋利的判断、反问、取舍或经验结论，例如“平台控制权才是问题”“问题不在语法，在边界”。
 - role 可用 experience / counterpoint / correction / specific_detail / risk / memorable_line / question / implementation。

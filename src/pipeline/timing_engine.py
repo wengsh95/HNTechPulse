@@ -6,12 +6,10 @@ class TimingEngine:
     def __init__(
         self,
         segment_gap: float = 0.0,
-        story_gap: float = 0.0,
         debug: bool = False,
         level=None,
     ):
         self.segment_gap = segment_gap
-        self.story_gap = story_gap
         self.logger = setup_logger(__name__, debug=debug, level=level)
 
     def compute_timeline(self, script: Script) -> Script:
@@ -43,12 +41,6 @@ class TimingEngine:
                 if any(d is not None for d in elem_durations):
                     current = 0.0
                     for elem, dur in zip(seg.scene_elements, elem_durations):
-                        if elem.element_type == "story_gap":
-                            d = float(elem.props.get("gap_duration", 0.2))
-                            elem.start_time = current
-                            elem.end_time = current + d
-                            current += d
-                            continue
                         pre_gap = float(elem.props.get("pre_gap_duration") or 0.0)
                         if pre_gap < 0:
                             pre_gap = 0.0

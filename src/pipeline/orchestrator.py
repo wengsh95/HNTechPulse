@@ -90,7 +90,6 @@ class Orchestrator:
         timing_cfg = config.get("timing", {})
         self._timing = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
-            story_gap=float(timing_cfg.get("story_gap", 0.0)),
             debug=debug,
         )
 

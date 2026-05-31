@@ -21,7 +21,7 @@ try:
 except Exception:
     _FFMPEG = "ffmpeg"
 
-_DEFAULT_TONE = "你是《HN TechPulse》中文科技播报主持人。声音清亮磁性，语速中等偏快，咬字清晰饱满，专业沉稳有亲和力。"
+_DEFAULT_TONE = "你是《HN TechPulse》中文科技播报主持人。声音清亮磁性，语速中等偏快，咬字清晰饱满，专业沉稳有亲和力。遇到英文专有名词（如 Claude、Anthropic、MCP、REST API 等）必须用标准英文发音读出，不要用中文语调拼读字母。"
 
 _EMOTION_MAP = {
     "warm": "用温暖亲切的语气播报，声音明亮温和。",
@@ -31,7 +31,7 @@ _EMOTION_MAP = {
     "calm": "用从容平和的语气播报，语速稍慢，娓娓道来。",
 }
 
-_STYLE_TAG = "(咬字清晰 发音饱满 沉稳 专业)"
+_STYLE_TAG = "(咬字清晰 发音饱满 沉稳 专业 英文专有名词用标准英文发音)"
 
 
 class MimoTTSProvider(TTSProvider):
@@ -45,6 +45,7 @@ class MimoTTSProvider(TTSProvider):
         self.base_url = tts_config.get("base_url", "https://api.xiaomimimo.com/v1")
         self.model = tts_config.get("model", "mimo-v2.5-tts")
         self.voice = tts_config.get("voice", "茉莉")
+        self.default_emotion = tts_config.get("emotion")
         self.audio_format = tts_config.get("format", "wav")
         self.sample_rate = tts_config.get("sample_rate", 24000)
         self.temperature = float(tts_config.get("temperature", 0.2))
@@ -78,19 +79,19 @@ class MimoTTSProvider(TTSProvider):
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        emotion_hint = _EMOTION_MAP.get(emotion or "", "")
+        # 使用传入的 emotion，否则使用配置的默认值
+        effective_emotion = emotion or self.default_emotion
+        emotion_hint = _EMOTION_MAP.get(effective_emotion or "", "")
         if emotion_hint:
-            tone = _DEFAULT_TONE + "\n\n本段播报的情绪要求：" + emotion_hint
+            tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG + "\n\n本段播报的情绪要求：" + emotion_hint
         elif emotion:
-            tone = _DEFAULT_TONE + f"\n\n本段播报的情绪要求：{emotion}"
+            tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG + f"\n\n本段播报的情绪要求：{emotion}"
         else:
-            tone = _DEFAULT_TONE
-
-        tagged_text = f"{_STYLE_TAG}{text}"
+            tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG
 
         messages = [
             {"role": "user", "content": tone},
-            {"role": "assistant", "content": tagged_text},
+            {"role": "assistant", "content": text},
         ]
 
         kwargs: dict = dict(

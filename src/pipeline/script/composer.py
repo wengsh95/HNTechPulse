@@ -174,6 +174,7 @@ class ScriptWriter:
         total_stories: int,
         subtitle_texts: list[str],
     ) -> Optional[SceneElement]:
+        pre_gap = float(self.config.get("timing", {}).get("event_card_pre_gap", 0.3))
         for elem in scene_elements:
             if elem.element_type == card_type and elem.sub_segment_index is None:
                 elem.sub_segment_index = sub_idx
@@ -183,6 +184,8 @@ class ScriptWriter:
                 }:
                     elem.props["display_index"] = story_i
                     elem.props["story_count"] = total_stories
+                if elem.element_type == "event_card" and pre_gap > 0:
+                    elem.props["pre_gap_duration"] = pre_gap
                 elem.props["subtitle_texts"] = subtitle_texts
                 return elem
         return None
@@ -257,33 +260,18 @@ class ScriptWriter:
         sub_segment_subtitle_texts: list[list[str]] = []
         sub_segment_estimated_durations: list[float] = []
 
-        story_gap = float(self.config.get("timing", {}).get("story_gap", 0.0))
         num_stories = len(story_scan_segs)
 
         sub_idx = 0
-        story_i = 0
-        while story_i < num_stories:
-            seg = story_scan_segs[story_i]
+        for story_i, seg in enumerate(story_scan_segs):
             audio_parts, scene_elems, subtitle_texts, durations = (
                 self._process_story_narrations(seg, story_i, num_stories, sub_idx)
             )
-            story_i += 1
             combined_audio_parts.extend(audio_parts)
             combined_scene_elements.extend(scene_elems)
             sub_segment_subtitle_texts.extend(subtitle_texts)
             sub_segment_estimated_durations.extend(durations)
             sub_idx += len(subtitle_texts)
-
-            if story_gap > 0 and story_i < num_stories:
-                combined_scene_elements.append(
-                    SceneElement(
-                        element_type="story_gap",
-                        start_time=0.0,
-                        end_time=story_gap,
-                        props={"gap_duration": story_gap},
-                    )
-                )
-                sub_segment_estimated_durations.append(story_gap)
 
         return ScriptSegment(
             segment_type="story_scan",

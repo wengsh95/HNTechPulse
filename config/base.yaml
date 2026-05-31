@@ -25,5 +25,5 @@ video:
 
 timing:
   segment_gap: 0.0          # 非 story 段之间的停顿（由 fade-in/out 处理过渡）
-  story_gap: 0.5          # story_scan 内各故事间的过渡时长（暗闪过渡 + 点击音效）
+  event_card_pre_gap: 0.3   # 事件卡切入时，语音/字幕前的停顿（秒）
   subtitle_gap: 0.2         # story_scan 内字幕音频之间的停顿（换气感）

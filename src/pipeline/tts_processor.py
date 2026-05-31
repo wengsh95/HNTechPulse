@@ -24,12 +24,12 @@ class TTSProcessor:
         timing_cfg = config.get("timing", {})
         self.timing_engine = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
-            story_gap=float(timing_cfg.get("story_gap", 0.0)),
             debug=debug,
             level=level,
         )
         self.logger = setup_logger(__name__, debug=debug, level=level)
         tts_config = config.get("tts", {})
+        self.sample_rate = int(tts_config.get("sample_rate", 24000))
         self.whisper_model = tts_config.get("whisper_model", "large-v3")
         self.whisper_model_path = tts_config.get("whisper_model_path", "")
         if self.whisper_model_path and not Path(self.whisper_model_path).is_absolute():
@@ -97,16 +97,6 @@ class TTSProcessor:
         elem_audio_entries: list[tuple[int, str, float, list[AlignmentSegment]]] = []
 
         for elem_idx, elem in enumerate(segment.scene_elements):
-            if elem.element_type == "story_gap":
-                gap_duration = float(elem.props.get("gap_duration", 1.0))
-                silent_path = str(
-                    audio_dir / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}_silence.mp3"
-                )
-                self._generate_silence(silent_path, gap_duration)
-                elem.props["audio_duration"] = gap_duration
-                elem_audio_entries.append((elem_idx, silent_path, gap_duration, []))
-                continue
-
             subtitle_texts = elem.props.get("subtitle_texts", []) or []
             texts = [t.strip() for t in subtitle_texts if t and t.strip()]
             if not texts:
@@ -176,7 +166,7 @@ class TTSProcessor:
             segment.cues[-1].end_time = round(segment.actual_duration, 3)
 
     def _generate_silence(self, output_path: str, duration: float) -> None:
-        """Generate a silent MP3 matching TTS output format (24000Hz mono)."""
+        """Generate a silent MP3 matching TTS output sample rate and channels."""
         if Path(output_path).exists():
             return
         subprocess.run(
@@ -186,7 +176,7 @@ class TTSProcessor:
                 "-f",
                 "lavfi",
                 "-i",
-                "anullsrc=r=24000:cl=mono",
+                f"anullsrc=r={self.sample_rate}:cl=mono",
                 "-t",
                 str(duration),
                 "-c:a",
@@ -200,7 +190,7 @@ class TTSProcessor:
         )
 
     def _concat_audio_files(self, audio_paths: list[str], output_path: str) -> None:
-        """Concatenate MP3 audio files without re-encoding."""
+        """Concatenate MP3 audio files with re-encoding for consistent sample rate."""
         concat_list = Path(output_path).with_suffix(".concat.txt")
         with open(concat_list, "w", encoding="utf-8") as f:
             for path in audio_paths:
@@ -217,8 +207,14 @@ class TTSProcessor:
                     "0",
                     "-i",
                     str(concat_list),
-                    "-c",
-                    "copy",
+                    "-ar",
+                    str(self.sample_rate),
+                    "-ac",
+                    "1",
+                    "-c:a",
+                    "libmp3lame",
+                    "-q:a",
+                    "2",
                     output_path,
                 ],
                 capture_output=True,

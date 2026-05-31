@@ -37,7 +37,6 @@ import {
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
 import {
-  CHAPTERS,
   COLORS,
   ChapterName,
   ChapterProvider,
@@ -134,84 +133,24 @@ const ELEMENT_RENDERERS: Record<
   synthesis_card: (props) => <SynthesisCard {...props} />,
   news_carousel_card: (props) => <NewsCarouselCard {...props} />,
   pattern_insight: (props) => <PatternInsightCard {...props} />,
-  story_gap: (props) => <StoryGap {...props} />,
 };
 
-const StoryGap: React.FC<{
-  elementProps: Record<string, unknown>;
-  duration: number;
-  width: number;
-  height: number;
-}> = ({ elementProps, duration }) => {
+/** 卡片元素淡入淡出包装 */
+const ElementFadeWrap: React.FC<{
+  needsFade: boolean;
+  durationFrames: number;
+  children: React.ReactNode;
+}> = ({ needsFade, durationFrames, children }) => {
+  if (!needsFade) return <>{children}</>;
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const t = frame / fps;
-  const fadeDur = duration * 0.2;
-  const overlayAlpha = interpolate(t, [0, fadeDur, duration - fadeDur, duration], [0, 1, 1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const prevChapter = elementProps.prev_chapter as ChapterName | undefined;
-  const nextChapter = elementProps.next_chapter as ChapterName | undefined;
-  // 把 focus 和 atmosphere 视为同一过渡分组（同一 story 内的 event/atmosphere 配对）
-  const groupOf = (c: ChapterName | undefined): string | undefined =>
-    c === "atmosphere" ? "focus" : c;
-  const isCrossChapter = Boolean(
-    prevChapter && nextChapter && groupOf(prevChapter) !== groupOf(nextChapter),
+  const FADE_FRAMES = 6;
+  const opacity = interpolate(
+    frame,
+    [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
   );
-  // 同章节：低强度黑闪保持连贯；跨章节：黑闪 + 下章节色细横扫
-  const blackAlpha = isCrossChapter ? 0.45 : 0.25;
-  const sweepProgress = interpolate(t, [0, duration], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const sweepOpacity = isCrossChapter
-    ? interpolate(sweepProgress, [0, 0.4, 0.7, 1], [0, 0.55, 0.55, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 0;
-  const sweepX = interpolate(sweepProgress, [0, 1], [110, -30]); // % from right edge
-  const sweepAccent = nextChapter ? CHAPTERS[nextChapter].accent : COLORS.accent;
-  return (
-    <>
-      <Audio src={staticFile("double-click-computer-mouse.mp3")} />
-      {/* Black flash */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: `rgba(0,0,0,${blackAlpha * overlayAlpha})`,
-          pointerEvents: "none",
-        }}
-      />
-      {/* Cross-chapter color sweep */}
-      {isCrossChapter && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            overflow: "hidden",
-            pointerEvents: "none",
-            opacity: sweepOpacity,
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "-10%",
-              left: `${sweepX}%`,
-              width: "22%",
-              height: "120%",
-              transform: "skewX(-14deg)",
-              background: `linear-gradient(90deg, transparent 0%, ${sweepAccent} 50%, transparent 100%)`,
-              filter: "blur(20px)",
-            }}
-          />
-        </div>
-      )}
-    </>
-  );
+  return <div style={{ position: "absolute", inset: 0, opacity, pointerEvents: "none" }}>{children}</div>;
 };
 
 /** 渲染单个元素
@@ -242,27 +181,19 @@ const SceneElementRenderer: React.FC<{
   const mergedProps = extraProps
     ? { ...(elem.props as Record<string, unknown>), ...extraProps }
     : (elem.props as Record<string, unknown>);
+  const needsFade = true;
 
   return (
     <Sequence from={startFrame} durationInFrames={durationFrames} layout="none">
       <ChapterProvider chapter={chapter}>
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-          }}
-        >
+        <ElementFadeWrap needsFade={needsFade} durationFrames={durationFrames}>
           <RendererComponent
             elementProps={mergedProps}
             duration={duration}
             width={width}
             height={height}
           />
-        </div>
+        </ElementFadeWrap>
       </ChapterProvider>
     </Sequence>
   );
@@ -318,41 +249,16 @@ const SegmentRenderer: React.FC<{
         }}
       >
         {/* 场景元素 */}
-        {segment.scene_elements.map((elem, i) => {
-          let extraProps: Record<string, unknown> | undefined;
-          if (elem.element_type === "story_gap") {
-            // Find nearest non-gap neighbor on each side to determine chapter transition.
-            // event_card → atmosphere_card 不被视为跨章节（属于同一 story 的两段），
-            // 因此遇到 atmosphere_card 时继续向前找它对应的 event_card 章节。
-            const lookupChapter = (start: number, dir: -1 | 1): ChapterName | undefined => {
-              for (let j = start; j >= 0 && j < segment.scene_elements.length; j += dir) {
-                const t = segment.scene_elements[j].element_type;
-                if (t === "story_gap") continue;
-                return ELEMENT_TYPE_TO_CHAPTER[t];
-              }
-              return undefined;
-            };
-            const prevChapter = lookupChapter(i - 1, -1);
-            const nextChapter = lookupChapter(i + 1, 1);
-            extraProps = {
-              prev_chapter: prevChapter,
-              next_chapter: nextChapter,
-            };
-          }
-          return (
-            <SceneElementRenderer
-              key={`${index}-elem-${i}`}
-              elem={elem}
-              width={width}
-              height={height}
-              fps={fps}
-              extraProps={{
-                ...extraProps,
-                audio_path: segment.audio_path,
-              }}
-            />
-          );
-        })}
+        {segment.scene_elements.map((elem, i) => (
+          <SceneElementRenderer
+            key={`${index}-elem-${i}`}
+            elem={elem}
+            width={width}
+            height={height}
+            fps={fps}
+            extraProps={{ audio_path: segment.audio_path }}
+          />
+        ))}
 
         {/* 字幕（始终显示在底部，按 cues 逐句切换） */}
         <Subtitle

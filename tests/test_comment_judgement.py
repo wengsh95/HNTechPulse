@@ -135,7 +135,7 @@ def test_normalize_story_judgement_rejects_overlong_lane_claim():
                             "comment_id": "ops",
                             "role": "experience",
                             "stance": "中立",
-                            "claim": "这是一条故意写得非常非常长的观点摘要不应该被自动截断继续通过",
+                            "claim": "这是一条故意写得非常非常长的观点摘要不应该被自动截断继续通过这是一条故意写得非常非常长的观点摘要不应该被自动截断继续通过",
                             "quote_score": 0.9,
                         }
                     ]

@@ -25,19 +25,22 @@ export const segmentTransitionOpacity = ({
   isLastSegment: boolean;
 }) => {
   const localFrame = segmentLocalFrame(absoluteFrame, startFrame);
-  const fadeIn = interpolate(localFrame, [0, transitionFrames], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const framesRemaining = durationFrames - localFrame;
-  const fadeOut = isLastSegment
-    ? 1
-    : interpolate(framesRemaining, [0, transitionFrames], [0, 1], {
+  // 仅首段做淡入，避免第一帧突兀出现
+  const fadeIn = startFrame === 0
+    ? interpolate(localFrame, [0, transitionFrames], [0, 1], {
         easing: Easing.bezier(0.16, 1, 0.3, 1),
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
-      });
+      })
+    : 1;
+  // 仅末段做淡出收尾
+  const fadeOut = isLastSegment
+    ? interpolate(durationFrames - localFrame, [0, transitionFrames], [0, 1], {
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 1;
 
   return fadeIn * fadeOut;
 };

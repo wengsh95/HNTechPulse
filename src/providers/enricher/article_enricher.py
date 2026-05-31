@@ -113,11 +113,22 @@ class ArticleEnricher:
         from src.providers.llm.backend import LLMBackend
 
         self._llm_backend = LLMBackend(config)
-        # Shorter read timeout for enrichment (lighter payloads)
-        self.llm_client = self._llm_backend.create_client(read=120.0)
         self.llm_model = self._llm_backend.fast_model
         self.llm_max_tokens = self.summary_max_tokens
         self.llm_temperature = self._llm_backend.fast_temperature
+
+        # Use Anthropic SDK for Anthropic-compatible endpoints (e.g. MiniMax)
+        if self._llm_backend.base_url and "anthropic" in self._llm_backend.base_url:
+            import anthropic
+
+            self._use_anthropic = True
+            self.llm_client = anthropic.Anthropic(
+                base_url=self._llm_backend.base_url,
+                api_key=self._llm_backend.api_key,
+            )
+        else:
+            self._use_anthropic = False
+            self.llm_client = self._llm_backend.create_client(read=120.0)
 
         self.baidu_search = BaiduSearchProvider(config)
 
@@ -734,54 +745,116 @@ class ArticleEnricher:
             self.logger.info("Enrich prompt not loaded, skipping LLM enrichment")
             return None
 
-        try:
-            prompt = render_prompt(
-                self._enrich_prompt,
-                title=title,
-                article_text=article_text[: self.max_text_length],
-                search_context=search_context,
+        prompt = render_prompt(
+            self._enrich_prompt,
+            title=title,
+            article_text=article_text[: self.max_text_length],
+            search_context=search_context,
+        )
+
+        if "<!-- SYSTEM_CUT -->" in prompt:
+            parts = prompt.split("<!-- SYSTEM_CUT -->", 1)
+            system_msg = parts[0].strip()
+            user_msg = parts[1].strip()
+        else:
+            system_msg = "你是一位技术内容分析师。"
+            user_msg = prompt
+
+        for attempt in range(self.retry_count):
+            try:
+                if self._use_anthropic:
+                    response = self.llm_client.messages.create(
+                        model=self.llm_model,
+                        system=system_msg,
+                        messages=[{"role": "user", "content": user_msg}],
+                        max_tokens=self.llm_max_tokens,
+                        temperature=self.llm_temperature,
+                    )
+                    raw = ""
+                    for block in response.content:
+                        if block.type == "text":
+                            raw = block.text.strip()
+                            break
+                else:
+                    response = self.llm_client.chat.completions.create(
+                        model=self.llm_model,
+                        messages=[
+                            {"role": "system", "content": system_msg},
+                            {"role": "user", "content": user_msg},
+                        ],
+                        max_tokens=self.llm_max_tokens,
+                        temperature=self.llm_temperature,
+                    )
+                    raw = (response.choices[0].message.content or "").strip()
+
+                if not raw or len(raw) < 10:
+                    self.logger.info(
+                        f"LLM enrichment empty response for '{title}' "
+                        f"(attempt {attempt + 1}/{self.retry_count})"
+                    )
+                    continue
+
+                # Strip markdown code fences if present
+                text = raw.strip()
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    lines = [
+                        line for line in lines if not line.strip().startswith("```")
+                    ]
+                    text = "\n".join(lines)
+
+                result = json.loads(text)
+                if not isinstance(result, dict):
+                    self.logger.info(
+                        f"LLM enrichment non-dict result for '{title}' "
+                        f"(attempt {attempt + 1}/{self.retry_count})"
+                    )
+                    continue
+                return result
+
+            except json.JSONDecodeError as e:
+                self.logger.info(
+                    f"LLM enrichment JSON parse failed for '{title}' "
+                    f"(attempt {attempt + 1}/{self.retry_count}): {e}"
+                )
+            except Exception as e:
+                if self._is_permanent_error(e):
+                    self.logger.info(
+                        f"LLM enrichment permanent error for '{title}': {e}"
+                    )
+                    return None
+                self.logger.info(
+                    f"LLM enrichment failed for '{title}' "
+                    f"(attempt {attempt + 1}/{self.retry_count}): {e}"
+                )
+
+        self.logger.info(
+            f"LLM enrichment exhausted {self.retry_count} retries for '{title}'"
+        )
+        return None
+
+    def _is_permanent_error(self, error: Exception) -> bool:
+        """Return True for errors that won't resolve by retrying."""
+        if self._use_anthropic:
+            import anthropic
+
+            return isinstance(
+                error,
+                (
+                    anthropic.NotFoundError,
+                    anthropic.AuthenticationError,
+                    anthropic.PermissionDeniedError,
+                    anthropic.BadRequestError,
+                ),
             )
+        from openai import OpenAIError
 
-            if "<!-- SYSTEM_CUT -->" in prompt:
-                parts = prompt.split("<!-- SYSTEM_CUT -->", 1)
-                system_msg = parts[0].strip()
-                user_msg = parts[1].strip()
-            else:
-                system_msg = "你是一位技术内容分析师。"
-                user_msg = prompt
-
-            response = self.llm_client.chat.completions.create(
-                model=self.llm_model,
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg},
-                ],
-                max_tokens=self.llm_max_tokens,
-                temperature=self.llm_temperature,
-            )
-
-            raw = (response.choices[0].message.content or "").strip()
-            if not raw or len(raw) < 10:
-                return None
-
-            # Strip markdown code fences if present
-            text = raw.strip()
-            if text.startswith("```"):
-                lines = text.split("\n")
-                lines = [line for line in lines if not line.strip().startswith("```")]
-                text = "\n".join(lines)
-
-            result = json.loads(text)
-            if not isinstance(result, dict):
-                return None
-            return result
-
-        except json.JSONDecodeError as e:
-            self.logger.info(f"LLM enrichment JSON parse failed for '{title}': {e}")
-            return None
-        except Exception as e:
-            self.logger.info(f"LLM enrichment failed for '{title}': {e}")
-            return None
+        return isinstance(
+            error,
+            (
+                OpenAIError,
+            ),
+        ) and hasattr(error, "status_code") and error.status_code in (400, 401, 403, 404)
 
     @classmethod
     def _normalize_keywords(
@@ -810,9 +883,6 @@ class ArticleEnricher:
             text = " ".join(text.split())
             if not text:
                 return
-
-            if len(text) > 14:
-                text = text[:14].rstrip()
 
             key = cls._keyword_key(text)
             if not key or key in seen:
@@ -958,9 +1028,15 @@ class ArticleEnricher:
             with open(cache_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             items_cache = data.get("items", {})
+            skipped_incomplete = 0
             for item in content.items:
                 cached = items_cache.get(str(item.source_id))
                 if cached:
+                    # Skip cached entries where fetch succeeded but LLM
+                    # enrichment failed — they need a re-run.
+                    if cached.get("article_text") and not cached.get("editor_angle"):
+                        skipped_incomplete += 1
+                        continue
                     item.article_text = cached.get("article_text")
                     item.article_images = cached.get("article_images", [])
                     item.article_summary = cached.get("article_summary")
@@ -994,6 +1070,11 @@ class ArticleEnricher:
                 for item in content.items
                 if item.article_text is not None or item.article_summary is not None
             )
+            if skipped_incomplete:
+                self.logger.info(
+                    f"Skipped {skipped_incomplete} cached items with "
+                    f"missing editor_angle (will re-enrich)"
+                )
             self.logger.debug(f"Loaded {loaded} cached enrichments from {cache_path}")
         except Exception as e:
             self.logger.info(f"Failed to load enrichment cache: {e}")

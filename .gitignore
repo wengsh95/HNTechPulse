@@ -42,7 +42,6 @@ build/
 **/remotion/public/audio/
 **/remotion/public/images/
 **/remotion/public/props.json
-**/remotion/public/double-click-computer-mouse.mp3
 
 # Remotion render output
 **/remotion/out/

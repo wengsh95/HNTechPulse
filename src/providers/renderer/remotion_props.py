@@ -49,7 +49,7 @@ def _to_filename(path: str) -> str:
     return Path(path).name
 
 
-def _validate_quote_claim(text: str, max_chars: int = 28) -> str:
+def _validate_quote_claim(text: str, max_chars: int = 50) -> str:
     """Validate a card-facing quote claim."""
     value = clean_comment_text(str(text or "")).strip()
     if not value:
