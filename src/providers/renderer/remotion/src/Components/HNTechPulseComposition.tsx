@@ -404,8 +404,9 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
       ))}
 
       {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
+      {/* 排除已有 per-subtitle 音频的 story_scan，避免双重播放 */}
       {segments
-        .filter((seg) => seg.audio_path && seg.duration > 0)
+        .filter((seg) => seg.audio_path && seg.duration > 0 && !(seg.subtitle_audios && seg.subtitle_audios.length > 0))
         .map((segment, index) => (
           <Sequence
             key={`audio-${index}`}

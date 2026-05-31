@@ -4,7 +4,20 @@ from pathlib import Path
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 2
+_CACHE_SCHEMA_VERSION = 4
+
+
+def _prompt_hash() -> str:
+    """Hash the prefilter prompt template to detect changes."""
+    import hashlib
+
+    prompt_path = Path("prompts/prefilter.md")
+    if not prompt_path.exists():
+        return ""
+    return hashlib.md5(prompt_path.read_text(encoding="utf-8").encode()).hexdigest()[:8]
+
+# Number of top-level comments to include per story for topic detection
+_PREFILTER_COMMENT_COUNT = 5
 
 
 class Prefilter:
@@ -49,18 +62,30 @@ class Prefilter:
             f"Prefilter result: kept {len(content.items)}, removed {filtered_count}"
         )
 
-        # Sort by priority (1 > 2 > 3) before capping
-        priority_map = {
-            str(item.source_id): decisions.get(str(item.source_id), {}).get("priority")
-            for item in content.items
-        }
-        content.items = sorted(
-            content.items,
-            key=lambda x: (
-                priority_map.get(str(x.source_id), 999) or 999,
-                -(x.score or 0),
-            ),
-        )
+        # Filter by minimum newsworthiness (话题度门槛)
+        prefilter_cfg = self.config.get("prefilter", {})
+        min_nw = prefilter_cfg.get("min_newsworthiness", 3)
+        before_nw = len(content.items)
+        content.items = [
+            item for item in content.items
+            if (decisions.get(str(item.source_id), {}).get("newsworthiness") or 0) >= min_nw
+        ]
+        nw_filtered = before_nw - len(content.items)
+        if nw_filtered:
+            self.logger.info(
+                f"Newsworthiness filter (min={min_nw}): removed {nw_filtered}, "
+                f"remaining {len(content.items)}"
+            )
+
+        # Sort by composite score: ai_relevance*2 + newsworthiness (higher = better)
+        # Tiebreaker: HN score (higher = better)
+        def _composite_key(item):
+            d = decisions.get(str(item.source_id), {})
+            ai = d.get("ai_relevance") or 0
+            nw = d.get("newsworthiness") or 0
+            return (-(ai * 2 + nw), -(item.score or 0))
+
+        content.items = sorted(content.items, key=_composite_key)
 
         # Cap to target_story_count (items already sorted by priority then score)
         target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
@@ -76,36 +101,64 @@ class Prefilter:
         return content
 
     def _run_llm(self, items):
-        decisions = {}
-        for batch_start in range(0, len(items), self.batch_size):
-            batch = items[batch_start : batch_start + self.batch_size]
-            stories = [
-                (batch_start + i, item.title or "", item.url or "")
-                for i, item in enumerate(batch)
-            ]
-            self.logger.info(
-                f"Prefilter batch {batch_start // self.batch_size + 1}: "
-                f"{len(stories)} stories"
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        stories = [
+            (
+                i,
+                item.title or "",
+                item.url or "",
+                self._extract_comment_texts(item),
             )
-            batch_decisions = self.llm_provider.prefilter_stories(stories)
-            for d in batch_decisions:
-                idx = d.get("index")
-                if idx is None or idx < 0 or idx >= len(batch):
-                    continue
-                source_id = batch[idx].source_id
-                decisions[str(source_id)] = {
+            for i, item in enumerate(items)
+        ]
+
+        prefilter_cfg = self.config.get("prefilter", {})
+        max_workers = prefilter_cfg.get("max_workers", 5)
+        decisions = {}
+
+        self.logger.info(
+            f"Prefilter: scoring {len(stories)} stories "
+            f"individually (workers={max_workers})"
+        )
+
+        def _score(idx, story):
+            d = self.llm_provider.prefilter_single_story(story)
+            return idx, d
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(_score, i, s): i for i, s in enumerate(stories)
+            }
+            for future in as_completed(futures):
+                idx, d = future.result()
+                sid = str(items[idx].source_id)
+                decisions[sid] = {
                     "keep": bool(d.get("keep", True)),
                     "reason": d.get("reason", ""),
-                    "priority": d.get("priority"),
+                    "ai_relevance": d.get("ai_relevance"),
+                    "newsworthiness": d.get("newsworthiness"),
                 }
 
-        # Default to keep for any item not in LLM response
-        for i, item in enumerate(items):
-            sid = str(item.source_id)
-            if sid not in decisions:
-                decisions[sid] = {"keep": True, "reason": "not in LLM response"}
-
         return decisions
+
+    @staticmethod
+    def _extract_comment_texts(item) -> list[str]:
+        """Extract top N top-level (depth=1) comment texts for topic detection."""
+        import re
+
+        comments = []
+        for c in item.comments:
+            if c.depth and c.depth > 1:
+                continue
+            # Strip HTML tags for cleaner text
+            text = re.sub(r"<[^>]+>", "", c.content or "")
+            text = text.strip()
+            if text:
+                comments.append(text)
+            if len(comments) >= _PREFILTER_COMMENT_COUNT:
+                break
+        return comments
 
     def _resolve_keep_set(self, items, decisions):
         keep_ids = set()
@@ -144,6 +197,9 @@ class Prefilter:
             if data.get("schema_version") != _CACHE_SCHEMA_VERSION:
                 self.logger.info("Prefilter cache schema mismatch, re-running")
                 return None
+            if data.get("prompt_hash") != _prompt_hash():
+                self.logger.info("Prefilter prompt changed, re-running")
+                return None
             return data.get("decisions")
         except (json.JSONDecodeError, KeyError) as e:
             self.logger.warning(f"Prefilter cache corrupt: {e}")
@@ -155,6 +211,7 @@ class Prefilter:
         kept = sum(1 for d in decisions.values() if d.get("keep"))
         data = {
             "schema_version": _CACHE_SCHEMA_VERSION,
+            "prompt_hash": _prompt_hash(),
             "date": date,
             "decisions": decisions,
             "stats": {

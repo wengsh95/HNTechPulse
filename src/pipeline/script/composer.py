@@ -129,7 +129,12 @@ class ScriptWriter:
                 self.logger.info(
                     f"  Script: story {i + 1}/{len(story_specs)} — {title}"
                 )
-                segments_by_index[idx] = _generate_single(spec)
+                try:
+                    segments_by_index[idx] = _generate_single(spec)
+                except Exception as e:
+                    self.logger.warning(
+                        f"  Script: story {i + 1} failed, skipping: {e}"
+                    )
         else:
             self.logger.info(
                 f"Generating {len(story_indices)} story scans with {max_workers} LLM workers"
@@ -143,7 +148,12 @@ class ScriptWriter:
                 }
                 for future in as_completed(futures):
                     idx = futures[future]
-                    segments_by_index[idx] = future.result()
+                    try:
+                        segments_by_index[idx] = future.result()
+                    except Exception as e:
+                        self.logger.warning(
+                            f"  Script: story index {idx} failed, skipping: {e}"
+                        )
                     completed += 1
                     self.logger.info(f"  Script: {completed}/{len(story_specs)} done")
 

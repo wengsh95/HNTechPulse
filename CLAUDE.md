@@ -184,4 +184,3 @@ Drives mount as `/c/`, `/d/` etc. — **not** `C:\` or `D:\`. Prefer `Bash` with
 4. **Surgical Changes** — Touch only what you must. Match existing style. Remove only your own orphans. Every changed line must trace to the request.
 5. **Goal-Driven Execution** — Define verifiable success criteria. Loop until verified.
 6. **Separate Thinking from Coding** — During planning, focus on tradeoffs and approach, not implementation. Don't draft code "just in case."
-7. **Root Cause First** — When debugging, trace the full chain from symptom to root cause. Don't patch symptoms with workarounds or defensive defaults; find and fix the actual broken logic. If a fix feels like a band-aid, it probably is — stop and re-investigate. Expose problems immediately rather than silently working around them.

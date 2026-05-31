@@ -7,10 +7,15 @@ pipeline:
   target_story_count: 3        # 正式日报条目数量（也是深讲条数）
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
+prefilter:
+  enabled: true
+  max_workers: 5               # 每条 story 独立评分的并发数
+  min_newsworthiness: 3        # 话题度门槛（1-5），低于此分数的故事直接过滤
+
 hn:
   base_url: "https://hacker-news.firebaseio.com/v0"
   top_stories_count: 300
-  target_stories_count: 30
+  target_stories_count: 20
   request_timeout: [5, 15]     # [connect_timeout, read_timeout] 秒
   comment_log_interval: 50        # 每抓取 N 条评论输出一次进度日志（0=关闭）
   max_comment_depth: 5            # 评论递归最大深度（深层评论价值低，截断可减少 30-50% 请求）
@@ -25,5 +30,6 @@ video:
 
 timing:
   segment_gap: 0.0          # 非 story 段之间的停顿（由 fade-in/out 处理过渡）
-  event_card_pre_gap: 0.3   # 事件卡切入时，语音/字幕前的停顿（秒）
+  event_card_pre_gap: 0.0   # 事件卡切入时的停顿（已关闭：会导致无场景空白）
+  event_card_audio_delay: 0.3  # 卡片切入后的静音停顿（秒），TTS 延后播放，卡片在停顿期间已展示
   subtitle_gap: 0.2         # story_scan 内字幕音频之间的停顿（换气感）

@@ -29,6 +29,7 @@ class TTSProcessor:
         )
         self.logger = setup_logger(__name__, debug=debug, level=level)
         tts_config = config.get("tts", {})
+        self.audio_delay = float(timing_cfg.get("event_card_audio_delay", 0.0))
         self.sample_rate = int(tts_config.get("sample_rate", 24000))
         self.whisper_model = tts_config.get("whisper_model", "large-v3")
         self.whisper_model_path = tts_config.get("whisper_model_path", "")
@@ -136,24 +137,57 @@ class TTSProcessor:
             return
 
         # Concatenate element audio into segment audio
+        # Insert silence before each card's audio for breathing room
         seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
-        self._concat_audio_files([e[1] for e in elem_audio_entries], seg_audio_path)
-        segment.audio_path = seg_audio_path
-        segment.actual_duration = get_audio_duration(seg_audio_path)
+        silence_path = str(audio_dir / "_card_delay_silence.mp3") if self.audio_delay > 0 else ""
+        # Generate silence and measure actual duration (MP3 frame alignment may
+        # differ slightly from the configured value).
+        delay = 0.0
+        if self.audio_delay > 0:
+            if not Path(silence_path).exists():
+                self._generate_silence(silence_path, self.audio_delay)
+            delay = get_audio_duration(silence_path)
 
-        # Build segment-level cues with absolute times from concatenated audio
+        audio_files_to_concat: list[str] = []
         all_cues: list[Cue] = []
-        offset = 0.0
-        for _elem_idx, _audio_path, duration, aligned in elem_audio_entries:
+        subtitle_audios: list[dict] = []
+        cue_offset = 0.0
+
+        for _elem_idx, elem_audio_path, duration, aligned in elem_audio_entries:
+            # Insert silence before this card's audio
+            if delay > 0 and duration > 0:
+                audio_files_to_concat.append(silence_path)
+
+            audio_files_to_concat.append(elem_audio_path)
+
+            # Cues offset: silence + accumulated prior content
             for alg in aligned:
                 all_cues.append(
                     Cue(
                         text=alg.text,
-                        start_time=round(offset + alg.start_time, 3),
-                        end_time=round(offset + alg.end_time, 3),
+                        start_time=round(cue_offset + delay + alg.start_time, 3),
+                        end_time=round(cue_offset + delay + alg.end_time, 3),
                     )
                 )
-            offset += duration
+
+            # audio_duration includes delay so visual covers the silence period
+            segment.scene_elements[_elem_idx].props["audio_duration"] = (
+                delay + duration
+            )
+
+            subtitle_audios.append(
+                {
+                    "audio_path": elem_audio_path,
+                    "start_time": round(cue_offset + delay, 3),
+                    "end_time": round(cue_offset + delay + duration, 3),
+                }
+            )
+            cue_offset += delay + duration
+
+        self._concat_audio_files(audio_files_to_concat, seg_audio_path)
+        segment.audio_path = seg_audio_path
+        segment.actual_duration = get_audio_duration(seg_audio_path)
+        segment.meta["subtitle_audios"] = subtitle_audios
 
         segment.cues = all_cues
 

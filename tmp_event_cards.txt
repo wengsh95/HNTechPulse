@@ -1,0 +1,14 @@
+=== elem 0 event_card ===
+  [0] (48字) John Gruber 造了个词叫"dickover"，专门吐槽那种全屏遮挡、逼你交互的弹窗设计
+  [1] (25字) 这类弹窗已经从商业网站蔓延到个人博客，成了网页标配
+
+=== elem 3 event_card ===
+  [0] (31字) Anthropic完成650亿美元融资，投后估值9650亿美元
+  [1] (22字) 三个月涨了154%，把OpenAI挤到第二。
+  [2] (21字) 年化营收已破470亿美元，九成靠企业API
+  [3] (40字) Claude Opus 4.8和新安全系统Mythos Preview同期发布。
+
+=== elem 6 event_card ===
+  [0] (34字) Quandri工程师实测MCP，4个服务器连接就吃满10.5%上下文
+  [1] (15字) 性能比直接调REST慢3到9倍
+  [2] (48字) Anthropic随即发博客说MCP专为云端Agent设计，但Perplexity已宣布放弃使用

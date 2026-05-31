@@ -127,26 +127,19 @@ class ReportGenerator:
             lines.append("")
             lines.append("## 脚本概览")
             lines.append("")
-            lines.append("| 片段类型 | 数量 | 预计时长 | 实际时长 | 差异 |")
-            lines.append("|----------|------|----------|----------|------|")
+            lines.append("| 片段类型 | 数量 | 时长 |")
+            lines.append("|----------|------|------|")
             for st in ["opening", "story_scan", "closing"]:
                 if st in seg_stats:
                     s = seg_stats[st]
-                    diff = s["act"] - s["est"]
-                    lines.append(
-                        f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |"
-                    )
+                    lines.append(f"| {st} | {s['count']} | {s['act']:.1f}s |")
             for st, s in seg_stats.items():
                 if st not in ("opening", "story_scan", "closing"):
-                    diff = s["act"] - s["est"]
-                    lines.append(
-                        f"| {st} | {s['count']} | {s['est']:.1f}s | {s['act']:.1f}s | {diff:+.1f}s |"
-                    )
-            total_est = sum(seg.duration for seg in script.segments)
+                    lines.append(f"| {st} | {s['count']} | {s['act']:.1f}s |")
             total_act = sum(
                 seg.actual_duration or seg.duration for seg in script.segments
             )
-            lines.append(f"- 视频总时长: {total_act:.1f}s (预计: {total_est:.1f}s)")
+            lines.append(f"- 视频总时长: {total_act:.1f}s")
 
         # ── 问题列表 ──
         issues = []

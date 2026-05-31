@@ -165,10 +165,20 @@ def split_long_subtitle(text: str, max_cjk: int = 36, max_chars: int = 70) -> li
     return [left, right]
 
 
+_CLOSING_PUNCT = set("。！？.!?：:；;")
+
+
+def _ensure_punctuation(text: str) -> str:
+    """Append 。 if the subtitle doesn't end with closing punctuation."""
+    if text and text[-1] not in _CLOSING_PUNCT:
+        return text + "。"
+    return text
+
+
 def extract_subtitle_texts(card: dict) -> list[str]:
     raw_texts = card.get("subtitle_texts", []) or []
     return [
-        piece
+        _ensure_punctuation(piece)
         for t in raw_texts
         if t and t.strip()
         for piece in split_long_subtitle(t.strip())

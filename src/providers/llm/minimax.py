@@ -23,15 +23,23 @@ def _build_card_narration_validator(expected_card_types: List[str]):
     """Validate the LLM's segment JSON against the tier's card schema.
 
     Raising ValueError triggers a re-prompt inside call_llm_with_json_retry.
+    Empty card_narrations is accepted (downstream fallback handles it).
     """
     expected_set = set(expected_card_types)
 
     def _validate(parsed: dict) -> None:
         cards = parsed.get("card_narrations") or []
         if not cards:
-            raise ValueError(
-                f"card_narrations is empty; expected at least one of {expected_card_types}"
+            # Accept empty — _process_story_narrations has a fallback path.
+            # Log at WARNING so intermittent model failures are visible.
+            import logging
+
+            logging.getLogger("hn_techpulse").warning(
+                "LLM returned empty card_narrations (expected %s); "
+                "downstream will fall back to audio_text",
+                expected_card_types,
             )
+            return
         for i, card in enumerate(cards):
             if not isinstance(card, dict):
                 raise ValueError(f"card_narrations[{i}] is not an object")
@@ -336,7 +344,10 @@ class MiniMaxLLMProvider(LLMProvider):
         prompt_template_path: str = "prompts/prefilter.md",
     ) -> list:
         stories_json = json.dumps(
-            [{"index": i, "title": t, "url": u} for i, t, u in stories],
+            [
+                {"index": i, "title": t, "url": u, "comments": c}
+                for i, t, u, c in stories
+            ],
             ensure_ascii=False,
             indent=2,
         )
@@ -359,6 +370,17 @@ class MiniMaxLLMProvider(LLMProvider):
         )
         result = self._extract_json(response_text)
         return result.get("decisions", [])
+
+    def prefilter_single_story(
+        self,
+        story: tuple,
+        prompt_template_path: str = "prompts/prefilter.md",
+    ) -> dict:
+        """Score a single story independently (no cross-story context pollution)."""
+        decisions = self.prefilter_stories([story], prompt_template_path)
+        if decisions:
+            return decisions[0]
+        return {"keep": True, "reason": "no LLM response"}
 
     # ── Story Serialization ────────────────────────────────────
 
