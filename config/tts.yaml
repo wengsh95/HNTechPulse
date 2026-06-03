@@ -13,7 +13,7 @@ tts:
   # seed: 42
   # ── Whisper 对齐（每段 TTS 后用 Whisper 获取字幕时间戳，不切割音频）──
   whisper_model: "small"
-  whisper_model_path: "E:/Code/models/models/whisper"
+  whisper_model_path: "D:\\code\\HNTechPulse\\whisper\\"
 
 # tts:
 #   provider: "minimax"
