@@ -114,6 +114,27 @@ def generate_fixed_opening(
                 if len(keywords) >= 3:
                     break
 
+    # ── Cover subtitle: 今日 3 件事钩子 (rule-based, 不调 LLM) ──
+    # 优先用 highlight_entries[:3] 的 editor_angle 拼接, 替换原纯日期显示.
+    hook_parts: list[str] = []
+    for entry in (highlight_entries or [])[:3]:
+        angle = str(entry.get("editor_angle") or "").strip()
+        if angle:
+            hook_parts.append(angle)
+    if not hook_parts and top3_titles:
+        hook_parts = top3_titles[:3]
+    if hook_parts:
+        subtitle = " · ".join(hook_parts)
+        if len(subtitle) > 40:
+            # 截断最后一个 hook, 保持 ≤40 字
+            while len(subtitle) > 40 and len(hook_parts) > 1:
+                hook_parts.pop()
+                subtitle = " · ".join(hook_parts) + ("…" if len(hook_parts) >= 1 else "")
+            if len(subtitle) > 40:
+                subtitle = subtitle[:39].rstrip(" ，,;；:：") + "…"
+    else:
+        subtitle = date_display  # fallback 到日期
+
     return ScriptSegment(
         segment_type="opening",
         audio_text=audio_text,
@@ -125,7 +146,8 @@ def generate_fixed_opening(
                 end_time=duration,
                 props={
                     "headline": "每日HN AI观察",
-                    "subtitle": date_display,
+                    "subtitle": subtitle,
+                    "date_label": date_display,  # 保留日期用于 chrome 显示
                     "keywords": keywords[:3],
                     "lineup_entries": entries,
                     "section_counts": {

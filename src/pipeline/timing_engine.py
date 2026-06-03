@@ -58,13 +58,20 @@ class TimingEngine:
                         elem.end_time = current + d
                         current += d
 
-                    # Reconcile last element end with segment duration.
-                    # Extend if element durations under-fill the segment
-                    # (MP3 concat overhead pushed audio past individual
-                    # durations); clamp if they over-fill (leading silence
-                    # padding pushes the last element past the actual audio).
+                    # Extend / clip last element to match the actual segment
+                    # audio duration. Per-element audio_duration values come from
+                    # individual TTS files; the segment's actual_duration comes
+                    # from the concatenated MP3 (with re-encoding overhead).
+                    # The two can differ by ~0.5%, in either direction:
+                    #   - current < segment_duration → extend last element
+                    #     (so visual covers the trailing audio)
+                    #   - current > segment_duration → clip last element
+                    #     (otherwise the last card's audio bleeds into the
+                    #     next segment, e.g. atmosphere_card → closing_card)
+                    # 0.01s threshold avoids float jitter re-extending markers
+                    # for negligible diffs.
                     segment_duration = seg.actual_duration or seg.duration
-                    if current != segment_duration:
+                    if abs(current - segment_duration) > 0.01:
                         for elem in reversed(seg.scene_elements):
                             if not elem.props.get("is_audio_marker"):
                                 elem.end_time = segment_duration

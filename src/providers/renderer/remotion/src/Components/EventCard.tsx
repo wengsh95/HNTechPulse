@@ -6,7 +6,6 @@
      - No image: text-only centered single column
      - With image: left-text + right-image (image 48% width, gradient mask)
      - With logo: left-text + right-logo (logo 220px wide, contain centered)
-     - Watermark "index / total" at top-right
 
    Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
    adds entrance animation via useCurrentFrame/interpolate.
@@ -15,20 +14,18 @@
 import React from "react";
 import { useCurrentFrame, interpolate, staticFile } from "remotion";
 import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
-import { COLORS, CARD_REF } from "./theme";
+import { COLORS } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractEventProps } from "./propsExtractors";
-import { CardAudioWaveform } from "./CardAudioWaveform";
-import { WatermarkCharacter } from "./WatermarkCharacter";
 import {
   useDesign,
   FONTS,
   FW,
   ANIM,
   EASE_CARD,
-  CARD_PAD,
-  LAYOUT,
+  CARD_LAYOUT,
 } from "./design";
+import { CardShell, Fill } from "./CardShell";
 
 /* ---- helpers ---- */
 
@@ -66,24 +63,6 @@ const PULSE = `
 
 function buildStyles(d: ReturnType<typeof useDesign>) {
   return {
-    card: {
-      width: d.scaled(CARD_REF.width),
-      height: "100%" as const,
-      background: COLORS.bg,
-      position: "relative" as const,
-      overflow: "hidden",
-    } as React.CSSProperties,
-    watermark: {
-      position: "absolute" as const,
-      top: d.scaled(96),
-      right: d.scaled(56),
-      fontFamily: FONTS.mono,
-      fontSize: d.fs.watermarkLg,
-      fontWeight: FW.heavy,
-      color: COLORS.dim,
-      letterSpacing: "0.1em",
-      zIndex: 5,
-    } as React.CSSProperties,
     dot: {
       width: d.scaled(7),
       height: d.scaled(7),
@@ -107,9 +86,9 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
     } as React.CSSProperties,
     divider: {
       width: "100%",
-      maxWidth: d.scaled(900),
-      height: d.scaled(6),
-      borderRadius: d.scaled(3),
+      maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
+      height: d.scaled(CARD_LAYOUT.divider.height),
+      borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
       background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
     } as React.CSSProperties,
     domain: {
@@ -129,7 +108,6 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       }) as React.CSSProperties,
     titleEn: {
       fontSize: d.fs.body,
-      fontWeight: FW.medium,
       color: COLORS.muted,
       fontFamily: FONTS.sans,
       marginTop: d.scaled(-12),
@@ -225,11 +203,11 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       whiteSpace: "nowrap" as const,
     } as React.CSSProperties,
     imageCol: {
-      width: d.scaled(CARD_REF.width * 0.4),
+      width: d.scaled(800),
       position: "absolute" as const,
       top: d.scaled(-40),
       bottom: d.scaled(40),
-      right: d.scaled(CARD_PAD.xNormal),
+      right: d.scaled(CARD_LAYOUT.padding.right),
       display: "flex",
       alignItems: "center",
       overflow: "hidden",
@@ -269,7 +247,6 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
     englishTitle,
     heatLevel,
     heatLabel,
-    category,
     hnScore,
     commentCount,
     analysis,
@@ -345,12 +322,7 @@ export const EventCard: React.FC<ElementProps> = ({
   const hasLogo = Boolean(logoUrl);
   const isTwoCol = hasImage || hasLogo;
 
-  // Entrance animation — using shared ANIM constants
-  const cardProgress = interpolate(frame, [ANIM.cardStart, ANIM.cardEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  // Entrance animation
   const innerProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
     easing: EASE_CARD,
     extrapolateLeft: "clamp",
@@ -362,52 +334,52 @@ export const EventCard: React.FC<ElementProps> = ({
     extrapolateRight: "clamp",
   });
 
-  const inner: React.CSSProperties = isTwoCol
+  // 内容区样式
+  const contentStyle: React.CSSProperties = isTwoCol
     ? {
         display: "flex",
-        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
-        height: "100%",
+        flex: 1,
         gap: d.scaled(60),
         alignItems: hasImage ? "stretch" : "center",
-        position: "relative" as const,
       }
     : {
-        padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
-        height: "100%",
         display: "flex",
         flexDirection: "column",
         gap: d.scaled(20),
+        flex: 1,
       };
 
-  const contentMaxW: React.CSSProperties = isTwoCol
+  const textColStyle: React.CSSProperties = isTwoCol
     ? {
         flex: 1,
         display: "flex",
         flexDirection: "column",
         gap: d.scaled(20),
-        marginRight: d.scaled(CARD_REF.width * 0.4 + 20),
+        marginRight: d.scaled(820),
       }
     : { display: "flex", flexDirection: "column", gap: d.scaled(20) };
 
   return (
-    <div
-      style={{
-        ...S.card,
-        opacity: cardProgress,
-        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
-      }}
+    <CardShell
+      elementProps={elementProps}
+      pageIndex={index - 1}
+      totalPages={total}
+      justify="start"                       // 两栏时让内容从顶部开始
+      gutter={100}                          // 对称左右内边距
+      paddingTop={80}
+      paddingBottom={120}
+      showTopBar
+      showWatermark
+      showWaveform
+      reserveSubtitle                       // 字幕始终显示, 底部给字幕让位
     >
       <style>{PULSE}</style>
 
-      <div style={S.watermark}>
-        {index} / {total}
-      </div>
-
-      <div style={inner}>
-        {/* Text column (full-width or left-half) */}
+      <div style={contentStyle}>
+        {/* 文字列 */}
         <div
           style={{
-            ...contentMaxW,
+            ...textColStyle,
             opacity: innerProgress,
             transform: `translateY(${interpolate(innerProgress, [0, 1], [16, 0])}px)`,
           }}
@@ -415,7 +387,7 @@ export const EventCard: React.FC<ElementProps> = ({
           {TextContent(typed, S, d)}
         </div>
 
-        {/* Right image */}
+        {/* 右侧图片 */}
         {hasImage && (
           <div
             style={{
@@ -429,7 +401,7 @@ export const EventCard: React.FC<ElementProps> = ({
           </div>
         )}
 
-        {/* Right logo */}
+        {/* 右侧 Logo */}
         {hasLogo && !hasImage && (
           <div
             style={{
@@ -441,15 +413,7 @@ export const EventCard: React.FC<ElementProps> = ({
             <img src={staticFile(logoUrl!)} alt="logo" style={S.logoImg} />
           </div>
         )}
-
-        {/* Waveform */}
-        <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
-          <CardAudioWaveform src={elementProps.audio_path as string | undefined} />
-        </div>
       </div>
-
-      {/* Watermark character — always show */}
-      <WatermarkCharacter expression="event_card.png" />
-    </div>
+    </CardShell>
   );
 };

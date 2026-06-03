@@ -186,7 +186,12 @@ class TTSProcessor:
 
         self._concat_audio_files(audio_files_to_concat, seg_audio_path)
         segment.audio_path = seg_audio_path
-        segment.actual_duration = get_audio_duration(seg_audio_path)
+        # Drive actual_duration from the per-subtitle cumulative offset, not
+        # from the concatenated MP3: the top-level audio track is filtered out
+        # for story_scan (HNTechPulseComposition uses subtitle_audios instead),
+        # so the concat's frame-alignment drift would otherwise mis-time the
+        # segment boundary and clip the last elem's audio into the next segment.
+        segment.actual_duration = round(cue_offset, 3)
         segment.meta["subtitle_audios"] = subtitle_audios
 
         segment.cues = all_cues

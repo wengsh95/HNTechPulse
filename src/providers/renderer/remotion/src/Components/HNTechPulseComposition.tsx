@@ -13,7 +13,6 @@ import {
   Easing,
   staticFile,
   useCurrentFrame,
-  useVideoConfig,
 } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
@@ -41,8 +40,6 @@ import {
   ChapterName,
   ChapterProvider,
   ELEMENT_TYPE_TO_CHAPTER,
-  FONTS,
-  FW,
   S,
   useDesign,
 } from "./design";
@@ -207,7 +204,8 @@ const SegmentRenderer: React.FC<{
   height: number;
   fps: number;
   isLastSegment: boolean;
-}> = ({ segment, index, width, height, fps, isLastSegment }) => {
+  dateLabel?: string;
+}> = ({ segment, index, width, height, fps, isLastSegment, dateLabel }) => {
   const frame = useCurrentFrame();
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
@@ -228,6 +226,35 @@ const SegmentRenderer: React.FC<{
     transitionFrames: TRANSITION_FRAMES,
     isLastSegment,
   });
+
+  // 章节上下文 (居中 masthead 标签) — 按 segment_type 派生
+  const chapterLabel = (() => {
+    if (segment.segment_type === "opening") return "今日封面";
+    if (segment.segment_type === "closing") return "今日信号";
+    if (segment.segment_type === "story_scan") {
+      // 找 segment 第一个 event_card 拿 category / editor_angle
+      const firstEvent = segment.scene_elements.find(
+        (e) => e.element_type === "event_card",
+      );
+      const props = (firstEvent?.props ?? {}) as Record<string, unknown>;
+      const storyIdx =
+        typeof props.story_index === "number" ? props.story_index : null;
+      const displayIdx =
+        typeof props.display_index === "number" ? props.display_index : null;
+      const idx = (displayIdx ?? storyIdx ?? 0) + 1;
+      const total =
+        typeof props.story_count === "number" ? props.story_count : null;
+      const cat = String(props.category ?? "").trim();
+      const headline = String(props.editor_angle ?? "").trim();
+      // 截断标题到合适长度, 配合 EVENT 01 · 标题
+      const short = headline.length > 14 ? headline.slice(0, 13) + "…" : headline;
+      const totalPart = total ? ` / ${total}` : "";
+      if (cat && short) return `EVENT 0${idx}${totalPart} · ${cat} · ${short}`;
+      if (short) return `EVENT 0${idx}${totalPart} · ${short}`;
+      return `EVENT 0${idx}${totalPart}`;
+    }
+    return undefined;
+  })();
 
   return (
     <Sequence
@@ -256,7 +283,11 @@ const SegmentRenderer: React.FC<{
             width={width}
             height={height}
             fps={fps}
-            extraProps={{ audio_path: segment.audio_path }}
+            extraProps={{
+              audio_path: segment.audio_path,
+              dateLabel,
+              ...(chapterLabel ? { chapterLabel } : {}),
+            }}
           />
         ))}
 
@@ -272,68 +303,7 @@ const SegmentRenderer: React.FC<{
   );
 };
 
-const GlobalChrome: React.FC<{
-  dateLabel: string;
-  startTime: number;
-}> = ({ dateLabel, startTime }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const { layout, fs, scaled } = useDesign();
-  const currentTime = frame / fps;
 
-  if (currentTime < startTime) {
-    return null;
-  }
-
-  const opacity = interpolate(currentTime - startTime, [0, 0.5], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const chromeH = layout.chromeHeight;
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: layout.chromeInsetX,
-        right: layout.chromeInsetX,
-        top: layout.chromeTop,
-        height: chromeH,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        opacity,
-        pointerEvents: "none",
-        zIndex: 10,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: scaled(10),
-          fontFamily: FONTS.sans,
-          color: COLORS.muted,
-          fontSize: fs.bodySmall,
-          fontWeight: FW.heavy,
-          letterSpacing: 0,
-        }}
-      >
-        <span style={{ color: COLORS.text }}>HN每日观察</span>
-        {dateLabel && (
-          <>
-            <span style={{ color: COLORS.dim }}>/</span>
-            <span>{dateLabel}</span>
-          </>
-        )}
-      </div>
-
-      {/* Chapter pill removed per user request */}
-    </div>
-  );
-};
 
 /** 主 Composition 组件 */
 export const HNTechPulseComposition: React.FC<ScriptProps> = ({
@@ -375,9 +345,9 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
     const firstTitle = segments
       .flatMap((seg) => seg.scene_elements)
       .find((elem) => elem.element_type === "cover_card");
-    const label = firstTitle
-      ? String((firstTitle.props as Record<string, unknown>).subtitle ?? "")
-      : "";
+    const firstTitleProps = (firstTitle?.props ?? {}) as Record<string, unknown>;
+    // chrome 优先读 date_label (纯日期), fallback 到 subtitle (兼容旧数据)
+    const label = String(firstTitleProps.date_label ?? firstTitleProps.subtitle ?? "");
     return { storyBoundaries: boundaries, storyChapters: chapters, dateLabel: label };
   }, [segments]);
   const currentTime = frame / fps;
@@ -400,6 +370,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
           height={height}
           fps={fps}
           isLastSegment={index === segments.length - 1}
+          dateLabel={dateLabel}
         />
       ))}
 
@@ -448,7 +419,6 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
         storyBoundaries={storyBoundaries}
         activeStoryIndex={activeStoryIndex}
       />
-      <GlobalChrome dateLabel={dateLabel} startTime={0} />
     </AbsoluteFill>
   );
 };

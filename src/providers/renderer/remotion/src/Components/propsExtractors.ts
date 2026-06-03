@@ -50,7 +50,8 @@ export function extractCoverProps(
   elementProps: Record<string, unknown>,
 ): CoverCardProps {
   const headline = str(elementProps.headline, "HN每日观察");
-  const dateLabel = str(elementProps.subtitle, "");
+  // chrome 优先读 date_label (纯日期), fallback 到 subtitle (兼容旧数据)
+  const dateLabel = str(elementProps.date_label, str(elementProps.subtitle, ""));
 
   // categories from section_counts
   const sectionCounts = obj(elementProps.section_counts);

@@ -25,22 +25,20 @@ export const segmentTransitionOpacity = ({
   isLastSegment: boolean;
 }) => {
   const localFrame = segmentLocalFrame(absoluteFrame, startFrame);
-  // 仅首段做淡入，避免第一帧突兀出现
-  const fadeIn = startFrame === 0
-    ? interpolate(localFrame, [0, transitionFrames], [0, 1], {
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 1;
-  // 仅末段做淡出收尾
-  const fadeOut = isLastSegment
-    ? interpolate(durationFrames - localFrame, [0, transitionFrames], [0, 1], {
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 1;
+  // 与 ElementFadeWrap 对齐: 每张卡 6 帧淡入淡出, 段间靠 premountFor + 双方各 6 帧 = 12 帧 cross-fade.
+  // 首段和末段沿用较长的 transitionFrames, 避免首帧突兀 / 收尾硬切.
+  const fadeInFrames = startFrame === 0 ? transitionFrames : 6;
+  const fadeOutFrames = isLastSegment ? transitionFrames : 6;
+  const fadeIn = interpolate(localFrame, [0, fadeInFrames], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const fadeOut = interpolate(durationFrames - localFrame, [0, fadeOutFrames], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return fadeIn * fadeOut;
 };

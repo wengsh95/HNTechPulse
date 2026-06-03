@@ -14,6 +14,10 @@ export const FONTS = {
   mono: '"JetBrains Mono", "SF Mono", "Menlo", "Source Code Pro", monospace',
   sans: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
   bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
+  /** 衬线字体 (品牌名/章节标签), 比 Inter 更有编辑/杂志感 */
+  serif: 'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+  /** 装饰字体 (大字周几), 衬线加粗 */
+  serifBold: 'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
 };
 
 /** 标准字重 */
@@ -365,6 +369,55 @@ export const CARD_PAD = {
   xCompact: 40,
   yNormal: 56,
   yCompact: 36,
+} as const;
+
+/**
+ * 统一卡片布局令牌 (Unified Card Layout Tokens)
+ *
+ * 所有卡片共用的布局参数，确保视觉一致性。
+ * 所有值均为 1080p 参考值，运行时通过 d.scaled() 缩放。
+ */
+export const CARD_LAYOUT = {
+  /** 卡片内边距 */
+  padding: {
+    top: 80,
+    bottom: 120,        // 从 180 减少到 120，减少底部留白
+    left: 100,
+    right: 56,          // 统一右间距
+  },
+
+  /** Header 区域（节目名称 + 日期） */
+  header: {
+    height: 32,
+    marginBottom: 16,
+    fontSize: 18,       // d.fs.caption 或 d.fs.micro
+    color: COLORS.dim,
+  },
+
+  /** 页码水印 */
+  watermark: {
+    top: 80,
+    right: 56,
+    fontSize: 113,      // d.fs.watermarkLg
+  },
+
+  /** 音频波形 */
+  waveform: {
+    bottom: 20,
+  },
+
+  /** 渐变分隔线 */
+  divider: {
+    height: 6,
+    maxWidth: 900,
+    borderRadius: 3,
+  },
+
+  /** 内容区最大宽度 */
+  content: {
+    maxWidth: 1400,
+    wideMaxWidth: 1600,
+  },
 } as const;
 
 /** Standard animation timing (frames at 30fps) */

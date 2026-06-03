@@ -19,12 +19,11 @@ import type {
   Stance,
   Quote,
 } from "./cardTypes";
-import { COLORS, CARD_REF } from "./theme";
+import { COLORS } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
-import { CardAudioWaveform } from "./CardAudioWaveform";
-import { useDesign, FONTS, FW, CARD_PAD } from "./design";
-import { WatermarkCharacter } from "./WatermarkCharacter";
+import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { CardShell, Fill } from "./CardShell";
 
 /* ---- label maps ---- */
 
@@ -85,7 +84,7 @@ function StanceBarWithConcern({
         <div
           style={{
             flex: 1,
-            height: d.scaled(22),
+            height: d.scaled(28),
             background: COLORS.surface2,
             borderRadius: d.scaled(4),
             overflow: "hidden",
@@ -233,63 +232,32 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
   };
 
   // Entrance animation
-  const cardProgress = interpolate(frame, [4, 22], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const titleProgress = interpolate(frame, [8, 26], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, [14, 32], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   return (
-    <div
-      style={{
-        width: d.scaled(CARD_REF.width),
-        height: "100%" as const,
-        background: COLORS.bg,
-        position: "relative" as const,
-        overflow: "hidden",
-        opacity: cardProgress,
-        transform: `translateY(${interpolate(cardProgress, [0, 1], [32, 0])}px)`,
-      }}
+    <CardShell
+      elementProps={elementProps}
+      pageIndex={displayIndex}
+      totalPages={storyCount}
+      justify="start"                  // 内容多, 从顶部开始
+      gutter={100}                     // 对称左右内边距
+      paddingTop={80}
+      paddingBottom={120}
+      showTopBar
+      showWatermark
+      showWaveform
+      reserveSubtitle                  // 字幕始终显示, 底部给字幕让位
     >
-      {/* Watermark */}
-      {storyCount > 0 && (
-        <div
-          style={{
-            position: "absolute" as const,
-            top: d.scaled(96),
-            right: d.scaled(56),
-            fontFamily: FONTS.mono,
-            fontSize: d.fs.watermarkLg,
-            fontWeight: FW.heavy,
-            color: COLORS.dim,
-            letterSpacing: "0.1em",
-            zIndex: 5,
-          }}
-        >
-          {displayIndex + 1} / {storyCount}
-        </div>
-      )}
-
-      <div
-        style={{
-          padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(180)}px ${d.scaled(100)}px`,
-          height: "100%",
-          display: "flex",
-          flexDirection: "column" as const,
-          gap: d.scaled(14),
-          position: "relative" as const,
-        }}
-      >
+      <Fill gap={14} maxWidth={CARD_LAYOUT.content.maxWidth}>
         {/* ① Controversy title + discussion summary subtitle */}
         <h1
           style={{
@@ -324,9 +292,9 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         <div
           style={{
             width: "100%",
-            maxWidth: d.scaled(900),
-            height: d.scaled(6),
-            borderRadius: d.scaled(3),
+            maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
+            height: d.scaled(CARD_LAYOUT.divider.height),
+            borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
             marginTop: d.scaled(4),
             marginBottom: d.scaled(4),
             background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
@@ -337,13 +305,15 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         <div
           style={{
             display: "flex",
-            gap: d.scaled(80),
+            gap: d.scaled(60),
+            flex: 1,
+            minHeight: 0,
             opacity: bodyProgress,
             transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
           }}
         >
           {/* Left: stance distribution with concerns */}
-          <div style={{ flex: 1, maxWidth: d.scaled(800), display: "flex", flexDirection: "column" as const, gap: d.scaled(12) }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(12) }}>
             <h3
               style={{
                 fontFamily: FONTS.mono,
@@ -368,8 +338,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             ))}
           </div>
 
-          {/* Right: debate topics */}
-          <div style={{ flex: `0 0 ${d.scaled(540)}px`, display: "flex", flexDirection: "column" as const, gap: d.scaled(20) }}>
+          {/* Right: debate topics + compact stance bar */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(16) }}>
             <h3
               style={{
                 fontFamily: FONTS.mono,
@@ -384,7 +354,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
               辩论焦点
             </h3>
             {debateTopics.map((topic, i) => (
-              <div key={i} style={{ display: "flex", gap: d.scaled(14), alignItems: "center" as const }}>
+              <div key={i} style={{ display: "flex", gap: d.scaled(8), alignItems: "center" as const }}>
                 <span
                   style={{
                     fontFamily: FONTS.mono,
@@ -418,16 +388,19 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
           </div>
         </div>
 
-        {/* ④ Quotes */}
+        {/* ④ Quotes (max 2 to prevent overflow) */}
         {quotes.length > 0 && (
           <div
             style={{
               display: "flex",
               flexDirection: "column" as const,
               gap: d.scaled(12),
-              maxWidth: d.scaled(1400),
+              maxWidth: d.scaled(CARD_LAYOUT.content.maxWidth),
               opacity: bodyProgress,
               transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
+              flexShrink: 1,
+              minHeight: 0,
+              overflow: "hidden",
             }}
           >
             <h3
@@ -441,18 +414,12 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             >
               评论金句
             </h3>
-            {quotes.map((q, i) => (
-              <QuoteBlock key={i} q={q} last={i === quotes.length - 1} d={d} />
+            {quotes.slice(0, 2).map((q, i) => (
+              <QuoteBlock key={i} q={q} last={i === Math.min(quotes.length, 2) - 1} d={d} />
             ))}
           </div>
         )}
-
-        <WatermarkCharacter expression="atmosphere_card.jpg" />
-
-        <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
-          <CardAudioWaveform src={elementProps.audio_path as string | undefined} />
-        </div>
-      </div>
-    </div>
+      </Fill>
+    </CardShell>
   );
 };

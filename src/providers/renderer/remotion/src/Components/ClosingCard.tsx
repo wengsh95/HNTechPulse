@@ -12,15 +12,13 @@
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, Easing } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 import type { ClosingCardProps } from "./cardTypes";
-import { COLORS, CARD_REF } from "./theme";
+import { COLORS } from "./theme";
 import type { ElementProps } from "./utils";
 import { extractClosingProps } from "./propsExtractors";
-import { ANIM_PRESETS } from "./timing";
-import { CardAudioWaveform } from "./CardAudioWaveform";
-import { useDesign, FONTS, FW, CARD_PAD } from "./design";
-import { WatermarkCharacter } from "./WatermarkCharacter";
+import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { CardShell, Fill } from "./CardShell";
 
 /* ---- main component ---- */
 
@@ -38,53 +36,37 @@ export const ClosingCard: React.FC<ElementProps> = ({
     completedStories,
   } = typed;
 
-  // Entrance animation — unified via ANIM_PRESETS
-  const cardProgress = interpolate(frame, ANIM_PRESETS.card.range, [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  // Entrance animation
+  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const titleProgress = interpolate(frame, ANIM_PRESETS.title.range, [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, ANIM_PRESETS.body.range, [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  const cardY = interpolate(cardProgress, [0, 1], [ANIM_PRESETS.card.yOffset, 0]);
-  const titleY = interpolate(titleProgress, [0, 1], [ANIM_PRESETS.title.yOffset, 0]);
-  const bodyY = interpolate(bodyProgress, [0, 1], [ANIM_PRESETS.body.yOffset, 0]);
+  const titleY = interpolate(titleProgress, [0, 1], [12, 0]);
+  const bodyY = interpolate(bodyProgress, [0, 1], [12, 0]);
+
+  // 内容少时用 center, 多时用 start; 这里动态判断 (1-2 条 vs 3+ 条)
+  const justify = completedStories.length >= 3 ? "start" : "center";
 
   return (
-    <div
-      style={{
-        width: d.scaled(CARD_REF.width),
-        height: "100%" as const,
-        background: COLORS.bg,
-        position: "relative" as const,
-        overflow: "hidden",
-      }}
+    <CardShell
+      elementProps={elementProps}
+      justify={justify}
+      gutter={100}                              // 对称左右内边距
+      paddingTop={80}
+      paddingBottom={100}
+      showTopBar
+      showWatermark={false}
+      showWaveform
+      reserveSubtitle                           // 字幕始终显示, 底部给字幕让位
     >
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          opacity: cardProgress,
-          transform: `translateY(${cardY}px)`,
-          padding: `${d.scaled(80)}px ${d.scaled(CARD_PAD.xNormal)}px ${d.scaled(140)}px ${d.scaled(100)}px`,
-          display: "flex",
-          flexDirection: "column" as const,
-          justifyContent: "center",
-          alignItems: "flex-start",
-          textAlign: "left" as const,
-          gap: d.scaled(20),
-          position: "relative" as const,
-        }}
-      >
+      <Fill gap={20} maxWidth={CARD_LAYOUT.content.maxWidth}>
         {/* Summary */}
         {summary && (
           <h1
@@ -94,7 +76,6 @@ export const ClosingCard: React.FC<ElementProps> = ({
               lineHeight: 1.15,
               letterSpacing: "-0.015em",
               color: COLORS.fg,
-              maxWidth: d.scaled(1400),
               opacity: titleProgress,
               transform: `translateY(${titleY}px)`,
             }}
@@ -103,13 +84,13 @@ export const ClosingCard: React.FC<ElementProps> = ({
           </h1>
         )}
 
-        {/* Divider — same style as EventCard */}
+        {/* Divider */}
         <div
           style={{
             width: "100%",
-            maxWidth: d.scaled(900),
-            height: d.scaled(6),
-            borderRadius: d.scaled(3),
+            maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
+            height: d.scaled(CARD_LAYOUT.divider.height),
+            borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
             background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
             opacity: titleProgress,
           }}
@@ -120,10 +101,9 @@ export const ClosingCard: React.FC<ElementProps> = ({
           <div
             style={{
               display: "flex",
-              flexDirection: "column" as const,
-              gap: d.scaled(20),
+              flexDirection: "column",
+              gap: d.scaled(24),
               width: "100%",
-              maxWidth: d.scaled(900),
               opacity: bodyProgress,
               transform: `translateY(${bodyY}px)`,
             }}
@@ -133,11 +113,12 @@ export const ClosingCard: React.FC<ElementProps> = ({
                 key={i}
                 style={{
                   display: "flex",
-                  flexDirection: "column" as const,
+                  flexDirection: "column",
                   gap: d.scaled(6),
+                  paddingBottom: d.scaled(16),
+                  borderBottom: i < completedStories.length - 1 ? `1px solid ${COLORS.border}` : undefined,
                 }}
               >
-                {/* Title */}
                 <span
                   style={{
                     fontSize: d.fs.body,
@@ -148,7 +129,6 @@ export const ClosingCard: React.FC<ElementProps> = ({
                 >
                   {story.title}
                 </span>
-                {/* Signal (debate_focus) */}
                 {story.signal && (
                   <span
                     style={{
@@ -165,12 +145,8 @@ export const ClosingCard: React.FC<ElementProps> = ({
           </div>
         )}
 
-        <WatermarkCharacter expression="closing_card.png" />
-
-        <div style={{ position: "absolute" as const, bottom: d.scaled(20) }}>
-          <CardAudioWaveform src={elementProps.audio_path as string | undefined} />
-        </div>
-      </div>
-    </div>
+        {/* 结束语由 Subtitle 组件承载, 不再在卡片内部重复 */}
+      </Fill>
+    </CardShell>
   );
 };
