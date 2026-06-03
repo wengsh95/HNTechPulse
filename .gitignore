@@ -58,3 +58,4 @@ whisper/
 Thumbs.db
 
 tmp_frames/
+tmp/
