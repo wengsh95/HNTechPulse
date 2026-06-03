@@ -1,15 +1,12 @@
-import subprocess
 from pathlib import Path
 from typing import List, Optional
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script, ScriptSegment
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
-from src.pipeline.content_io import ContentPreparer, merge_enrichment_into_content
+from src.pipeline.content_io import ContentPreparer
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
-from src.pipeline.html_preview import generate as generate_html_preview
-from src.pipeline.html_preview import import_selections
 from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.script import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
@@ -23,8 +20,8 @@ from src.utils.logger import setup_logger
 # Each step depends on all steps listed before it (linear chain),
 # except standalone steps which have no prerequisites.
 PIPELINE_STEPS = ["fetch", "enrich", "script", "produce"]
-STANDALONE_STEPS = {"render", "editor", "html_preview"}
-ALL_STEPS = PIPELINE_STEPS + ["render", "editor", "html_preview"]
+STANDALONE_STEPS = {"render"}
+ALL_STEPS = PIPELINE_STEPS + ["render"]
 DEFAULT_STEPS = PIPELINE_STEPS
 
 
@@ -149,14 +146,6 @@ class Orchestrator:
         if "produce" in steps:
             with self._progress.step("produce"):
                 content, script = self._step_produce(content, script, date)
-
-        if "editor" in steps:
-            with self._progress.step("editor"):
-                self._step_editor(date)
-
-        if "html_preview" in steps:
-            with self._progress.step("html_preview"):
-                self._step_html_preview(date)
 
         if "render" in steps:
             with self._progress.step("render"):
@@ -300,50 +289,6 @@ class Orchestrator:
         self.script_writer.save_script(script, date)
         return content, script
 
-    def _step_editor(self, date: str) -> None:
-        self.logger.info("Step: Open Streamlit Editor")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping editor")
-            return
-
-        self.logger.info("Opening Streamlit Editor at http://localhost:8501")
-        self.logger.info("Close the browser tab and press Ctrl+C to stop.")
-        try:
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "streamlit",
-                    "run",
-                    "src/editor/app.py",
-                    "--server.port",
-                    "8501",
-                ],
-                check=True,
-            )
-        except KeyboardInterrupt:
-            self.logger.info("Editor stopped.")
-
-    def _step_html_preview(self, date: str) -> None:
-        self.logger.info("Step: Generate HTML preview")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping html preview")
-            return
-
-        result = import_selections(date)
-        if result["applied"]:
-            self.logger.info(
-                f"Imported {result['applied']} image selections"
-                + (
-                    f", {result['new_images']} new images"
-                    if result.get("new_images")
-                    else ""
-                )
-            )
-
-        output = generate_html_preview(date)
-        self.logger.info(f"HTML preview: {output}")
-
     def _step_render(
         self, script: Script, date: str, content=None, force: bool = False
     ) -> None:
@@ -359,8 +304,6 @@ class Orchestrator:
                 self.logger.info(
                     "Content not found for render, scene elements may be incomplete"
                 )
-
-        merge_enrichment_into_content(content, date, logger=self.logger)
 
         if force:
             self._clear_render_cache(date)

@@ -8,15 +8,15 @@
 - 文章 enrich：抓取正文、图片、截图，并支持 Playwright 和 Bing 图片兜底。
 - 评论分析与代表观点筛选：情绪、质量评分、引用惩罚、稳定翻译 key。
 - LLM 生成中文简报脚本，支持 JSON 重试、截断后扩展 token 上限、并发 story 生成和 segment 缓存版本控制。
-- Remotion 视频渲染输出，Streamlit 编辑界面支持手动调整，细粒度缓存支持断点续跑。
+- Remotion 视频渲染输出，细粒度缓存支持断点续跑。
 
 ## 当前重点
 
 已完成的主要体验升级：
 
 - 评论管线重构：CommentAnalyzer 评分 → CommentJudge 预筛 → LLM 判断 → 脚本消费 `quote_candidates`，下游不再独立重选。
-- 管线模块拆分：content_preparer、content_hydrator、timing_engine、tts_processor、transcript_generator、report_generator、script_io。
-- Streamlit 编辑界面：可通过 `--steps editor` 手动调整脚本。
+- 管线模块拆分：content_io、timing_engine、tts_processor、transcript_generator、report_generator、script_io。
+- ~~Streamlit 编辑界面：可通过 `--steps editor` 手动调整脚本。~~（2026-06-03 移除：见 ROADMAP M5）
 
 下一步优先事项：标准版时长控制、标准版/完整版结构、图片质量护栏。
 
@@ -77,7 +77,7 @@ uv run python main.py --steps produce,render
 可用步骤：
 
 ```text
-fetch -> enrich -> script -> produce -> render -> editor -> sync_preview
+fetch -> enrich -> script -> produce -> render
 ```
 
 ### 其他选项
@@ -98,7 +98,7 @@ hn-techpulse/
 │   ├── core/           # 核心接口和数据模型
 │   ├── providers/      # Fetcher/Enricher/LLM/Renderer 等服务提供者
 │   ├── pipeline/       # 流程编排、评论分析、翻译、脚本生成、TTS、报告
-│   ├── editor/         # Streamlit 脚本编辑界面
+│   ├── editor/         # ~~Streamlit 脚本编辑界面~~（2026-06-03 起为 orphan 代码）
 │   └── utils/          # 工具模块
 ├── prompts/            # LLM 提示词模板
 ├── tests/              # 单元测试

@@ -1,0 +1,105 @@
+# SKETCH: workflow as data, not code. Not production-ready.
+# 替换 src/pipeline/orchestrator.py:25 里的 PIPELINE_STEPS 常量,
+# 以及 main.py 的 --steps CLI。
+
+name: daily_brief
+version: 1
+description: 一期视频简报的生产流程
+
+# ── 输入 ──────────────────────────────────────────────
+inputs:
+  date:
+    type: string
+    required: true
+  theme:
+    type: string
+    required: false
+    description: 用户指定的本期主题(强约束)
+  reuse_content:
+    type: boolean
+    default: true
+
+# ── 默认参数 ──────────────────────────────────────────
+defaults:
+  story_count: 4
+  retry_budget_per_step: 2
+  total_wall_clock_seconds: 600
+  llm_model: main
+  llm_model_fast: fast
+
+# ── 工作阶段 ──────────────────────────────────────────
+phases:
+  - id: intake
+    description: 抓取 HN 当日内容
+    tools: [fetch_hn_stories, fetch_hn_comments]
+    output_state: { content.state: ready }
+    on_failure: skip
+    skip_if: "inputs.reuse_content and state.content.exists()"
+
+  - id: understand
+    description: 理解内容,挑选故事
+    tools: [analyze_comments, judge_stories, enrich_articles]
+    depends_on: [intake]
+    output_state: { content.state: understood }
+
+  - id: plan
+    description: 决定本期主题和故事顺序
+    tools: [decide_narrative_arc, select_stories_for_today]
+    depends_on: [understand]
+    output_state: { script.state: outlined }
+    soft_constraints:
+      - 主题由 editor_in_chief 决定,未指定则 LLM 自由发挥
+      - 故事顺序服务主题,不按 score 排
+
+  - id: compose
+    description: 撰写脚本初稿
+    tools: [draft_opening, draft_event_card, draft_atmosphere, attach_quotes]
+    depends_on: [plan]
+    output_state: { script.state: draft }
+
+  - id: verify
+    description: 多维度审核(对应原 script + 部分 produce 的内容)
+    tools: [fact_check, tone_audit, pacing_check, quote_attribution]
+    depends_on: [compose]
+    gates:
+      - script.fact_check.passed
+      - script.tone_audit.passed
+      - script.pacing_check.passed
+      - script.quote_attribution.passed
+    on_failure: loop_to
+    loop_to: compose
+    retry_budget: 2
+
+  - id: produce
+    description: 翻译和音频合成
+    tools: [translate_segments, tts_synthesize, align_subtitles]
+    depends_on: [verify]
+    output_state: { script.state: audio_aligned }
+
+  - id: render
+    description: 视频渲染
+    tools: [render_video]
+    depends_on: [produce]
+    output_state: { video.state: ready }
+
+# ── 偏离策略(LLM 决策边界) ──────────────────────────
+deviation_policy:
+  allow_skip_phase: true
+  allow_extra_phase: true
+  require_log: true
+  max_deviation_per_run: 5
+
+# ── 全局状态门禁 ─────────────────────────────────────
+gates:
+  - from: script.draft
+    to: script.verified
+    requires:
+      - script.fact_check
+      - script.tone_audit
+      - script.pacing_check
+      - script.quote_attribution
+  - from: script.verified
+    to: script.audio_aligned
+    requires:
+      - script.audio_path
+      - script.subtitle_timeline

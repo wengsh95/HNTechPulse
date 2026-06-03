@@ -42,13 +42,29 @@ npx remotion still --props="E:/Code/HNTechPulse/data/2026-05-30/cli_props.json" 
 - **Providers** ([src/providers/](src/providers/)): fetcher, llm, enricher, renderer (Remotion) — auto-register via [factory.py](src/providers/factory.py)
 - **Pipeline** ([src/pipeline/](src/pipeline/)):
   - [orchestrator.py](src/pipeline/orchestrator.py) — declarative step DAG (`PIPELINE_STEPS` + `STANDALONE_STEPS`), step execution
-  - [content_io.py](src/pipeline/content_io.py) — `ContentPreparer` (save/load via `dataclasses.asdict`) + enrichment overlay
+  - [content_io.py](src/pipeline/content_io.py) — `ContentPreparer` (save/load via `dataclasses.asdict`)
   - [comment/](src/pipeline/comment/) — comment analysis subpackage: [text.py](src/pipeline/comment/text.py) (cleaning), [scoring.py](src/pipeline/comment/scoring.py) (quality + relevance), [selection.py](src/pipeline/comment/selection.py) (stance + candidate/quote picking), [judge.py](src/pipeline/comment/judge.py) (`CommentAnalyzer` VADER + `CommentJudge` LLM + normalization + cache I/O)
   - [script/](src/pipeline/script/) — script generation subpackage: [composer.py](src/pipeline/script/composer.py) (`ScriptWriter` class), [cards.py](src/pipeline/script/cards.py) (card normalization), [templates.py](src/pipeline/script/templates.py) (opening/closing/highlights), [io.py](src/pipeline/script/io.py) (save/load)
   - [translation_manager.py](src/pipeline/translation_manager.py), [prefilter.py](src/pipeline/prefilter.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [transcript_generator.py](src/pipeline/transcript_generator.py), [report_generator.py](src/pipeline/report_generator.py)
-- **Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.
+- ~~**Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.~~（2026-06-03 移除：见 M5）
 
-Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render` → `editor` → `sync_preview`
+Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render`
+
+### Active Refactor: M5 — Pipeline → Agent Tools + Workflow YAML
+
+The current orchestrator shape is **slated for removal** in favor of an agent-friendly design. Treat the following as legacy, not as a place to extend:
+
+- `Orchestrator._step_fetch` / `_step_enrich` / `_step_script` / `_step_produce` / `_step_render` private methods
+- The `PIPELINE_STEPS` constant in [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py)
+- The `--steps` / `--force` / `--dry-run` / `--debug` CLI flags in [main.py](main.py)
+- `PipelineProgress` (humans read stdout; an agent does not)
+- The `force: bool` parameter and `_clear_render_cache`
+
+The target shape (see [ROADMAP.md M5](ROADMAP.md)) uses `workflows/daily_brief.yaml` as a declarative phase DAG, a slim `Orchestrator` that reads YAML → iterates phases → invokes tools → checks state-transition gates, and consults the LLM only at the deviation-decision hook. Fine-grained tools (`draft_opening` / `draft_event_card` / `draft_atmosphere` / `attach_quotes`, `score_story` + `pick_top_k`, `rank_by_intent` + `pick_quote`) will replace the coarse `LLMProvider.generate_single_story_segment` and `judge_story_comments` methods, with `requires` / `produces` contracts declaring the state machine. LLM verifiers (`fact_check`, `tone_audit`, `pacing_check`, `quote_attribution`) loop back to compose on failure (`retry_budget ≤ 2`).
+
+**`workflows/` directory is non-production**: `daily_brief.yaml`, `orchestrator_v2.py`, and `tools.py` are explicitly labeled `SKETCH: not production-ready`. They show the *shape* of the M5 target — do not wire them in, do not extend the orchestrator to import them.
+
+**When editing the orchestrator area**: do not add new `if "X" in steps` branches, do not add new CLI flags, and do not expand `_clear_render_cache` or `PipelineProgress` — these are on the chopping block. For a new step, prefer adding it to `_step_*` and `PIPELINE_STEPS` only if you also have an M5 plan to fold it into a tool + workflow entry.
 
 ### Data Flow
 
@@ -72,10 +88,6 @@ HN API
   ↓
 [render] Remotion video render → data/{date}/output.mp4 (skipped by default; opt-in via --steps render)
   ↓
-[editor] Streamlit story editor UI for manual script adjustments
-  ↓
-[sync_preview] Regenerate Remotion preview props after editor changes
-  ↓
 [always] ReportGenerator: data/{date}/report.md (enrichment stats, timing, issues) — runs unconditionally at pipeline end
 ```
 
@@ -96,7 +108,7 @@ All steps cache to `data/{date}/` and resume from disk. Config: [config/](config
 
 ## Key Patterns
 
-- **Provider Factory**: Implement ABC + add to `attempts` list. Auto-registers on import.
+- **Provider Factory**: Add a `(kind, name, module_path, class_name, register_fn)` tuple to the `attempts` list inside `_auto_register()` in [src/providers/factory.py](src/providers/factory.py). The class must be importable at the dotted path given, with the exact class name specified, and must inherit from the corresponding ABC in [src/core/interfaces.py](src/core/interfaces.py) (`ContentFetcher` / `LLMProvider` / `TTSProvider` / `Renderer`). Registration runs on import of `factory.py`.
 - **LLM JSON Retry**: `_call_llm_with_json_retry()` retries on invalid JSON; doubles `max_tokens` on `finish_reason=length`. Cap via `llm.max_completion_tokens_cap`.
 - **Concurrency**: `llm.max_workers` for story generation, `analyze.comment_judge_max_workers` for comment judging. Cache schema version bump via `llm.cache_schema_version` when segment-cache semantics change.
 - **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.

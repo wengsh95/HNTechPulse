@@ -12,7 +12,6 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
-from src.pipeline.content_io import merge_enrichment_into_content
 from src.pipeline.comment import (
     clean_comment_text,
     classify_comment_stance,
@@ -580,8 +579,6 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     script = _load_script(date)
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
-
-    merge_enrichment_into_content(content, date, logger=logger)
 
     # Copy image assets to Remotion public/
     remotion_dir = Path(__file__).parent / "remotion"
