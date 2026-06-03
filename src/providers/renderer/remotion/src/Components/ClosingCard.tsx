@@ -14,7 +14,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
 import type { ClosingCardProps } from "./cardTypes";
-import { COLORS } from "./theme";
+import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractClosingProps } from "./propsExtractors";
 import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";

@@ -80,67 +80,6 @@ def _safe_get_comment(item, idx):
 # ── Element props expanders ──────────────────────────────────────────
 
 
-def _expand_story_header(props, content):
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return None
-    return {
-        "story_title": item.title,
-        "score": item.score or 0,
-        "comments": item.comment_count or 0,
-    }
-
-
-def _expand_comment_card(props, content):
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return None
-    comment = _safe_get_comment(item, props.get("comment_index"))
-    if comment is None:
-        return None
-    return {
-        "author": comment.author,
-        "score": 0,
-        "text": comment.content,
-        "translation": "",
-        "angle_label": "",
-    }
-
-
-def _expand_comment_bubble(props, content):
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return None
-    comment = _safe_get_comment(item, props.get("comment_index"))
-    if comment is None:
-        return None
-    return {
-        "author": comment.author,
-        "original_text": comment.content,
-        "chinese_summary": "",
-    }
-
-
-def _expand_news_carousel_card(props, content):
-    item = _safe_get_item(content, props.get("story_index"))
-    if item is None:
-        return None
-    result = {
-        "story_title": item.title,
-        "score": item.score or 0,
-        "comment_count": item.comment_count or 0,
-        "author": "?",
-        "comment_score": 0,
-        "comment_text": "",
-        "comment_translation": "",
-    }
-    comment = _safe_get_comment(item, props.get("comment_index"))
-    if comment is not None:
-        result["author"] = comment.author
-        result["comment_text"] = comment.content
-    return result
-
-
 def _expand_highlight_entries(entries, content):
     """Trust generated highlight entries, but overwrite title/score from content."""
     expanded_entries = []
@@ -165,32 +104,6 @@ def _expand_cover_card(props, content):
             highlight_entries, content
         )
     return result
-
-
-def _expand_perspective_compare(props, content):
-    def build_side(side):
-        if (
-            not isinstance(side, dict)
-            or "story_index" not in side
-            or "comment_index" not in side
-        ):
-            return side
-        item = _safe_get_item(content, side.get("story_index"))
-        if item is None:
-            return side
-        comment = _safe_get_comment(item, side.get("comment_index"))
-        if comment is None:
-            return side
-        return {
-            "label": side.get("label", ""),
-            "text": comment.content,
-            "translation": "",
-        }
-
-    return {
-        "perspective_a": build_side(props.get("perspective_a", {})),
-        "perspective_b": build_side(props.get("perspective_b", {})),
-    }
 
 
 def _compute_score_ranks(content) -> Dict[str, int]:
@@ -386,11 +299,6 @@ def _expand_atmosphere_card(props, content):
 # Each expander returns an expanded props dict, or None to signal "leave props unchanged".
 ELEMENT_EXPANDERS = {
     "cover_card": _expand_cover_card,
-    "story_header": _expand_story_header,
-    "comment_card": _expand_comment_card,
-    "comment_bubble": _expand_comment_bubble,
-    "news_carousel_card": _expand_news_carousel_card,
-    "perspective_compare": _expand_perspective_compare,
     "event_card": _expand_event_card,
     "atmosphere_card": _expand_atmosphere_card,
 }

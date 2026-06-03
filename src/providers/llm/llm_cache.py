@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.models import ScriptSegment, SceneElement
+from src.utils.atomic_io import atomic_write_json
 
 
 class LLMCache:
@@ -89,8 +90,7 @@ class LLMCache:
             ],
             "meta": segment.meta,
         }
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(seg_dict, f, ensure_ascii=False, indent=2)
+        atomic_write_json(cache_path, seg_dict)
 
     def build_segment_cache_meta(
         self,

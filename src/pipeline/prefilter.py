@@ -16,6 +16,7 @@ def _prompt_hash() -> str:
         return ""
     return hashlib.md5(prompt_path.read_text(encoding="utf-8").encode()).hexdigest()[:8]
 
+
 # Number of top-level comments to include per story for topic detection
 _PREFILTER_COMMENT_COUNT = 5
 
@@ -67,8 +68,10 @@ class Prefilter:
         min_nw = prefilter_cfg.get("min_newsworthiness", 3)
         before_nw = len(content.items)
         content.items = [
-            item for item in content.items
-            if (decisions.get(str(item.source_id), {}).get("newsworthiness") or 0) >= min_nw
+            item
+            for item in content.items
+            if (decisions.get(str(item.source_id), {}).get("newsworthiness") or 0)
+            >= min_nw
         ]
         nw_filtered = before_nw - len(content.items)
         if nw_filtered:
@@ -101,8 +104,6 @@ class Prefilter:
         return content
 
     def _run_llm(self, items):
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         stories = [
             (
                 i,
@@ -113,33 +114,22 @@ class Prefilter:
             for i, item in enumerate(items)
         ]
 
-        prefilter_cfg = self.config.get("prefilter", {})
-        max_workers = prefilter_cfg.get("max_workers", 5)
-        decisions = {}
-
         self.logger.info(
-            f"Prefilter: scoring {len(stories)} stories "
-            f"individually (workers={max_workers})"
+            f"Prefilter: scoring {len(stories)} stories in one batched call"
         )
 
-        def _score(idx, story):
-            d = self.llm_provider.prefilter_single_story(story)
-            return idx, d
+        raw = self.llm_provider.prefilter_stories(stories)
+        by_index = {d.get("index"): d for d in raw if d.get("index") is not None}
 
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {
-                pool.submit(_score, i, s): i for i, s in enumerate(stories)
+        decisions = {}
+        for i, item in enumerate(items):
+            d = by_index.get(i, {})
+            decisions[str(item.source_id)] = {
+                "keep": bool(d.get("keep", True)),
+                "reason": d.get("reason", ""),
+                "ai_relevance": d.get("ai_relevance"),
+                "newsworthiness": d.get("newsworthiness"),
             }
-            for future in as_completed(futures):
-                idx, d = future.result()
-                sid = str(items[idx].source_id)
-                decisions[sid] = {
-                    "keep": bool(d.get("keep", True)),
-                    "reason": d.get("reason", ""),
-                    "ai_relevance": d.get("ai_relevance"),
-                    "newsworthiness": d.get("newsworthiness"),
-                }
-
         return decisions
 
     @staticmethod

@@ -7,8 +7,7 @@ Disabled by default. Enable via config:
 """
 
 import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.core.interfaces import LLMProvider
 from src.core.models import ContentComment, ContentItem
@@ -90,19 +89,18 @@ class CommentRefiner:
         )
 
         try:
-            response_text = self.llm_provider._call_llm_with_json_retry(
-                messages=self.llm_provider._split_prompt(prompt),
+            client = self.llm_provider.llm_client
+            response_text = client.call_llm_with_json_retry(
+                messages=client.split_prompt(prompt),
                 label=f"comment_refiner_{item.source_id}",
                 max_tokens=self.max_tokens,
                 model=self.model,
                 temperature=0.1,
             )
-            result = self.llm_provider._extract_json(response_text)
+            result = client.extract_json(response_text)
             return self._normalize(result, candidates)
         except Exception as e:
-            self.logger.warning(
-                f"  CommentRefiner failed for {item.source_id}: {e}"
-            )
+            self.logger.warning(f"  CommentRefiner failed for {item.source_id}: {e}")
             return {}
 
     def _build_comments_json(

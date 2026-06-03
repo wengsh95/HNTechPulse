@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, cast
 from urllib.parse import urlparse
 
-from openai import OpenAI
-
+from src.core.interfaces import LLMProvider
 from src.core.models import ContentPackage
 from src.core.prompts import render_prompt
 from src.providers.enricher.page_fetcher import (
@@ -43,7 +42,14 @@ class ArticleEnricher:
         "开源",
     }
 
-    def __init__(self, config: dict, debug: bool = False):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        config: dict,
+        debug: bool = False,
+    ):
+        self.llm_provider = llm_provider
+        self.llm_client = llm_provider.llm_client
         self.config = config
         self.debug = debug
         enrich_cfg = config.get("enrich", {})
@@ -108,27 +114,6 @@ class ArticleEnricher:
             bing_max_queries=self.bing_max_queries,
             request_timeout=self.request_timeout,
         )
-
-        # Use llm.fast (lightweight model) for summarization
-        from src.providers.llm.backend import LLMBackend
-
-        self._llm_backend = LLMBackend(config)
-        self.llm_model = self._llm_backend.fast_model
-        self.llm_max_tokens = self.summary_max_tokens
-        self.llm_temperature = self._llm_backend.fast_temperature
-
-        # Use Anthropic SDK for Anthropic-compatible endpoints (e.g. MiniMax)
-        if self._llm_backend.base_url and "anthropic" in self._llm_backend.base_url:
-            import anthropic
-
-            self._use_anthropic = True
-            self.llm_client = anthropic.Anthropic(
-                base_url=self._llm_backend.base_url,
-                api_key=self._llm_backend.api_key,
-            )
-        else:
-            self._use_anthropic = False
-            self.llm_client = self._llm_backend.create_client(read=120.0)
 
         self.baidu_search = BaiduSearchProvider(config)
 
@@ -760,69 +745,29 @@ class ArticleEnricher:
             system_msg = "你是一位技术内容分析师。"
             user_msg = prompt
 
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ]
+
+        def _validate(parsed: Any) -> None:
+            if not isinstance(parsed, dict):
+                raise ValueError(
+                    f"enrichment result is not a JSON object (got {type(parsed).__name__})"
+                )
+
         for attempt in range(self.retry_count):
             try:
-                if self._use_anthropic:
-                    response = self.llm_client.messages.create(
-                        model=self.llm_model,
-                        system=system_msg,
-                        messages=[{"role": "user", "content": user_msg}],
-                        max_tokens=self.llm_max_tokens,
-                        temperature=self.llm_temperature,
-                    )
-                    raw = ""
-                    for block in response.content:
-                        if block.type == "text":
-                            raw = block.text.strip()
-                            break
-                else:
-                    response = self.llm_client.chat.completions.create(
-                        model=self.llm_model,
-                        messages=[
-                            {"role": "system", "content": system_msg},
-                            {"role": "user", "content": user_msg},
-                        ],
-                        max_tokens=self.llm_max_tokens,
-                        temperature=self.llm_temperature,
-                    )
-                    raw = (response.choices[0].message.content or "").strip()
-
-                if not raw or len(raw) < 10:
-                    self.logger.info(
-                        f"LLM enrichment empty response for '{title}' "
-                        f"(attempt {attempt + 1}/{self.retry_count})"
-                    )
-                    continue
-
-                # Strip markdown code fences if present
-                text = raw.strip()
-                if text.startswith("```"):
-                    lines = text.split("\n")
-                    lines = [
-                        line for line in lines if not line.strip().startswith("```")
-                    ]
-                    text = "\n".join(lines)
-
-                result = json.loads(text)
-                if not isinstance(result, dict):
-                    self.logger.info(
-                        f"LLM enrichment non-dict result for '{title}' "
-                        f"(attempt {attempt + 1}/{self.retry_count})"
-                    )
-                    continue
-                return result
-
-            except json.JSONDecodeError as e:
-                self.logger.info(
-                    f"LLM enrichment JSON parse failed for '{title}' "
-                    f"(attempt {attempt + 1}/{self.retry_count}): {e}"
+                response_text = self.llm_client.call_llm_with_json_retry(
+                    messages=messages,
+                    label=f"enrich_{title[:30]}",
+                    max_tokens=self.summary_max_tokens,
+                    model=self.llm_client.fast_model,
+                    temperature=self.llm_client.fast_temperature,
+                    validator=_validate,
                 )
+                return self.llm_client.extract_json(response_text)
             except Exception as e:
-                if self._is_permanent_error(e):
-                    self.logger.info(
-                        f"LLM enrichment permanent error for '{title}': {e}"
-                    )
-                    return None
                 self.logger.info(
                     f"LLM enrichment failed for '{title}' "
                     f"(attempt {attempt + 1}/{self.retry_count}): {e}"
@@ -832,29 +777,6 @@ class ArticleEnricher:
             f"LLM enrichment exhausted {self.retry_count} retries for '{title}'"
         )
         return None
-
-    def _is_permanent_error(self, error: Exception) -> bool:
-        """Return True for errors that won't resolve by retrying."""
-        if self._use_anthropic:
-            import anthropic
-
-            return isinstance(
-                error,
-                (
-                    anthropic.NotFoundError,
-                    anthropic.AuthenticationError,
-                    anthropic.PermissionDeniedError,
-                    anthropic.BadRequestError,
-                ),
-            )
-        from openai import OpenAIError
-
-        return isinstance(
-            error,
-            (
-                OpenAIError,
-            ),
-        ) and hasattr(error, "status_code") and error.status_code in (400, 401, 403, 404)
 
     @classmethod
     def _normalize_keywords(

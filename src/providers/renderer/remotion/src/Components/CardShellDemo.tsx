@@ -14,8 +14,7 @@
 
 import React from "react";
 import { useCurrentFrame, interpolate, AbsoluteFill } from "remotion";
-import { COLORS } from "./theme";
-import { useDesign, FONTS, FW, CARD_LAYOUT } from "./design";
+import { COLORS, useDesign, FONTS, FW, CARD_LAYOUT } from "./design";
 import { CardShell, Fill, type ContentJustify } from "./CardShell";
 
 export interface CardShellDemoProps {

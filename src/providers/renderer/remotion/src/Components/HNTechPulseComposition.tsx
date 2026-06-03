@@ -23,16 +23,6 @@ import {
   EventCard,
   AtmosphereCard,
 } from "./Elements";
-import {
-  CommentCard,
-  DiscussionOverviewCard,
-  NewsCarouselCard,
-  OutroCard,
-  PatternInsightCard,
-  PerspectiveCompareCard,
-  StoryHeaderCard,
-  SynthesisCard,
-} from "./LegacyCards";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
 import {
@@ -64,9 +54,6 @@ type StoryEvent = {
 
 const STORY_MARKER_TYPES = new Set([
   "event_card",
-  "story_header",
-  "news_carousel_card",
-  "story_scan_card",
 ]);
 
 const asNumber = (value: unknown): number | undefined => {
@@ -119,17 +106,9 @@ const ELEMENT_RENDERERS: Record<
   }>
 > = {
   closing_card: (props) => <ClosingCard {...props} />,
-  outro_card: (props) => <OutroCard {...props} />,
   cover_card: (props) => <CoverCard {...props} />,
   event_card: (props) => <EventCard {...props} />,
   atmosphere_card: (props) => <AtmosphereCard {...props} />,
-  story_header: (props) => <StoryHeaderCard {...props} />,
-  discussion_overview: (props) => <DiscussionOverviewCard {...props} />,
-  comment_card: (props) => <CommentCard {...props} />,
-  perspective_compare: (props) => <PerspectiveCompareCard {...props} />,
-  synthesis_card: (props) => <SynthesisCard {...props} />,
-  news_carousel_card: (props) => <NewsCarouselCard {...props} />,
-  pattern_insight: (props) => <PatternInsightCard {...props} />,
 };
 
 /** 卡片元素淡入淡出包装 */

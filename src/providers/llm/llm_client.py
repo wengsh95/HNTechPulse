@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, List, Optional, cast
 from contextlib import contextmanager
 
 from openai import (
-    OpenAI,
     APIConnectionError,
     APITimeoutError,
     RateLimitError,
@@ -70,7 +69,9 @@ class LLMClient:
         self._backend = LLMBackend(config)
         self.client = self._backend.create_client()
         if self._backend.base_url:
-            self.logger.info(f"Using OpenAI-compatible API at: {self._backend.base_url}")
+            self.logger.info(
+                f"Using OpenAI-compatible API at: {self._backend.base_url}"
+            )
 
         self.model = self._backend.model
         self.max_tokens = self._backend.max_tokens
@@ -389,6 +390,107 @@ class LLMClient:
             messages.append({"role": "user", "content": user_part.strip()})
             return messages
         return [{"role": "user", "content": prompt}]
+
+    # ── Story serialization (shared by all providers) ─────────
+
+    @staticmethod
+    def story_comments_for_judge(
+        item,
+        index: int,
+        config: dict,
+        logger,
+        candidates=None,
+    ) -> str:
+        """Serialize a story's comments for the comment-judge LLM call.
+
+        If ``candidates`` is provided, use them directly (pre-filtered by
+        CommentAnalyzer / CommentRefiner). Otherwise score all comments on
+        the fly and take the top N. Returned JSON is fed to the
+        comment_analyze prompt as ``{{ story_json }}``.
+        """
+        from src.pipeline.comment.text import clean_comment_text
+        from src.pipeline.comment.scoring import (
+            compute_comment_quality,
+            is_resource_pointer_comment,
+        )
+
+        if candidates is not None:
+            comments_json = []
+            for c in candidates:
+                text = clean_comment_text(c.content or "")
+                if not text or c.source_id is None:
+                    continue
+                comments_json.append(
+                    {
+                        "id": c.source_id,
+                        "author": c.author,
+                        "text": text[:360],
+                        "depth": c.depth,
+                        "sentiment": c.sentiment,
+                        "quality_score": c.quality_score,
+                        "resource_pointer_hint": is_resource_pointer_comment(text),
+                    }
+                )
+            if logger is not None:
+                logger.debug(
+                    f"Story[{index}] judge using {len(comments_json)} "
+                    f"pre-filtered comments (from {len(candidates)} candidates)"
+                )
+        else:
+            analyze_cfg = config.get("analyze", {})
+            max_comments = analyze_cfg.get("max_comments_for_judge", 15)
+            min_quality = analyze_cfg.get("judge_min_quality_score", 0.05)
+
+            scored_comments = []
+            for c in item.comments:
+                text = clean_comment_text(c.content or "")
+                if not text:
+                    continue
+                quality_score = c.quality_score
+                if quality_score is None:
+                    quality_score = compute_comment_quality(c, item)
+                    c.quality_score = quality_score
+                if quality_score < min_quality and not is_resource_pointer_comment(
+                    text
+                ):
+                    continue
+                scored_comments.append((quality_score, c, text))
+
+            scored_comments.sort(
+                key=lambda x: (
+                    x[0],
+                    -1 * (x[1].depth if x[1].depth is not None else 3),
+                ),
+                reverse=True,
+            )
+            comments_json = [
+                {
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text[:360],
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": quality_score,
+                    "resource_pointer_hint": is_resource_pointer_comment(text),
+                }
+                for quality_score, c, text in scored_comments[:max_comments]
+                if c.source_id is not None
+            ]
+
+        story_dict = {
+            "index": index,
+            "id": item.source_id,
+            "title": item.title,
+            "url": item.url,
+            "score": item.score,
+            "comment_count": item.comment_count,
+            "total_comments_available": len(item.comments),
+            "truncated_to": len(comments_json),
+            "comments": comments_json,
+        }
+        if item.article_summary:
+            story_dict["article_summary"] = item.article_summary
+        return json.dumps(story_dict, ensure_ascii=False, indent=2)
 
     # ── Diagnostics ────────────────────────────────────────────
 

@@ -16,10 +16,11 @@
 
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
-import { COLORS, CARD_REF } from "./theme";
 import type { ElementProps } from "./utils";
 import { CardAudioWaveform } from "./CardAudioWaveform";
 import {
+  COLORS,
+  CARD_REF,
   useDesign,
   FONTS,
   FW,

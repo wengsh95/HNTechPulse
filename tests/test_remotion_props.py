@@ -12,10 +12,6 @@ from src.core.models import (
 from src.providers.renderer.remotion_props import (
     _safe_get_item,
     _safe_get_comment,
-    _expand_story_header,
-    _expand_comment_card,
-    _expand_comment_bubble,
-    _expand_news_carousel_card,
     _expand_highlight_entries,
     _expand_event_card,
     _expand_atmosphere_card,
@@ -140,103 +136,6 @@ class TestSafeGetComment:
             source="hn", source_id="1", title="T", url=None, published_at=0, comments=[]
         )
         assert _safe_get_comment(item, 0) is None
-
-
-# ── _expand_story_header ───────────────────────────────────────────────
-
-
-class TestExpandStoryHeader:
-    def test_valid_story_index(self):
-        content = _make_content_package()
-        result = _expand_story_header({"story_index": 0}, content)
-        assert result == {"story_title": "Story 0", "score": 100, "comments": 2}
-
-    def test_missing_story_index(self):
-        content = _make_content_package()
-        result = _expand_story_header({}, content)
-        assert result is None
-
-    def test_out_of_range_story_index(self):
-        content = _make_content_package()
-        result = _expand_story_header({"story_index": 99}, content)
-        assert result is None
-
-    def test_none_score(self):
-        content = _make_content_package()
-        content.items[0].score = None
-        result = _expand_story_header({"story_index": 0}, content)
-        assert result["score"] == 0
-
-    def test_none_comment_count(self):
-        content = _make_content_package()
-        content.items[0].comment_count = None
-        result = _expand_story_header({"story_index": 0}, content)
-        assert result["comments"] == 0
-
-
-# ── _expand_comment_card ───────────────────────────────────────────────
-
-
-class TestExpandCommentCard:
-    def test_valid_indices(self):
-        content = _make_content_package()
-        result = _expand_comment_card({"story_index": 0, "comment_index": 0}, content)
-        assert result["author"] == "user_0"
-        assert result["text"] == "comment 0"
-
-    def test_missing_comment_index(self):
-        content = _make_content_package()
-        result = _expand_comment_card({"story_index": 0}, content)
-        assert result is None
-
-    def test_out_of_range_comment(self):
-        content = _make_content_package()
-        result = _expand_comment_card({"story_index": 0, "comment_index": 99}, content)
-        assert result is None
-
-
-# ── _expand_comment_bubble ─────────────────────────────────────────────
-
-
-class TestExpandCommentBubble:
-    def test_valid_indices(self):
-        content = _make_content_package()
-        result = _expand_comment_bubble({"story_index": 0, "comment_index": 0}, content)
-        assert result["author"] == "user_0"
-        assert result["original_text"] == "comment 0"
-
-    def test_missing_item(self):
-        content = _make_content_package()
-        result = _expand_comment_bubble(
-            {"story_index": 99, "comment_index": 0}, content
-        )
-        assert result is None
-
-
-# ── _expand_news_carousel_card ─────────────────────────────────────────
-
-
-class TestExpandNewsCarouselCard:
-    def test_with_comment(self):
-        content = _make_content_package()
-        result = _expand_news_carousel_card(
-            {"story_index": 0, "comment_index": 0}, content
-        )
-        assert result["story_title"] == "Story 0"
-        assert result["author"] == "user_0"
-        assert result["comment_text"] == "comment 0"
-
-    def test_without_comment(self):
-        content = _make_content_package()
-        result = _expand_news_carousel_card({"story_index": 0}, content)
-        assert result["author"] == "?"
-        assert result["comment_score"] == 0
-        assert result["comment_text"] == ""
-
-    def test_missing_item(self):
-        content = _make_content_package()
-        result = _expand_news_carousel_card({"story_index": 99}, content)
-        assert result is None
 
 
 # ── _expand_highlight_entries ──────────────────────────────────────────
@@ -527,9 +426,7 @@ class TestExpandElementProps:
     def test_known_type_dispatches(self):
         content = _make_content_package()
         logger = MagicMock()
-        result = expand_element_props(
-            "story_header", {"story_index": 0}, content, logger
-        )
+        result = expand_element_props("event_card", {"story_index": 0}, content, logger)
         assert result["story_title"] == "Story 0"
 
     def test_unknown_type_returns_raw_props(self):
@@ -542,14 +439,14 @@ class TestExpandElementProps:
     def test_none_content_returns_raw_props(self):
         logger = MagicMock()
         props = {"foo": "bar"}
-        result = expand_element_props("story_header", props, None, logger)
+        result = expand_element_props("event_card", props, None, logger)
         assert result == props
 
     def test_expander_exception_returns_raw_props(self):
         content = _make_content_package()
         logger = MagicMock()
         props = {"story_index": "not_an_int"}
-        result = expand_element_props("story_header", props, content, logger)
+        result = expand_element_props("event_card", props, content, logger)
         assert result == props
 
 

@@ -80,29 +80,37 @@ def _make_manager():
 
 
 class TestTranslate:
-    def test_loads_cached_translations(self, tmp_path, monkeypatch):
+    def test_loads_cached_translations_into_script(self, tmp_path, monkeypatch):
+        """Cached title translations should flow through to the script's
+        opening/cover card via apply_translations_to_script. Title_cn on
+        ContentItem is owned by the enrich step, not translate()."""
         monkeypatch.chdir(tmp_path)
         manager, mock_llm = _make_manager()
         content = _make_content_package()
         script = _make_script()
 
-        # Create cached translations
+        # Cached translations keyed by source_id (the unified scheme).
         trans_path = Path("data/2026-04-26/translations.json")
         trans_path.parent.mkdir(parents=True, exist_ok=True)
         trans_path.write_text(json.dumps({"title_100": "测试标题"}), encoding="utf-8")
 
-        # Also need content saved for content_preparer
         manager.content_preparer.save_content(content, "2026-04-26")
 
         with patch.object(manager, "collect_comment_refs", return_value={}):
-            result_content, result_script = manager.translate(
-                content, script, "2026-04-26"
-            )
+            manager.translate(content, script, "2026-04-26")
 
-        assert result_content.items[0].title_cn == "测试标题"
+        # Manager no longer mutates title_cn — that's enrich's job.
+        assert content.items[0].title_cn is None
+        # translate_titles is no longer called from the produce step.
         mock_llm.translate_titles.assert_not_called()
+        # The cached translation will still flow into the script's
+        # cover/highlight cards via apply_translations_to_script (called
+        # inside manager.translate).
 
-    def test_calls_llm_for_missing_titles(self, tmp_path, monkeypatch):
+    def test_does_not_call_translate_titles(self, tmp_path, monkeypatch):
+        """After the M3 refactor, title translation is owned by the enrich
+        step. TranslationManager.translate must not invoke the LLM provider's
+        translate_titles even when items lack title_cn."""
         monkeypatch.chdir(tmp_path)
         manager, mock_llm = _make_manager()
         item_with_cn = _make_item(source_id="100", title_cn="翻译标题")
@@ -110,11 +118,8 @@ class TestTranslate:
         content = _make_content_package(items=[item_with_cn, item_without_cn])
         script = _make_script()
 
-        mock_llm.translate_titles.return_value = content
-
-        # Ensure no cache exists
         with patch.object(manager, "collect_comment_refs", return_value={}):
             with patch.object(manager, "_apply_comment_translations"):
-                result_content, _ = manager.translate(content, script, "2026-04-26")
+                manager.translate(content, script, "2026-04-26")
 
-        mock_llm.translate_titles.assert_called_once()
+        mock_llm.translate_titles.assert_not_called()

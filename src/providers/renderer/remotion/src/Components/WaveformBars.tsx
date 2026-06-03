@@ -8,7 +8,7 @@
 
 import React from "react";
 import { useCurrentFrame } from "remotion";
-import { COLORS, TYPOGRAPHY } from "./theme";
+import { COLORS } from "./design";
 
 interface WaveformBarsProps {
   /** 预计算的分帧振幅数据（每帧一个 0~1 的值），优先使用 */

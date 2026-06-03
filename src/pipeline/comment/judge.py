@@ -2,7 +2,7 @@
 
 import json
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +14,7 @@ from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment.text import clean_comment_text
 from src.pipeline.comment.scoring import compute_comment_quality
 from src.pipeline.comment.selection import select_judge_candidate_comments
+from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
 
@@ -309,8 +310,7 @@ class CommentAnalyzer:
             "items": items_list,
         }
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(path, data)
         self.logger.info(f"Saved analysis cache to {path}")
 
     def _load_from_cache(self, content: ContentPackage, path: Path) -> None:
@@ -424,9 +424,7 @@ class CommentJudge:
                 refinements = self.comment_refiner.refine(item, pre_filtered)
                 if refinements:
                     self._apply_refinements(pre_filtered, refinements)
-                    self.logger.info(
-                        f"  {label}: refined {len(refinements)} comments"
-                    )
+                    self.logger.info(f"  {label}: refined {len(refinements)} comments")
 
             self.logger.info(
                 f"  {label}: judging {len(pre_filtered or item.comments)} comments "
@@ -457,29 +455,78 @@ class CommentJudge:
                 )
         else:
             save_lock = threading.Lock()
+            save_errors: list[BaseException] = []
+            llm_errors: list[tuple[int, BaseException]] = []
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(judge_one, idx_item): idx_item
-                    for idx_item in missing
+                # Submit all work up front so every future gets a callback.
+                # add_done_callback fires on the worker thread, so the lock
+                # guards the concurrent writes to `stories` and the cache file.
+                all_futures = [
+                    executor.submit(judge_one, idx_item) for idx_item in missing
+                ]
+                idx_by_future = {
+                    fut: idx_item[0] for fut, idx_item in zip(all_futures, missing)
                 }
-                for future in as_completed(futures):
-                    key, judgement = future.result()
-                    with save_lock:
-                        stories[key] = judgement
-                        save_comment_judgements(date, stories)
+
+                def _on_done(fut):
+                    if fut.cancelled():
+                        return
+                    exc = fut.exception()
+                    if exc is not None:
+                        # Don't re-raise from the callback (Python would log
+                        # it as an "exception was never retrieved" warning
+                        # and other in-flight callbacks still need to land).
+                        # We collect all exceptions and aggregate them after
+                        # wait() drains the pool.
+                        llm_errors.append((idx_by_future[fut], exc))
+                        return
+                    key, judgement = fut.result()
+                    try:
+                        with save_lock:
+                            stories[key] = judgement
+                            save_comment_judgements(date, stories)
+                    except Exception as save_exc:
+                        # In-memory state was already updated above, but the
+                        # disk checkpoint is now stale. Record and aggregate
+                        # so the user sees every root cause instead of just
+                        # the first one.
+                        save_errors.append(save_exc)
+                        return
                     self.logger.info(
                         f"  Saved comment judgement checkpoint: "
                         f"{len(stories)}/{len(content.items)} stories"
                     )
+
+                for fut in all_futures:
+                    fut.add_done_callback(_on_done)
+
+                # Drain: wait for every future to finish so the callbacks
+                # get a chance to land their writes. Without this, a future
+                # whose sibling raised would have its result discarded when
+                # the `with` block exits.
+                wait(all_futures)
+
+                # Aggregate all failures into a single BaseExceptionGroup.
+                # Save errors take priority over LLM errors: a stale disk
+                # checkpoint is harder to diagnose than a missing one.
+                aggregated: list[BaseException] = []
+                for err in save_errors:
+                    aggregated.append(err)
+                for idx, err in llm_errors:
+                    aggregated.append(
+                        RuntimeError(
+                            f"judge_story_comments failed for story_index={idx}: {err}"
+                        )
+                    )
+                if aggregated:
+                    raise BaseExceptionGroup("comment judge failures", aggregated)
 
         save_comment_judgements(date, stories)
         self.logger.info(f"Saved comment judgements for {len(stories)} stories")
         return stories
 
     @staticmethod
-    def _apply_refinements(
-        candidates: list, refinements: dict
-    ) -> None:
+    def _apply_refinements(candidates: list, refinements: dict) -> None:
         """Apply refiner adjustments to candidate comments in-place."""
         for comment in candidates:
             cid = str(comment.source_id) if comment.source_id is not None else None
@@ -680,8 +727,7 @@ def save_comment_judgements(date: str, stories: Dict[str, dict]) -> None:
         "stories": stories,
     }
     with _save_lock:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+        atomic_write_json(path, payload)
 
 
 def candidate_ids_for_story(judgement: Optional[dict], max_n: int = 3) -> List[str]:

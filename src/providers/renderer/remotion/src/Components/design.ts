@@ -6,9 +6,6 @@ const REF_WIDTH = 1920;
 const REF_HEIGHT = 1080;
 
 /** Keynote 风格暗色设计系统（基于 1080p 参考值，运行时按实际分辨率缩放） */
-export const GRID_UNIT = 8;
-export const grid = (units: number) => units * GRID_UNIT;
-export const snapToGrid = (value: number) => Math.round(value / GRID_UNIT) * GRID_UNIT;
 
 export const FONTS = {
   mono: '"JetBrains Mono", "SF Mono", "Menlo", "Source Code Pro", monospace',
@@ -35,6 +32,7 @@ export const COLORS = {
   surface: "rgba(44,36,22,0.04)",
   surfaceHover: "rgba(44,36,22,0.07)",
   surfaceBorder: "#e5ddd0",
+  surface2: "#f0e8d8",
 
   text: "#2c2416",
   fg: "#2c2416", // warm paper primary text — use over text
@@ -56,6 +54,14 @@ export const COLORS = {
   brandLight: "#d4a854",
   brandBg: "rgba(193,125,75,0.08)",
   brandBorder: "rgba(193,125,75,0.25)",
+
+  warmBrown: "#c17d4b",
+  warmGold: "#d4a854",
+  sage: "#5a8a6a",
+
+  brownBg: "#faf0e5",
+  goldBg: "#faf3e0",
+  sageBg: "#e8f0e5",
 
   green: "#5a8a6a",
   yellow: "#d4a854",
@@ -141,7 +147,6 @@ export interface DesignTokens {
   scaled: (px: number) => number;
   layout: typeof LAYOUT;
   fs: typeof FS;
-  grid: (units: number) => number;
   isCompactHeight: boolean;
   /** True when canvas height > width (e.g. 9:16 portrait) */
   isPortrait: boolean;
@@ -203,7 +208,6 @@ function createDesignTokens(width: number, height: number): DesignTokens {
     scaled,
     layout,
     fs,
-    grid: (units: number) => scaled(units * GRID_UNIT),
     isCompactHeight,
     isPortrait,
     getCardMaxHeight,
@@ -314,28 +318,9 @@ export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
 };
 
 /** 暖纸卡片样式 */
-export const glassCard: React.CSSProperties = {
-  background: COLORS.surface,
-  border: `1px solid ${COLORS.borderLow}`,
-  borderRadius: LAYOUT.cardRadius,
-  backdropFilter: "blur(24px) saturate(1.2)",
-  WebkitBackdropFilter: "blur(24px) saturate(1.2)",
-};
-
 export const glassCardShadow = `0 2px 16px rgba(44,36,22,0.08), 0 1px 3px rgba(44,36,22,0.04)`;
 
-export const innerPanel: React.CSSProperties = {
-  background: COLORS.surfaceFaint,
-  border: `1px solid ${COLORS.borderLow}`,
-  borderRadius: LAYOUT.panelRadius,
-};
-
 export const glassGlow = `0 0 32px rgba(193,125,75,0.06), 0 4px 16px rgba(44,36,22,0.08), 0 1px 4px rgba(44,36,22,0.04)`;
-
-export const SHADOWS = {
-  card: glassCardShadow,
-  cardHover: "0 4px 20px rgba(44,36,22,0.10), 0 1px 6px rgba(44,36,22,0.06)",
-};
 
 /** 命名渐变 */
 export const GRADIENTS = {
@@ -349,19 +334,13 @@ export const GRADIENTS = {
   dotGrid: `radial-gradient(circle, rgba(44,36,22,0.04) 1px, transparent 1px)`,
 } as const;
 
-export const sectionLabel: React.CSSProperties = {
-  fontFamily: FONTS.sans,
-  fontSize: FS.label,
-  fontWeight: 600,
-  color: COLORS.textTertiary,
-  marginBottom: 14,
-  textTransform: "none",
-  letterSpacing: 0.4,
-};
-
 export const S: React.CSSProperties = { position: "absolute" as const };
 
-// ── Shared card layout constants ──
+/** Card reference dimensions (1080p) */
+export const CARD_REF = {
+  width: 1920,
+  height: 1080,
+} as const;
 
 /** Standard card padding (px values, scaled at runtime via d.scaled) */
 export const CARD_PAD = {
@@ -439,109 +418,3 @@ export const ANIM = {
 
 /** Standard easing curve used across all cards */
 export const EASE_CARD = Easing.bezier(0.16, 1, 0.3, 1);
-
-/** Standard header margin-bottom */
-export const HEADER_MARGIN = {
-  normal: 28,
-  compact: 20,
-} as const;
-
-/** Standard title → body gap (margin-bottom after title) */
-export const TITLE_BODY_GAP = {
-  normal: 24,
-  compact: 16,
-} as const;
-
-/** Standard body section gap */
-export const BODY_SECTION_GAP = {
-  normal: 24,
-  compact: 18,
-} as const;
-
-/** Standard divider margin */
-export const DIVIDER_MARGIN = {
-  top: 14,
-  bottom: 16,
-} as const;
-
-/** Standard keyword gap */
-export const KEYWORD_GAP = 8;
-
-/** Standard card entrance translateY */
-export const CARD_ENTRANCE_Y = 32;
-
-/** Standard title entrance translateY */
-export const TITLE_ENTRANCE_Y = 12;
-
-/** Standard body entrance translateY */
-export const BODY_ENTRANCE_Y = 12;
-
-/** Standard header entrance translateY */
-export const HEADER_ENTRANCE_Y = 8;
-
-/** Standard footer entrance translateY */
-export const FOOTER_ENTRANCE_Y = 6;
-
-/** Standard image panel translateX */
-export const IMAGE_ENTRANCE_X = 28;
-
-/** Standard chapter watermark offset from top padding */
-export const WATERMARK_TOP_OFFSET = 6;
-
-/** Standard item sub-component animation duration (frames) */
-export const ITEM_DURATION = 18;
-
-/** Standard pill/badge animation duration (frames) */
-export const PILL_DURATION = 14;
-
-/** Standard SectionLabel accent bar dimensions */
-export const SECTION_BAR = {
-  width: 4,
-  height: 18,
-  borderRadius: 3,
-} as const;
-
-/** Standard pill border radius (fully rounded) */
-export const PILL_RADIUS = 999;
-
-/** Standard metric pill height */
-export const METRIC_PILL_HEIGHT = 32;
-
-/** Standard metric pill padding horizontal */
-export const METRIC_PILL_PAD_X = 14;
-
-/** Standard hero entrance translateY (CoverCard headline) */
-export const HERO_ENTRANCE_Y = 28;
-
-/** Standard closing question entrance translateY */
-export const CLOSING_QUESTION_ENTRANCE_Y = 24;
-
-/** Standard closing brand entrance translateY */
-export const CLOSING_BRAND_ENTRANCE_Y = 18;
-
-/** Standard image panel border radius */
-export const IMAGE_PANEL_RADIUS = 14;
-
-/** Standard image panel box shadow */
-export const IMAGE_PANEL_SHADOW = glassGlow;
-
-/** Standard image panel border */
-export const IMAGE_PANEL_BORDER = `1px solid ${COLORS.borderLow}`;
-
-/** Standard image panel background */
-export const IMAGE_PANEL_BG = COLORS.surfaceSubtle;
-
-/** Standard row entry stagger (frames between items) */
-export const ROW_STAGGER = 5;
-
-/** Standard keyword tag padding */
-export const KEYWORD_TAG_PAD = {
-  y: 6,
-  x: 16,
-} as const;
-
-/** Standard capsule badge padding */
-export const CAPSULE_PAD = {
-  y: 4,
-  x: 12,
-} as const;

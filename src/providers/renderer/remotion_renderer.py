@@ -271,13 +271,31 @@ class RemotionRenderer(Renderer):
                 chunk_file = chunk_dir / f"chunk_{idx:03d}_{label}.mp4"
                 chunk_files.append(chunk_file)
 
-                if chunk_file.exists():
+                if chunk_file.exists() and chunk_file.stat().st_size > 0:
                     self.logger.info(
                         f"Chunk {idx + 1}/{len(chunks)} already exists, skipping ({label})"
                     )
                     continue
+                if chunk_file.exists():
+                    # Empty final file left by a prior crashed run.
+                    self.logger.warning(
+                        f"Chunk {idx + 1}/{len(chunks)} exists but is empty "
+                        f"({chunk_file.stat().st_size} bytes); will re-render ({label})"
+                    )
+                    chunk_file.unlink()
 
-                pending.append((idx, start, end, label, chunk_file))
+                # Render to .partial first; only rename to .mp4 on a clean exit.
+                # A crashed/timeout render leaves .partial behind, invisible to
+                # the resume check above, so the next run re-renders cleanly
+                # instead of silently reusing a half-written MP4 in concat.
+                partial_file = chunk_file.with_suffix(chunk_file.suffix + ".partial")
+                if partial_file.exists():
+                    self.logger.warning(
+                        f"Chunk {idx + 1}/{len(chunks)} has leftover .partial; "
+                        f"re-rendering ({label})"
+                    )
+                    partial_file.unlink()
+                pending.append((idx, start, end, label, chunk_file, partial_file))
 
             # Render pending chunks in parallel
             if pending:
@@ -286,15 +304,16 @@ class RemotionRenderer(Renderer):
                     f"Rendering {len(pending)} chunks with {workers} workers"
                 )
 
-                def _render_chunk(idx, start, end, label, chunk_file):
+                def _render_chunk(idx, start, end, label, chunk_file, partial_file):
                     self.logger.info(
                         f"Rendering chunk {idx + 1}/{len(chunks)} [{label}]: frames {start}-{end}"
                     )
                     cmd = base_cmd + [
-                        f"--output={chunk_file}",
+                        f"--output={partial_file}",
                         f"--frames={start}-{end}",
                     ]
                     self._run_render_cmd(cmd)
+                    partial_file.rename(chunk_file)
                     return idx
 
                 try:
@@ -311,10 +330,10 @@ class RemotionRenderer(Renderer):
                                 f"Chunk {idx + 1}/{len(chunks)} done ({label})"
                             )
                 except Exception:
-                    # Clean up partial outputs so re-run doesn't skip them
-                    for _, _, _, _, chunk_file in pending:
-                        if chunk_file.exists() and chunk_file.stat().st_size == 0:
-                            chunk_file.unlink()
+                    # Clean up partial outputs so re-run can re-render them.
+                    for _, _, _, _, _, partial_file in pending:
+                        if partial_file.exists():
+                            partial_file.unlink()
                     raise
 
             # Concatenate chunks with ffmpeg

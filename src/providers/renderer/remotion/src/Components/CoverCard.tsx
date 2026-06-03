@@ -16,7 +16,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate, Easing } from "remotion";
 import type { CoverCardProps, Highlight } from "./cardTypes";
-import { COLORS } from "./theme";
+import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractCoverProps } from "./propsExtractors";
 import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";

@@ -8,8 +8,7 @@
 
 import React from "react";
 import { AudioWaveform } from "./AudioWaveform";
-import { COLORS } from "./theme";
-import { useDesign } from "./design";
+import { COLORS, useDesign } from "./design";
 
 interface CardAudioWaveformProps {
   src?: string;

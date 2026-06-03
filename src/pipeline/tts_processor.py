@@ -9,6 +9,7 @@ from src.pipeline.timing_engine import TimingEngine
 from src.providers.renderer.binary_finder import find_ffmpeg
 from src.utils.audio import get_audio_duration
 from src.utils.audio_alignment import AlignmentSegment, align_audio
+from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
 _FFMPEG = find_ffmpeg() or "ffmpeg"
@@ -351,7 +352,4 @@ class TTSProcessor:
                 for seg in aligned
             ],
         }
-        manifest_path.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        atomic_write_json(manifest_path, manifest)

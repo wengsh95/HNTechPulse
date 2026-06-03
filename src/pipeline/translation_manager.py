@@ -12,6 +12,7 @@ from src.pipeline.comment import (
     comment_judgement_key,
     load_comment_judgements,
 )
+from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
 
@@ -59,64 +60,33 @@ class TranslationManager:
         )
 
     def translate(self, content, script, date: str):
-        """Translate titles + referenced comments. Checkpointed.
+        """Translate referenced comments and apply cached translations to the script.
 
-        Translates titles and one top-quality comment per stance per story
-        (the same comments _expand_atmosphere_card injects at render time).
-        Updates content (title_cn, comment.content_cn) in place.
+        Title translation is owned by the enrich step (see Orchestrator._step_enrich);
+        this method only handles comments. Updates content.comment.content_cn in
+        place and propagates cached translations to script props.
+
+        Comments translated here are the same ones _expand_atmosphere_card injects
+        at render time (one per stance per story, deduplicated against the
+        atmosphere card's selected_comment_ids).
         """
         translations_path = Path(f"data/{date}/translations.json")
-        translations = {}
-        # Load judgements once for the entire translate step
+        translations: dict = {}
         judgements = load_comment_judgements(content.date)
 
         if translations_path.exists():
             self.logger.info(f"  Loading cached translations from {translations_path}")
             with open(translations_path, "r", encoding="utf-8") as f:
                 translations = json.load(f)
-            # Apply title translations by source_id, falling back to index for legacy caches
-            items_by_source_id = {
-                item.source_id: item for item in content.items if item.source_id
-            }
-            for key, value in translations.items():
-                if key.startswith("title_"):
-                    parts = key.split("_", 1)
-                    if len(parts) < 2:
-                        continue
-                    token = parts[1]
-                    # Prefer source_id-based key (title_<source_id>)
-                    item = items_by_source_id.get(token)
-                    if item is None:
-                        # Fallback: legacy positional index key
-                        try:
-                            idx = int(token)
-                            if idx < len(content.items):
-                                item = content.items[idx]
-                        except ValueError:
-                            continue
-                    if item is not None:
-                        item.title_cn = value
-            selected_ids_by_story = self._selected_ids_by_story(script)
-            self._apply_comment_translations(
-                content, translations, selected_ids_by_story, judgements
-            )
         else:
-            # 1. Translate titles (skip if already translated during enrich step)
-            items_needing_translation = [
-                item for item in content.items if item.title and not item.title_cn
-            ]
-            if items_needing_translation:
-                content = self.llm_provider.translate_titles(content, "translate.md")
-            else:
-                self.logger.info("  All titles already translated, skipping")
-            for idx, item in enumerate(content.items):
-                if item.title_cn:
-                    # Store by source_id for stable cache keys; keep index key for backward compat
-                    if item.source_id:
-                        translations[f"title_{item.source_id}"] = item.title_cn
-                    translations[f"title_{idx}"] = item.title_cn
+            # Re-hydrate any title translations that the enrich step already
+            # wrote to content.title_cn, so downstream apply_translations_to_script
+            # can see them in the unified translations dict.
+            for item in content.items:
+                if item.title_cn and item.source_id:
+                    translations[f"title_{item.source_id}"] = item.title_cn
 
-        # 2. Collect and translate stance-diverse comments (if not cached)
+        # Collect and translate stance-diverse comments (if not cached)
         selected_ids_by_story = self._selected_ids_by_story(script)
         comment_refs = self.collect_comment_refs(
             content, selected_ids_by_story, judgements
@@ -134,11 +104,9 @@ class TranslationManager:
                 content, translations, selected_ids_by_story, judgements
             )
 
-        # 3. Save checkpoint
+        # Save checkpoint
         if translations:
-            translations_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(translations_path, "w", encoding="utf-8") as f:
-                json.dump(translations, f, ensure_ascii=False, indent=2)
+            atomic_write_json(translations_path, translations)
             self.logger.info(
                 f"  Saved {len(translations)} translations to {translations_path}"
             )

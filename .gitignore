@@ -37,6 +37,8 @@ build/
 
 # Project-specific
 .workbuddy/
+articles/
+
 
 # Remotion runtime assets
 **/remotion/public/audio/

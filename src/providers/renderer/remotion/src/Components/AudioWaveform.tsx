@@ -6,7 +6,7 @@
    读取振幅数据，驱动 WaveformBars 渲染。
 */
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useCurrentFrame, useVideoConfig, staticFile } from "remotion";
 import { useAudioData, visualizeAudio } from "@remotion/media-utils";
 import { WaveformBars } from "./WaveformBars";
@@ -37,30 +37,14 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   color,
   leftOffset,
 }) => {
-  // useAudioData is not null-safe — early return before hooks when src is missing
-  if (!src || src.length === 0) {
-    return (
-      <WaveformBars
-        amplitudeData={undefined}
-        barCount={barCount}
-        barWidth={barWidth}
-        barGap={barGap}
-        maxHeight={maxHeight}
-        color={color}
-        leftOffset={leftOffset}
-      />
-    );
-  }
-
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const audioData = useAudioData(staticFile(src));
-
-  // Log state for debugging
-  useEffect(() => {
-    console.log("[AudioWaveform] src=", src, "audioData loaded:", !!audioData);
-  }, [src, audioData]);
+  // useAudioData requires a string; pass an empty path when src is missing
+  // so hook order stays stable across renders where the audio_path arrives
+  // later. The empty path resolves to no audio data, which is fine — the
+  // downstream conditional skips amplitude computation when audioData is null.
+  const audioData = useAudioData(src && src.length > 0 ? staticFile(src) : "");
 
   let amplitudes: number[] | undefined;
   if (audioData) {
@@ -78,7 +62,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const scaled = (db + 80) / 80; // -80dB~0dB → 0~1
         return Math.max(0.02, Math.min(1, scaled));
       });
-      console.log("[AudioWaveform] frame=", frame, "first3:", amplitudes.slice(0, 3));
     } catch (e) {
       console.warn("[AudioWaveform] visualizeAudio error:", e);
     }

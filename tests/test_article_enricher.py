@@ -27,10 +27,19 @@ def _make_config(**overrides):
     return cfg
 
 
+def _make_llm_provider():
+    """Return a minimal LLMProvider mock for ArticleEnricher tests."""
+    provider = MagicMock()
+    provider.llm_client = MagicMock()
+    provider.llm_client.fast_model = "test-fast"
+    provider.llm_client.fast_temperature = 0.1
+    provider.llm_client.call_llm_with_json_retry = MagicMock(return_value="{}")
+    provider.llm_client.extract_json = MagicMock(return_value={})
+    return provider
+
+
 def _make_enricher(**config_overrides):
-    with patch.dict("os.environ", {"OPENAI_API_KEY": "fake-key"}):
-        with patch("src.providers.enricher.article_enricher.OpenAI"):
-            return ArticleEnricher(_make_config(**config_overrides))
+    return ArticleEnricher(_make_llm_provider(), _make_config(**config_overrides))
 
 
 # ── _make_headers ─────────────────────────────────────────────────────

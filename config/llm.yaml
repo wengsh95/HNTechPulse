@@ -10,7 +10,7 @@ llm:
   json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数
   max_completion_tokens_cap: 32768     # Auto-expand cap when output is truncated
   max_workers: 3                       # Concurrent story script generation
-  cache_schema_version: 3              # Segment cache fingerprint version
+  cache_schema_version: 4              # Segment cache fingerprint version (4: persist LLM estimated_duration)
   fast:                                # 低成本模型，用于翻译等轻量任务
     model: "MiniMax-M2.7"
     max_tokens: 4096

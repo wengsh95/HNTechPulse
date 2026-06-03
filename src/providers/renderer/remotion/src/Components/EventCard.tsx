@@ -14,7 +14,7 @@
 import React from "react";
 import { useCurrentFrame, interpolate, staticFile } from "remotion";
 import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
-import { COLORS } from "./theme";
+import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractEventProps } from "./propsExtractors";
 import {

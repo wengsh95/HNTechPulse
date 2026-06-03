@@ -95,7 +95,7 @@ def main():
         article_enricher = None
         enrich_config = config.get("enrich", {})
         if enrich_config.get("enabled", False):
-            article_enricher = ArticleEnricher(config, debug=args.debug)
+            article_enricher = ArticleEnricher(llm_provider, config, debug=args.debug)
             logger.info("Article enrichment enabled")
 
         orchestrator = Orchestrator(

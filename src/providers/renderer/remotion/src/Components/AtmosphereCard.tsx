@@ -12,18 +12,19 @@
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, Easing } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 import type {
   AtmosphereCardProps,
   ControversyLevel,
   Stance,
   Quote,
 } from "./cardTypes";
-import { COLORS } from "./theme";
+import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
 import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
 import { CardShell, Fill } from "./CardShell";
+import { STANCE_LABELS, STANCE_COLORS } from "./stance";
 
 /* ---- label maps ---- */
 
@@ -31,22 +32,6 @@ const CONTROVERSY_LABELS: Record<ControversyLevel, string> = {
   consensus: "共识较强",
   divided: "存在分歧",
   highly_controversial: "高度争议",
-};
-
-const STANCE_LABELS: Record<Stance, string> = {
-  support: "支持",
-  skeptic: "质疑",
-  neutral: "中立",
-  tease: "调侃",
-  worry: "担忧",
-};
-
-const STANCE_COLORS: Record<Stance, string> = {
-  support: COLORS.sage,
-  skeptic: COLORS.warmGold,
-  neutral: COLORS.dim,
-  tease: COLORS.purple,
-  worry: COLORS.warmBrown,
 };
 
 /** Only the 3 core stances rendered on the card. */

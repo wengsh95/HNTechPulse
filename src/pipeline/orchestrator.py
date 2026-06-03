@@ -223,7 +223,9 @@ class Orchestrator:
             self.content_preparer.save_content(content, date)
             return content
 
-        self.logger.info("Step: Enrich — translate titles")
+        self.logger.info(
+            "Step: Enrich — translate titles (enrich owns title translation)"
+        )
         if not self.dry_run:
             content = self.llm_provider.translate_titles(content, "translate.md")
 
@@ -271,7 +273,7 @@ class Orchestrator:
         return script
 
     def _step_produce(self, content, script, date: str):
-        self.logger.info("Step: Produce — translate titles and comments")
+        self.logger.info("Step: Produce — translate comments (titles owned by enrich)")
         if not self.dry_run:
             content, script = self.translation_manager.translate(content, script, date)
             self.script_writer.save_script(script, date)

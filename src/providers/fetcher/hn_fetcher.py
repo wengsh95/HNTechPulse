@@ -18,6 +18,7 @@ from tenacity import (
 from src.providers.fetcher.models import HNStory, HNComment
 from src.core.models import ContentItem, ContentComment, ContentPackage
 from src.core.interfaces import ContentFetcher
+from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 from src.utils.async_helper import run_async as _run_async
 
@@ -133,8 +134,7 @@ class HNFetcher(ContentFetcher):
             "stories": [self._story_to_dict(s) for s in top_stories],
         }
         raw_stories_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(raw_stories_path, "w", encoding="utf-8") as f:
-            json.dump(raw_data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(raw_stories_path, raw_data)
         self.logger.info(f"Stories cache saved to {raw_stories_path}")
 
         elapsed = _time.monotonic() - t0
@@ -562,8 +562,7 @@ class HNFetcher(ContentFetcher):
                 "cached_at": _time.time(),
                 "comments": [self._comment_to_dict(c) for c in comments],
             }
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            atomic_write_json(cache_file, data)
             self.logger.debug(
                 f"  Comment cache saved for story={story_id}: {len(comments)} comments"
             )
