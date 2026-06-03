@@ -50,8 +50,8 @@ def main():
     parser.add_argument(
         "--steps",
         type=str,
-        default="fetch,enrich,script,produce,preview",
-        help="Steps to run (comma-separated: fetch,enrich,script,produce,render,preview,editor)",
+        default="fetch,enrich,script,produce",
+        help="Steps to run (comma-separated: fetch,enrich,script,produce,render,editor,html_preview)",
     )
     parser.add_argument(
         "--config", type=str, default="config/", help="Config directory or file path"

@@ -48,7 +48,7 @@ npx remotion still --props="E:/Code/HNTechPulse/data/2026-05-30/cli_props.json" 
   - [translation_manager.py](src/pipeline/translation_manager.py), [prefilter.py](src/pipeline/prefilter.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [transcript_generator.py](src/pipeline/transcript_generator.py), [report_generator.py](src/pipeline/report_generator.py)
 - **Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.
 
-Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render` → `preview` → `editor` → `sync_preview`
+Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render` → `editor` → `sync_preview`
 
 ### Data Flow
 
@@ -71,8 +71,6 @@ HN API
 [produce] TranslationManager (titles, comments via batched LLM fast-model calls) → TTSProcessor (audio synthesis + text alignment)
   ↓
 [render] Remotion video render → data/{date}/output.mp4 (skipped by default; opt-in via --steps render)
-  ↓
-[preview] Remotion live preview for manual review
   ↓
 [editor] Streamlit story editor UI for manual script adjustments
   ↓

@@ -23,9 +23,9 @@ from src.utils.logger import setup_logger
 # Each step depends on all steps listed before it (linear chain),
 # except standalone steps which have no prerequisites.
 PIPELINE_STEPS = ["fetch", "enrich", "script", "produce"]
-STANDALONE_STEPS = {"render", "preview", "editor", "html_preview"}
-ALL_STEPS = PIPELINE_STEPS + ["render", "preview", "editor", "html_preview"]
-DEFAULT_STEPS = PIPELINE_STEPS + ["preview"]
+STANDALONE_STEPS = {"render", "editor", "html_preview"}
+ALL_STEPS = PIPELINE_STEPS + ["render", "editor", "html_preview"]
+DEFAULT_STEPS = PIPELINE_STEPS
 
 
 def _resolve_steps(requested: List[str]) -> List[str]:
@@ -149,10 +149,6 @@ class Orchestrator:
         if "produce" in steps:
             with self._progress.step("produce"):
                 content, script = self._step_produce(content, script, date)
-
-        if "preview" in steps:
-            with self._progress.step("preview"):
-                self._step_preview(script, date, content)
 
         if "editor" in steps:
             with self._progress.step("editor"):
@@ -303,29 +299,6 @@ class Orchestrator:
         script = self.tts_processor.process_audio(script, date, content)
         self.script_writer.save_script(script, date)
         return content, script
-
-    def _step_preview(self, script: Script, date: str, content=None) -> None:
-        self.logger.info("Step: Preview (Remotion Studio)")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping preview")
-            return
-
-        if content is None:
-            try:
-                content = self.content_preparer.load_content(date)
-            except FileNotFoundError:
-                self.logger.info(
-                    "Content not found for preview, scene elements may be incomplete"
-                )
-
-        merge_enrichment_into_content(content, date, logger=self.logger)
-
-        audio_dir = f"data/{date}/audio"
-        self.logger.info("Opening Remotion Studio at http://localhost:3000")
-        self.logger.info(
-            "Check the preview, then press Ctrl+C to stop and proceed to render."
-        )
-        self.renderer.preview(script, audio_dir, content, date=date)
 
     def _step_editor(self, date: str) -> None:
         self.logger.info("Step: Open Streamlit Editor")

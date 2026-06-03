@@ -1,7 +1,7 @@
 # HN TechPulse Roadmap
 
 > 最后更新：2026-05-29
-> 当前依据：TTS 与 Remotion 渲染器重新合入，管线步骤收敛为 `fetch → enrich → script → produce → render → preview → editor → sync_preview`，评论管线与编辑界面已可用。
+> 当前依据：TTS 与 Remotion 渲染器重新合入，管线步骤收敛为 `fetch → enrich → script → produce → render → editor → sync_preview`，评论管线与编辑界面已可用。
 
 ## 产品定位
 

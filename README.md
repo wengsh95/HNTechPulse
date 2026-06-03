@@ -77,7 +77,7 @@ uv run python main.py --steps produce,render
 可用步骤：
 
 ```text
-fetch -> enrich -> script -> produce -> render -> preview -> editor -> sync_preview
+fetch -> enrich -> script -> produce -> render -> editor -> sync_preview
 ```
 
 ### 其他选项
