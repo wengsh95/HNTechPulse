@@ -139,7 +139,9 @@ class TTSProcessor:
         # Concatenate element audio into segment audio
         # Insert silence before each card's audio for breathing room
         seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
-        silence_path = str(audio_dir / "_card_delay_silence.mp3") if self.audio_delay > 0 else ""
+        silence_path = (
+            str(audio_dir / "_card_delay_silence.mp3") if self.audio_delay > 0 else ""
+        )
         # Generate silence and measure actual duration (MP3 frame alignment may
         # differ slightly from the configured value).
         delay = 0.0
@@ -171,9 +173,7 @@ class TTSProcessor:
                 )
 
             # audio_duration includes delay so visual covers the silence period
-            segment.scene_elements[_elem_idx].props["audio_duration"] = (
-                delay + duration
-            )
+            segment.scene_elements[_elem_idx].props["audio_duration"] = delay + duration
 
             subtitle_audios.append(
                 {
@@ -191,11 +191,13 @@ class TTSProcessor:
 
         segment.cues = all_cues
 
-        # Bridge gaps between elements (mutagen duration > Whisper end time)
-        # and extend final cue to cover full concatenated audio.
+        # Snap adjacent cue boundaries together (Whisper alignment can
+        # leave both gaps from mutagen > Whisper end time and overlaps
+        # from element-boundary silence being double-counted). End the
+        # final cue at the full concatenated audio duration.
         if segment.cues and segment.actual_duration:
             for i in range(len(segment.cues) - 1):
-                if segment.cues[i + 1].start_time > segment.cues[i].end_time:
+                if segment.cues[i + 1].start_time != segment.cues[i].end_time:
                     segment.cues[i].end_time = segment.cues[i + 1].start_time
             segment.cues[-1].end_time = round(segment.actual_duration, 3)
 

@@ -58,16 +58,18 @@ class TimingEngine:
                         elem.end_time = current + d
                         current += d
 
-                    # Extend last element to fill any gap from MP3 concat
-                    # overhead (individual durations may not sum to the
-                    # concatenated segment audio duration exactly).
+                    # Reconcile last element end with segment duration.
+                    # Extend if element durations under-fill the segment
+                    # (MP3 concat overhead pushed audio past individual
+                    # durations); clamp if they over-fill (leading silence
+                    # padding pushes the last element past the actual audio).
                     segment_duration = seg.actual_duration or seg.duration
-                    if current < segment_duration:
+                    if current != segment_duration:
                         for elem in reversed(seg.scene_elements):
                             if not elem.props.get("is_audio_marker"):
                                 elem.end_time = segment_duration
                                 break
-                        if seg.cues:
+                        if seg.cues and seg.cues[-1].end_time > segment_duration:
                             seg.cues[-1].end_time = round(segment_duration, 3)
                     continue
 
