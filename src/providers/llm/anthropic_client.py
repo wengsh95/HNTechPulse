@@ -31,9 +31,9 @@ class _AnthropicResponseAdapter:
             self.total_tokens = (
                 anthropic_usage.input_tokens + anthropic_usage.output_tokens
             )
-            self.prompt_cache_hit_tokens = getattr(
-                anthropic_usage, "cache_read_input_tokens", 0
-            ) or 0
+            self.prompt_cache_hit_tokens = (
+                getattr(anthropic_usage, "cache_read_input_tokens", 0) or 0
+            )
 
     class _Message:
         def __init__(self, anthropic_response):

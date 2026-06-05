@@ -33,3 +33,13 @@ timing:
   event_card_pre_gap: 0.0   # 事件卡切入时的停顿（已关闭：会导致无场景空白）
   event_card_audio_delay: 0.3  # 卡片切入后的静音停顿（秒），TTS 延后播放，卡片在停顿期间已展示
   subtitle_gap: 0.2         # story_scan 内字幕音频之间的停顿（换气感）
+
+image_generator:
+  enabled: true
+  provider: "minimax"        # 真实文生图 API；也可用 "noop" 占位
+  model: "image-01"          # MiniMax 文生图模型
+  aspect_ratio: "16:9"       # 1280x720，匹配 Remotion CoverThumbnail 合成 (1920x1080)
+  n: 1
+  prompt_optimizer: false
+  response_format: "url"     # API 默认；24h 过期，provider 立即 GET 落盘
+  # api_key: 留空时回退到 MINIMAX_API_KEY 环境变量

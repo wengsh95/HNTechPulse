@@ -10,7 +10,7 @@
 uv sync                                          # Install deps
 uv run python main.py                            # Run pipeline
 uv run python main.py --date 2026-04-26 --debug  # With options
-uv run python main.py --steps fetch,script       # Run specific steps
+uv run python main.py --steps fetch,write_script # Run a sub-chain (everything up to write_script)
 uv run python main.py --dry-run                  # Skip API calls
 uv run python -m pytest                            # Run tests
 uv run python -m pytest tests/test_pipeline.py     # Specific test
@@ -46,45 +46,61 @@ npx remotion still --props="E:/Code/HNTechPulse/data/2026-05-30/cli_props.json" 
   - [comment/](src/pipeline/comment/) — comment analysis subpackage: [text.py](src/pipeline/comment/text.py) (cleaning), [scoring.py](src/pipeline/comment/scoring.py) (quality + relevance), [selection.py](src/pipeline/comment/selection.py) (stance + candidate/quote picking), [judge.py](src/pipeline/comment/judge.py) (`CommentAnalyzer` VADER + `CommentJudge` LLM + normalization + cache I/O)
   - [script/](src/pipeline/script/) — script generation subpackage: [composer.py](src/pipeline/script/composer.py) (`ScriptWriter` class), [cards.py](src/pipeline/script/cards.py) (card normalization), [templates.py](src/pipeline/script/templates.py) (opening/closing/highlights), [io.py](src/pipeline/script/io.py) (save/load)
   - [translation_manager.py](src/pipeline/translation_manager.py), [prefilter.py](src/pipeline/prefilter.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [transcript_generator.py](src/pipeline/transcript_generator.py), [report_generator.py](src/pipeline/report_generator.py)
-- ~~**Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.~~（2026-06-03 移除：见 M5）
+- ~~**Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.~~（2026-06-03 移除）
 
-Pipeline steps: `fetch` → `enrich` → `script` → `produce` → `render`
+Pipeline steps (15 main chain + 1 standalone):
 
-### Active Refactor: M5 — Pipeline → Agent Tools + Workflow YAML
+```
+fetch → prefilter → fetch_comments → enrich_articles → translate_titles
+  → analyze_comments → judge_comments → write_script
+  → translate_comments → synthesize_audio → title
+  → cover_image → cover_thumbnail → publish_guide → prepare_render
+                                                              ↓ (standalone)
+                                                            render
+```
 
-The current orchestrator shape is **slated for removal** in favor of an agent-friendly design. Treat the following as legacy, not as a place to extend:
-
-- `Orchestrator._step_fetch` / `_step_enrich` / `_step_script` / `_step_produce` / `_step_render` private methods
-- The `PIPELINE_STEPS` constant in [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py)
-- The `--steps` / `--force` / `--dry-run` / `--debug` CLI flags in [main.py](main.py)
-- `PipelineProgress` (humans read stdout; an agent does not)
-- The `force: bool` parameter and `_clear_render_cache`
-
-The target shape (see [ROADMAP.md M5](ROADMAP.md)) uses `workflows/daily_brief.yaml` as a declarative phase DAG, a slim `Orchestrator` that reads YAML → iterates phases → invokes tools → checks state-transition gates, and consults the LLM only at the deviation-decision hook. Fine-grained tools (`draft_opening` / `draft_event_card` / `draft_atmosphere` / `attach_quotes`, `score_story` + `pick_top_k`, `rank_by_intent` + `pick_quote`) will replace the coarse `LLMProvider.generate_single_story_segment` and `judge_story_comments` methods, with `requires` / `produces` contracts declaring the state machine. LLM verifiers (`fact_check`, `tone_audit`, `pacing_check`, `quote_attribution`) loop back to compose on failure (`retry_budget ≤ 2`).
-
-**`workflows/` directory is non-production**: `daily_brief.yaml`, `orchestrator_v2.py`, and `tools.py` are explicitly labeled `SKETCH: not production-ready`. They show the *shape* of the M5 target — do not wire them in, do not extend the orchestrator to import them.
-
-**When editing the orchestrator area**: do not add new `if "X" in steps` branches, do not add new CLI flags, and do not expand `_clear_render_cache` or `PipelineProgress` — these are on the chopping block. For a new step, prefer adding it to `_step_*` and `PIPELINE_STEPS` only if you also have an M5 plan to fold it into a tool + workflow entry.
+Each step has its own cache file/condition and can be re-run in isolation. `--steps X` expands to all steps up to and including X. `render` is opt-in (default pipeline excludes it).
 
 ### Data Flow
 
 ```
 HN API
   ↓
-[fetch] ContentPackage with items + all comments
+[fetch] ContentPackage with items
   ↓
-[enrich] Prefilter → comment fetch → article text, images, editor_angle, key_points per item
+[prefilter] Prefilter (LLM tech-relevance filter) → data/{date}/prefilter.json
   ↓
-[script] CommentAnalyzer (VADER + quality scores) → CommentJudge (LLM top-15 → quote_candidates, debate_focus, stance_distribution)
-  │     Cached to data/{date}/comment_analysis.json + comment_judgement.json
-  │     Then ScriptWriter.write():
+[fetch_comments] HN comments per story → content.json
+  ↓
+[enrich_articles] ArticleEnricher fetches body + extracts editor_angle, key_points, images → content.json
+  ↓
+[translate_titles] LLM batch translate item.title → item.title_cn → content.json
+  ↓
+[analyze_comments] CommentAnalyzer (VADER + quality scores) → data/{date}/comment_analysis.json
+  ↓
+[judge_comments] CommentJudge (LLM top-15 → quote_candidates, debate_focus, stance_distribution) → data/{date}/comment_judgement.json
+  ↓
+[write_script] ScriptWriter.write():
   ├── Selection: top N stories by HN score (no LLM)
   ├── Each story uses full mode: story_script.md → event_card + atmosphere_card
   ├── _normalize_story_cards() injects common metadata (score, comment_count, keywords, etc.) into all card types
   ├── _normalize_quote_card_selection() replaces LLM-picked comment IDs with judge candidates
   └── _normalize_atmosphere_card() injects debate_focus + stance_distribution from judge
+  → data/{date}/script.json
   ↓
-[produce] TranslationManager (titles, comments via batched LLM fast-model calls) → TTSProcessor (audio synthesis + text alignment)
+[translate_comments] TranslationManager batch translate comment text (fast_model) → data/{date}/translations.json
+  ↓
+[synthesize_audio] TTSProcessor (audio synthesis + text alignment) → data/{date}/audio/*
+  ↓
+[title] LLM generate video title/description/tags → data/{date}/title.json
+  ↓
+[cover_image] LLM cover_prompt + mmx image generate → data/{date}/cover_bg.png + cover_props.json
+  ↓
+[cover_thumbnail] Remotion still render with title overlay → data/{date}/cover.png
+  ↓
+[publish_guide] LLM generate human-facing publish checklist → data/{date}/publish_guide.md
+  ↓
+[prepare_render] Renderer.write_props() writes props.json + copies audio/image assets to remotion/public/
   ↓
 [render] Remotion video render → data/{date}/output.mp4 (skipped by default; opt-in via --steps render)
   ↓
@@ -103,6 +119,9 @@ HN API
 | [prompts/translate.md](prompts/translate.md) | TranslationManager | `{{ items_json }}` |
 | [prompts/article_enrich.md](prompts/article_enrich.md) | Article enricher | `{{ title }}`, `{{ article_text }}` |
 | [prompts/prefilter.md](prompts/prefilter.md) | Prefilter | `{{ stories_json }}` |
+| [prompts/title.md](prompts/title.md) | title step | `{{ highlight_entries }}`, `{{ date }}` |
+| [prompts/cover_prompt.md](prompts/cover_prompt.md) | cover_image step | `{{ highlight_entries }}` |
+| [prompts/publish_guide.md](prompts/publish_guide.md) | publish_guide step | `{{ items_json }}`, `{{ script_title }}`, `{{ script_description }}`, `{{ date }}` |
 
 All steps cache to `data/{date}/` and resume from disk. Config: [config/](config/) directory (YAML deep-merged), env vars in `.env`.
 

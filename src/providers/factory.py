@@ -5,6 +5,7 @@ _FETCHER_REGISTRY: dict[str, type] = {}
 _LLM_REGISTRY: dict[str, type] = {}
 _TTS_REGISTRY: dict[str, type] = {}
 _RENDERER_REGISTRY: dict[str, type] = {}
+_IMAGE_GENERATOR_REGISTRY: dict[str, type] = {}
 
 _logger = setup_logger(__name__)
 
@@ -23,6 +24,10 @@ def register_tts(name: str, cls):
 
 def register_renderer(name: str, cls):
     _RENDERER_REGISTRY[name] = cls
+
+
+def register_image_generator(name: str, cls):
+    _IMAGE_GENERATOR_REGISTRY[name] = cls
 
 
 def _auto_register():
@@ -69,6 +74,20 @@ def _auto_register():
             "src.providers.renderer.remotion_renderer",
             "RemotionRenderer",
             register_renderer,
+        ),
+        (
+            "image_generator",
+            "noop",
+            "src.providers.image_generator.noop",
+            "NoOpImageGenerator",
+            register_image_generator,
+        ),
+        (
+            "image_generator",
+            "minimax",
+            "src.providers.image_generator.minimax",
+            "MinimaxImageGenerator",
+            register_image_generator,
         ),
     ]
     import importlib
@@ -120,3 +139,11 @@ def create_renderer(name: str, config: dict, **kwargs):
             f"Unknown renderer: {name}. Available: {list(_RENDERER_REGISTRY.keys())}"
         )
     return _RENDERER_REGISTRY[name](config, **kwargs)
+
+
+def create_image_generator(name: str, config: dict, **kwargs):
+    if name not in _IMAGE_GENERATOR_REGISTRY:
+        raise ValueError(
+            f"Unknown image_generator: {name}. Available: {list(_IMAGE_GENERATOR_REGISTRY.keys())}"
+        )
+    return _IMAGE_GENERATOR_REGISTRY[name](config, **kwargs)

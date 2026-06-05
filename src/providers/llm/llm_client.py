@@ -115,6 +115,37 @@ class LLMClient:
             kwargs["extra_body"] = extra_body
         return self.client.chat.completions.create(**cast(dict, kwargs))
 
+    def call_llm_text(
+        self,
+        messages: List[Dict[str, str]],
+        label: str,
+        max_tokens: int | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        extra_body: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Single-shot text completion. No JSON parsing, no retry — caller
+        decides what to do with the raw text. Use this for markdown / prose
+        generation where JSON-parse failures shouldn't trigger re-prompts.
+        """
+        effective_max_tokens = max_tokens or self.max_tokens
+        effective_model = model or self.model
+        effective_temperature = (
+            temperature if temperature is not None else self.temperature
+        )
+        with self._spinner(f"[{label}] API response pending..."):
+            response = self._create_chat_completion(
+                messages=messages,
+                model=effective_model,
+                max_tokens=effective_max_tokens,
+                temperature=effective_temperature,
+                extra_body=extra_body,
+            )
+        choice = response.choices[0] if getattr(response, "choices", None) else None
+        if choice is None:
+            raise RuntimeError(f"[{label}] LLM returned no choices")
+        return choice.message.content or ""
+
     def call_llm_with_json_retry(
         self,
         messages: List[Dict[str, str]],

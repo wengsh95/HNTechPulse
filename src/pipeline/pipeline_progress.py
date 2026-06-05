@@ -53,51 +53,115 @@ class PipelineProgress:
         base = Path(f"data/{date}")
         entries: list[tuple[str, str, str]] = []
 
+        content_data: dict | None = None
         content_path = base / "content.json"
         if content_path.exists():
             try:
-                data = json.loads(content_path.read_text(encoding="utf-8"))
-                n = len(data.get("items", []))
-                entries.append(("fetch", "✓", f"{n} items cached"))
+                content_data = json.loads(content_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
-                entries.append(("fetch", "✓", "cached"))
+                pass
+
+        # 1. fetch
+        if content_data is not None:
+            n = len(content_data.get("items", []))
+            entries.append(("fetch", "✓", f"{n} items cached"))
         else:
             entries.append(("fetch", "-", "will fetch"))
 
-        prefilter_path = base / "prefilter.json"
-        if prefilter_path.exists():
-            try:
-                data = json.loads(prefilter_path.read_text(encoding="utf-8"))
-                stats = data.get("stats", {})
+        # 2-5. content-mutating steps (state read from content.json)
+        if content_data is not None:
+            items = content_data.get("items", [])
+
+            if (base / "prefilter.json").exists():
+                entries.append(("prefilter", "✓", "prefilter cached"))
+            else:
+                entries.append(("prefilter", "-", "will prefilter"))
+
+            if items and all(i.get("comment_count", 0) > 0 for i in items):
+                entries.append(("fetch_comments", "✓", "comments attached"))
+            else:
+                entries.append(("fetch_comments", "-", "will fetch comments"))
+
+            pending_states = {None, "pending", "fetch_failed", "extraction_failed"}
+            pending = [i for i in items if i.get("enrichment_source") in pending_states]
+            if items and not pending:
+                entries.append(("enrich_articles", "✓", "articles enriched"))
+            else:
                 entries.append(
                     (
-                        "enrich",
-                        "✓",
-                        f"prefilter: {stats.get('kept', '?')}/{stats.get('total', '?')} kept",
+                        "enrich_articles",
+                        "-",
+                        f"{len(pending)}/{len(items)} need enrichment",
                     )
                 )
-            except (json.JSONDecodeError, OSError):
-                entries.append(("enrich", "✓", "prefilter cached"))
-        else:
-            entries.append(("enrich", "-", "will run prefilter"))
 
+            if items and all(i.get("title_cn") for i in items):
+                entries.append(("translate_titles", "✓", "titles translated"))
+            else:
+                entries.append(("translate_titles", "-", "will translate titles"))
+        else:
+            for step in (
+                "prefilter",
+                "fetch_comments",
+                "enrich_articles",
+                "translate_titles",
+            ):
+                entries.append((step, "-", "fetch first"))
+
+        # 6-8. comment analysis + judge + script
         for step, filename, label in [
-            ("script", "comment_analysis.json", "comment analysis"),
-            ("script", "comment_judgement.json", "comment judgement"),
-            ("script", "script.json", "script"),
-            ("produce", "translations.json", "translations"),
+            ("analyze_comments", "comment_analysis.json", "comment analysis"),
+            ("judge_comments", "comment_judgement.json", "comment judgement"),
+            ("write_script", "script.json", "script"),
         ]:
-            path = base / filename
-            if path.exists():
+            if (base / filename).exists():
                 entries.append((step, "✓", f"{label} cached"))
             else:
                 entries.append((step, "-", f"will generate {label}"))
 
+        # 9. translate_comments
+        if (base / "translations.json").exists():
+            entries.append(("translate_comments", "✓", "translations cached"))
+        else:
+            entries.append(("translate_comments", "-", "will translate"))
+
+        # 10. synthesize_audio
         audio_dir = base / "audio"
         if audio_dir.exists() and any(audio_dir.iterdir()):
-            entries.append(("produce", "✓", "audio cached"))
+            entries.append(("synthesize_audio", "✓", "audio cached"))
         else:
-            entries.append(("produce", "-", "will synthesize"))
+            entries.append(("synthesize_audio", "-", "will synthesize"))
+
+        # 11. title
+        if (base / "title.json").exists():
+            entries.append(("title", "✓", "title cached"))
+        else:
+            entries.append(("title", "-", "will generate title"))
+
+        # 12. cover_image
+        if (base / "cover_bg.png").exists():
+            entries.append(("cover_image", "✓", "cover image cached"))
+        else:
+            entries.append(("cover_image", "-", "will generate cover image"))
+
+        # 13. cover_thumbnail
+        if (base / "cover.png").exists():
+            entries.append(("cover_thumbnail", "✓", "cover thumbnail cached"))
+        else:
+            entries.append(("cover_thumbnail", "-", "will render cover thumbnail"))
+
+        # 14. publish_guide
+        if (base / "publish_guide.md").exists():
+            entries.append(("publish_guide", "✓", "publish guide cached"))
+        else:
+            entries.append(("publish_guide", "-", "will generate guide"))
+
+        # 15. prepare_render
+        props_file = Path("src/providers/renderer/remotion/public/props.json")
+        if props_file.exists():
+            entries.append(("prepare_render", "✓", "props.json cached"))
+        else:
+            entries.append(("prepare_render", "-", "will write props.json"))
 
         return entries
 

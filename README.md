@@ -16,7 +16,7 @@
 
 - 评论管线重构：CommentAnalyzer 评分 → CommentJudge 预筛 → LLM 判断 → 脚本消费 `quote_candidates`，下游不再独立重选。
 - 管线模块拆分：content_io、timing_engine、tts_processor、transcript_generator、report_generator、script_io。
-- ~~Streamlit 编辑界面：可通过 `--steps editor` 手动调整脚本。~~（2026-06-03 移除：见 ROADMAP M5）
+- ~~Streamlit 编辑界面：可通过 `--steps editor` 手动调整脚本。~~（2026-06-03 移除）
 
 下一步优先事项：标准版时长控制、标准版/完整版结构、图片质量护栏。
 
@@ -68,17 +68,24 @@ uv run python main.py --date 2026-04-26
 
 ```bash
 # 只获取内容和生成脚本
-uv run python main.py --steps fetch,script
+uv run python main.py --steps fetch,write_script
 
 # 只运行翻译/TTS 和渲染
-uv run python main.py --steps produce,render
+uv run python main.py --steps translate_comments,synthesize_audio,render
 ```
 
-可用步骤：
+可用步骤（主链 15 个 + 独立 1 个）：
 
 ```text
-fetch -> enrich -> script -> produce -> render
+fetch → prefilter → fetch_comments → enrich_articles → translate_titles
+  → analyze_comments → judge_comments → write_script
+  → translate_comments → synthesize_audio → title
+  → cover_image → cover_thumbnail → publish_guide → prepare_render
+                                                              ↓
+                                                            render (opt-in)
 ```
+
+`--steps X` 自动展开为 X 之前所有步骤。每个子步骤都有独立缓存，可单独重跑。
 
 ### 其他选项
 

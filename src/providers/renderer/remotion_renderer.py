@@ -81,7 +81,7 @@ class RemotionRenderer(Renderer):
 
         self._ensure_dependencies_installed()
 
-    def _prepare_render_data(
+    def write_props(
         self, script: Script, audio_dir: str, content=None, date: str = ""
     ) -> tuple[Path, str]:
         self._prepare_audio_assets(script, audio_dir)
@@ -117,7 +117,7 @@ class RemotionRenderer(Renderer):
         if not self._node_path:
             raise RuntimeError("Node.js not found!")
 
-        _, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
+        _, props_json = self.write_props(script, audio_dir, content, date=date)
         self._ensure_dependencies_installed()
 
         props_file = self._write_props_file(props_json, date=date)
@@ -164,7 +164,7 @@ class RemotionRenderer(Renderer):
     ) -> None:
         """Regenerate props.json and static assets without starting the studio."""
         self.logger.info("Syncing preview props...")
-        _, props_json = self._prepare_render_data(script, audio_dir, content, date=date)
+        _, props_json = self.write_props(script, audio_dir, content, date=date)
         self._write_props_file(props_json, date=date)
         self.logger.info(
             "Props synced. Remotion Studio will hot-reload on next change."
@@ -203,9 +203,7 @@ class RemotionRenderer(Renderer):
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        props_file, props_json = self._prepare_render_data(
-            script, audio_dir, content, date=date
-        )
+        props_file, props_json = self.write_props(script, audio_dir, content, date=date)
 
         self._ensure_dependencies_installed()
 

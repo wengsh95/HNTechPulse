@@ -131,7 +131,8 @@ def _make_mock_story_segment(**kwargs):
 
 
 class TestScriptWriter:
-    def test_write_calls_llm_provider(self, tmp_path):
+    def test_write_calls_llm_provider(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         config = _make_config()
         mock_llm = MagicMock()
         mock_llm.generate_single_story_segment.side_effect = _make_mock_story_segment

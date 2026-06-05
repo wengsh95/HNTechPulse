@@ -690,9 +690,7 @@ async def fetch_github_readme(url: str, logger: logging.Logger) -> Optional[str]
     if token:
         headers["Authorization"] = f"Bearer {token}"
     else:
-        logger.debug(
-            "No GITHUB_TOKEN set — GitHub API rate limit is 60 req/hr"
-        )
+        logger.debug("No GITHUB_TOKEN set — GitHub API rate limit is 60 req/hr")
 
     try:
         async with aiohttp.ClientSession(trust_env=True) as session:

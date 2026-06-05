@@ -129,7 +129,9 @@ def generate_fixed_opening(
             # 截断最后一个 hook, 保持 ≤40 字
             while len(subtitle) > 40 and len(hook_parts) > 1:
                 hook_parts.pop()
-                subtitle = " · ".join(hook_parts) + ("…" if len(hook_parts) >= 1 else "")
+                subtitle = " · ".join(hook_parts) + (
+                    "…" if len(hook_parts) >= 1 else ""
+                )
             if len(subtitle) > 40:
                 subtitle = subtitle[:39].rstrip(" ，,;；:：") + "…"
     else:
@@ -197,7 +199,7 @@ def closing_summary_items(
     items: list[dict] = []
     for entry in (highlight_entries or [])[:3]:
         title = entry.get("title_translation")
-        assert title, f"Story missing title_translation"
+        assert title, "Story missing title_translation"
         signal = entry.get("signal") or entry.get("editor_angle") or ""
         category = entry.get("category") or "观察"
         items.append(
@@ -249,7 +251,7 @@ def closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[st
     takeaways: list[str] = []
     for entry in (highlight_entries or [])[:3]:
         text = entry.get("why_it_matters")
-        assert text, f"Story missing why_it_matters"
+        assert text, "Story missing why_it_matters"
         text = str(text).strip()
         if len(text) > 34:
             text = text[:34].rstrip("，。！？；：,.!?;:") + "…"
@@ -344,7 +346,9 @@ def build_highlight_entries(
                 or angle.get("dek")
                 or angle.get("event_summary")
             )
-            assert editor_angle, f"Story {story_idx} missing editor_angle, dek, and event_summary"
+            assert editor_angle, (
+                f"Story {story_idx} missing editor_angle, dek, and event_summary"
+            )
             entries.append(
                 {
                     "rank": i + 1,

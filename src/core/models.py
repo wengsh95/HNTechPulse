@@ -124,3 +124,14 @@ class Script:
     tags: List[str]
     segments: List[ScriptSegment]
     total_duration: Optional[float] = None
+
+
+@dataclass
+class ImageResult:
+    """图像生成结果（封面/插图等）"""
+
+    path: str
+    width: int
+    height: int
+    provider: str
+    metadata: Dict[str, Any] = field(default_factory=dict)

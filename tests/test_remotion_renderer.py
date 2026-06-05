@@ -227,7 +227,7 @@ class TestPreview:
 
         with patch.object(
             renderer,
-            "_prepare_render_data",
+            "write_props",
             return_value=(Path("public/props.json"), '{"ok": true}'),
         ):
             with patch.object(renderer, "_ensure_dependencies_installed"):

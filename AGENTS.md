@@ -32,10 +32,15 @@ Sets `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `chcp 65001`.
 ## Pipeline steps
 
 ```text
-fetch → enrich → script → translate → html
+fetch → prefilter → fetch_comments → enrich_articles → translate_titles
+  → analyze_comments → judge_comments → write_script
+  → translate_comments → synthesize_audio → title
+  → cover_image → cover_thumbnail → publish_guide → prepare_render
+                                                              ↓
+                                                            render (opt-in)
 ```
 
-Run a subset: `uv run python main.py --steps fetch,script`
+Run a subset (expands to all prerequisites): `uv run python main.py --steps fetch,write_script`. Each sub-step has its own cache file/condition and can be re-run in isolation.
 
 ## Key patterns agents might miss
 

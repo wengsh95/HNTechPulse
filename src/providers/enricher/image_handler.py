@@ -68,8 +68,7 @@ class ImageHandler:
             lower = stripped.lower()
             if any(pat in lower for pat in self._GARBAGE_PATTERNS):
                 self.logger.debug(
-                    f"Rejected garbage text ({len(stripped)} chars): "
-                    f"{stripped[:80]}..."
+                    f"Rejected garbage text ({len(stripped)} chars): {stripped[:80]}..."
                 )
                 return None
             return stripped[:max_text_length]

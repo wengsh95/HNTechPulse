@@ -13,6 +13,7 @@ from src.providers.factory import (
     create_llm_provider,
     create_tts_provider,
     create_renderer,
+    create_image_generator,
 )
 from src.pipeline.orchestrator import Orchestrator
 from src.providers.enricher.article_enricher import ArticleEnricher
@@ -50,8 +51,18 @@ def main():
     parser.add_argument(
         "--steps",
         type=str,
-        default="fetch,enrich,script,produce",
-        help="Steps to run (comma-separated: fetch,enrich,script,produce,render)",
+        default=(
+            "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
+            "analyze_comments,judge_comments,write_script,translate_comments,"
+            "synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,"
+            "prepare_render"
+        ),
+        help=(
+            "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
+            "enrich_articles, translate_titles, analyze_comments, judge_comments, "
+            "write_script, translate_comments, synthesize_audio, title, cover_image, "
+            "cover_thumbnail, publish_guide, prepare_render, render)"
+        ),
     )
     parser.add_argument(
         "--config", type=str, default="config/", help="Config directory or file path"
@@ -98,6 +109,16 @@ def main():
             article_enricher = ArticleEnricher(llm_provider, config, debug=args.debug)
             logger.info("Article enrichment enabled")
 
+        image_generator = None
+        img_cfg = config.get("image_generator", {})
+        if img_cfg.get("enabled", False):
+            image_generator = create_image_generator(
+                img_cfg.get("provider", "noop"),
+                config,
+                debug=args.debug,
+            )
+            logger.info(f"Image generator enabled: {img_cfg.get('provider', 'noop')}")
+
         orchestrator = Orchestrator(
             config=config,
             content_fetcher=content_fetcher,
@@ -105,6 +126,7 @@ def main():
             tts_provider=tts_provider,
             renderer=renderer,
             article_enricher=article_enricher,
+            image_generator=image_generator,
             debug=args.debug,
             dry_run=args.dry_run,
         )

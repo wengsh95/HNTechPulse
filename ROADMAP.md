@@ -174,72 +174,6 @@ HN TechPulse 是一个从 Hacker News 自动生成中文科技资讯视频的内
 - 降级后仍能产出可发布视频。
 - 模板改动不会悄悄破坏历史样片。
 
-## Milestone 5：管线 Agent 化重构
-
-目标：把"为人设计的固定 pipeline"重构成"为 agent 设计的工具集 + 数据化工作流"。
-
-背景：当前 `PIPELINE_STEPS`、`--steps` CLI、`_step_*` 私有方法、`PipelineProgress` 都是给人用的把手；LLM 是被调用的"工具"，没有判断、没有回路、没有 verifier。让 agent 拿到 LLM 的判断力 + verifier 回路 + self-heal 能力，pipeline 才有可维护性。
-
-状态：待开始  
-优先级：P0
-
-### 设计要点（来自 2026-06-03 的讨论）
-
-- L1 工具契约：函数签名 + docstring 声明 `requires` / `produces`
-- L2 数据状态：`Script` / `ContentPackage` 加 `state: Literal[...]` 字段，工具类型注解强制状态机
-- L3 工作流：仓库里 `workflows/*.yaml`，可读可改
-- L4 软约束：`prompts/*.md`（persona.md 等已经在对的位置）
-- 唯一一个读 workflow 的是 Orchestrator，工具保持 dumb
-
-### 待办项
-
-- [ ] **引入 workflow 数据化**
-  - 删 `PIPELINE_STEPS` 常量，改 `workflows/daily_brief.yaml` 声明式文件
-  - phase 顺序、`output_state`、`gates`、`on_failure: loop_to`、`retry_budget` 都在 YAML 里
-  - 草稿已落到 `workflows/daily_brief.yaml`（非生产）
-
-- [ ] **Orchestrator 简化**
-  - 删 `_step_fetch` / `_step_enrich` / `_step_script` / `_step_produce` / `_step_render`
-  - 删 `--steps` / `--force` / `--dry-run` / `--debug` CLI 旋钮
-  - 新 Orchestrator 只做：读 YAML → 循环 phase → 调 tool → 检查 state transition
-  - LLM 只在"偏离决策"这一个 hook 介入
-
-- [ ] **工具粒度切细**
-  - 拆 `LLMProvider.generate_single_story_segment(...)` 为 `draft_opening` / `draft_event_card` / `draft_atmosphere` / `attach_quotes`
-  - `prefilter_stories` 拆成 `score_story` + `pick_top_k`
-  - `judge_story_comments` 拆成 `rank_by_intent` + `pick_quote`
-  - 给每个 tool 加 `requires` / `produces` 字段
-
-- [ ] **数据状态机化**
-  - `Script` 加 `state` 字段：`raw → quoted → fact_checked → tone_audited → pacing_locked → audio_aligned → ready`
-  - `ContentPackage` 加 `state` 字段：`raw → fetched → understood`
-  - 工具签名以类型注解强制状态机（先 docstring，后 mypy / Pydantic）
-
-- [ ] **新增 LLM 验证器**
-  - `fact_check(claim, source) -> verdict`
-  - `tone_audit(script, persona) -> verdict`
-  - `pacing_check(segment, target_seconds) -> verdict`
-  - `quote_attribution(quote, comment) -> verdict`
-  - 失败 → orchestrator 拿 `verdict.feedback` → 回到 compose phase（retry_budget ≤ 2）
-
-- [ ] **删除"人用"组件**
-  - [ ] 删 `PipelineProgress`（agent 不读 stdout 进度）
-  - [ ] 删 `force: bool` 参数与 `_clear_render_cache`（agent 直接重跑）
-
-### 验收标准
-
-- pipeline 里没有任何 `if "X" in steps` 之类的步骤分支
-- LLM 验证器失败时能自动 loop back 改写，不用人介入
-- workflow 改顺序只动 YAML，不发版
-- "我能不能调这个工具"由签名 + state 决定，不由 orchestrator 的 `if` 决定
-
-### 与 Milestone 4 的关系
-
-M4 的"渲染前质量护栏"是**静态规则**（标题长度、图片尺寸、字幕行数等），与 M5 的 LLM 验证器**互补不冲突**：
-- M4 在 render 前跑，做硬约束 sanity check
-- M5 的 verifier 在 compose 之后、render 之前跑，做 LLM-judged 软约束
-- 两者串成"软硬两道关"
-
 ## 近期 Backlog
 
 > Backlog 项是 Milestone 之外的补充工作。已收敛到 Milestone 的项请看对应章节。
@@ -248,7 +182,6 @@ P0：
 
 - [ ] 见 Milestone 1：标准版时长与结构
 - [ ] 见 Milestone 4：渲染前质量护栏
-- [ ] 见 Milestone 5：管线 Agent 化重构
 
 P1：
 

@@ -68,7 +68,13 @@ def build_user_message(emotion: str) -> str:
     """构建与项目一致的 user message。"""
     emotion_hint = _EMOTION_MAP.get(emotion, "")
     if emotion_hint:
-        return _DEFAULT_TONE + "\n\n" + _STYLE_TAG + "\n\n本段播报的情绪要求：" + emotion_hint
+        return (
+            _DEFAULT_TONE
+            + "\n\n"
+            + _STYLE_TAG
+            + "\n\n本段播报的情绪要求："
+            + emotion_hint
+        )
     else:
         return _DEFAULT_TONE + "\n\n" + _STYLE_TAG
 
@@ -95,7 +101,9 @@ def synthesize(client: OpenAI, text: str, voice: str, emotion: str, output_path:
         audio = getattr(chunk.choices[0].delta, "audio", None)
         if audio and isinstance(audio, dict):
             pcm_bytes = base64.b64decode(audio["data"])
-            np_pcm = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            np_pcm = (
+                np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            )
             collected.append(np_pcm)
 
     if not collected:
@@ -112,7 +120,11 @@ def main():
     parser = argparse.ArgumentParser(description="MIMO TTS 音色×情绪组合测试")
     parser.add_argument("--text", default=DEFAULT_TEXT, help="测试文本")
     parser.add_argument("--voices", default=None, help="音色列表，逗号分隔 (冰糖,茉莉)")
-    parser.add_argument("--emotions", default=None, help="情绪列表，逗号分隔 (warm,energetic,neutral,upbeat,calm)")
+    parser.add_argument(
+        "--emotions",
+        default=None,
+        help="情绪列表，逗号分隔 (warm,energetic,neutral,upbeat,calm)",
+    )
     args = parser.parse_args()
 
     voices = args.voices.split(",") if args.voices else list(VOICES.keys())

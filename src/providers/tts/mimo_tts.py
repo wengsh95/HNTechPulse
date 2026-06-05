@@ -83,9 +83,20 @@ class MimoTTSProvider(TTSProvider):
         effective_emotion = emotion or self.default_emotion
         emotion_hint = _EMOTION_MAP.get(effective_emotion or "", "")
         if emotion_hint:
-            tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG + "\n\n本段播报的情绪要求：" + emotion_hint
+            tone = (
+                _DEFAULT_TONE
+                + "\n\n"
+                + _STYLE_TAG
+                + "\n\n本段播报的情绪要求："
+                + emotion_hint
+            )
         elif emotion:
-            tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG + f"\n\n本段播报的情绪要求：{emotion}"
+            tone = (
+                _DEFAULT_TONE
+                + "\n\n"
+                + _STYLE_TAG
+                + f"\n\n本段播报的情绪要求：{emotion}"
+            )
         else:
             tone = _DEFAULT_TONE + "\n\n" + _STYLE_TAG
 

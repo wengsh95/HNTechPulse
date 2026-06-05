@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Tuple
 
 if TYPE_CHECKING:
-    from .models import Script, ContentPackage, ScriptSegment
+    from .models import Script, ContentPackage, ScriptSegment, ImageResult
 
 
 class ContentFetcher(ABC):
@@ -117,4 +118,29 @@ class Renderer(ABC):
         date: str = "",
     ) -> None:
         """重新生成 props.json 和静态资源，不启动预览服务。"""
+        pass
+
+    @abstractmethod
+    def write_props(
+        self,
+        script: "Script",
+        audio_dir: str,
+        content: Optional["ContentPackage"] = None,
+        date: str = "",
+    ) -> Tuple[Path, str]:
+        """Prepare audio/image assets and write props.json. Returns (props_path, props_json)."""
+        pass
+
+
+class ImageGeneratorProvider(ABC):
+    """图像生成抽象 —— 用于封面/插图等场景。"""
+
+    @abstractmethod
+    def generate(
+        self,
+        prompt: str,
+        output_path: str,
+        **kwargs,
+    ) -> "ImageResult":
+        """根据 prompt 生成图像，写入 output_path，返回 ImageResult。"""
         pass

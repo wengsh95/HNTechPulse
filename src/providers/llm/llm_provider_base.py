@@ -30,6 +30,15 @@ from src.providers.llm.llm_client import (
     _floor_index_in_place,
 )
 
+_TEMPLATE_CACHE: Dict[str, str] = {}
+
+
+def _read_template_cached(path: str) -> str:
+    """Read a prompt template from disk, caching in memory for the process lifetime."""
+    if path not in _TEMPLATE_CACHE:
+        _TEMPLATE_CACHE[path] = Path(path).read_text(encoding="utf-8")
+    return _TEMPLATE_CACHE[path]
+
 
 def _build_card_narration_validator(expected_card_types: List[str], logger):
     """Validate the LLM's segment JSON against the tier's card schema.
@@ -80,23 +89,50 @@ class LLMProviderBase(LLMProvider):
 
     def __init__(self, config: dict, debug: bool = False):
         self._client = self.llm_client_class(config, debug=debug)
-        # Expose key attributes for backward compatibility
-        self.config = self._client.config
-        self.debug = self._client.debug
-        self.logger = self._client.logger
-        self.client = self._client.client
-        self.model = self._client.model
-        self.max_tokens = self._client.max_tokens
-        self.temperature = self._client.temperature
-        self.fast_model = self._client.fast_model
-        self.fast_max_tokens = self._client.fast_max_tokens
-        self.fast_temperature = self._client.fast_temperature
-
         self._cache = LLMCache(
-            self.logger,
+            self._client.logger,
             cache_schema_version=config.get("llm", {}).get("cache_schema_version", 2),
         )
-        self._total_stories = 0
+
+    @property
+    def config(self) -> dict:
+        return self._client.config
+
+    @property
+    def debug(self) -> bool:
+        return self._client.debug
+
+    @property
+    def logger(self):
+        return self._client.logger
+
+    @property
+    def client(self):
+        return self._client.client
+
+    @property
+    def model(self) -> str:
+        return self._client.model
+
+    @property
+    def max_tokens(self) -> int:
+        return self._client.max_tokens
+
+    @property
+    def temperature(self) -> float:
+        return self._client.temperature
+
+    @property
+    def fast_model(self) -> str:
+        return self._client.fast_model
+
+    @property
+    def fast_max_tokens(self) -> int:
+        return self._client.fast_max_tokens
+
+    @property
+    def fast_temperature(self) -> float:
+        return self._client.fast_temperature
 
     @property
     def llm_client(self) -> LLMClient:
@@ -114,6 +150,50 @@ class LLMProviderBase(LLMProvider):
     @staticmethod
     def _split_prompt(prompt: str) -> List[Dict[str, str]]:
         return LLMClient.split_prompt(prompt)
+
+    def complete_prompt(
+        self,
+        prompt_template_path: str,
+        context: Dict[str, str],
+        label: str,
+        expect_json: bool = True,
+        max_tokens: Optional[int] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+    ) -> Any:
+        """Render a prompt template and call the LLM.
+
+        Returns the parsed dict when expect_json=True (via
+        :meth:`_call_llm_with_json_retry`); returns raw text otherwise
+        (single-shot, no JSON retry loop — caller controls the output shape).
+
+        ``model`` and ``temperature`` default to the main transport config;
+        pass ``self.fast_model`` for simple JSON/markdown one-shots to avoid
+        paying the main-model cost.
+
+        Centralized helper for pipeline steps that need a one-shot LLM call
+        (title generation, cover prompt, publish guide) without inheriting
+        the ceremony of :meth:`generate_single_story_segment`.
+        """
+        template = _read_template_cached(prompt_template_path)
+        rendered = render_prompt(template, **context)
+        messages = self._split_prompt(rendered)
+        if expect_json:
+            text = self._call_llm_with_json_retry(
+                messages=messages,
+                label=label,
+                max_tokens=max_tokens,
+                model=model,
+                temperature=temperature,
+            )
+            return self._extract_json(text)
+        return self._client.call_llm_text(
+            messages=messages,
+            label=label,
+            max_tokens=max_tokens,
+            model=model,
+            temperature=temperature,
+        )
 
     def _spinner(self, label: str):
         return self._client._spinner(label)
@@ -137,7 +217,7 @@ class LLMProviderBase(LLMProvider):
 
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
-            prompt_template = prompt_path.read_text(encoding="utf-8")
+            prompt_template = _read_template_cached(str(prompt_path))
         else:
             prompt_template = prompt_template_path
 
@@ -243,7 +323,7 @@ class LLMProviderBase(LLMProvider):
 
         prompt_path = Path("prompts") / prompt_template
         if prompt_path.exists():
-            prompt_template_content = prompt_path.read_text(encoding="utf-8")
+            prompt_template_content = _read_template_cached(str(prompt_path))
         else:
             prompt_template_content = prompt_template
         items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
@@ -292,7 +372,7 @@ class LLMProviderBase(LLMProvider):
 
         prompt_path = Path("prompts/translate.md")
         if prompt_path.exists():
-            prompt_template = prompt_path.read_text(encoding="utf-8")
+            prompt_template = _read_template_cached(str(prompt_path))
         else:
             prompt_template = "translate.md"
         items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
@@ -334,7 +414,7 @@ class LLMProviderBase(LLMProvider):
         )
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
-            prompt_template = prompt_path.read_text(encoding="utf-8")
+            prompt_template = _read_template_cached(str(prompt_path))
         else:
             prompt_template = prompt_template_path
         prompt = render_prompt(prompt_template, story_json=story_json)
@@ -376,7 +456,7 @@ class LLMProviderBase(LLMProvider):
         )
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
-            prompt_template = prompt_path.read_text(encoding="utf-8")
+            prompt_template = _read_template_cached(str(prompt_path))
         else:
             prompt_template = prompt_template_path
         prompt = render_prompt(prompt_template, stories_json=stories_json)
