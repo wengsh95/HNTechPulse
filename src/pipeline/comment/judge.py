@@ -401,129 +401,139 @@ class CommentJudge:
         )
         workers = max(1, min(self.max_workers, len(missing)))
 
-        def judge_one(idx_item):
-            idx, item = idx_item
-            label = (
-                f"[{idx + 1}/{len(content.items)}] {item.source_id} {item.title[:80]}"
-            )
-            if not item.comments:
-                raise ValueError(f"  {label}: no comments, cannot judge")
-            pre_filtered = None
-            if self.comment_analyzer:
-                if hasattr(self.comment_analyzer, "get_judge_candidates"):
-                    pre_filtered = self.comment_analyzer.get_judge_candidates(
-                        item, n=self.judge_candidate_count
-                    )
-                else:
-                    pre_filtered = self.comment_analyzer.get_top_comments(
-                        item, n=self.judge_candidate_count
-                    )
-
-            # Optional: refine stance/quality/topic with cheap LLM
-            if self.comment_refiner and pre_filtered:
-                refinements = self.comment_refiner.refine(item, pre_filtered)
-                if refinements:
-                    self._apply_refinements(pre_filtered, refinements)
-                    self.logger.info(f"  {label}: refined {len(refinements)} comments")
-
-            self.logger.info(
-                f"  {label}: judging {len(pre_filtered or item.comments)} comments "
-                f"(model request starting)"
-            )
-            result = self.llm_provider.judge_story_comments(
-                item,
-                idx,
-                self.prompt_template_path,
-                candidates=pre_filtered,
-            )
-            normalized = normalize_story_judgement(result, item)
-            candidate_count = len(normalized.get("quote_candidates", []) or [])
-            rejected_count = len(normalized.get("rejected", []) or [])
-            self.logger.info(
-                f"  {label}: done, candidates={candidate_count}, rejected={rejected_count}"
-            )
-            return comment_judgement_key(item), normalized
-
         if workers == 1:
-            for idx_item in missing:
-                key, judgement = judge_one(idx_item)
-                stories[key] = judgement
-                save_comment_judgements(date, stories)
-                self.logger.info(
-                    f"  Saved comment judgement checkpoint: "
-                    f"{len(stories)}/{len(content.items)} stories"
-                )
+            self._judge_serial(content, date, missing, stories)
         else:
-            save_lock = threading.Lock()
-            save_errors: list[BaseException] = []
-            llm_errors: list[tuple[int, BaseException]] = []
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                # Submit all work up front so every future gets a callback.
-                # add_done_callback fires on the worker thread, so the lock
-                # guards the concurrent writes to `stories` and the cache file.
-                all_futures = [
-                    executor.submit(judge_one, idx_item) for idx_item in missing
-                ]
-                idx_by_future = {
-                    fut: idx_item[0] for fut, idx_item in zip(all_futures, missing)
-                }
-
-                def _on_done(fut):
-                    if fut.cancelled():
-                        return
-                    exc = fut.exception()
-                    if exc is not None:
-                        # Don't re-raise from the callback (Python would log
-                        # it as an "exception was never retrieved" warning
-                        # and other in-flight callbacks still need to land).
-                        # We collect all exceptions and aggregate them after
-                        # wait() drains the pool.
-                        llm_errors.append((idx_by_future[fut], exc))
-                        return
-                    key, judgement = fut.result()
-                    try:
-                        with save_lock:
-                            stories[key] = judgement
-                            save_comment_judgements(date, stories)
-                    except Exception as save_exc:
-                        # In-memory state was already updated above, but the
-                        # disk checkpoint is now stale. Record and aggregate
-                        # so the user sees every root cause instead of just
-                        # the first one.
-                        save_errors.append(save_exc)
-                        return
-                    self.logger.info(
-                        f"  Saved comment judgement checkpoint: "
-                        f"{len(stories)}/{len(content.items)} stories"
-                    )
-
-                for fut in all_futures:
-                    fut.add_done_callback(_on_done)
-
-                # Drain: wait for every future to finish so the callbacks
-                # get a chance to land their writes. Without this, a future
-                # whose sibling raised would have its result discarded when
-                # the `with` block exits.
-                wait(all_futures)
-
-                # Aggregate all failures into a single BaseExceptionGroup.
-                # Save errors take priority over LLM errors: a stale disk
-                # checkpoint is harder to diagnose than a missing one.
-                aggregated: list[BaseException] = []
-                for err in save_errors:
-                    aggregated.append(err)
-                for idx, err in llm_errors:
-                    aggregated.append(
-                        RuntimeError(
-                            f"judge_story_comments failed for story_index={idx}: {err}"
-                        )
-                    )
-                if aggregated:
-                    raise BaseExceptionGroup("comment judge failures", aggregated)
+            self._judge_concurrent(content, date, missing, stories, workers)
 
         save_comment_judgements(date, stories)
         self.logger.info(f"Saved comment judgements for {len(stories)} stories")
         return stories
+
+    def _judge_one(self, idx_item, total_items: int):
+        """Judge a single story; shared by serial and concurrent paths."""
+        idx, item = idx_item
+        label = f"[{idx + 1}/{total_items}] {item.source_id} {item.title[:80]}"
+        if not item.comments:
+            raise ValueError(f"  {label}: no comments, cannot judge")
+        pre_filtered = None
+        if self.comment_analyzer:
+            if hasattr(self.comment_analyzer, "get_judge_candidates"):
+                pre_filtered = self.comment_analyzer.get_judge_candidates(
+                    item, n=self.judge_candidate_count
+                )
+            else:
+                pre_filtered = self.comment_analyzer.get_top_comments(
+                    item, n=self.judge_candidate_count
+                )
+
+        # Optional: refine stance/quality/topic with cheap LLM
+        if self.comment_refiner and pre_filtered:
+            refinements = self.comment_refiner.refine(item, pre_filtered)
+            if refinements:
+                self._apply_refinements(pre_filtered, refinements)
+                self.logger.info(f"  {label}: refined {len(refinements)} comments")
+
+        self.logger.info(
+            f"  {label}: judging {len(pre_filtered or item.comments)} comments "
+            f"(model request starting)"
+        )
+        result = self.llm_provider.judge_story_comments(
+            item,
+            idx,
+            self.prompt_template_path,
+            candidates=pre_filtered,
+        )
+        normalized = normalize_story_judgement(result, item)
+        candidate_count = len(normalized.get("quote_candidates", []) or [])
+        rejected_count = len(normalized.get("rejected", []) or [])
+        self.logger.info(
+            f"  {label}: done, candidates={candidate_count}, rejected={rejected_count}"
+        )
+        return comment_judgement_key(item), normalized
+
+    def _judge_serial(self, content, date, missing, stories) -> None:
+        """Run judgement serially, checkpointing after each story."""
+        total = len(content.items)
+        for idx_item in missing:
+            key, judgement = self._judge_one(idx_item, total)
+            stories[key] = judgement
+            save_comment_judgements(date, stories)
+            self.logger.info(
+                f"  Saved comment judgement checkpoint: {len(stories)}/{total} stories"
+            )
+
+    def _judge_concurrent(self, content, date, missing, stories, workers: int) -> None:
+        """Run judgement in a thread pool; save under a lock per story."""
+        total = len(content.items)
+        save_lock = threading.Lock()
+        save_errors: list[BaseException] = []
+        llm_errors: list[tuple[int, BaseException]] = []
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            # Submit all work up front so every future gets a callback.
+            # add_done_callback fires on the worker thread, so the lock
+            # guards the concurrent writes to `stories` and the cache file.
+            all_futures = [
+                executor.submit(self._judge_one, idx_item, total)
+                for idx_item in missing
+            ]
+            idx_by_future = {
+                fut: idx_item[0] for fut, idx_item in zip(all_futures, missing)
+            }
+
+            def _on_done(fut):
+                if fut.cancelled():
+                    return
+                exc = fut.exception()
+                if exc is not None:
+                    # Don't re-raise from the callback (Python would log
+                    # it as an "exception was never retrieved" warning
+                    # and other in-flight callbacks still need to land).
+                    # We collect all exceptions and aggregate them after
+                    # wait() drains the pool.
+                    llm_errors.append((idx_by_future[fut], exc))
+                    return
+                key, judgement = fut.result()
+                try:
+                    with save_lock:
+                        stories[key] = judgement
+                        save_comment_judgements(date, stories)
+                except Exception as save_exc:
+                    # In-memory state was already updated above, but the
+                    # disk checkpoint is now stale. Record and aggregate
+                    # so the user sees every root cause instead of just
+                    # the first one.
+                    save_errors.append(save_exc)
+                    return
+                self.logger.info(
+                    f"  Saved comment judgement checkpoint: "
+                    f"{len(stories)}/{total} stories"
+                )
+
+            for fut in all_futures:
+                fut.add_done_callback(_on_done)
+
+            # Drain: wait for every future to finish so the callbacks
+            # get a chance to land their writes. Without this, a future
+            # whose sibling raised would have its result discarded when
+            # the `with` block exits.
+            wait(all_futures)
+
+            # Aggregate all failures into a single BaseExceptionGroup.
+            # Save errors take priority over LLM errors: a stale disk
+            # checkpoint is harder to diagnose than a missing one.
+            aggregated: list[BaseException] = []
+            for err in save_errors:
+                aggregated.append(err)
+            for idx, err in llm_errors:
+                aggregated.append(
+                    RuntimeError(
+                        f"judge_story_comments failed for story_index={idx}: {err}"
+                    )
+                )
+            if aggregated:
+                raise BaseExceptionGroup("comment judge failures", aggregated)
 
     @staticmethod
     def _apply_refinements(candidates: list, refinements: dict) -> None:
@@ -549,6 +559,10 @@ def judgement_cache_path(date: str) -> Path:
 
 
 def comment_judgement_key(item: ContentItem) -> str:
+    if item.source_id is None:
+        raise ValueError(
+            f"Cannot key judgement on item without source_id: title={item.title!r}"
+        )
     return str(item.source_id)
 
 

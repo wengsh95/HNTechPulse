@@ -299,16 +299,20 @@ class ScriptWriter:
         total = int(pipeline_cfg.get("target_story_count", 3) or 3)
         total = min(total, len(content.items))
 
+        ranked = sorted(
+            range(len(content.items)),
+            key=lambda i: content.items[i].score or 0,
+            reverse=True,
+        )[:total]
+
         specs: list[dict] = []
-        max_count = total
-        for i in range(max_count):
-            tier, mode, section = "focus", "deep", "重点观察"
+        for i in ranked:
             specs.append(
                 {
                     "story_index": i,
-                    "coverage_tier": tier,
-                    "presentation_mode": mode,
-                    "section": section,
+                    "coverage_tier": "focus",
+                    "presentation_mode": "deep",
+                    "section": "重点观察",
                 }
             )
         return specs

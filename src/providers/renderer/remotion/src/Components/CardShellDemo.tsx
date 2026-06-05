@@ -26,7 +26,6 @@ export interface CardShellDemoProps {
   showModeBadge?: boolean;
 }
 
-const SAMPLE_TITLE = "今日信号 · 2026-06-02";
 const SAMPLE_ITEMS = [
   "Liquid AI 发布 1.5B MoE 模型，许可证争议持续发酵",
   "开源数据库 Litestream 作者宣布加入 Anthropic",
@@ -95,7 +94,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
               borderRadius: d.scaled(4),
             }}
           >
-            justify="{mode}" · {itemCount} items
+            justify=&quot;{mode}&quot; · {itemCount} items
           </div>
         </div>
       )}
@@ -158,8 +157,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
                     flexDirection: "column",
                     gap: d.scaled(6),
                     paddingBottom: d.scaled(14),
-                    borderBottom:
-                      i < items.length - 1 ? `1px solid ${COLORS.border}` : undefined,
+                    borderBottom: i < items.length - 1 ? `1px solid ${COLORS.border}` : undefined,
                   }}
                 >
                   <span

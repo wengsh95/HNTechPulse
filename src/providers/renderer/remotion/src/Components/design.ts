@@ -12,9 +12,11 @@ export const FONTS = {
   sans: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
   bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
   /** 衬线字体 (品牌名/章节标签), 比 Inter 更有编辑/杂志感 */
-  serif: 'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+  serif:
+    'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
   /** 装饰字体 (大字周几), 衬线加粗 */
-  serifBold: 'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+  serifBold:
+    'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
 };
 
 /** 标准字重 */
@@ -161,9 +163,7 @@ function createDesignTokens(width: number, height: number): DesignTokens {
   const isPortrait = height > width;
   const isCompactHeight = scale < 0.8;
 
-  const getCardMaxHeight = isPortrait
-    ? Math.round(height * 0.55)
-    : Math.round(height * 0.78);
+  const getCardMaxHeight = isPortrait ? Math.round(height * 0.55) : Math.round(height * 0.78);
 
   const layout: typeof LAYOUT = {
     pageInset: scaled(LAYOUT.pageInset),
@@ -215,6 +215,7 @@ function createDesignTokens(width: number, height: number): DesignTokens {
 }
 
 /** 1080p fallback tokens (for non-Remotion contexts like tests) */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _fallbackTokens: DesignTokens = createDesignTokens(REF_WIDTH, REF_HEIGHT);
 
 /** 获取设计令牌 — 动态适配当前合成尺寸 */
@@ -360,16 +361,16 @@ export const CARD_LAYOUT = {
   /** 卡片内边距 */
   padding: {
     top: 80,
-    bottom: 120,        // 从 180 减少到 120，减少底部留白
+    bottom: 120, // 从 180 减少到 120，减少底部留白
     left: 100,
-    right: 56,          // 统一右间距
+    right: 56, // 统一右间距
   },
 
   /** Header 区域（节目名称 + 日期） */
   header: {
     height: 32,
     marginBottom: 16,
-    fontSize: 18,       // d.fs.caption 或 d.fs.micro
+    fontSize: 18, // d.fs.caption 或 d.fs.micro
     color: COLORS.dim,
   },
 
@@ -377,7 +378,7 @@ export const CARD_LAYOUT = {
   watermark: {
     top: 80,
     right: 56,
-    fontSize: 113,      // d.fs.watermarkLg
+    fontSize: 113, // d.fs.watermarkLg
   },
 
   /** 音频波形 */

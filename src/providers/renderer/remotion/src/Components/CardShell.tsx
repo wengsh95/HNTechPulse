@@ -18,16 +18,7 @@ import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
 import type { ElementProps } from "./utils";
 import { CardAudioWaveform } from "./CardAudioWaveform";
-import {
-  COLORS,
-  CARD_REF,
-  useDesign,
-  FONTS,
-  FW,
-  CARD_LAYOUT,
-  EASE_CARD,
-  ANIM,
-} from "./design";
+import { COLORS, CARD_REF, useDesign, FONTS, FW, CARD_LAYOUT, EASE_CARD, ANIM } from "./design";
 
 /** 内容区域在子 slot 内的垂直对齐方式 */
 export type ContentJustify =
@@ -113,7 +104,7 @@ export const CardShell: React.FC<CardShellProps> = ({
   paddingBottom,
   paddingLeft,
   paddingRight,
-  contentMaxWidth,
+  contentMaxWidth: _contentMaxWidth,
   showTopBar = true,
   showWatermark = false,
   showWaveform = true,
@@ -135,25 +126,18 @@ export const CardShell: React.FC<CardShellProps> = ({
   const pRight = d.scaled(paddingRight ?? gutter ?? CARD_LAYOUT.padding.right);
 
   // 整体卡片淡入
-  const cardProgress = interpolate(
-    frame,
-    [ANIM.cardStart, ANIM.cardEnd],
-    [0, 1],
-    {
-      easing: EASE_CARD,
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    },
-  );
+  const cardProgress = interpolate(frame, [ANIM.cardStart, ANIM.cardEnd], [0, 1], {
+    easing: EASE_CARD,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   const cardY = interpolate(cardProgress, [0, 1], [32, 0]);
 
   const dateStr = String(elementProps?.dateLabel ?? "");
   // chapterLabel 优先从 prop 读, fallback 从 elementProps 读 (SegmentRenderer 通过 extraProps 注入)
   const finalChapterLabel =
-    chapterLabel ?? String((elementProps as Record<string, unknown> | undefined)?.chapterLabel ?? "");
-  const maxW = contentMaxWidth
-    ? d.scaled(contentMaxWidth)
-    : d.scaled(CARD_LAYOUT.content.maxWidth);
+    chapterLabel ??
+    String((elementProps as Record<string, unknown> | undefined)?.chapterLabel ?? "");
 
   return (
     <div
@@ -327,9 +311,8 @@ export const CardShell: React.FC<CardShellProps> = ({
             // 底部 padding: 字幕总是显示, 给字幕让位 (除非 footer 自己会占满)
             // 字幕布局: bottom = subtitleBottom(100) + 8, 高度 ~50, 边距 ~12
             // 总共约 130-150px. 这里用 150 保证安全.
-            const bottomReserve = reserveSubtitle && !footer
-              ? Math.max(pBottom, d.scaled(150))
-              : pBottom;
+            const bottomReserve =
+              reserveSubtitle && !footer ? Math.max(pBottom, d.scaled(150)) : pBottom;
             return `${top}px ${pRight}px ${bottomReserve}px ${pLeft}px`;
           })(),
           display: "flex",

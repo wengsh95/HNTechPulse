@@ -10,7 +10,7 @@
 import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 
-import { COLORS, GRADIENTS } from "./design";
+import { GRADIENTS } from "./design";
 
 type GlowSpot = {
   /** Base position as fraction of canvas size (0-1) */

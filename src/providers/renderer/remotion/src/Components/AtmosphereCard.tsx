@@ -13,12 +13,7 @@
 
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
-import type {
-  AtmosphereCardProps,
-  ControversyLevel,
-  Stance,
-  Quote,
-} from "./cardTypes";
+import type { ControversyLevel, Stance, Quote } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
@@ -114,15 +109,7 @@ function StanceBarWithConcern({
   );
 }
 
-function QuoteBlock({
-  q,
-  last,
-  d,
-}: {
-  q: Quote;
-  last: boolean;
-  d: ReturnType<typeof useDesign>;
-}) {
+function QuoteBlock({ q, last, d }: { q: Quote; last: boolean; d: ReturnType<typeof useDesign> }) {
   const color = STANCE_COLORS[q.stance];
   const stanceLabel = STANCE_LABELS[q.stance];
   return (
@@ -206,9 +193,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
 
   // Compute percentages for stance bars (only core 3)
   const totalStance =
-    stanceDistribution.support +
-    stanceDistribution.skeptic +
-    stanceDistribution.neutral;
+    stanceDistribution.support + stanceDistribution.skeptic + stanceDistribution.neutral;
 
   const stancePcts: Record<string, number> = {
     support: totalStance > 0 ? Math.round((stanceDistribution.support / totalStance) * 100) : 0,
@@ -233,14 +218,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
       elementProps={elementProps}
       pageIndex={displayIndex}
       totalPages={storyCount}
-      justify="start"                  // 内容多, 从顶部开始
-      gutter={100}                     // 对称左右内边距
+      justify="start" // 内容多, 从顶部开始
+      gutter={100} // 对称左右内边距
       paddingTop={80}
       paddingBottom={120}
       showTopBar
       showWatermark
       showWaveform
-      reserveSubtitle                  // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
       <Fill gap={14} maxWidth={CARD_LAYOUT.content.maxWidth}>
         {/* ① Controversy title + discussion summary subtitle */}
@@ -298,7 +283,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
           }}
         >
           {/* Left: stance distribution with concerns */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(12) }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column" as const,
+              gap: d.scaled(12),
+            }}
+          >
             <h3
               style={{
                 fontFamily: FONTS.mono,
@@ -324,7 +316,14 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
           </div>
 
           {/* Right: debate topics + compact stance bar */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(16) }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column" as const,
+              gap: d.scaled(16),
+            }}
+          >
             <h3
               style={{
                 fontFamily: FONTS.mono,
@@ -339,7 +338,10 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
               辩论焦点
             </h3>
             {debateTopics.map((topic, i) => (
-              <div key={i} style={{ display: "flex", gap: d.scaled(8), alignItems: "center" as const }}>
+              <div
+                key={i}
+                style={{ display: "flex", gap: d.scaled(8), alignItems: "center" as const }}
+              >
                 <span
                   style={{
                     fontFamily: FONTS.mono,
@@ -366,9 +368,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
               </div>
             ))}
             {debateTopics.length === 0 && (
-              <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>
-                暂无显著辩论焦点
-              </span>
+              <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无显著辩论焦点</span>
             )}
           </div>
         </div>

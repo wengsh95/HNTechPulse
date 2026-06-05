@@ -13,11 +13,10 @@
 
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
-import type { ClosingCardProps } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractClosingProps } from "./propsExtractors";
-import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { useDesign, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
 import { CardShell, Fill } from "./CardShell";
 
 /* ---- main component ---- */
@@ -31,10 +30,7 @@ export const ClosingCard: React.FC<ElementProps> = ({
   const d = useDesign();
 
   const typed = extractClosingProps(elementProps);
-  const {
-    summary,
-    completedStories,
-  } = typed;
+  const { summary, completedStories } = typed;
 
   // Entrance animation
   const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
@@ -58,13 +54,13 @@ export const ClosingCard: React.FC<ElementProps> = ({
     <CardShell
       elementProps={elementProps}
       justify={justify}
-      gutter={100}                              // 对称左右内边距
+      gutter={100} // 对称左右内边距
       paddingTop={80}
       paddingBottom={100}
       showTopBar
       showWatermark={false}
       showWaveform
-      reserveSubtitle                           // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
       <Fill gap={20} maxWidth={CARD_LAYOUT.content.maxWidth}>
         {/* Summary */}
@@ -116,7 +112,8 @@ export const ClosingCard: React.FC<ElementProps> = ({
                   flexDirection: "column",
                   gap: d.scaled(6),
                   paddingBottom: d.scaled(16),
-                  borderBottom: i < completedStories.length - 1 ? `1px solid ${COLORS.border}` : undefined,
+                  borderBottom:
+                    i < completedStories.length - 1 ? `1px solid ${COLORS.border}` : undefined,
                 }}
               >
                 <span

@@ -341,6 +341,14 @@ class LLMClient:
 
     @staticmethod
     def _extract_balanced_braces(text: str) -> Optional[str]:
+        """Find the first top-level ``{...}`` block, respecting string boundaries.
+
+        Scans character-by-character from the first ``{`` to track brace depth.
+        String literals (delimited by ``"``) are skipped — but we still respect
+        backslash escapes so a quoted ``"\\"}"`` does not close the block.
+        Returns the substring from the opening ``{`` to its matching ``}``, or
+        None if no balanced block is found.
+        """
         start = text.find("{")
         if start == -1:
             return None
@@ -370,6 +378,19 @@ class LLMClient:
         return None
 
     def _repair_json(self, json_str: str) -> dict:
+        """Best-effort recovery of malformed JSON from LLM output.
+
+        Three passes, in order:
+
+        1. Strip trailing commas before ``}`` or ``]`` (a common LLM slip).
+        2. Quote unquoted keys: ``{foo: bar}`` → ``{"foo": bar}``, and
+           collapse double/ triple-quoted keys (``""foo"":`` → ``"foo":``).
+        3. Re-scan and try to parse any prefix that closes every open brace.
+
+        Raises ``json.JSONDecodeError`` if all passes fail — the caller surfaces
+        the original error to the JSON-retry loop which appends corrective
+        feedback and re-asks the LLM.
+        """
         repaired = re.sub(r",\s*([}\]])", r"\1", json_str)
 
         repaired = re.sub(r'(?<=[{,])\s*(?<!")(\w+)(?!":)\s*:', r' "\1":', repaired)
@@ -599,7 +620,7 @@ class LLMClient:
                     f"(chars={len(str(reasoning))}) while visible content chars="
                     f"{len(response_text or '')}"
                 )
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             self.logger.info(f"  [{label}] Failed to save response diagnostics: {e}")
 
     def _log_truncated_response(
@@ -617,7 +638,7 @@ class LLMClient:
             path = debug_dir / f"{safe_label}_attempt{attempt}_truncated.json.txt"
             path.write_text(response_text or "", encoding="utf-8")
             self.logger.info(f"  [{label}] Saved truncated raw response to {path}")
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             self.logger.info(f"  [{label}] Failed to save truncated raw response: {e}")
 
     # ── Spinner ────────────────────────────────────────────────

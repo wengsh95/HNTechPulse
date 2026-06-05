@@ -72,6 +72,7 @@ class TranslationManager:
         """
         translations_path = Path(f"data/{date}/translations.json")
         translations: dict = {}
+        # Load judgements once and pass to all helpers — avoids 4× re-reads.
         judgements = load_comment_judgements(content.date)
 
         if translations_path.exists():
@@ -111,7 +112,7 @@ class TranslationManager:
                 f"  Saved {len(translations)} translations to {translations_path}"
             )
 
-        self.apply_translations_to_script(script, content, translations)
+        self.apply_translations_to_script(script, content, translations, judgements)
         self.content_preparer.save_content(content, date)
 
         return content, script
@@ -141,6 +142,9 @@ class TranslationManager:
 
         LLM-selected ids are honored first, then the shared fallback selector fills
         to three quotable comments (one per stance: 支持/质疑/中立).
+
+        ``judgements`` is optional: if None, callers accept a disk read; pass
+        an in-memory dict to avoid the re-parse.
         """
         selected_ids_by_story = selected_ids_by_story or {}
         if judgements is None:
@@ -188,53 +192,64 @@ class TranslationManager:
                     comment.content_cn = value
 
     @staticmethod
-    def apply_translations_to_script(script, content, translations: dict) -> None:
-        """Apply title and quote translations to generated script props."""
-        judgements = load_comment_judgements(content.date)
+    def apply_translations_to_script(
+        script, content, translations: dict, judgements: dict | None = None
+    ) -> None:
+        """Apply title and quote translations to generated script props.
+
+        ``judgements`` is optional — when None the method re-reads
+        ``comment_judgement.json`` from disk. Pass an in-memory dict to skip the I/O.
+        """
+        if judgements is None:
+            judgements = load_comment_judgements(content.date)
         for seg in script.segments:
             if seg.segment_type == "opening":
-                for elem in seg.scene_elements:
-                    if elem.element_type != "cover_card":
-                        continue
-                    for entry in elem.props.get("highlight_entries", []):
-                        story_idx = entry.get("story_index")
-                        if story_idx is not None and story_idx < len(content.items):
-                            entry["title_translation"] = content.items[
-                                story_idx
-                            ].title_cn
+                TranslationManager._apply_opening_translations(
+                    seg, content, translations
+                )
             elif seg.segment_type == "story_scan":
-                for elem in seg.scene_elements:
-                    if elem.element_type == "atmosphere_card":
-                        story_idx = elem.props.get("story_index")
-                        for i, q in enumerate(elem.props.get("quotes", [])):
-                            if story_idx is not None:
-                                item = (
-                                    content.items[story_idx]
-                                    if story_idx < len(content.items)
-                                    else None
-                                )
-                                if item is None:
-                                    continue
-                                selected = TranslationManager._pick_quote_comments(
-                                    item.comments,
-                                    elem.props.get("selected_comment_ids") or [],
-                                    judgement=judgements.get(
-                                        comment_judgement_key(item), {}
-                                    ),
-                                )
-                                if i >= len(selected):
-                                    continue
-                                stable_key = (
-                                    TranslationManager._comment_translation_key(
-                                        story_idx, item, selected[i], i
-                                    )
-                                )
-                                legacy_key = (
-                                    TranslationManager._legacy_comment_translation_key(
-                                        story_idx, i
-                                    )
-                                )
-                                if stable_key in translations:
-                                    q["text_cn"] = translations[stable_key]
-                                elif legacy_key in translations:
-                                    q["text_cn"] = translations[legacy_key]
+                TranslationManager._apply_story_scan_translations(
+                    seg, content, translations, judgements
+                )
+
+    @staticmethod
+    def _apply_opening_translations(seg, content, translations: dict) -> None:
+        """Apply title translations to opening cover_card highlight_entries."""
+        for elem in seg.scene_elements:
+            if elem.element_type != "cover_card":
+                continue
+            for entry in elem.props.get("highlight_entries", []):
+                story_idx = entry.get("story_index")
+                if story_idx is not None and story_idx < len(content.items):
+                    entry["title_translation"] = content.items[story_idx].title_cn
+
+    @staticmethod
+    def _apply_story_scan_translations(
+        seg, content, translations: dict, judgements: dict
+    ) -> None:
+        """Apply comment translations to story_scan atmosphere_card quotes."""
+        for elem in seg.scene_elements:
+            if elem.element_type != "atmosphere_card":
+                continue
+            story_idx = elem.props.get("story_index")
+            if story_idx is None or story_idx >= len(content.items):
+                continue
+            item = content.items[story_idx]
+            selected = TranslationManager._pick_quote_comments(
+                item.comments,
+                elem.props.get("selected_comment_ids") or [],
+                judgement=judgements.get(comment_judgement_key(item), {}),
+            )
+            for i, q in enumerate(elem.props.get("quotes", [])):
+                if i >= len(selected):
+                    continue
+                stable_key = TranslationManager._comment_translation_key(
+                    story_idx, item, selected[i], i
+                )
+                legacy_key = TranslationManager._legacy_comment_translation_key(
+                    story_idx, i
+                )
+                if stable_key in translations:
+                    q["text_cn"] = translations[stable_key]
+                elif legacy_key in translations:
+                    q["text_cn"] = translations[legacy_key]

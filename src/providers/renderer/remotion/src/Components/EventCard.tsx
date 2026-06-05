@@ -17,15 +17,8 @@ import type { EventCardProps, AnalysisItem, HeatLevel } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractEventProps } from "./propsExtractors";
-import {
-  useDesign,
-  FONTS,
-  FW,
-  ANIM,
-  EASE_CARD,
-  CARD_LAYOUT,
-} from "./design";
-import { CardShell, Fill } from "./CardShell";
+import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { CardShell } from "./CardShell";
 
 /* ---- helpers ---- */
 
@@ -240,7 +233,11 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
   };
 }
 
-function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d: ReturnType<typeof useDesign>) {
+function TextContent(
+  props: EventCardProps,
+  S: ReturnType<typeof buildStyles>,
+  d: ReturnType<typeof useDesign>,
+) {
   const {
     domain,
     title,
@@ -258,12 +255,10 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
   return (
     <>
       <h1 style={S.title(maxTitleW)}>{title}</h1>
-      {englishTitle && englishTitle !== title && (
-        <p style={S.titleEn}>{englishTitle}</p>
-      )}
-      {domain && <span style={{...S.domain, marginTop: d.scaled(-4)}}>{domain}</span>}
-      <div style={{...S.divider, marginTop: d.scaled(4)}} />
-      <div style={{...S.stats, marginTop: d.scaled(-4)}}>
+      {englishTitle && englishTitle !== title && <p style={S.titleEn}>{englishTitle}</p>}
+      {domain && <span style={{ ...S.domain, marginTop: d.scaled(-4) }}>{domain}</span>}
+      <div style={{ ...S.divider, marginTop: d.scaled(4) }} />
+      <div style={{ ...S.stats, marginTop: d.scaled(-4) }}>
         <span style={S.heatLevel(heatLevel)}>{heatLabel || HEAT_LABELS[heatLevel]}</span>
         <span style={S.metricPill(COLORS.brownBg, COLORS.warmBrown)}>
           &#x1F525; {hnScore.toLocaleString()}
@@ -295,7 +290,7 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
         </div>
       )}
       {keywords.length > 0 && (
-        <div style={{...S.tags, marginTop: d.scaled(-4)}}>
+        <div style={{ ...S.tags, marginTop: d.scaled(-4) }}>
           {keywords.map((kw) => (
             <span key={kw} style={S.tag}>
               {kw}
@@ -309,8 +304,8 @@ function TextContent(props: EventCardProps, S: ReturnType<typeof buildStyles>, d
 
 export const EventCard: React.FC<ElementProps> = ({
   elementProps,
-  width,
-  height,
+  width: _width,
+  height: _height,
 }) => {
   const frame = useCurrentFrame();
   const d = useDesign();
@@ -364,14 +359,14 @@ export const EventCard: React.FC<ElementProps> = ({
       elementProps={elementProps}
       pageIndex={index - 1}
       totalPages={total}
-      justify="start"                       // 两栏时让内容从顶部开始
-      gutter={100}                          // 对称左右内边距
+      justify="start" // 两栏时让内容从顶部开始
+      gutter={100} // 对称左右内边距
       paddingTop={80}
       paddingBottom={120}
       showTopBar
       showWatermark
       showWaveform
-      reserveSubtitle                       // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
       <style>{PULSE}</style>
 

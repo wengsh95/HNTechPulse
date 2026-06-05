@@ -1,9 +1,26 @@
 from src.core.models import ContentComment, ContentItem
 from src.pipeline.comment import (
     candidate_ids_for_story,
+    comment_judgement_key,
     normalize_story_judgement,
     select_quote_comments,
 )
+
+
+def test_comment_judgement_key_rejects_none_source_id():
+    """Items without source_id used to collide on the string 'None'."""
+    item = ContentItem(
+        source="hn",
+        source_id=None,
+        title="orphan",
+        url=None,
+        published_at=0,
+        comments=[],
+    )
+    import pytest
+
+    with pytest.raises(ValueError, match="source_id"):
+        comment_judgement_key(item)
 
 
 def _item():

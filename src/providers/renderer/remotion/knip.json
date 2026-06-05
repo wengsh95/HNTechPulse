@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema-json.json",
+  "ignore": ["remotion.config.ts"],
+  "ignoreIssues": {
+    "src/Components/design.ts": ["exports", "types"],
+    "src/Components/CardShell.tsx": ["exports", "types"],
+    "src/Components/timing.ts": ["exports", "types"],
+    "src/Components/CoverThumbnail.tsx": ["exports", "types"],
+    "src/Components/CardShellDemo.tsx": ["exports", "types"]
+  }
+}

@@ -190,3 +190,39 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
 
     quote = script.segments[0].scene_elements[0].props["quotes"][0]
     assert quote["text_cn"] == "这条被 judgement 选中的评论应该有翻译。"
+
+
+def test_apply_translations_to_script_skips_disk_when_judgements_provided(
+    tmp_path, monkeypatch
+):
+    """When ``judgements`` is passed explicitly, no disk read should happen.
+
+    This guards the optimization in ``TranslationManager.translate`` which
+    loads the judgement file once and passes the dict to all helpers,
+    avoiding the 4× re-reads that the previous code did.
+    """
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(date="2026-05-11", items=[])
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError(
+            "load_comment_judgements should NOT be called when judgements is passed"
+        )
+
+    monkeypatch.setattr(
+        "src.pipeline.translation_manager.load_comment_judgements", _fail_if_called
+    )
+
+    script = Script(
+        title="T",
+        description="",
+        tags=[],
+        segments=[],
+    )
+    # Should not raise — judgements=None would trigger the disk read.
+    TranslationManager.apply_translations_to_script(
+        script,
+        content,
+        translations={},
+        judgements={},
+    )

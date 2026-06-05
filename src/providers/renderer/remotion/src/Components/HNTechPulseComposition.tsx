@@ -5,34 +5,13 @@
  * Remotion 的优势：浏览器原生渲染文字（GPU 加速），并行帧渲染。
  */
 import React, { useMemo } from "react";
-import {
-  AbsoluteFill,
-  Audio,
-  Sequence,
-  interpolate,
-  Easing,
-  staticFile,
-  useCurrentFrame,
-} from "remotion";
+import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
-import {
-  Subtitle,
-  ClosingCard,
-  CoverCard,
-  EventCard,
-  AtmosphereCard,
-} from "./Elements";
+import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
-import {
-  COLORS,
-  ChapterName,
-  ChapterProvider,
-  ELEMENT_TYPE_TO_CHAPTER,
-  S,
-  useDesign,
-} from "./design";
+import { COLORS, ChapterName, ChapterProvider, ELEMENT_TYPE_TO_CHAPTER, S } from "./design";
 import { segmentTransitionOpacity } from "./timing";
 
 type StoryChapter = {
@@ -52,9 +31,7 @@ type StoryEvent = {
   props: Record<string, unknown>;
 };
 
-const STORY_MARKER_TYPES = new Set([
-  "event_card",
-]);
+const STORY_MARKER_TYPES = new Set(["event_card"]);
 
 const asNumber = (value: unknown): number | undefined => {
   const n = Number(value);
@@ -117,16 +94,19 @@ const ElementFadeWrap: React.FC<{
   durationFrames: number;
   children: React.ReactNode;
 }> = ({ needsFade, durationFrames, children }) => {
-  if (!needsFade) return <>{children}</>;
   const frame = useCurrentFrame();
   const FADE_FRAMES = 6;
-  const opacity = interpolate(
-    frame,
-    [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
-    [0, 1, 1, 0],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  const opacity = needsFade
+    ? interpolate(
+        frame,
+        [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
+        [0, 1, 1, 0],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      )
+    : 1;
+  return (
+    <div style={{ position: "absolute", inset: 0, opacity, pointerEvents: "none" }}>{children}</div>
   );
-  return <div style={{ position: "absolute", inset: 0, opacity, pointerEvents: "none" }}>{children}</div>;
 };
 
 /** 渲染单个元素
@@ -212,17 +192,12 @@ const SegmentRenderer: React.FC<{
     if (segment.segment_type === "closing") return "今日信号";
     if (segment.segment_type === "story_scan") {
       // 找 segment 第一个 event_card 拿 category / editor_angle
-      const firstEvent = segment.scene_elements.find(
-        (e) => e.element_type === "event_card",
-      );
+      const firstEvent = segment.scene_elements.find((e) => e.element_type === "event_card");
       const props = (firstEvent?.props ?? {}) as Record<string, unknown>;
-      const storyIdx =
-        typeof props.story_index === "number" ? props.story_index : null;
-      const displayIdx =
-        typeof props.display_index === "number" ? props.display_index : null;
+      const storyIdx = typeof props.story_index === "number" ? props.story_index : null;
+      const displayIdx = typeof props.display_index === "number" ? props.display_index : null;
       const idx = (displayIdx ?? storyIdx ?? 0) + 1;
-      const total =
-        typeof props.story_count === "number" ? props.story_count : null;
+      const total = typeof props.story_count === "number" ? props.story_count : null;
       const cat = String(props.category ?? "").trim();
       const headline = String(props.editor_angle ?? "").trim();
       // 截断标题到合适长度, 配合 EVENT 01 · 标题
@@ -281,8 +256,6 @@ const SegmentRenderer: React.FC<{
     </Sequence>
   );
 };
-
-
 
 /** 主 Composition 组件 */
 export const HNTechPulseComposition: React.FC<ScriptProps> = ({
@@ -356,7 +329,12 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
       {/* 音频轨道：每个音频用绝对定位的 Sequence，与视觉 Segment 严格对齐 */}
       {/* 排除已有 per-subtitle 音频的 story_scan，避免双重播放 */}
       {segments
-        .filter((seg) => seg.audio_path && seg.duration > 0 && !(seg.subtitle_audios && seg.subtitle_audios.length > 0))
+        .filter(
+          (seg) =>
+            seg.audio_path &&
+            seg.duration > 0 &&
+            !(seg.subtitle_audios && seg.subtitle_audios.length > 0),
+        )
         .map((segment, index) => (
           <Sequence
             key={`audio-${index}`}

@@ -51,9 +51,10 @@ export const WaveformBars: React.FC<WaveformBarsProps> = ({
     <>
       {Array.from({ length: barCount }).map((_, i) => {
         // 均匀采样 amplitude 数据
-        const sampleIdx = amplitudeData && amplitudeData.length > 0
-          ? Math.floor((i / barCount) * amplitudeData.length)
-          : -1;
+        const sampleIdx =
+          amplitudeData && amplitudeData.length > 0
+            ? Math.floor((i / barCount) * amplitudeData.length)
+            : -1;
 
         let amp: number;
 

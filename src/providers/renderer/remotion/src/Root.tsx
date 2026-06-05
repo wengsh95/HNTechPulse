@@ -73,7 +73,9 @@ const ValidatedComposition: React.FC<Record<string, unknown>> = (rawProps) => {
  * 这里用最小包装层把强类型组件适配成宽类型, 既保类型安全又不影响运行时.
  */
 const CoverThumbnailWrapper: React.FC<Record<string, unknown>> = (rawProps) => {
-  return <CoverThumbnail {...(rawProps as unknown as React.ComponentProps<typeof CoverThumbnail>)} />;
+  return (
+    <CoverThumbnail {...(rawProps as unknown as React.ComponentProps<typeof CoverThumbnail>)} />
+  );
 };
 
 const CardShellDemoWrapper: React.FC<Record<string, unknown>> = (rawProps) => {

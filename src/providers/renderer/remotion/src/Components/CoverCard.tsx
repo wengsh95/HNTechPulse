@@ -14,8 +14,8 @@
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate, Easing } from "remotion";
-import type { CoverCardProps, Highlight } from "./cardTypes";
+import { useCurrentFrame, interpolate } from "remotion";
+import type { Highlight } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractCoverProps } from "./propsExtractors";
@@ -40,15 +40,20 @@ function HighlightRow({
     h.rank === 1
       ? `linear-gradient(135deg, ${COLORS.warmBrown}, ${COLORS.warmBrown}dd)`
       : h.rank === 2
-      ? `linear-gradient(135deg, ${COLORS.warmGold}, ${COLORS.warmGold}dd)`
-      : `linear-gradient(135deg, ${COLORS.dim}, ${COLORS.dim}dd)`;
+        ? `linear-gradient(135deg, ${COLORS.warmGold}, ${COLORS.warmGold}dd)`
+        : `linear-gradient(135deg, ${COLORS.dim}, ${COLORS.dim}dd)`;
 
   // 进场动画延迟
-  const rowProgress = interpolate(frame, [ANIM.bodyStart + index * 6, ANIM.bodyEnd + index * 6], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const rowProgress = interpolate(
+    frame,
+    [ANIM.bodyStart + index * 6, ANIM.bodyEnd + index * 6],
+    [0, 1],
+    {
+      easing: EASE_CARD,
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
 
   return (
     <div
@@ -83,7 +88,14 @@ function HighlightRow({
         {h.rank}
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
-        <div style={{ display: "flex", alignItems: "center", gap: d.scaled(12), flexWrap: "wrap" as const }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: d.scaled(12),
+            flexWrap: "wrap" as const,
+          }}
+        >
           <span
             style={{
               fontSize: d.fs.subhead,
@@ -154,7 +166,7 @@ export const CoverCard: React.FC<ElementProps> = ({
   const d = useDesign();
 
   const typed = extractCoverProps(elementProps);
-  const { headline, highlights, dateLabel } = typed;
+  const { headline, highlights } = typed;
   const hasHighlights = highlights.length > 0;
 
   // Entrance animation
@@ -179,14 +191,14 @@ export const CoverCard: React.FC<ElementProps> = ({
   return (
     <CardShell
       elementProps={elementProps}
-      justify="center"            // 内容垂直居中 (有 headline + 几条 highlight, 中等密度)
-      gutter={100}                // 对称左右内边距
-      paddingTop={60}              // 上移, 让 cover 内容更靠近 header
+      justify="center" // 内容垂直居中 (有 headline + 几条 highlight, 中等密度)
+      gutter={100} // 对称左右内边距
+      paddingTop={60} // 上移, 让 cover 内容更靠近 header
       paddingBottom={120}
       showTopBar
       showWatermark={false}
       showWaveform
-      reserveSubtitle             // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
       {/* 右侧装饰竖线 */}
       <div

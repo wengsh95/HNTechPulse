@@ -30,14 +30,33 @@ from src.providers.llm.llm_client import (
     _floor_index_in_place,
 )
 
-_TEMPLATE_CACHE: Dict[str, str] = {}
+_TEMPLATE_CACHE: Dict[str, tuple[float, str]] = {}
 
 
 def _read_template_cached(path: str) -> str:
-    """Read a prompt template from disk, caching in memory for the process lifetime."""
-    if path not in _TEMPLATE_CACHE:
-        _TEMPLATE_CACHE[path] = Path(path).read_text(encoding="utf-8")
-    return _TEMPLATE_CACHE[path]
+    """Read a prompt template from disk, caching in memory with mtime-based invalidation.
+
+    Prompt templates change during development. The first read stores
+    ``(mtime, content)``; subsequent reads re-stat the file and re-read on
+    change, so a hot-reload after editing ``prompts/*.md`` "just works" within
+    a long-running pipeline. Tests can call :func:`_clear_template_cache` to
+    reset state between cases.
+    """
+    p = Path(path)
+    try:
+        current_mtime = p.stat().st_mtime
+    except OSError:
+        return p.read_text(encoding="utf-8")
+
+    cached = _TEMPLATE_CACHE.get(path)
+    if cached is None or cached[0] != current_mtime:
+        _TEMPLATE_CACHE[path] = (current_mtime, p.read_text(encoding="utf-8"))
+    return _TEMPLATE_CACHE[path][1]
+
+
+def _clear_template_cache() -> None:
+    """Clear the in-process template cache. Intended for tests."""
+    _TEMPLATE_CACHE.clear()
 
 
 def _build_card_narration_validator(expected_card_types: List[str], logger):

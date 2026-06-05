@@ -46,9 +46,7 @@ function obj(val: unknown): Record<string, unknown> {
 
 // ---- CoverCard ----
 
-export function extractCoverProps(
-  elementProps: Record<string, unknown>,
-): CoverCardProps {
+export function extractCoverProps(elementProps: Record<string, unknown>): CoverCardProps {
   const headline = str(elementProps.headline, "HN每日观察");
   // chrome 优先读 date_label (纯日期), fallback 到 subtitle (兼容旧数据)
   const dateLabel = str(elementProps.date_label, str(elementProps.subtitle, ""));
@@ -62,9 +60,7 @@ export function extractCoverProps(
   }
 
   // highlights from highlight_entries
-  const rawHighlights = arr<Record<string, unknown>>(
-    elementProps.highlight_entries,
-  );
+  const rawHighlights = arr<Record<string, unknown>>(elementProps.highlight_entries);
   const highlights: Highlight[] = rawHighlights.slice(0, 3).map((h, i) => ({
     rank: i + 1,
     editorAngle: str(h.editor_angle, str(h.story_title, "")),
@@ -77,8 +73,6 @@ export function extractCoverProps(
 }
 
 // ---- EventCard ----
-
-const HEAT_ORDER: HeatLevel[] = ["L1", "L2", "L3"];
 
 function toHeatLevel(val: string): HeatLevel {
   const upper = val.toUpperCase();
@@ -102,28 +96,22 @@ function extractAnalysis(keyPoints: unknown[]): AnalysisItem[] {
       const label = str(o.label);
       const text = str(o.text);
       if (!label || !text) return null;
-      const type =
-        label === "为何关注" || label === "为什么关注" ? "why" : "impact";
+      const type = label === "为何关注" || label === "为什么关注" ? "why" : "impact";
       return { type, text };
     })
     .filter((a): a is AnalysisItem => a !== null)
     .slice(0, 2);
 }
 
-export function extractEventProps(
-  elementProps: Record<string, unknown>,
-): EventCardProps {
+export function extractEventProps(elementProps: Record<string, unknown>): EventCardProps {
   const displayIndex = num(elementProps.display_index);
   const index = displayIndex + 1;
   const total = num(elementProps.story_count);
   const domain = str(elementProps.source_domain);
   const title =
-    str(elementProps.editor_angle) ||
-    str(elementProps.title_cn) ||
-    str(elementProps.story_title);
+    str(elementProps.editor_angle) || str(elementProps.title_cn) || str(elementProps.story_title);
   const sourceTitle = str(elementProps.source_title, title);
-  const englishTitle =
-    sourceTitle !== title ? sourceTitle : undefined;
+  const englishTitle = sourceTitle !== title ? sourceTitle : undefined;
 
   const heatLevelRaw = str(elementProps.heat_level, "L1");
   const heatLevel = toHeatLevel(heatLevelRaw);
@@ -133,9 +121,7 @@ export function extractEventProps(
   const commentCount = num(elementProps.comment_count);
   const analysis = extractAnalysis(arr(elementProps.key_points));
 
-  const keywords = arr<string>(
-    elementProps.keywords,
-  )
+  const keywords = arr<string>(elementProps.keywords)
     .filter((k): k is string => typeof k === "string" && k.length > 0)
     .slice(0, 4);
 
@@ -173,8 +159,7 @@ function toControversyLevel(score: number): ControversyLevel {
 
 function normalizeStance(val: unknown): Stance {
   const s = str(val).toLowerCase();
-  if (s === "支持" || s === "support" || s === "supportive" || s === "positive")
-    return "support";
+  if (s === "支持" || s === "support" || s === "supportive" || s === "positive") return "support";
   if (
     s === "质疑" ||
     s === "skeptic" ||
@@ -190,9 +175,7 @@ function normalizeStance(val: unknown): Stance {
   return "neutral";
 }
 
-export function extractAtmosphereProps(
-  elementProps: Record<string, unknown>,
-): AtmosphereCardProps {
+export function extractAtmosphereProps(elementProps: Record<string, unknown>): AtmosphereCardProps {
   const controversyScore = num(elementProps.controversy_score);
   const controversyLevel = toControversyLevel(controversyScore);
 
@@ -257,9 +240,7 @@ export function extractAtmosphereProps(
 
 // ---- ClosingCard ----
 
-export function extractClosingProps(
-  elementProps: Record<string, unknown>,
-): ClosingCardProps {
+export function extractClosingProps(elementProps: Record<string, unknown>): ClosingCardProps {
   const signalLabel = str(elementProps.signal_label, "今日信号");
   const summary = str(elementProps.signal) || str(elementProps.question) || "";
 

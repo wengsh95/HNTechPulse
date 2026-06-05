@@ -68,7 +68,7 @@ class TestStepList:
         assert PIPELINE_STEPS == expected
 
     def test_standalone_is_render(self):
-        assert STANDALONE_STEPS == {"render"}
+        assert STANDALONE_STEPS == {"render", "preview"}
 
 
 # ── Per-step behaviour ──────────────────────────────────────────────────
