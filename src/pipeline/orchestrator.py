@@ -16,6 +16,7 @@ from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
+from src.providers.renderer.binary_finder import find_npx
 from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.script import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
@@ -45,8 +46,8 @@ PIPELINE_STEPS = [
     "publish_guide",
     "prepare_render",
 ]
-STANDALONE_STEPS = {"render"}
-ALL_STEPS = PIPELINE_STEPS + ["render"]
+STANDALONE_STEPS = {"render", "preview"}
+ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
 DEFAULT_STEPS = PIPELINE_STEPS
 
 # Steps that need `script` in memory (consume from `write_script` or disk).
@@ -253,6 +254,11 @@ class Orchestrator:
             with self._progress.step("render"):
                 self._step_render(script, date, content, force=force)
 
+        # ── standalone: preview ───────────────────────────────────────────
+        if "preview" in steps:
+            with self._progress.step("preview"):
+                self._step_preview(script, date, content)
+
         if script and SCRIPT_MUTATING_STEPS & set(steps):
             save_transcript(script, date, content, logger=self.logger)
 
@@ -375,7 +381,7 @@ class Orchestrator:
             self.logger.info("  All titles already translated")
             return content
 
-        content = self.llm_provider.translate_titles(content, "translate.md")
+        content = self.llm_provider.translate_titles(content, "translate.md", date)
         self.content_preparer.save_content(content, date)
         return content
 
@@ -668,10 +674,17 @@ class Orchestrator:
             self.logger.info("Dry run: skipping cover thumbnail render")
             return
 
+        npx_path = find_npx()
+        if not npx_path:
+            self.logger.error(
+                "npx not found — install Node.js or set PATH to include npx"
+            )
+            return
+
         remotion_dir = Path("src/providers/renderer/remotion")
         output_abs = cover_path.resolve()
         cmd = [
-            "npx",
+            npx_path,
             "remotion",
             "still",
             "CoverThumbnail",
@@ -797,6 +810,39 @@ class Orchestrator:
         output_path = f"data/{date}/output.mp4"
         audio_dir = f"data/{date}/audio"
         self.renderer.render(script, audio_dir, output_path, content, date=date)
+
+    def _step_preview(
+        self,
+        script: Optional[Script],
+        date: str,
+        content: Optional[ContentPackage] = None,
+    ) -> None:
+        self.logger.info("Step: Preview (Remotion Studio)")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping preview")
+            return
+
+        if script is None:
+            try:
+                script = self.script_writer.load_script(date)
+            except FileNotFoundError:
+                self.logger.error("Script not found; cannot preview")
+                return
+
+        if content is None:
+            try:
+                content = self.content_preparer.load_content(date)
+            except FileNotFoundError:
+                self.logger.info(
+                    "Content not found for preview, scene elements may be incomplete"
+                )
+
+        audio_dir = f"data/{date}/audio"
+        self.logger.info("Opening Remotion Studio at http://localhost:3000")
+        self.logger.info(
+            "Check the preview, then press Ctrl+C to stop and proceed to render."
+        )
+        self.renderer.preview(script, audio_dir, content, date=date)
 
     # ── Helpers ─────────────────────────────────────────────────────────
 

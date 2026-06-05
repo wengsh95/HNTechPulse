@@ -41,5 +41,5 @@ image_generator:
   aspect_ratio: "16:9"       # 1280x720，匹配 Remotion CoverThumbnail 合成 (1920x1080)
   n: 1
   prompt_optimizer: false
-  response_format: "url"     # API 默认；24h 过期，provider 立即 GET 落盘
+  response_format: "base64"   # base64 直接解码落盘，省去 GET 下载
   # api_key: 留空时回退到 MINIMAX_API_KEY 环境变量

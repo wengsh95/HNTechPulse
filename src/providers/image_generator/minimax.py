@@ -1,11 +1,11 @@
 """MiniMax image generation provider.
 
 Implements :class:`ImageGeneratorProvider` against the MiniMax
-`POST /v1/image_generation` endpoint. Returns a URL by default; the
-provider downloads the image bytes and writes them to ``output_path``.
+`POST /v1/image_generation` endpoint. Returns base64-encoded image data
+by default and writes decoded bytes to ``output_path``.
 """
 
-import json
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +45,7 @@ class MinimaxImageGenerator(ImageGeneratorProvider):
         self.aspect_ratio = img_cfg.get("aspect_ratio", "4:3")
         self.n = int(img_cfg.get("n", 1))
         self.prompt_optimizer = bool(img_cfg.get("prompt_optimizer", False))
-        self.response_format = img_cfg.get("response_format", "url")
+        self.response_format = img_cfg.get("response_format", "base64")
         self.api_key = img_cfg.get("api_key") or get_env("MINIMAX_API_KEY")
         if not self.api_key:
             raise ValueError(
@@ -85,8 +85,16 @@ class MinimaxImageGenerator(ImageGeneratorProvider):
             f"Generating image (model={self.model}, aspect={aspect_ratio}, n={n})"
         )
 
-        resp = self._session.post(_API_URL, data=json.dumps(payload), timeout=120)
-        resp.raise_for_status()
+        try:
+            resp = self._session.post(_API_URL, json=payload, timeout=120)
+        except requests.RequestException as e:
+            self.logger.error(f"MiniMax API request failed: {type(e).__name__}: {e}")
+            raise
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            self.logger.error(f"MiniMax API HTTP {resp.status_code}: {resp.text[:500]}")
+            raise
         data = resp.json()
 
         base_resp = data.get("base_resp") or {}
@@ -102,8 +110,6 @@ class MinimaxImageGenerator(ImageGeneratorProvider):
         out.parent.mkdir(parents=True, exist_ok=True)
 
         if response_format == "base64":
-            import base64
-
             b64_list = (data.get("data") or {}).get("image_base64") or []
             if not b64_list:
                 raise RuntimeError("MiniMax image generation returned no base64 data")

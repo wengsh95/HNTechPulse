@@ -307,7 +307,7 @@ class LLMProviderBase(LLMProvider):
     # ── Translation ────────────────────────────────────────────
 
     def translate_titles(
-        self, content: ContentPackage, prompt_template: str
+        self, content: ContentPackage, prompt_template: str, date: str = ""
     ) -> ContentPackage:
         items_to_translate: Dict[str, str] = {}
         items_by_key: Dict[str, Any] = {}
@@ -329,6 +329,24 @@ class LLMProviderBase(LLMProvider):
         items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
         prompt = render_prompt(prompt_template_content, items_json=items_json)
 
+        cache_meta = self._cache.build_cache_meta(
+            prompt=prompt,
+            model=self.fast_model,
+            temperature=self.fast_temperature,
+        )
+
+        if date:
+            cached = self._cache.load_dict_cache(
+                date, "titles", expected_cache_meta=cache_meta
+            )
+            if cached is not None:
+                for key, value in cached.items():
+                    item = items_by_key.get(key)
+                    if item is not None:
+                        item.title_cn = value
+                self.logger.info(f"  Titles loaded from cache ({len(cached)} items)")
+                return content
+
         self.logger.info(
             f"  Translating {len(items_to_translate)} titles (model={self.fast_model})..."
         )
@@ -349,6 +367,11 @@ class LLMProviderBase(LLMProvider):
                 item = items_by_key.get(key)
                 if item is not None:
                     item.title_cn = value
+
+        if date and translations:
+            self._cache.save_dict_cache(
+                date, "titles", translations, cache_meta=cache_meta
+            )
 
         return content
 

@@ -37,7 +37,7 @@ class LLMProvider(ABC):
 
     @abstractmethod
     def translate_titles(
-        self, content: "ContentPackage", prompt_template: str
+        self, content: "ContentPackage", prompt_template: str, date: str = ""
     ) -> "ContentPackage":
         """翻译所有故事标题"""
         pass

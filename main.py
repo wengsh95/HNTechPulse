@@ -61,7 +61,7 @@ def main():
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
             "write_script, translate_comments, synthesize_audio, title, cover_image, "
-            "cover_thumbnail, publish_guide, prepare_render, render)"
+            "cover_thumbnail, publish_guide, prepare_render, render, preview)"
         ),
     )
     parser.add_argument(

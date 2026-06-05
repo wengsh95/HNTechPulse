@@ -92,6 +92,23 @@ class LLMCache:
         }
         atomic_write_json(cache_path, seg_dict)
 
+    def build_cache_meta(
+        self,
+        *,
+        prompt: str,
+        model: str,
+        temperature: float,
+        **extra: str,
+    ) -> Dict[str, Any]:
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        return {
+            "schema_version": self.cache_schema_version,
+            "model": model,
+            "temperature": temperature,
+            "prompt_hash": prompt_hash,
+            **extra,
+        }
+
     def build_segment_cache_meta(
         self,
         *,
@@ -100,11 +117,49 @@ class LLMCache:
         model: str,
         temperature: float,
     ) -> Dict[str, Any]:
-        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-        return {
-            "schema_version": self.cache_schema_version,
-            "model": model,
-            "temperature": temperature,
-            "story_id": str(story_id),
-            "prompt_hash": prompt_hash,
-        }
+        return self.build_cache_meta(
+            prompt=prompt,
+            model=model,
+            temperature=temperature,
+            story_id=str(story_id),
+        )
+
+    # ── Generic dict cache (used by translation steps) ────────────
+
+    def _dict_cache_path(self, date: str, kind: str) -> Path:
+        cache_dir = Path(f"data/{date}/segments")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"translation_{kind}.json"
+
+    def load_dict_cache(
+        self,
+        date: str,
+        kind: str,
+        expected_cache_meta: Optional[Dict[str, Any]] = None,
+    ) -> Optional[dict]:
+        cache_path = self._dict_cache_path(date, kind)
+        if not cache_path.exists():
+            return None
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cache_meta = data.get("_cache")
+            if expected_cache_meta is not None and cache_meta != expected_cache_meta:
+                self.logger.info(
+                    f"    [translation_{kind}] Cache metadata changed; regenerating"
+                )
+                return None
+            return data.get("data")
+        except Exception as e:
+            self.logger.warning(f"    Failed to load dict cache: {e}")
+            return None
+
+    def save_dict_cache(
+        self,
+        date: str,
+        kind: str,
+        data: dict,
+        cache_meta: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        cache_path = self._dict_cache_path(date, kind)
+        atomic_write_json(cache_path, {"_cache": cache_meta or {}, "data": data})
