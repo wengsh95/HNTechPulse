@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
+from src.pipeline.agent_io import write_artifact_manifest
 from src.utils.logger import setup_logger
 
 
@@ -26,6 +27,16 @@ class ContentPreparer:
 
         with open(content_path, "w", encoding="utf-8") as f:
             json.dump(content_dict, f, ensure_ascii=False, indent=2)
+        write_artifact_manifest(
+            content_path,
+            step="content",
+            date=date,
+            inputs={
+                "item_count": len(content.items),
+                "source_ids": [item.source_id for item in content.items],
+            },
+            config=self.config,
+        )
 
         self.logger.info(f"Saved content to {content_path}")
 
@@ -68,8 +79,13 @@ class ContentPreparer:
                         title_cn=item_dict.get("title_cn"),
                         score=item_dict.get("score"),
                         comment_count=item_dict.get("comment_count"),
+                        editorial_score=item_dict.get("editorial_score"),
+                        ai_relevance=item_dict.get("ai_relevance"),
+                        newsworthiness=item_dict.get("newsworthiness"),
+                        prefilter_reason=item_dict.get("prefilter_reason"),
                         published_at=item_dict.get("published_at", 0),
                         comments=comments,
+                        comments_partial=item_dict.get("comments_partial", False),
                         article_text=item_dict.get("article_text"),
                         article_images=item_dict.get("article_images", []),
                         image_candidates=item_dict.get("image_candidates", []),

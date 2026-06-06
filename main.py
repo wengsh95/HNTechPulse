@@ -6,17 +6,18 @@ from datetime import datetime
 sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 
-from src.utils.config import load_config
-from src.utils.logger import setup_logger, get_log_file_path
-from src.providers.factory import (
+from src.utils.config import load_config  # noqa: E402
+from src.utils.logger import setup_logger, get_log_file_path  # noqa: E402
+from src.providers.factory import (  # noqa: E402
     create_fetcher,
     create_llm_provider,
     create_tts_provider,
     create_renderer,
     create_image_generator,
 )
-from src.pipeline.orchestrator import Orchestrator
-from src.providers.enricher.article_enricher import ArticleEnricher
+from src.pipeline.orchestrator import Orchestrator  # noqa: E402
+from src.pipeline.agent_io import load_pipeline_state  # noqa: E402
+from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
 
 
 def get_default_date() -> str:
@@ -46,6 +47,26 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from pipeline_state.json failed/current/next step",
+    )
+    parser.add_argument(
+        "--agent",
+        action="store_true",
+        help="Enable agent-friendly state tracking and structured blocking",
+    )
+    parser.add_argument(
+        "--allow-degraded-enrichment",
+        action="store_true",
+        help="In agent mode, continue after article enrichment failures",
+    )
+    parser.add_argument(
+        "--refresh-variants",
+        action="store_true",
+        help="Clear script and variant caches before agent script generation",
+    )
+    parser.add_argument(
         "--force", action="store_true", help="Force re-render (clear render cache)"
     )
     parser.add_argument(
@@ -54,8 +75,7 @@ def main():
         default=(
             "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
             "analyze_comments,judge_comments,write_script,translate_comments,"
-            "synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,"
-            "prepare_render"
+            "synthesize_audio,title,prepare_render"
         ),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
@@ -69,9 +89,33 @@ def main():
     )
     args = parser.parse_args()
 
-    steps = [s.strip() for s in args.steps.split(",")]
-
     config = load_config(args.config)
+    if args.resume:
+        state = load_pipeline_state(args.date)
+        if not state:
+            parser.error(
+                f"--resume requested but data/{args.date}/pipeline_state.json was not found"
+            )
+        resume_step = (
+            state.get("failed_step")
+            or state.get("current_step")
+            or next(
+                (
+                    step
+                    for step in state.get("steps", [])
+                    if step not in set(state.get("completed_steps", []))
+                ),
+                None,
+            )
+        )
+        if not resume_step:
+            parser.error(
+                "--resume requested but pipeline_state.json has no pending step"
+            )
+        state_steps = [str(step) for step in state.get("steps", []) if step]
+        steps = state_steps or [str(resume_step)]
+    else:
+        steps = [s.strip() for s in args.steps.split(",")]
 
     product = "daily_brief"
 
@@ -87,6 +131,9 @@ def main():
     logger.info(f"Product: {product}")
     logger.info(f"Debug mode: {args.debug}")
     logger.info(f"Dry run: {args.dry_run}")
+    logger.info(f"Agent mode: {args.agent}")
+    logger.info(f"Allow degraded enrichment: {args.allow_degraded_enrichment}")
+    logger.info(f"Refresh variants: {args.refresh_variants}")
     logger.info(f"Pipeline steps: {steps}")
     logger.info("=" * 60)
 
@@ -129,6 +176,9 @@ def main():
             image_generator=image_generator,
             debug=args.debug,
             dry_run=args.dry_run,
+            agent_mode=args.agent,
+            allow_degraded_enrichment=args.allow_degraded_enrichment,
+            refresh_variants=args.refresh_variants,
         )
 
         orchestrator.run(

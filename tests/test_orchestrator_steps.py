@@ -1,9 +1,17 @@
+import json
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script, ScriptSegment
-from src.pipeline.orchestrator import Orchestrator, PIPELINE_STEPS, STANDALONE_STEPS
+from src.core.models import ContentComment, ContentItem
+from src.pipeline.orchestrator import (
+    DEFAULT_STEPS,
+    Orchestrator,
+    PIPELINE_STEPS,
+    STANDALONE_STEPS,
+    _resolve_steps,
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -32,6 +40,30 @@ def _make_orchestrator(dry_run=True):
 
 def _make_content():
     return ContentPackage(date="2026-04-26", items=[])
+
+
+def _make_failed_content():
+    return ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id="123",
+                title="Failed Story",
+                url="https://example.com/failed",
+                enrichment_source="fetch_failed",
+            )
+        ],
+    )
+
+
+def _make_failed_content_with_comments():
+    content = _make_failed_content()
+    content.items[0].comments = [
+        ContentComment(author=f"u{i}", content=f"substantial comment {i}")
+        for i in range(5)
+    ]
+    return content
 
 
 def _make_script():
@@ -70,6 +102,18 @@ class TestStepList:
     def test_standalone_is_render(self):
         assert STANDALONE_STEPS == {"render", "preview"}
 
+    def test_default_steps_skip_optional_production_assets(self):
+        assert "cover_image" not in DEFAULT_STEPS
+        assert "cover_thumbnail" not in DEFAULT_STEPS
+        assert "publish_guide" not in DEFAULT_STEPS
+        assert DEFAULT_STEPS[-1] == "prepare_render"
+
+    def test_optional_cover_thumbnail_expands_to_cover_image_only(self):
+        assert _resolve_steps(["cover_thumbnail"]) == [
+            "cover_image",
+            "cover_thumbnail",
+        ]
+
 
 # ── Per-step behaviour ──────────────────────────────────────────────────
 
@@ -89,18 +133,39 @@ class TestStepPrefilter:
         content = _make_content()
         assert orch._step_prefilter(content, "2026-04-26") is content
 
-    def test_short_circuits_when_cache_exists(self, tmp_path, monkeypatch):
+    def test_prefilter_cache_is_validated_by_prefilter(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "data" / "2026-04-26").mkdir(parents=True)
         (tmp_path / "data" / "2026-04-26" / "content.json").write_text('{"items":[]}')
         (tmp_path / "data" / "2026-04-26" / "prefilter.json").write_text("{}")
 
         orch = _make_orchestrator(dry_run=False)
+        orch.config["prefilter"] = {"comment_preview_enabled": False}
         orch.prefilter = MagicMock()
         content = _make_content()
+        orch.prefilter.filter.return_value = content
         result = orch._step_prefilter(content, "2026-04-26")
         assert result is content
-        orch.prefilter.filter.assert_not_called()
+        orch.prefilter.filter.assert_called_once_with(content, "2026-04-26")
+
+    def test_fetches_comment_preview_before_prefilter(self):
+        orch = _make_orchestrator(dry_run=False)
+        orch.config["prefilter"] = {"comment_preview_enabled": True, "comment_preview_count": 3}
+        content = _make_failed_content()
+        orch.content_fetcher.fetch_comment_preview = MagicMock(return_value=content)
+        orch.prefilter = MagicMock()
+        orch.prefilter.filter.return_value = content
+        orch.content_preparer = MagicMock()
+
+        result = orch._step_prefilter(content, "2026-04-26")
+
+        assert result is content
+        orch.content_fetcher.fetch_comment_preview.assert_called_once_with(
+            content,
+            "2026-04-26",
+            top_level_count=3,
+        )
+        orch.prefilter.filter.assert_called_once_with(content, "2026-04-26")
 
 
 class TestStepFetchComments:
@@ -108,6 +173,21 @@ class TestStepFetchComments:
         orch = _make_orchestrator(dry_run=True)
         content = _make_content()
         assert orch._step_fetch_comments(content, "2026-04-26") is content
+
+    def test_partial_comments_do_not_skip_full_fetch(self):
+        orch = _make_orchestrator(dry_run=False)
+        content = _make_failed_content_with_comments()
+        content.items[0].comments_partial = True
+        orch.content_fetcher.fetch_comments = MagicMock(return_value=content)
+        orch.content_preparer = MagicMock()
+
+        result = orch._step_fetch_comments(content, "2026-04-26")
+
+        assert result is content
+        orch.content_fetcher.fetch_comments.assert_called_once_with(
+            content,
+            "2026-04-26",
+        )
 
 
 class TestStepEnrichArticles:
@@ -330,3 +410,124 @@ class TestRunDispatch:
             mocks[name].assert_called_once(), f"{name} should have been called"
         for name in steps_after:
             mocks[name].assert_not_called(), f"{name} should NOT have been called"
+
+    def test_agent_mode_writes_state_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=True)
+        orch.agent_mode = True
+
+        orch.run("2026-04-26", steps=["fetch"], force=False)
+
+        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert state["status"] == "complete"
+        assert state["completed_steps"] == ["fetch"]
+        assert state["artifacts"]["content"] is None
+
+    def test_agent_mode_blocks_after_enrichment_failure(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_failed_content_with_comments()
+        script = _make_script()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
+        orch._step_translate_titles = MagicMock(return_value=content)
+        orch._step_analyze_comments = MagicMock(return_value=content)
+        orch._step_judge_comments = MagicMock(return_value=content)
+        orch._step_write_script = MagicMock(return_value=script)
+
+        orch.run("2026-04-26", steps=["write_script"], force=False)
+
+        orch._step_translate_titles.assert_not_called()
+        orch._step_write_script.assert_not_called()
+        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert state["status"] == "blocked"
+        assert state["blocked_reason"] == "manual_download_required"
+        assert state["missing_manual_files"][0]["story_id"] == "123"
+        task_path = tmp_path / "data" / "2026-04-26" / "agent_tasks.json"
+        tasks = json.loads(task_path.read_text(encoding="utf-8"))
+        assert tasks["schema_version"] == 2
+        assert tasks["repair_contract"]["owner"] == "agent"
+        assert tasks["repair_contract"]["do_not_continue_without_source_context"]
+        assert tasks["tasks"][0]["task_type"] == "fetch_article"
+        assert tasks["tasks"][0]["save_as"]["html"].endswith("123.html")
+        assert tasks["tasks"][0]["acceptable_outputs"] == ["html", "pdf"]
+        assert tasks["tasks"][0]["resume_command"].endswith("--resume --agent")
+        assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
+        events_path = tmp_path / "data" / "2026-04-26" / "agent_events.jsonl"
+        assert "run_blocked" in events_path.read_text(encoding="utf-8")
+        assert "downloaded_pages" in state["next_recommended_command"]
+
+    def test_agent_mode_can_allow_degraded_enrichment(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        orch.allow_degraded_enrichment = True
+        content = _make_failed_content()
+        script = _make_script()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
+        orch._step_translate_titles = MagicMock(return_value=content)
+        orch._step_analyze_comments = MagicMock(return_value=content)
+        orch._step_judge_comments = MagicMock(return_value=content)
+        orch._step_write_script = MagicMock(return_value=script)
+
+        orch.run("2026-04-26", steps=["write_script"], force=False)
+
+        orch._step_translate_titles.assert_called_once()
+        orch._step_write_script.assert_called_once()
+        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert state["status"] == "degraded"
+        assert state["degraded_items"][0]["story_id"] == "123"
+        assert state["degraded_items"][0]["continued"] is True
+
+    def test_refresh_variants_clears_script_outputs_only(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        base = tmp_path / "data" / "2026-04-26"
+        segments = base / "segments"
+        variants = base / "variants"
+        segments.mkdir(parents=True)
+        variants.mkdir(parents=True)
+        (base / "content.json").write_text("{}", encoding="utf-8")
+        (base / "script.json").write_text("{}", encoding="utf-8")
+        (base / "selected_variant.json").write_text("{}", encoding="utf-8")
+        (variants / "index.json").write_text("{}", encoding="utf-8")
+        (segments / "story_scan_item_0.json").write_text("{}", encoding="utf-8")
+        (segments / "translation_titles.json").write_text("{}", encoding="utf-8")
+        orch = _make_orchestrator(dry_run=False)
+
+        orch._refresh_variant_outputs("2026-04-26")
+
+        assert (base / "content.json").exists()
+        assert not (base / "script.json").exists()
+        assert not (base / "selected_variant.json").exists()
+        assert not variants.exists()
+        assert not (segments / "story_scan_item_0.json").exists()
+        assert (segments / "translation_titles.json").exists()
+
+    def test_agent_mode_blocks_insufficient_story_context(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_failed_content()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
+        orch._step_translate_titles = MagicMock(return_value=content)
+
+        orch.run("2026-04-26", steps=["translate_titles"], force=False)
+
+        orch._step_translate_titles.assert_not_called()
+        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert state["status"] == "blocked"
+        assert state["blocked_reason"] == "insufficient_story_context"
+        assert state["blocked_items"][0]["comment_count"] == 0

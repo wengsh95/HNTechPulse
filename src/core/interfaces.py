@@ -17,6 +17,15 @@ class ContentFetcher(ABC):
         """Fetch comments for stories in content. Default: no-op."""
         return content
 
+    def fetch_comment_preview(
+        self,
+        content: "ContentPackage",
+        date: str,
+        top_level_count: int = 5,
+    ) -> "ContentPackage":
+        """Fetch a small top-level comment preview for story prefiltering."""
+        return content
+
 
 class LLMProvider(ABC):
     """LLM 抽象 —— R2: 逐条生成脚本"""

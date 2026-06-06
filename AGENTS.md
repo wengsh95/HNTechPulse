@@ -9,6 +9,28 @@ uv run python -m pytest          # tests
 uv run python scripts/quality_check.py  # lint + typecheck + test + coverage
 ```
 
+## Agent operating guide
+
+If you are an agent running or repairing the pipeline, start with:
+
+- `docs/README.md`
+- `docs/AGENT_RUNBOOK.md`
+- `docs/PROJECT_STRUCTURE.md`
+
+Prefer machine-readable state over human logs:
+
+```bash
+uv run python scripts/agent_preflight.py --date YYYY-MM-DD
+uv run python main.py --date YYYY-MM-DD --agent
+uv run python main.py --date YYYY-MM-DD --resume --agent
+```
+
+Important agent files:
+
+- `data/{date}/pipeline_state.json`
+- `data/{date}/agent_events.jsonl`
+- `data/{date}/agent_tasks.json`
+
 ## Windows path gotcha
 
 - Git Bash mounts drives as `/d/`, `/c/` — **not** `D:\`, `C:\`

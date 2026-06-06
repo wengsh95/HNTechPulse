@@ -30,6 +30,7 @@ from src.pipeline.script.io import (
     load_script as _load_script,
     save_script as _save_script,
 )
+from src.pipeline.agent_variants import save_script_variant, script_preview
 from src.pipeline.script.templates import (
     build_highlight_entries,
     generate_fixed_closing,
@@ -92,6 +93,7 @@ class ScriptWriter:
         content: ContentPackage,
         story_indices: list,
         date: str,
+        variant_strategy: str = "balanced",
     ) -> list[ScriptSegment]:
         story_specs = self._normalize_story_specs(story_indices)
         if not story_specs:
@@ -106,15 +108,22 @@ class ScriptWriter:
             item = content.items[story_idx]
             judgement = comment_judgements.get(comment_judgement_key(item), {})
             mode = spec.get("presentation_mode", "deep")
+            cache_segment_type = (
+                "story_scan_item"
+                if variant_strategy == "balanced"
+                else f"story_scan_item_{variant_strategy}"
+            )
             segment = self.llm_provider.generate_single_story_segment(
                 content=content,
                 story_index=story_idx,
-                segment_type="story_scan_item",
+                segment_type=cache_segment_type,
                 prompt_template_path=self._prompt_for_presentation(mode),
                 date=date,
                 comments_data=judgement or None,
                 expected_card_types=self._expected_card_types(mode),
             )
+            segment.segment_type = "story_scan_item"
+            segment.meta["variant_strategy"] = variant_strategy
             segment.meta["coverage_tier"] = spec.get("coverage_tier", "focus")
             segment.meta["presentation_mode"] = spec.get("presentation_mode", "deep")
             segment.meta["section"] = spec.get("section", "")
@@ -294,16 +303,53 @@ class ScriptWriter:
             },
         )
 
-    def _build_story_specs(self, content: ContentPackage) -> list[dict]:
+    def _build_story_specs(
+        self, content: ContentPackage, strategy: str = "balanced"
+    ) -> list[dict]:
         pipeline_cfg = self.config.get("pipeline", {})
         total = int(pipeline_cfg.get("target_story_count", 3) or 3)
         total = min(total, len(content.items))
 
-        ranked = sorted(
-            range(len(content.items)),
-            key=lambda i: content.items[i].score or 0,
-            reverse=True,
-        )[:total]
+        if strategy == "discussion":
+            ranked = sorted(
+                range(len(content.items)),
+                key=lambda i: (
+                    len([c for c in content.items[i].comments if c.content]),
+                    content.items[i].comment_count or 0,
+                    content.items[i].score or 0,
+                ),
+                reverse=True,
+            )[:total]
+        elif strategy == "source_grounded":
+            ranked = sorted(
+                range(len(content.items)),
+                key=lambda i: (
+                    bool(
+                        content.items[i].article_text
+                        or content.items[i].article_summary
+                    ),
+                    len(content.items[i].article_text or ""),
+                    content.items[i].score or 0,
+                ),
+                reverse=True,
+            )[:total]
+        elif strategy == "balanced":
+            ranked = sorted(
+                range(len(content.items)),
+                key=lambda i: (
+                    content.items[i].editorial_score
+                    if content.items[i].editorial_score is not None
+                    else content.items[i].score or 0,
+                    content.items[i].score or 0,
+                ),
+                reverse=True,
+            )[:total]
+        else:
+            ranked = sorted(
+                range(len(content.items)),
+                key=lambda i: content.items[i].score or 0,
+                reverse=True,
+            )[:total]
 
         specs: list[dict] = []
         for i in ranked:
@@ -318,7 +364,11 @@ class ScriptWriter:
         return specs
 
     def _generate_script_split(
-        self, content: ContentPackage, selection: SelectionResult, date: str
+        self,
+        content: ContentPackage,
+        selection: SelectionResult,
+        date: str,
+        variant_strategy: str = "balanced",
     ) -> Script:
         segments: list[ScriptSegment] = []
 
@@ -326,7 +376,7 @@ class ScriptWriter:
             bi for bi in selection.brief_items if bi.get("story_index") is not None
         ]
         story_scan_segs = self._generate_story_scan_segments(
-            content, story_indices, date
+            content, story_indices, date, variant_strategy=variant_strategy
         )
 
         highlight_entries = build_highlight_entries(selection, content, story_scan_segs)
@@ -356,6 +406,64 @@ class ScriptWriter:
             tags=[],
             segments=segments,
         )
+
+    def _variant_strategies(self) -> list[dict]:
+        variant_cfg = self.config.get("agent", {}).get("variants", {})
+        configured = variant_cfg.get("strategies") or []
+        if configured:
+            return [
+                {
+                    "id": str(entry.get("id") or f"variant_{i + 1}"),
+                    "label": str(entry.get("label") or entry.get("id") or ""),
+                }
+                for i, entry in enumerate(configured)
+                if isinstance(entry, dict)
+            ]
+        return [
+            {"id": "balanced", "label": "Balanced daily brief"},
+            {"id": "discussion", "label": "Community discussion angle"},
+            {"id": "source_grounded", "label": "Source-grounded angle"},
+        ]
+
+    def write_variants(self, content: ContentPackage, count: int) -> list[dict]:
+        strategies = self._variant_strategies()[: max(1, count)]
+        variants = []
+        for idx, strategy in enumerate(strategies, 1):
+            variant_id = f"v{idx:02d}_{strategy['id']}"
+            brief_items = self._build_story_specs(content, strategy=strategy["id"])
+            selection = SelectionResult(
+                brief_items=brief_items,
+                raw_json=json.dumps(
+                    {"brief_items": brief_items, "strategy": strategy},
+                    ensure_ascii=False,
+                ),
+            )
+            script = self._generate_script_split(
+                content=content,
+                selection=selection,
+                date=content.date,
+                variant_strategy=strategy["id"],
+            )
+            story_indices = [item.get("story_index") for item in brief_items]
+            save_script_variant(
+                content.date,
+                variant_id,
+                script,
+                label=strategy["label"],
+                strategy=strategy["id"],
+                inputs={"story_indices": story_indices},
+            )
+            variants.append(
+                {
+                    "variant_id": variant_id,
+                    "label": strategy["label"],
+                    "strategy": strategy["id"],
+                    "script": script,
+                    "story_indices": story_indices,
+                    "preview": script_preview(script),
+                }
+            )
+        return variants
 
     def write(self, content: ContentPackage) -> Script:
         t_total = time.monotonic()

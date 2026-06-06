@@ -3,3 +3,5 @@ prefilter:
   batch_size: 30
   min_keep: 5
   temperature: 0.1
+  comment_preview_enabled: true
+  comment_preview_count: 5

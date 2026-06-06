@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -12,7 +13,14 @@ from src.core.interfaces import (
     ImageGeneratorProvider,
 )
 from src.core.models import ContentPackage, Script
+from src.pipeline.agent_decision import AgentDecisionEngine
+from src.pipeline.agent_io import append_agent_event, write_artifact_manifest
+from src.pipeline.agent_variants import (
+    promote_variant_script,
+    write_variants_index,
+)
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
+from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
@@ -46,9 +54,13 @@ PIPELINE_STEPS = [
     "publish_guide",
     "prepare_render",
 ]
+OPTIONAL_PRODUCTION_STEPS = {"cover_image", "cover_thumbnail", "publish_guide"}
+CORE_PIPELINE_STEPS = [
+    step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
+]
 STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
-DEFAULT_STEPS = PIPELINE_STEPS
+DEFAULT_STEPS = CORE_PIPELINE_STEPS
 
 # Steps that need `script` in memory (consume from `write_script` or disk).
 SCRIPT_CONSUMING_STEPS = frozenset(
@@ -81,13 +93,26 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     if not valid:
         return []
 
-    pipeline_requested = [s for s in valid if s in PIPELINE_STEPS]
+    core_requested = [s for s in valid if s in CORE_PIPELINE_STEPS]
+    optional_requested = [s for s in valid if s in OPTIONAL_PRODUCTION_STEPS]
     standalone_requested = [s for s in valid if s in STANDALONE_STEPS]
 
-    if pipeline_requested:
-        max_idx = max(PIPELINE_STEPS.index(s) for s in pipeline_requested)
-        return PIPELINE_STEPS[: max_idx + 1] + standalone_requested
-    return standalone_requested
+    resolved = []
+    if core_requested:
+        max_idx = max(CORE_PIPELINE_STEPS.index(s) for s in core_requested)
+        resolved.extend(CORE_PIPELINE_STEPS[: max_idx + 1])
+
+    if "cover_thumbnail" in optional_requested and "cover_image" not in optional_requested:
+        optional_requested = ["cover_image", *optional_requested]
+
+    for step in optional_requested:
+        if step not in resolved:
+            resolved.append(step)
+
+    for step in standalone_requested:
+        if step not in resolved:
+            resolved.append(step)
+    return resolved
 
 
 class Orchestrator:
@@ -102,6 +127,9 @@ class Orchestrator:
         image_generator: Optional[ImageGeneratorProvider] = None,
         debug: bool = False,
         dry_run: bool = False,
+        agent_mode: bool = False,
+        allow_degraded_enrichment: bool = False,
+        refresh_variants: bool = False,
     ):
         self.config = config
         self.content_fetcher = content_fetcher
@@ -112,6 +140,10 @@ class Orchestrator:
         self.image_generator = image_generator
         self.debug = debug
         self.dry_run = dry_run
+        self.agent_mode = agent_mode
+        self.allow_degraded_enrichment = allow_degraded_enrichment
+        self.refresh_variants = refresh_variants
+        self._agent_state: Optional[AgentState] = None
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
@@ -135,12 +167,28 @@ class Orchestrator:
             comment_refiner=self.comment_refiner,
             debug=debug,
         )
+        self.agent_decision = AgentDecisionEngine(config)
         self.prefilter = Prefilter(llm_provider, config, debug=debug)
         timing_cfg = config.get("timing", {})
         self._timing = TimingEngine(
             segment_gap=float(timing_cfg.get("segment_gap", 0.0)),
             debug=debug,
         )
+
+    @contextmanager
+    def _tracked_step(self, name: str):
+        if self._agent_state:
+            self._agent_state.start_step(name)
+        try:
+            with self._progress.step(name):
+                yield
+        except Exception as e:
+            if self._agent_state:
+                self._agent_state.fail_step(name, e)
+            raise
+        else:
+            if self._agent_state:
+                self._agent_state.complete_step(name)
 
     def run(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
@@ -151,6 +199,13 @@ class Orchestrator:
             steps = _resolve_steps(steps)
 
         self._progress = PipelineProgress(steps, date, self.config)
+        self._agent_state = (
+            AgentState(date, steps, self.config) if self.agent_mode else None
+        )
+        if self._agent_state:
+            self._agent_state.start_run()
+        if self.agent_mode and self.refresh_variants and "write_script" in steps:
+            self._refresh_variant_outputs(date)
         self._progress.print_execution_summary(force=force)
 
         content: Optional[ContentPackage] = None
@@ -158,54 +213,103 @@ class Orchestrator:
 
         # ── 1. fetch ──────────────────────────────────────────────────────
         if "fetch" in steps:
-            with self._progress.step("fetch"):
+            with self._tracked_step("fetch"):
                 content = self._step_fetch(date)
         else:
             try:
                 content = self.content_preparer.load_content(date)
             except FileNotFoundError:
                 self.logger.info("Content not found, fetching anyway...")
-                with self._progress.step("fetch"):
+                with self._tracked_step("fetch"):
                     content = self._step_fetch(date)
 
         # ── 2. prefilter ──────────────────────────────────────────────────
         if "prefilter" in steps:
-            with self._progress.step("prefilter"):
+            with self._tracked_step("prefilter"):
                 content = self._step_prefilter(content, date)
 
         # ── 3. fetch_comments ─────────────────────────────────────────────
         if "fetch_comments" in steps:
-            with self._progress.step("fetch_comments"):
+            with self._tracked_step("fetch_comments"):
                 content = self._step_fetch_comments(content, date)
 
         # ── 4. enrich_articles ────────────────────────────────────────────
         failed_items: list = []
         if "enrich_articles" in steps:
-            with self._progress.step("enrich_articles"):
+            with self._tracked_step("enrich_articles"):
                 content, failed_items = self._step_enrich_articles(content, date)
         if failed_items:
-            self._print_enrich_failure_guidance(failed_items)
-            return
+            if self.agent_mode and self.allow_degraded_enrichment:
+                self._mark_degraded_enrichment(failed_items)
+            else:
+                if self._agent_state:
+                    insufficient = self._insufficient_context_items(failed_items)
+                    if insufficient:
+                        self._agent_state.block(
+                            "enrich_articles",
+                            BLOCK_INSUFFICIENT_CONTEXT,
+                            items=insufficient,
+                        )
+                    else:
+                        self._agent_state.block_for_manual_files(
+                            "enrich_articles", failed_items
+                        )
+                self._print_enrich_failure_guidance(failed_items)
+                return
 
         # ── 5. translate_titles ───────────────────────────────────────────
+        skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
+        if (
+            self.agent_mode
+            and content is not None
+            and "enrich_articles" in steps
+            and not skip_source_gate
+        ):
+            decision = self.agent_decision.evaluate_source_context(content, date)
+            if not decision.should_continue:
+                if self._agent_state:
+                    self._agent_state.block(
+                        "enrich_articles",
+                        decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
+                        items=decision.blocked_items or [],
+                    )
+                return
+
         if "translate_titles" in steps:
-            with self._progress.step("translate_titles"):
+            with self._tracked_step("translate_titles"):
                 content = self._step_translate_titles(content, date)
 
         # ── 6. analyze_comments ───────────────────────────────────────────
         if "analyze_comments" in steps:
-            with self._progress.step("analyze_comments"):
+            with self._tracked_step("analyze_comments"):
                 content = self._step_analyze_comments(content, date)
 
         # ── 7. judge_comments ─────────────────────────────────────────────
         if "judge_comments" in steps:
-            with self._progress.step("judge_comments"):
+            with self._tracked_step("judge_comments"):
                 content = self._step_judge_comments(content, date)
 
         # ── 8. write_script ───────────────────────────────────────────────
         if "write_script" in steps:
-            with self._progress.step("write_script"):
+            with self._tracked_step("write_script"):
                 script = self._step_write_script(content, date)
+            if (
+                self.agent_mode
+                and script is not None
+                and content is not None
+                and not self.allow_degraded_enrichment
+            ):
+                decision = self.agent_decision.evaluate_script_quality(
+                    content, script, date
+                )
+                if not decision.should_continue:
+                    if self._agent_state:
+                        self._agent_state.block(
+                            "write_script",
+                            decision.blocked_reason or "low_decision_confidence",
+                            items=decision.blocked_items or [],
+                        )
+                    return
         elif SCRIPT_CONSUMING_STEPS & set(steps):
             try:
                 script = self.script_writer.load_script(date)
@@ -216,47 +320,47 @@ class Orchestrator:
 
         # ── 9. translate_comments ─────────────────────────────────────────
         if "translate_comments" in steps:
-            with self._progress.step("translate_comments"):
+            with self._tracked_step("translate_comments"):
                 content, script = self._step_translate_comments(content, script, date)
 
         # ── 10. synthesize_audio ──────────────────────────────────────────
         if "synthesize_audio" in steps:
-            with self._progress.step("synthesize_audio"):
+            with self._tracked_step("synthesize_audio"):
                 script = self._step_synthesize_audio(content, script, date)
 
         # ── 11. title ─────────────────────────────────────────────────────
         if "title" in steps:
-            with self._progress.step("title"):
+            with self._tracked_step("title"):
                 script = self._step_title(content, script, date)
 
         # ── 12. cover_image ───────────────────────────────────────────────
         if "cover_image" in steps:
-            with self._progress.step("cover_image"):
+            with self._tracked_step("cover_image"):
                 self._step_cover_image(content, script, date)
 
         # ── 13. cover_thumbnail ───────────────────────────────────────────
         if "cover_thumbnail" in steps:
-            with self._progress.step("cover_thumbnail"):
+            with self._tracked_step("cover_thumbnail"):
                 self._step_cover_thumbnail(content, script, date)
 
         # ── 14. publish_guide ─────────────────────────────────────────────
         if "publish_guide" in steps:
-            with self._progress.step("publish_guide"):
+            with self._tracked_step("publish_guide"):
                 self._step_publish_guide(content, script, date)
 
         # ── 15. prepare_render ────────────────────────────────────────────
         if "prepare_render" in steps:
-            with self._progress.step("prepare_render"):
+            with self._tracked_step("prepare_render"):
                 self._step_prepare_render(content, script, date)
 
         # ── standalone: render ────────────────────────────────────────────
         if "render" in steps:
-            with self._progress.step("render"):
+            with self._tracked_step("render"):
                 self._step_render(script, date, content, force=force)
 
         # ── standalone: preview ───────────────────────────────────────────
         if "preview" in steps:
-            with self._progress.step("preview"):
+            with self._tracked_step("preview"):
                 self._step_preview(script, date, content)
 
         if script and SCRIPT_MUTATING_STEPS & set(steps):
@@ -264,6 +368,8 @@ class Orchestrator:
 
         elapsed = self._progress.elapsed()
         self.report_generator.generate(date, steps, elapsed, content, script)
+        if self._agent_state:
+            self._agent_state.finish_run()
 
         self.logger.info("Pipeline completed")
 
@@ -291,19 +397,15 @@ class Orchestrator:
             self.logger.info("Dry run: skipping prefilter")
             return content
 
-        prefilter_path = Path(f"data/{date}/prefilter.json")
-        content_path = Path(f"data/{date}/content.json")
-        if prefilter_path.exists() and content_path.exists():
-            # Only reuse cache when prefilter was run AFTER the last fetch.
-            # Otherwise the content has changed and prefilter results are stale.
-            prefilter_mtime = prefilter_path.stat().st_mtime
-            content_mtime = content_path.stat().st_mtime
-            if prefilter_mtime >= content_mtime:
-                self.logger.info(f"  Prefilter already done at {prefilter_path}")
-                return content
-            self.logger.info(
-                "  Prefilter cache is stale (older than content.json), re-running"
-            )
+        prefilter_cfg = self.config.get("prefilter", {})
+        if prefilter_cfg.get("comment_preview_enabled", True):
+            preview_count = int(prefilter_cfg.get("comment_preview_count", 5) or 0)
+            if preview_count > 0:
+                content = self.content_fetcher.fetch_comment_preview(
+                    content,
+                    date,
+                    top_level_count=preview_count,
+                )
 
         content = self.prefilter.filter(content, date)
         self.content_preparer.save_content(content, date)
@@ -317,7 +419,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping comment fetch")
             return content
 
-        if all(item.comments for item in content.items):
+        if all(item.comments and not item.comments_partial for item in content.items):
             self.logger.info("  Comments already attached to all items")
             return content
 
@@ -451,7 +553,45 @@ class Orchestrator:
                 ],
             )
 
+        if self.agent_mode and self._variant_count() > 1:
+            return self._step_write_script_variants(content, date)
+
         script = self.script_writer.write(content)
+        self.script_writer.save_script(script, date)
+        return script
+
+    def _variant_count(self) -> int:
+        variant_cfg = self.config.get("agent", {}).get("variants", {})
+        if not variant_cfg.get("enabled", False):
+            return 1
+        return max(1, int(variant_cfg.get("count", 1) or 1))
+
+    def _step_write_script_variants(self, content: ContentPackage, date: str) -> Script:
+        count = self._variant_count()
+        self.logger.info(f"Agent variants enabled: generating {count} script variants")
+        variants = self.script_writer.write_variants(content, count=count)
+        decision = self.agent_decision.select_script_variant(content, variants, date)
+        index_variants = [
+            {
+                "variant_id": variant["variant_id"],
+                "label": variant["label"],
+                "strategy": variant["strategy"],
+                "story_indices": variant["story_indices"],
+                "preview": variant["preview"],
+            }
+            for variant in variants
+        ]
+        write_variants_index(
+            date,
+            index_variants,
+            selected_variant=decision.get("selected_variant"),
+            status=decision.get("status", "generated"),
+        )
+        if decision.get("status") != "continue" or not decision.get("selected_variant"):
+            raise RuntimeError(
+                f"Agent could not select a script variant: {decision.get('blocked_reason')}"
+            )
+        script = promote_variant_script(date, str(decision["selected_variant"]))
         self.script_writer.save_script(script, date)
         return script
 
@@ -552,6 +692,16 @@ class Orchestrator:
             ),
             encoding="utf-8",
         )
+        write_artifact_manifest(
+            cache_path,
+            step="title",
+            date=date,
+            inputs={
+                "script_segment_count": len(script.segments),
+                "content_item_count": len(content.items),
+            },
+            config=self.config,
+        )
         self.script_writer.save_script(script, date)
         return script
 
@@ -629,7 +779,9 @@ class Orchestrator:
         elif script.cover_subtitle:
             subtitle = script.cover_subtitle
         elif script.description:
-            subtitle = script.description[:40] + ("…" if len(script.description) > 40 else "")
+            subtitle = script.description[:40] + (
+                "…" if len(script.description) > 40 else ""
+            )
         else:
             subtitle = date
         date_label = date
@@ -647,6 +799,17 @@ class Orchestrator:
                 indent=2,
             ),
             encoding="utf-8",
+        )
+        write_artifact_manifest(
+            props_path,
+            step="cover_image",
+            date=date,
+            inputs={
+                "background": str(bg_path).replace("\\", "/"),
+                "title": title,
+                "subtitle": subtitle,
+            },
+            config=self.config,
         )
 
         remotion_dir = Path("src/providers/renderer/remotion")
@@ -772,6 +935,16 @@ class Orchestrator:
 
         guide_path.parent.mkdir(parents=True, exist_ok=True)
         guide_path.write_text(text, encoding="utf-8")
+        write_artifact_manifest(
+            guide_path,
+            step="publish_guide",
+            date=date,
+            inputs={
+                "content_item_count": len(content.items),
+                "script_title": script.title if script else "",
+            },
+            config=self.config,
+        )
         self.logger.info(f"  Publish guide written to {guide_path}")
 
     def _step_prepare_render(
@@ -787,7 +960,22 @@ class Orchestrator:
             return
 
         audio_dir = f"data/{date}/audio"
+        props_path = Path("src/providers/renderer/remotion/public/props.json")
+        before_mtime = props_path.stat().st_mtime if props_path.exists() else None
         self.renderer.write_props(script, audio_dir, content, date=date)
+        after_mtime = props_path.stat().st_mtime if props_path.exists() else None
+        if props_path.exists() and after_mtime != before_mtime:
+            write_artifact_manifest(
+                props_path,
+                step="prepare_render",
+                date=date,
+                inputs={
+                    "script_title": script.title,
+                    "segment_count": len(script.segments),
+                    "audio_dir": audio_dir,
+                },
+                config=self.config,
+            )
 
     def _step_render(
         self,
@@ -872,6 +1060,50 @@ class Orchestrator:
             output_path.unlink()
             self.logger.info(f"Deleted output: {output_path}")
 
+    def _refresh_variant_outputs(self, date: str) -> None:
+        base = Path(f"data/{date}")
+        if not base.exists():
+            return
+        deleted: list[str] = []
+        paths = [
+            base / "script.json",
+            base / "script.json.manifest.json",
+            base / "agent_decision.json",
+            base / "agent_variant_decision.json",
+            base / "selected_variant.json",
+        ]
+        for path in paths:
+            if path.exists() and path.is_file():
+                path.unlink()
+                deleted.append(str(path).replace("\\", "/"))
+
+        variants_dir = base / "variants"
+        if variants_dir.exists() and variants_dir.is_dir():
+            shutil.rmtree(variants_dir)
+            deleted.append(str(variants_dir).replace("\\", "/"))
+
+        segments_dir = base / "segments"
+        if segments_dir.exists() and segments_dir.is_dir():
+            for pattern in (
+                "story_scan_item*.json",
+                "story_scan_item*.json.tmp",
+            ):
+                for path in segments_dir.glob(pattern):
+                    if path.is_file():
+                        path.unlink()
+                        deleted.append(str(path).replace("\\", "/"))
+
+        if deleted:
+            self.logger.info(
+                f"Refresh variants: deleted {len(deleted)} script/variant cache item(s)"
+            )
+            append_agent_event(
+                date,
+                "variants_refreshed",
+                deleted_count=len(deleted),
+                deleted=deleted,
+            )
+
     def _print_enrich_failure_guidance(self, failed_items: list) -> None:
         date = self._progress.date
         steps = self._progress.steps
@@ -884,6 +1116,51 @@ class Orchestrator:
             f"    uv run python main.py --date {date} --steps {','.join(steps)}"
         )
         self.logger.info("=" * 60)
+
+    def _mark_degraded_enrichment(self, failed_items: list) -> None:
+        self.logger.warning(
+            "Agent mode: continuing with degraded enrichment for "
+            f"{len(failed_items)} item(s)"
+        )
+        for item in failed_items:
+            if not item.editor_angle:
+                item.editor_angle = item.dek or item.title or ""
+            if not item.dek:
+                item.dek = item.title or ""
+            if item.key_points is None:
+                item.key_points = []
+            if item.keywords is None:
+                item.keywords = []
+            if not item.category:
+                item.category = "unknown"
+            if not item.why_it_matters:
+                item.why_it_matters = item.editor_angle or item.title or ""
+        if self._agent_state:
+            self._agent_state.add_degraded_items(
+                "enrich_articles", failed_items, "enrichment_failed"
+            )
+
+    def _insufficient_context_items(self, items: list) -> list[dict]:
+        min_comments = int(
+            self.config.get("agent", {}).get("min_comments_for_discussion_only", 5)
+        )
+        blocked = []
+        for item in items:
+            has_article = bool(item.article_text or item.article_summary)
+            comments = [c for c in item.comments if (c.content or "").strip()]
+            if has_article or len(comments) >= min_comments:
+                continue
+            blocked.append(
+                {
+                    "story_id": str(item.source_id),
+                    "title": item.title or "",
+                    "url": item.url or "",
+                    "reason": "article_unavailable_and_too_few_comments",
+                    "comment_count": len(comments),
+                    "min_comments_required": min_comments,
+                }
+            )
+        return blocked
 
     def _extract_highlight_entries(
         self, script: Optional[Script], content: ContentPackage

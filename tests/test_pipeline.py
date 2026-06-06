@@ -89,6 +89,11 @@ class TestContentPreparer:
         preparer = ContentPreparer(config, debug=True)
         content = _make_content_package()
         content.items[0].why_it_matters = "影响开发工作流"
+        content.items[0].editorial_score = 12.0
+        content.items[0].ai_relevance = 4
+        content.items[0].newsworthiness = 4
+        content.items[0].prefilter_reason = "Strong developer impact"
+        content.items[0].comments_partial = True
         date = "2026-04-26"
 
         preparer.save_content(content, date)
@@ -105,6 +110,11 @@ class TestContentPreparer:
             assert loaded_item.url == original.url
             assert loaded_item.score == original.score
             assert loaded_item.comment_count == original.comment_count
+            assert loaded_item.editorial_score == original.editorial_score
+            assert loaded_item.ai_relevance == original.ai_relevance
+            assert loaded_item.newsworthiness == original.newsworthiness
+            assert loaded_item.prefilter_reason == original.prefilter_reason
+            assert loaded_item.comments_partial == original.comments_partial
             assert loaded_item.why_it_matters == original.why_it_matters
             assert len(loaded_item.comments) == len(original.comments)
             for orig_c, load_c in zip(original.comments, loaded_item.comments):
@@ -131,6 +141,22 @@ def _make_mock_story_segment(**kwargs):
 
 
 class TestScriptWriter:
+    def test_balanced_selection_prefers_editorial_score_over_hn_score(self):
+        writer = ScriptWriter(_make_config(), MagicMock(), debug=True)
+        content = _make_content_package()
+        for item in content.items:
+            item.editorial_score = 0.0
+        content.items[0].score = 999
+        content.items[0].editorial_score = 1.0
+        content.items[1].score = 10
+        content.items[1].editorial_score = 10.0
+        content.items[2].score = 9
+        content.items[2].editorial_score = 9.0
+
+        specs = writer._build_story_specs(content, strategy="balanced")
+
+        assert [spec["story_index"] for spec in specs[:3]] == [1, 2, 0]
+
     def test_write_calls_llm_provider(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         config = _make_config()

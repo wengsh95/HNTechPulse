@@ -1,5 +1,11 @@
 # HN TechPulse
 
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Agent runbook](docs/AGENT_RUNBOOK.md)
+- [Project structure](docs/PROJECT_STRUCTURE.md)
+
 从 Hacker News 自动生成中文科技资讯每日简报的 Python 应用。项目目标不是简单搬运 HN 热榜，而是把当天高价值讨论整理成有筛选、有判断、有社区温度的技术日报。
 
 ## 功能特点

@@ -156,9 +156,12 @@ class HNFetcher(ContentFetcher):
         # Build HNStory list from content items for comment fetching
         stories_to_fetch = []
         for item in content.items:
-            # Skip stories that already have comments loaded
-            if item.comments:
+            # Skip stories that already have complete comments loaded.
+            if item.comments and not item.comments_partial:
                 continue
+            if item.comments_partial:
+                item.comments = []
+                item.comments_partial = False
             stories_to_fetch.append(
                 HNStory(
                     id=int(item.source_id),
@@ -199,6 +202,71 @@ class HNFetcher(ContentFetcher):
                         published_at=hn_comment.time,
                     )
                 )
+
+        return content
+
+    def fetch_comment_preview(
+        self,
+        content: ContentPackage,
+        date: str,
+        top_level_count: int = 5,
+    ) -> ContentPackage:
+        """Fetch a small top-level comment sample for story prefiltering."""
+        import time as _time
+
+        if not content.items or top_level_count <= 0:
+            return content
+
+        stories_to_fetch = []
+        for item in content.items:
+            if item.comments:
+                continue
+            stories_to_fetch.append(
+                HNStory(
+                    id=int(item.source_id),
+                    title=item.title or "",
+                    url=item.url,
+                    score=item.score or 0,
+                    descendants=item.comment_count or 0,
+                    time=item.published_at or 0,
+                )
+            )
+
+        if not stories_to_fetch:
+            self.logger.info("Comment previews already present, skipping preview fetch")
+            return content
+
+        self.logger.info(
+            f"Fetching top-level comment previews for {len(stories_to_fetch)} stories "
+            f"(top_level_count={top_level_count})..."
+        )
+        t0 = _time.monotonic()
+        comments = self._fetch_comment_previews_concurrent(
+            stories_to_fetch, top_level_count
+        )
+        elapsed = _time.monotonic() - t0
+        total_comments = sum(len(v) for v in comments.values())
+        self.logger.info(
+            f"Fetched {total_comments} preview comments in {elapsed:.1f}s"
+        )
+
+        for item in content.items:
+            story_id = int(item.source_id)
+            preview_comments = comments.get(story_id, [])
+            if not preview_comments:
+                continue
+            item.comments = [
+                ContentComment(
+                    author=hn_comment.author,
+                    content=hn_comment.text,
+                    source_id=str(hn_comment.id),
+                    upvotes=hn_comment.score,
+                    depth=hn_comment.depth,
+                    published_at=hn_comment.time,
+                )
+                for hn_comment in preview_comments
+            ]
+            item.comments_partial = True
 
         return content
 
@@ -282,6 +350,65 @@ class HNFetcher(ContentFetcher):
         self, stories: List[HNStory]
     ) -> Dict[int, List[HNComment]]:
         return _run_async(self._async_fetch_comments(stories))
+
+    def _fetch_comment_previews_concurrent(
+        self, stories: List[HNStory], top_level_count: int
+    ) -> Dict[int, List[HNComment]]:
+        return _run_async(self._async_fetch_comment_previews(stories, top_level_count))
+
+    async def _async_fetch_comment_previews(
+        self, stories: List[HNStory], top_level_count: int
+    ) -> Dict[int, List[HNComment]]:
+        connector = aiohttp.TCPConnector(limit=self.max_concurrent_requests)
+        timeout = aiohttp.ClientTimeout(
+            sock_connect=self.request_timeout[0],
+            sock_read=self.request_timeout[1],
+        )
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout
+        ) as session:
+            semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+            tasks = [
+                self._async_fetch_story_comment_preview(
+                    session, semaphore, story.id, top_level_count
+                )
+                for story in stories
+            ]
+            results = await asyncio.gather(*tasks)
+        return {story.id: result for story, result in zip(stories, results)}
+
+    async def _async_fetch_story_comment_preview(
+        self,
+        session: aiohttp.ClientSession,
+        semaphore: asyncio.Semaphore,
+        story_id: int,
+        top_level_count: int,
+    ) -> List[HNComment]:
+        story_data = await self._async_fetch_item(session, semaphore, story_id)
+        if not story_data:
+            return []
+
+        top_kids = story_data.get("kids", [])[:top_level_count]
+        tasks = [self._async_fetch_item(session, semaphore, kid) for kid in top_kids]
+        results = await asyncio.gather(*tasks)
+
+        comments: List[HNComment] = []
+        for result in results:
+            if not result or result.get("deleted") or result.get("dead"):
+                continue
+            if result.get("type") != "comment":
+                continue
+            comments.append(
+                HNComment(
+                    id=result.get("id", 0),
+                    author=result.get("by", ""),
+                    text=result.get("text", ""),
+                    time=result.get("time", 0),
+                    score=result.get("score"),
+                    depth=1,
+                )
+            )
+        return comments
 
     async def _async_fetch_comments(
         self, stories: List[HNStory]

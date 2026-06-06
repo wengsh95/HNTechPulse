@@ -1,0 +1,24 @@
+agent:
+  variants:
+    enabled: true
+    count: 2
+    strategies:
+      - id: balanced
+        label: Balanced daily brief
+      - id: source_grounded
+        label: Source-grounded angle
+      - id: discussion
+        label: Community discussion angle
+  decision:
+    auto_select: true
+    min_confidence_to_continue: 0.72
+    min_factual_grounding: 0.8
+    max_source_risk: 0.3
+    min_script_publish_readiness: 0.7
+    min_comments_for_discussion_only: 5
+    weights:
+      factual_grounding: 0.35
+      story_coherence: 0.25
+      comment_usage: 0.2
+      title_strength: 0.1
+      publish_readiness: 0.1

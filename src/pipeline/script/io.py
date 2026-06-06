@@ -5,14 +5,37 @@ from dataclasses import asdict
 from pathlib import Path
 
 from src.core.models import Script, ScriptSegment, SceneElement, Cue
+from src.pipeline.agent_io import write_artifact_manifest
 
 
-def save_script(script: Script, date: str, logger=None) -> None:
-    path = Path(f"data/{date}/script.json")
+def save_script_to_path(
+    script: Script,
+    path: Path,
+    *,
+    date: str,
+    step: str = "write_script",
+    inputs: dict | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     script_dict = asdict(script)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(script_dict, f, ensure_ascii=False, indent=2)
+    write_artifact_manifest(
+        path,
+        step=step,
+        date=date,
+        inputs={
+            "title": script.title,
+            "segment_count": len(script.segments),
+            "segment_types": [segment.segment_type for segment in script.segments],
+            **(inputs or {}),
+        },
+    )
+
+
+def save_script(script: Script, date: str, logger=None) -> None:
+    path = Path(f"data/{date}/script.json")
+    save_script_to_path(script, path, date=date)
     if logger:
         logger.info(f"Saved script to {path}")
 

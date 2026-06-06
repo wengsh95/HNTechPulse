@@ -35,8 +35,13 @@ class ContentItem:
     title_cn: Optional[str] = None
     score: Optional[int] = None
     comment_count: Optional[int] = None
+    editorial_score: Optional[float] = None
+    ai_relevance: Optional[int] = None
+    newsworthiness: Optional[int] = None
+    prefilter_reason: Optional[str] = None
     published_at: int = 0
     comments: List[ContentComment] = field(default_factory=list)
+    comments_partial: bool = False
     article_text: Optional[str] = None
     article_images: List[str] = field(default_factory=list)
     image_candidates: List[Dict[str, Any]] = field(default_factory=list)
