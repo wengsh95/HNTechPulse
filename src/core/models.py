@@ -43,6 +43,11 @@ class ContentItem:
     comments: List[ContentComment] = field(default_factory=list)
     comments_partial: bool = False
     article_text: Optional[str] = None
+    # Body text of HN self-posts (Ask HN / Show HN) which have no external URL.
+    # Filled in from HNStory.text; consumed by the enricher as a fallback when
+    # article_text is missing and url is None, so self-posts can still produce
+    # editor_angle / dek / key_points.
+    self_post_text: Optional[str] = None
     article_images: List[str] = field(default_factory=list)
     image_candidates: List[Dict[str, Any]] = field(default_factory=list)
     logo_image: Optional[str] = None

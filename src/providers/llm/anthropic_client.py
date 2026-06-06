@@ -104,6 +104,44 @@ class AnthropicLLMClient(LLMClient):
         self.fast_model = self._backend.fast_model
         self.fast_max_tokens = self._backend.fast_max_tokens
         self.fast_temperature = self._backend.fast_temperature
+        # Cap thinking budget so reasoning models can't burn the entire
+        # max_tokens window on internal monologue and leave visible content
+        # empty (finish_reason=length with 0 visible chars).
+        # Default to 0 = thinking disabled, which we found is the only safe
+        # setting for MiniMax-M3 (this Anthropic-compatible API treats
+        # "enabled" as "think harder" with no real budget enforcement).
+        self.thinking_budget_tokens = int(
+            self.config.get("llm", {}).get("thinking_budget_tokens", 0)
+        )
+        # Per-request socket timeout — the API can hang silently for minutes
+        # even on healthy-looking connections. 90s is well above the worst
+        # observed good response (~60s) and well below the previous "stuck
+        # forever" behavior.
+        request_timeout_s = float(
+            self.config.get("llm", {}).get("request_timeout_s", 90.0)
+        )
+        # Rebuild the client with an explicit timeout
+        self.client = anthropic.Anthropic(
+            base_url=self._backend.base_url,
+            api_key=self._backend.api_key,
+            timeout=anthropic.Timeout(timeout=request_timeout_s),
+        )
+
+    def _resolve_thinking(self, extra_body: dict | None) -> dict | None:
+        """Pick a thinking config for this request.
+
+        Priority: explicit caller override in extra_body > configured budget.
+        If thinking_budget_tokens == 0, thinking is disabled entirely so the
+        model is forced to spend its budget on visible content.
+        """
+        if extra_body and "thinking" in extra_body:
+            return extra_body["thinking"]
+        if self.thinking_budget_tokens <= 0:
+            return {"type": "disabled"}
+        return {
+            "type": "enabled",
+            "budget_tokens": self.thinking_budget_tokens,
+        }
 
     @retry(
         stop=stop_after_attempt(4),
@@ -144,11 +182,11 @@ class AnthropicLLMClient(LLMClient):
         if system_text:
             kwargs["system"] = system_text
 
-        # Handle thinking/extended thinking from extra_body
-        if extra_body:
-            thinking = extra_body.get("thinking")
-            if thinking:
-                kwargs["thinking"] = thinking
+        # Always inject a thinking config (capped) so reasoning models
+        # can't spend the whole budget on internal monologue.
+        thinking = self._resolve_thinking(extra_body)
+        if thinking is not None:
+            kwargs["thinking"] = thinking
 
         response = self.client.messages.create(**kwargs)
         return _AnthropicResponseAdapter(response)

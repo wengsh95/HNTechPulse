@@ -713,6 +713,7 @@ class HNFetcher(ContentFetcher):
                 score=story.score,
                 comment_count=story.descendants,
                 published_at=story.time,
+                self_post_text=story.text,
             )
 
             for hn_comment in comments.get(story.id, []):

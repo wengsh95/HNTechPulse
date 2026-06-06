@@ -239,9 +239,12 @@ class Orchestrator:
             with self._tracked_step("enrich_articles"):
                 content, failed_items = self._step_enrich_articles(content, date)
         if failed_items:
-            if self.agent_mode and self.allow_degraded_enrichment:
+            # --allow-degraded-enrichment works in both agent and non-agent modes:
+            # mark missing article_text as degraded and keep the rest of the chain
+            # running with whatever context is available.
+            if self.allow_degraded_enrichment:
                 self._mark_degraded_enrichment(failed_items)
-            else:
+            elif self.agent_mode:
                 if self._agent_state:
                     insufficient = self._insufficient_context_items(failed_items)
                     if insufficient:
@@ -254,6 +257,9 @@ class Orchestrator:
                         self._agent_state.block_for_manual_files(
                             "enrich_articles", failed_items
                         )
+                self._print_enrich_failure_guidance(failed_items)
+                return
+            else:
                 self._print_enrich_failure_guidance(failed_items)
                 return
 
@@ -497,8 +503,15 @@ class Orchestrator:
 
         analysis_path = Path(f"data/{date}/comment_analysis.json")
         if analysis_path.exists():
-            self.logger.info(f"  Comment analysis already done at {analysis_path}")
-            return content
+            # Cache hit: skip re-scoring, but still run analyze() so that
+            # _load_from_cache() merges quality_score / sentiment back into
+            # the in-memory comments. Without this merge, downstream
+            # is_quotable_comment() filters (quality_score >= 0.22) silently
+            # drop every selected comment and the rendered video has no
+            # atmosphere_card quotes.
+            self.logger.info(f"  Comment analysis cached at {analysis_path}, merging into content")
+        else:
+            self.logger.info("  No comment analysis cache; running fresh")
 
         content = self.comment_analyzer.analyze(content, date)
         self.content_preparer.save_content(content, date)

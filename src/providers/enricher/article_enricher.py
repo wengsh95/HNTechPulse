@@ -196,6 +196,13 @@ class ArticleEnricher:
                 continue
 
             if not item.url:
+                # HN self-posts (Ask HN / Show HN) have no external URL. If the
+                # fetcher piped HNStory.text through as self_post_text, route
+                # it to phase 2 so the LLM can still extract editor_angle / dek /
+                # key_points from the body the OP wrote.
+                if item.self_post_text:
+                    result["phase2_only"].append(item)
+                    continue
                 item.enrichment_source = "skipped"
                 result["skipped"].append(item)
                 continue
@@ -387,6 +394,58 @@ class ArticleEnricher:
 
     # ── Phase 2: Extract from on-disk HTML ─────────────────────
 
+    async def _enrich_self_post(self, item) -> None:
+        """Run LLM extraction for an HN self-post (no external URL).
+
+        Uses the body text captured from HNStory.text. Skips page/screenshot
+        image fetching (no URL to capture from) and reuses the same
+        _enrich_content() prompt as the HTML/PDF paths so the output schema
+        matches the rest of the pipeline.
+        """
+        article_text = (item.self_post_text or "").strip()
+        if not article_text:
+            item.enrichment_source = "skipped"
+            self.logger.debug(f"[self_post] empty body: {item.title[:50]}")
+            return
+
+        try:
+            search_context = ""
+            if self.baidu_search.enabled:
+                results = await self.baidu_search.search(item.title or "")
+                search_context = BaiduSearchProvider.format_results(results)
+            enrich_result = self._enrich_content(
+                article_text, item.title, search_context
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"[self_post] LLM extraction failed: {item.title[:50]}: {e}"
+            )
+            item.enrichment_source = "extraction_failed"
+            return
+
+        item.article_text = article_text[: self.max_text_length]
+        if enrich_result:
+            item.article_summary = enrich_result.get("article_summary")
+            item.editor_angle = enrich_result.get("editor_angle")
+            item.dek = enrich_result.get("dek")
+            item.key_points = enrich_result.get("key_points")
+            item.category = enrich_result.get("category")
+            item.why_it_matters = enrich_result.get("why_it_matters")
+            item.keywords = self._normalize_keywords(
+                enrich_result.get("keywords"),
+                category=item.category,
+                fallback_values=[
+                    item.editor_angle,
+                    item.dek,
+                    item.why_it_matters,
+                    item.title,
+                ],
+            )
+        item.enrichment_source = "self_post"
+        self.logger.info(
+            f"[self_post] {item.title[:50]} — {len(article_text)} chars"
+        )
+
     async def _phase2_extract_all(self, items: list, date: str):
         self.logger.info(f"Phase 2: starting extraction for {len(items)} items")
         semaphore = asyncio.Semaphore(self.max_concurrent)
@@ -402,6 +461,15 @@ class ArticleEnricher:
     async def _phase2_extract_one(self, item, date: str, semaphore: asyncio.Semaphore):
         async with semaphore:
             try:
+                # ── Self-post path: HN body text (no HTML/PDF on disk) ──
+                if (
+                    item.self_post_text
+                    and not item.url
+                    and not item.article_text
+                ):
+                    await self._enrich_self_post(item)
+                    return
+
                 pages_dir = self._pages_dir(date)
                 html_path = pages_dir / f"{item.source_id}.html"
                 pdf_path = pages_dir / f"{item.source_id}.pdf"

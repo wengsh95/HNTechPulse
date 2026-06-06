@@ -87,6 +87,7 @@ class ContentPreparer:
                         comments=comments,
                         comments_partial=item_dict.get("comments_partial", False),
                         article_text=item_dict.get("article_text"),
+                        self_post_text=item_dict.get("self_post_text"),
                         article_images=item_dict.get("article_images", []),
                         image_candidates=item_dict.get("image_candidates", []),
                         article_summary=item_dict.get("article_summary"),
