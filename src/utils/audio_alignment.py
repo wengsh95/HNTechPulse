@@ -6,14 +6,55 @@ known reference texts against Whisper word-level timestamps.
 
 import re
 import subprocess
+import threading
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import Any
 
 from src.providers.renderer.binary_finder import find_ffmpeg
 from src.utils.logger import setup_logger
 
 _FFMPEG = find_ffmpeg() or "ffmpeg"
+
+
+# ── Whisper model cache ────────────────────────────────────────────────
+# Loading whisper large-v3 takes 5-15s. A single pipeline run aligns N audio
+# files (story_scan N elements + simple N segments), so memoizing the model
+# saves N × load_time. Cache key is (model_size, model_path, device) so users
+# can mix model variants without reloading.
+_WHISPER_MODEL_CACHE: dict[tuple, Any] = {}
+_WHISPER_MODEL_LOCK = threading.Lock()
+
+
+def _get_whisper_model(model_size: str, model_path: str, device: str = "cpu"):
+    """Return a cached Whisper model, loading on first use."""
+    key = (model_size, model_path, device)
+    cached = _WHISPER_MODEL_CACHE.get(key)
+    if cached is not None:
+        return cached
+    with _WHISPER_MODEL_LOCK:
+        cached = _WHISPER_MODEL_CACHE.get(key)
+        if cached is not None:
+            return cached
+        import whisper  # local import: heavy, only when alignment runs
+
+        if model_path:
+            model_file = str(Path(model_path) / f"{model_size}.pt")
+            setup_logger(__name__).info(
+                f"Loading Whisper model from local path: {model_file}"
+            )
+            model = whisper.load_model(model_file, device=device)
+        else:
+            setup_logger(__name__).info(f"Loading Whisper model '{model_size}'")
+            model = whisper.load_model(model_size, device=device)
+        _WHISPER_MODEL_CACHE[key] = model
+        return model
+
+
+def _clear_whisper_model_cache() -> None:
+    """Clear the Whisper model cache. Intended for tests."""
+    _WHISPER_MODEL_CACHE.clear()
 
 
 @dataclass
@@ -50,17 +91,11 @@ def align_audio(
     Returns:
         List of AlignmentSegment, one per reference_text, with start/end times.
     """
-    import whisper
+    import whisper  # noqa: F401  (re-exported via the cached loader for tests)
 
     logger = setup_logger(__name__, debug=debug)
 
-    if model_path:
-        model_file = str(Path(model_path) / f"{model_size}.pt")
-        logger.info(f"Loading Whisper model from local path: {model_file}")
-        model = whisper.load_model(model_file, device="cpu")  # type: ignore[attr-defined]
-    else:
-        logger.info(f"Loading Whisper model '{model_size}'")
-        model = whisper.load_model(model_size, device="cpu")  # type: ignore[attr-defined]
+    model = _get_whisper_model(model_size, model_path, device="cpu")
 
     logger.info(f"Transcribing {audio_path} with word timestamps...")
     result = model.transcribe(

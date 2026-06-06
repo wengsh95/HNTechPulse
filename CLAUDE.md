@@ -39,27 +39,30 @@ npx remotion still --props="E:/Code/HNTechPulse/data/2026-05-30/cli_props.json" 
 ## Architecture
 
 - **Core** ([src/core/](src/core/)): ABCs ([interfaces.py](src/core/interfaces.py)) + data models ([src/core/models.py](src/core/models.py)) + [prompts.py](src/core/prompts.py) (placeholder validation)
-- **Providers** ([src/providers/](src/providers/)): fetcher, llm, enricher, renderer (Remotion) — auto-register via [factory.py](src/providers/factory.py)
+- **Providers** ([src/providers/](src/providers/)): `fetcher` (HN), `llm` (OpenAI / MiniMax), `tts` (edge-tts / mimo / MiniMax), `renderer` (Remotion), `image_generator` (MiniMax / noop), `enricher` (article body + images) — auto-register via [factory.py](src/providers/factory.py). Adding a provider = implement an ABC + add a tuple to the `_auto_register()` `attempts` list in [factory.py](src/providers/factory.py).
 - **Pipeline** ([src/pipeline/](src/pipeline/)):
-  - [orchestrator.py](src/pipeline/orchestrator.py) — declarative step DAG (`PIPELINE_STEPS` + `STANDALONE_STEPS`), step execution
-  - [content_io.py](src/pipeline/content_io.py) — `ContentPreparer` (save/load via `dataclasses.asdict`)
-  - [comment/](src/pipeline/comment/) — comment analysis subpackage: [text.py](src/pipeline/comment/text.py) (cleaning), [scoring.py](src/pipeline/comment/scoring.py) (quality + relevance), [selection.py](src/pipeline/comment/selection.py) (stance + candidate/quote picking), [judge.py](src/pipeline/comment/judge.py) (`CommentAnalyzer` VADER + `CommentJudge` LLM + normalization + cache I/O)
+  - [orchestrator.py](src/pipeline/orchestrator.py) — declarative step DAG (`PIPELINE_STEPS` + `STANDALONE_STEPS`), step execution, cache resume
+  - [pipeline_progress.py](src/pipeline/pipeline_progress.py) — per-step progress display
+  - [content_io.py](src/pipeline/content_io.py) — `ContentPreparer` (save/load `ContentPackage` via `dataclasses.asdict`)
+  - [comment/](src/pipeline/comment/) — comment analysis subpackage: [text.py](src/pipeline/comment/text.py) (cleaning), [scoring.py](src/pipeline/comment/scoring.py) (quality + relevance), [selection.py](src/pipeline/comment/selection.py) (stance + candidate/quote picking), [judge.py](src/pipeline/comment/judge.py) (`CommentAnalyzer` VADER + `CommentJudge` LLM + normalization + cache I/O), [refiner.py](src/pipeline/comment/refiner.py) (post-LLM quote refinement)
   - [script/](src/pipeline/script/) — script generation subpackage: [composer.py](src/pipeline/script/composer.py) (`ScriptWriter` class), [cards.py](src/pipeline/script/cards.py) (card normalization), [templates.py](src/pipeline/script/templates.py) (opening/closing/highlights), [io.py](src/pipeline/script/io.py) (save/load)
   - [translation_manager.py](src/pipeline/translation_manager.py), [prefilter.py](src/pipeline/prefilter.py), [timing_engine.py](src/pipeline/timing_engine.py), [tts_processor.py](src/pipeline/tts_processor.py), [transcript_generator.py](src/pipeline/transcript_generator.py), [report_generator.py](src/pipeline/report_generator.py)
-- ~~**Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.~~（2026-06-03 移除）
+- ~~**Editor** ([src/editor/](src/editor/)): Streamlit-based story editor UI — [app.py](src/editor/app.py) (entry), [state.py](src/editor/state.py) (session state), [components/story_editor.py](src/editor/components/story_editor.py) (UI components). Launched via the `editor` pipeline step.~~（2026-06-03 移除 — orphan code, do not extend）
 
-Pipeline steps (15 main chain + 1 standalone):
+Pipeline steps (15 main chain + 2 standalone):
 
 ```
 fetch → prefilter → fetch_comments → enrich_articles → translate_titles
   → analyze_comments → judge_comments → write_script
   → translate_comments → synthesize_audio → title
   → cover_image → cover_thumbnail → publish_guide → prepare_render
-                                                              ↓ (standalone)
+                                                              ↓ (standalone, opt-in)
                                                             render
+                                                              ↓ (standalone, opt-in)
+                                                            preview
 ```
 
-Each step has its own cache file/condition and can be re-run in isolation. `--steps X` expands to all steps up to and including X. `render` is opt-in (default pipeline excludes it).
+Each step has its own cache file/condition and can be re-run in isolation. `--steps X` expands to all steps up to and including X. `render` and `preview` are opt-in (default pipeline excludes both; `preview` opens the Remotion dev server without writing output).
 
 ### Data Flow
 
@@ -123,16 +126,34 @@ HN API
 | [prompts/cover_prompt.md](prompts/cover_prompt.md) | cover_image step | `{{ highlight_entries }}` |
 | [prompts/publish_guide.md](prompts/publish_guide.md) | publish_guide step | `{{ items_json }}`, `{{ script_title }}`, `{{ script_description }}`, `{{ date }}` |
 
-All steps cache to `data/{date}/` and resume from disk. Config: [config/](config/) directory (YAML deep-merged), env vars in `.env`.
+All steps cache to `data/{date}/` and resume from disk. Per-step cache files (used to skip re-runs):
+
+| File | Step | Contents |
+|------|------|----------|
+| `prefilter.json` | prefilter | LLM-judged tech relevance for raw HN items |
+| `content.json` | fetch + fetch_comments + enrich_articles + translate_titles | Canonical `ContentPackage` (items, comments, article text, translations) |
+| `comment_analysis.json` | analyze_comments | VADER sentiment + quality scores per comment |
+| `comment_judgement.json` | judge_comments | `quote_candidates`, `debate_focus`, `stance_distribution` per story |
+| `script.json` | write_script | Final `Script` with event/quote/atmosphere cards |
+| `translations.json` | translate_comments | Translated comment text keyed by `comment_{story}_{idx}` |
+| `audio/` | synthesize_audio | TTS chunks + alignment JSON |
+| `title.json` | title | video title / description / tags |
+| `cover_bg.png`, `cover_props.json` | cover_image | raw cover image + props for thumbnail step |
+| `cover.png` | cover_thumbnail | final cover with title overlay |
+| `publish_guide.md` | publish_guide | human-facing publish checklist |
+| `cli_props.json` | prepare_render | Remotion props consumed by `render` step |
+| `report.md` | always | enrichment stats, timing, issues (generated at end) |
+
+Config: [config/](config/) directory (YAML deep-merged, alphabetically layered: `analyze.yaml`, `base.yaml`, `enrich.yaml`, `llm.yaml`, `prefilter.yaml`, `remotion.yaml`, `tts.yaml`, plus `hn_sentiment_lexicon.yaml`), env vars in `.env`.
 
 ## Key Patterns
 
-- **Provider Factory**: Add a `(kind, name, module_path, class_name, register_fn)` tuple to the `attempts` list inside `_auto_register()` in [src/providers/factory.py](src/providers/factory.py). The class must be importable at the dotted path given, with the exact class name specified, and must inherit from the corresponding ABC in [src/core/interfaces.py](src/core/interfaces.py) (`ContentFetcher` / `LLMProvider` / `TTSProvider` / `Renderer`). Registration runs on import of `factory.py`.
+- **Provider Factory**: Add a `(kind, name, module_path, class_name, register_fn)` tuple to the `attempts` list inside `_auto_register()` in [src/providers/factory.py](src/providers/factory.py). The class must be importable at the dotted path given, with the exact class name specified, and must inherit from the corresponding ABC in [src/core/interfaces.py](src/core/interfaces.py) (`ContentFetcher` / `LLMProvider` / `TTSProvider` / `Renderer` / `ImageGeneratorProvider`). Registration runs on import of `factory.py`; missing deps are logged and the provider is silently skipped (so the app still boots without optional SDKs).
 - **LLM JSON Retry**: `_call_llm_with_json_retry()` retries on invalid JSON; doubles `max_tokens` on `finish_reason=length`. Cap via `llm.max_completion_tokens_cap`.
 - **Concurrency**: `llm.max_workers` for story generation, `analyze.comment_judge_max_workers` for comment judging. Cache schema version bump via `llm.cache_schema_version` when segment-cache semantics change.
-- **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.
+- **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging. Provider names: `openai`, `minimax` (registered in factory). `anthropic_client.py` exists in [src/providers/llm/](src/providers/llm/) as a base client but is not auto-registered — wire it through factory if you need it.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [src/core/prompts.py](src/core/prompts.py). `render_prompt()` raises `ValueError` on typos.
-- **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes.
+- **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes; `src/editor/` (orphan after 2026-06-03 removal).
 
 ### Available Tools
 
@@ -185,8 +206,8 @@ No logos, no text, no watermarks, no brand references.
      cd src/providers/renderer/remotion
      npx remotion still CoverThumbnail --props="data/{date}/cover_props.json" --frame=0 --output="data/{date}/cover.png"
      ```
-   - `cover_props.json` 格式：`{"backgroundImage": "cover.png", "title": "...", "subtitle": "...", "dateLabel": "..."}`
-   - 背景图需先放到 `src/providers/renderer/remotion/public/` 目录
+    - `cover_props.json` 格式：`{"backgroundImage": "cover.png", "title": "...", "subtitle": "...", "dateLabel": "..."}`
+    - 背景图需先放到 `src/providers/renderer/remotion/public/` 目录
 
 ---
 
@@ -200,6 +221,16 @@ Drives mount as `/c/`, `/d/` etc. — **not** `C:\` or `D:\`. Prefer `Bash` with
 |------|---------|-------|
 | `Bash` | `cd /d/code/HNTechPulse/...` | `cd d:\code\HNTechPulse\...` |
 | `PowerShell` | `Set-Location "D:\code\..." ; cmd` | `cd "D:\..." && cmd` |
+
+### PowerShell encoding
+
+If Chinese output is garbled in PowerShell, run once per session:
+
+```powershell
+. .\scripts\encoding.ps1
+```
+
+Sets `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `chcp 65001`. Project files are UTF-8; `.editorconfig` + `.gitattributes` keep editors and Git consistent.
 
 ---
 

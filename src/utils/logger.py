@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -24,6 +25,21 @@ class FlushStreamHandler(logging.StreamHandler):
             self.flush()
         except Exception:
             self.handleError(record)
+
+
+class FsyncFileHandler(logging.FileHandler):
+    """落盘到磁盘的 FileHandler——每条 record 之后 fsync，
+    避免进程被外部 kill 时最后几行只停在 OS 缓冲区里丢失。"""
+
+    def emit(self, record):
+        super().emit(record)
+        try:
+            if self.stream is not None:
+                self.stream.flush()
+                os.fsync(self.stream.fileno())
+        except (OSError, ValueError):
+            # ValueError if stream已关闭；OSError 罕见但不应让日志拖垮主流程
+            pass
 
 
 class LogFormatter(logging.Formatter):
@@ -101,7 +117,7 @@ def setup_logger(
     if log_file:
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler = FsyncFileHandler(log_path, encoding="utf-8")
         file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.DEBUG)  # 文件总是记录 DEBUG
         logger.addHandler(file_handler)

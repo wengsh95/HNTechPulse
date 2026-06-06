@@ -305,16 +305,30 @@ class ArticleEnricher:
 
         # Strategy 2: Headless Chrome
         if aiohttp_failed and self.use_headless:
+            self.logger.info(
+                f"Phase 1 headless: starting batch of {len(aiohttp_failed)} items"
+            )
             headless_failed = await self.fetcher.fetch_browser_batch(
                 aiohttp_failed, pages_dir, headless=True, date=date
+            )
+            self.logger.info(
+                f"Phase 1 headless: {len(aiohttp_failed) - len(headless_failed)}/"
+                f"{len(aiohttp_failed)} ok, {len(headless_failed)} → headed"
             )
         else:
             headless_failed = aiohttp_failed
 
         # Strategy 3: Headed Chrome
         if headless_failed and self.use_headed:
+            self.logger.info(
+                f"Phase 1 headed: starting batch of {len(headless_failed)} items"
+            )
             headed_failed = await self.fetcher.fetch_browser_batch(
                 headless_failed, pages_dir, headless=False, date=date
+            )
+            self.logger.info(
+                f"Phase 1 headed: {len(headless_failed) - len(headed_failed)}/"
+                f"{len(headless_failed)} ok, {len(headed_failed)} unrecovered"
             )
         else:
             headed_failed = headless_failed
@@ -374,6 +388,7 @@ class ArticleEnricher:
     # ── Phase 2: Extract from on-disk HTML ─────────────────────
 
     async def _phase2_extract_all(self, items: list, date: str):
+        self.logger.info(f"Phase 2: starting extraction for {len(items)} items")
         semaphore = asyncio.Semaphore(self.max_concurrent)
         tasks = [self._phase2_extract_one(item, date, semaphore) for item in items]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -382,6 +397,7 @@ class ArticleEnricher:
                 self.logger.info(
                     f"Phase 2 extraction failed for item {items[i].source_id}: {r}"
                 )
+        self.logger.info(f"Phase 2: done ({len(items)} items processed)")
 
     async def _phase2_extract_one(self, item, date: str, semaphore: asyncio.Semaphore):
         async with semaphore:

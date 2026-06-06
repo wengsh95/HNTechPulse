@@ -424,8 +424,15 @@ class PageFetcher:
         try:
             async with async_playwright() as pw:
                 browser = await pw.chromium.launch(**cast(dict, launch_kwargs))
+                self.logger.info(
+                    f"[{strategy_name}] browser launched "
+                    f"(executable={self.browser_executable or 'bundled chromium'})"
+                )
                 try:
-                    for item in items:
+                    for idx, item in enumerate(items, 1):
+                        self.logger.info(
+                            f"[{strategy_name}] {idx}/{len(items)} → {item.url}"
+                        )
                         if self.request_delay > 0:
                             await asyncio.sleep(self.request_delay)
                         try:
@@ -455,8 +462,9 @@ class PageFetcher:
                                     page, item.url, self.logger
                                 )
                             if block_reason:
-                                self.logger.debug(
-                                    f"[{strategy_name}] anti-bot: {block_reason} — {item.url}"
+                                self.logger.info(
+                                    f"[{strategy_name}] {idx}/{len(items)} blocked: "
+                                    f"{block_reason}"
                                 )
                                 await context.close()
                                 continue
@@ -468,8 +476,9 @@ class PageFetcher:
                                         html, encoding="utf-8", errors="replace"
                                     )
                                 item.enrichment_source = strategy_name
-                                self.logger.debug(
-                                    f"[{strategy_name}] {item.title[:50]} ({len(html)} bytes)"
+                                self.logger.info(
+                                    f"[{strategy_name}] {idx}/{len(items)} ok "
+                                    f"({len(html)} bytes)"
                                 )
                                 if self.screenshot_enabled:
                                     screenshot_dest = (
@@ -480,29 +489,35 @@ class PageFetcher:
                                             path=str(screenshot_dest),
                                             type="jpeg",
                                             quality=85,
+                                            timeout=10000,
                                         )
                                         item.screenshot_image = (
                                             f"images/{item.source_id}_screenshot.jpg"
                                         )
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        self.logger.info(
+                                            f"[{strategy_name}] {idx}/{len(items)} "
+                                            f"screenshot failed: {e}"
+                                        )
                             else:
-                                self.logger.debug(
-                                    f"[{strategy_name}] empty/short HTML for {item.url}"
+                                self.logger.info(
+                                    f"[{strategy_name}] {idx}/{len(items)} "
+                                    f"empty/short HTML"
                                 )
                             await context.close()
                         except Exception as e:
-                            self.logger.debug(
-                                f"[{strategy_name}] failed for {item.url}: {e}"
+                            self.logger.info(
+                                f"[{strategy_name}] {idx}/{len(items)} failed: {e}"
                             )
                             try:
                                 await context.close()
                             except Exception:
                                 pass
                 finally:
+                    self.logger.info(f"[{strategy_name}] closing browser")
                     await browser.close()
         except Exception as e:
-            self.logger.debug(f"Browser batch failed: {e}")
+            self.logger.info(f"Browser batch failed ({strategy_name}): {e}")
             for item in items:
                 if item.enrichment_source is None:
                     failed.append(item)

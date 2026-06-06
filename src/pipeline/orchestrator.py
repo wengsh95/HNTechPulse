@@ -507,6 +507,7 @@ class Orchestrator:
             script.title = cached.get("title", script.title)
             script.description = cached.get("description", script.description)
             script.tags = cached.get("tags", script.tags)
+            script.cover_subtitle = cached.get("cover_subtitle", script.cover_subtitle)
             return script
 
         if self.dry_run:
@@ -534,13 +535,16 @@ class Orchestrator:
             result.get("description") or ""
         ).strip() or f"每日快讯 - {date}"
         script.tags = list(result.get("tags") or [])
+        script.cover_subtitle = (result.get("cover_subtitle") or "").strip()
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
             json.dumps(
                 {
                     "title": script.title,
+                    "title_candidates": result.get("title_candidates") or [],
                     "description": script.description,
+                    "cover_subtitle": (result.get("cover_subtitle") or "").strip(),
                     "tags": script.tags,
                 },
                 ensure_ascii=False,
@@ -619,7 +623,15 @@ class Orchestrator:
                 return
 
         title = script.title if script else "HN每日观察"
-        subtitle = script.description if script else date
+        # 封面副文：cover_subtitle 优先（格式/长度见 prompts/title.md cover_subtitle 段），fallback 到 description 截断
+        if script is None:
+            subtitle = date
+        elif script.cover_subtitle:
+            subtitle = script.cover_subtitle
+        elif script.description:
+            subtitle = script.description[:40] + ("…" if len(script.description) > 40 else "")
+        else:
+            subtitle = date
         date_label = date
 
         props_path.parent.mkdir(parents=True, exist_ok=True)

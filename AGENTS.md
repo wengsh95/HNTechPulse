@@ -50,6 +50,7 @@ Run a subset (expands to all prerequisites): `uv run python main.py --steps fetc
 - **Comment flow**: `CommentAnalyzer` (VADER + quality) → `CommentJudge` (LLM top-15) → `quote_candidates`. ScriptWriter consumes `quote_candidates` directly. No re-selection downstream.
 - **LLM JSON retry**: `_call_llm_with_json_retry()` retries on bad JSON; doubles `max_tokens` on `finish_reason=length`, capped by `llm.max_completion_tokens_cap`.
 - **Cache schema version**: Bump `llm.cache_schema_version` in config when segment-cache semantics change.
+- **Remotion render temp filename**: Use `.partial.mp4` (mid-suffix), NOT `.mp4.partial` (post-suffix). Remotion's h264+aac validator strictly requires the filename to end in `.mp4` / `.mkv` / `.mov`; `.mp4.partial` will be rejected with `TypeError: When using the h264 codec with the aac audio codec, the output filename must end in one of the following: mp4, mkv, mov.` See `src/providers/renderer/remotion_renderer.py:285`.
 
 ## Code quality
 

@@ -96,14 +96,16 @@ const ElementFadeWrap: React.FC<{
 }> = ({ needsFade, durationFrames, children }) => {
   const frame = useCurrentFrame();
   const FADE_FRAMES = 6;
-  const opacity = needsFade
-    ? interpolate(
-        frame,
-        [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
-        [0, 1, 1, 0],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-      )
-    : 1;
+  // 元素太短时跳过淡入淡出，避免 inputRange 非单调（[0, F, mid, dur] 中 mid < F 时崩溃）
+  const opacity =
+    needsFade && durationFrames > 2 * FADE_FRAMES
+      ? interpolate(
+          frame,
+          [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
+          [0, 1, 1, 0],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+        )
+      : 1;
   return (
     <div style={{ position: "absolute", inset: 0, opacity, pointerEvents: "none" }}>{children}</div>
   );

@@ -12,9 +12,9 @@ llm:
   max_workers: 3                       # Concurrent story script generation
   cache_schema_version: 4              # Segment cache fingerprint version (4: persist LLM estimated_duration)
   fast:                                # 低成本模型，用于翻译等轻量任务
-    model: "MiniMax-M2.7"
-    max_tokens: 4096
-    temperature: 0.1
+    model: "MiniMax-M3"
+    max_tokens: 8192
+    temperature: 0.4
 
 # ── DeepSeek 配置示例 ──
 # 切换回 DeepSeek 时，修改上方 provider 并取消注释以下配置：

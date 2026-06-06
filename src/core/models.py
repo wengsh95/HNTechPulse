@@ -124,6 +124,7 @@ class Script:
     tags: List[str]
     segments: List[ScriptSegment]
     total_duration: Optional[float] = None
+    cover_subtitle: str = ""  # 封面副文（破折号短语，每段长度详见 prompts/title.md），独立于视频 description
 
 
 @dataclass

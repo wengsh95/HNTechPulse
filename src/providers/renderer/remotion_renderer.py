@@ -282,11 +282,15 @@ class RemotionRenderer(Renderer):
                     )
                     chunk_file.unlink()
 
-                # Render to .partial first; only rename to .mp4 on a clean exit.
-                # A crashed/timeout render leaves .partial behind, invisible to
-                # the resume check above, so the next run re-renders cleanly
-                # instead of silently reusing a half-written MP4 in concat.
-                partial_file = chunk_file.with_suffix(chunk_file.suffix + ".partial")
+                # Render to a .partial.mp4 temp file first; only rename to .mp4 on
+                # a clean exit. A crashed/timeout render leaves the .partial.mp4
+                # behind, invisible to the resume check above, so the next run
+                # re-renders cleanly instead of silently reusing a half-written
+                # MP4 in concat. Note: the .mp4 suffix MUST remain at the end so
+                # Remotion's h264/aac filename validator accepts it.
+                partial_file = chunk_file.with_name(
+                    f"{chunk_file.stem}.partial{chunk_file.suffix}"
+                )
                 if partial_file.exists():
                     self.logger.warning(
                         f"Chunk {idx + 1}/{len(chunks)} has leftover .partial; "

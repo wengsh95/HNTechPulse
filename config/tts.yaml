@@ -1,31 +1,35 @@
 # ── TTS 语音合成配置 ──
 
-tts:
-  provider: "mimo"
-  voice: "冰糖"
-  emotion: "warm"
-  model: "mimo-v2.5-tts"
-  base_url: "https://api.xiaomimimo.com/v1"
-  format: "wav"
-  sample_rate: 24000
-  temperature: 0.3
-  top_p: 0.9
-  # seed: 42
-  # ── Whisper 对齐（每段 TTS 后用 Whisper 获取字幕时间戳，不切割音频）──
-  whisper_model: "small"
-  whisper_model_path: "D:\\code\\HNTechPulse\\whisper\\"
-
 # tts:
-#   provider: "minimax"
-#   model: "speech-2.8-hd"
-#   voice_id: "male-qn-qingse"
-#   speed: 1
-#   vol: 1
-#   pitch: 0
-#   english_normalization: false
-#   sample_rate: 32000
-#   bitrate: 128000
-#   format: "mp3"
-#   channel: 1
+#   provider: "mimo"
+#   voice: "冰糖"
+#   emotion: "warm"
+#   model: "mimo-v2.5-tts"
+#   base_url: "https://api.xiaomimimo.com/v1"
+#   format: "wav"
+#   sample_rate: 24000
+#   temperature: 0.3
+#   top_p: 0.9
+#   # seed: 42
+#   # ── 并发 TTS：所有段（含 story_scan 元素）一次性 asyncio.gather 跑 ──
+#   # 各 provider 是独立网络请求，无共享状态；并发数主要受限于 provider 速率配额
+#   # edge-tts: 6-8 OK; mimo/minimax: 按你的 RPM 调整
+#   max_concurrent: 6
+#   # ── Whisper 对齐（每段 TTS 后用 Whisper 获取字幕时间戳，不切割音频）──
 #   whisper_model: "small"
-#   whisper_model_path: "E:/Code/models/models/whisper"
+#   whisper_model_path: "E:\\Code\\models\\models\\whisper"
+
+tts:
+  provider: "minimax"
+  model: "speech-2.8-hd"
+  voice_id: "male-qn-qingse"
+  speed: 1
+  vol: 1
+  pitch: 0
+  english_normalization: false
+  sample_rate: 32000
+  bitrate: 128000
+  format: "mp3"
+  channel: 1
+  whisper_model: "small"
+  whisper_model_path: "E:/Code/models/models/whisper"
