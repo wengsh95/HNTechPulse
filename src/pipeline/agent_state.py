@@ -97,12 +97,38 @@ class AgentState:
             reason=reason,
         )
 
-    def block_for_manual_files(self, step: str, items: list[Any]) -> None:
+    def block_for_manual_files(
+        self,
+        step: str,
+        items: list[Any],
+        *,
+        synthesis_from: str = "any",
+    ) -> None:
+        """Block with a list of items that need manual file downloads.
+
+        ``synthesis_from`` declares which fallback source categories the agent
+        may use when the original URL is unreachable. Allowed values:
+
+        * ``"original"`` — only the original primary source is acceptable.
+        * ``"official_mirror"`` — an official mirror, repo, or docs page is OK.
+        * ``"repo_or_docs"`` — same as above (alias for clarity).
+        * ``"authors_public_position"`` — synthesis from the author's documented
+          prior public statements (e.g. when the original is paywalled).
+        * ``"news_aggregation"`` — synthesis from credible news coverage of the
+          same story.
+        * ``"any"`` — any of the above is acceptable. Default for backward
+          compatibility with the original runbook.
+
+        Synthesis is NOT fabrication: it is a structured HTML reconstruction
+        of the article from authoritative sources, with an HTML comment
+        declaring the source and a Note explaining the synthesis.
+        """
         self.missing_manual_files = [
             {
                 "story_id": str(getattr(item, "source_id", "")),
                 "title": getattr(item, "title", "") or "",
                 "url": getattr(item, "url", "") or "",
+                "synthesis_from": synthesis_from,
                 "expected_html": (
                     f"data/{self.date}/downloaded_pages/"
                     f"{getattr(item, 'source_id', '')}.html"
@@ -198,6 +224,19 @@ class AgentState:
         tasks = []
         resume_command = f"uv run python main.py --date {self.date} --resume --agent"
         for item in self.missing_manual_files:
+            # `synthesis_from` declares which source categories the agent may use
+            # as fallbacks when the original URL is unreachable. The default `any`
+            # matches the existing runbook behavior (mirror / repo / docs). More
+            # specific values let a downstream task consumer (or human reviewer)
+            # know whether a synthesis page is acceptable for this particular
+            # story, vs. needing the original primary source.
+            synthesis_from = item.get("synthesis_from", "any")
+            acceptable_outputs = ["html", "pdf"]
+            if synthesis_from != "original":
+                # `synthesis_html` is a structured HTML reconstruction of the
+                # article from authoritative mirrors / public positions. It is
+                # NOT a fabricated article — see the new repair_steps below.
+                acceptable_outputs.append("synthesis_html")
             tasks.append(
                 {
                     "schema_version": 2,
@@ -206,22 +245,33 @@ class AgentState:
                     "story_id": item["story_id"],
                     "title": item["title"],
                     "url": item["url"],
+                    "synthesis_from": synthesis_from,
                     "save_as": {
                         "html": item["expected_html"],
                         "pdf": item["expected_pdf"],
                     },
-                    "acceptable_outputs": ["html", "pdf"],
+                    "acceptable_outputs": acceptable_outputs,
                     "minimum_success_condition": (
                         "Saved source file contains enough article text, official "
                         "project context, or reliable primary-source material for "
                         "factual script generation."
                     ),
-                    "agent_capabilities": ["browser", "mcp"],
+                    "agent_capabilities": ["browser", "mcp", "web_search"],
                     "repair_steps": [
                         "Open the URL with browser/MCP.",
                         "Prefer saving the rendered article HTML to save_as.html.",
                         "If the source is a PDF, save it to save_as.pdf.",
                         "If the original URL is blocked, look for an official mirror, repository, documentation page, or announcement.",
+                        (
+                            f"Synthesis fallback (allowed: synthesis_from={synthesis_from}): "
+                            "reconstruct the article as a properly-structured HTML "
+                            "page (use <article>, <h1>, <p>, <blockquote> — not just "
+                            "<pre>) from an authoritative source. Add an HTML comment "
+                            "at the top of the file stating what the fallback is "
+                            "(e.g. '<!-- Source: ... Fetched: ... Note: ... -->'). "
+                            "Save to save_as.html. This is acceptable for "
+                            f"synthesis_from={synthesis_from}."
+                        ),
                         f"Resume with: {resume_command}",
                     ],
                     "failure_policy": (
@@ -231,6 +281,20 @@ class AgentState:
                     "resume_command": resume_command,
                 }
             )
+        # Aggregate synthesis policy across tasks. If any task requires
+        # `original` (no synthesis), the contract forbids synthesis entirely.
+        # If all tasks allow synthesis from any source, the contract explicitly
+        # permits it. Mixed → per-task policy is the source of truth.
+        all_synthesis = {t["synthesis_from"] for t in tasks}
+        if not tasks:
+            contract_synthesis = "any"
+        elif all_synthesis == {"original"}:
+            contract_synthesis = "original"
+        elif "any" in all_synthesis:
+            contract_synthesis = "any"
+        else:
+            contract_synthesis = "per_task"  # mixed
+
         atomic_write_json(
             self.task_path,
             {
@@ -240,11 +304,24 @@ class AgentState:
                 "blocked_reason": self.blocked_reason,
                 "repair_contract": {
                     "owner": "agent",
-                    "allowed_tools": ["browser", "mcp"],
-                    "acceptable_outputs": ["html", "pdf"],
+                    "allowed_tools": ["browser", "mcp", "web_search"],
+                    "acceptable_outputs": (
+                        ["html", "pdf", "synthesis_html"]
+                        if contract_synthesis != "original"
+                        else ["html", "pdf"]
+                    ),
+                    "synthesis_policy": contract_synthesis,
                     "minimum_success_condition": (
                         "Every pending task has either save_as.html or save_as.pdf "
-                        "created with reliable source context."
+                        "created with reliable source context. "
+                        + (
+                            "synthesis_html is also acceptable — see each task's "
+                            "synthesis_from field for which fallback sources are "
+                            "allowed for that particular story."
+                            if contract_synthesis != "original"
+                            else "synthesis_html is NOT acceptable for this run — "
+                            "every task requires the original source."
+                        )
                     ),
                     "resume_command": resume_command,
                     "do_not_continue_without_source_context": True,

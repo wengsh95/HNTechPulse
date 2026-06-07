@@ -5,6 +5,24 @@ import { Easing, useVideoConfig } from "remotion";
 const REF_WIDTH = 1920;
 const REF_HEIGHT = 1080;
 
+/**
+ * 手机端字号放大系数 (B 站主战场)
+ *
+ * 视频输出 1920×1080,在 B 站手机端(竖屏)实际显示宽度约 380-420pt,
+ * 缩放因子 ≈ 0.21。原始 FS.body=32 在手机端实际只有 ~6.7pt,
+ * 远低于 iOS 11pt 的可读阈值,导致副文本(pill/caption/micro)几乎看不清。
+ *
+ * 把所有 fs 字段统一乘这个 boost,等价于"在视频里就把字做大",
+ * 让手机端最终显示的字号回到可读区间。桌面端(全屏 1920×1080)
+ * 字号会略大,密度下降,但在 1080p 全屏下仍可接受。
+ *
+ * 调这个常量即可全局调整;不要在卡片里单独硬编码。
+ */
+const MOBILE_FONT_BOOST = 1.3;
+
+/** 文字上下文间距放大系数(比字号 boost 小,避免过度稀释密度) */
+const MOBILE_GAP_BOOST = 1.15;
+
 /** Keynote 风格暗色设计系统（基于 1080p 参考值，运行时按实际分辨率缩放） */
 
 export const FONTS = {
@@ -159,6 +177,10 @@ export interface DesignTokens {
 function createDesignTokens(width: number, height: number): DesignTokens {
   const scale = Math.min(width / REF_WIDTH, height / REF_HEIGHT);
   const scaled = (px: number) => Math.round(px * scale);
+  // 字号专用:全量乘 MOBILE_FONT_BOOST 解决 B 站手机端字号过小
+  const fsScaled = (px: number) => Math.round(px * scale * MOBILE_FONT_BOOST);
+  // 间距专用:同步放大(系数小于字号,避免内容布局过度稀释)
+  const gapScaled = (px: number) => Math.round(px * scale * MOBILE_GAP_BOOST);
 
   const isPortrait = height > width;
   const isCompactHeight = scale < 0.8;
@@ -166,42 +188,42 @@ function createDesignTokens(width: number, height: number): DesignTokens {
   const getCardMaxHeight = isPortrait ? Math.round(height * 0.55) : Math.round(height * 0.78);
 
   const layout: typeof LAYOUT = {
-    pageInset: scaled(LAYOUT.pageInset),
-    topInset: scaled(LAYOUT.topInset),
-    bottomSafe: scaled(LAYOUT.bottomSafe),
-    chromeInsetX: scaled(LAYOUT.chromeInsetX),
-    chromeTop: scaled(LAYOUT.chromeTop),
-    chromeHeight: scaled(LAYOUT.chromeHeight),
-    progressInsetX: scaled(LAYOUT.progressInsetX),
-    progressBottom: scaled(LAYOUT.progressBottom),
-    subtitleBottom: scaled(LAYOUT.subtitleBottom),
-    subtitleBottomMinimal: scaled(LAYOUT.subtitleBottomMinimal),
+    pageInset: gapScaled(LAYOUT.pageInset),
+    topInset: gapScaled(LAYOUT.topInset),
+    bottomSafe: gapScaled(LAYOUT.bottomSafe),
+    chromeInsetX: gapScaled(LAYOUT.chromeInsetX),
+    chromeTop: gapScaled(LAYOUT.chromeTop),
+    chromeHeight: gapScaled(LAYOUT.chromeHeight),
+    progressInsetX: gapScaled(LAYOUT.progressInsetX),
+    progressBottom: gapScaled(LAYOUT.progressBottom),
+    subtitleBottom: gapScaled(LAYOUT.subtitleBottom),
+    subtitleBottomMinimal: gapScaled(LAYOUT.subtitleBottomMinimal),
     cardRadius: scaled(LAYOUT.cardRadius),
     panelRadius: scaled(LAYOUT.panelRadius),
     chipRadius: scaled(LAYOUT.chipRadius),
-    cardPaddingX: scaled(LAYOUT.cardPaddingX),
-    cardPaddingY: scaled(LAYOUT.cardPaddingY),
-    contentMaxWidth: scaled(LAYOUT.contentMaxWidth),
-    contentWideMaxWidth: scaled(LAYOUT.contentWideMaxWidth),
-    subtitleMaxWidth: scaled(LAYOUT.subtitleMaxWidth),
+    cardPaddingX: gapScaled(LAYOUT.cardPaddingX),
+    cardPaddingY: gapScaled(LAYOUT.cardPaddingY),
+    contentMaxWidth: gapScaled(LAYOUT.contentMaxWidth),
+    contentWideMaxWidth: gapScaled(LAYOUT.contentWideMaxWidth),
+    subtitleMaxWidth: gapScaled(LAYOUT.subtitleMaxWidth),
   };
 
   const fs: typeof FS = {
-    hero: scaled(FS.hero),
-    headline: scaled(FS.headline),
-    subhead: scaled(FS.subhead),
-    closing: scaled(FS.closing),
-    body: scaled(FS.body),
-    bodySmall: scaled(FS.bodySmall),
-    bodyLg: scaled(FS.bodyLg),
-    subtitle2: scaled(FS.subtitle2),
-    label: scaled(FS.label),
-    caption: scaled(FS.caption),
-    pill: scaled(FS.pill),
-    micro: scaled(FS.micro),
-    watermark: scaled(FS.watermark),
-    watermarkLg: scaled(FS.watermarkLg),
-    subtitle: scaled(FS.subtitle),
+    hero: fsScaled(FS.hero),
+    headline: fsScaled(FS.headline),
+    subhead: fsScaled(FS.subhead),
+    closing: fsScaled(FS.closing),
+    body: fsScaled(FS.body),
+    bodySmall: fsScaled(FS.bodySmall),
+    bodyLg: fsScaled(FS.bodyLg),
+    subtitle2: fsScaled(FS.subtitle2),
+    label: fsScaled(FS.label),
+    caption: fsScaled(FS.caption),
+    pill: fsScaled(FS.pill),
+    micro: fsScaled(FS.micro),
+    watermark: fsScaled(FS.watermark),
+    watermarkLg: fsScaled(FS.watermarkLg),
+    subtitle: fsScaled(FS.subtitle),
   };
 
   return {

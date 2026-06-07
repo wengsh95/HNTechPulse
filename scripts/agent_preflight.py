@@ -117,6 +117,72 @@ def _state_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     return state, issues
 
 
+def _last_run_summary(date: str) -> dict[str, Any] | None:
+    """One-line summary of the most recent successful run for a date.
+
+    Reads pipeline_state.json + report.md (if present) to give the agent
+    the answer to "is this date already done, and if so, what did I get?"
+    without re-running the full audit. Saves a full audit call when the
+    agent's only question is "did I already do this date?".
+    """
+    state = load_pipeline_state(date)
+    if not state or state.get("status") not in {"complete", "degraded"}:
+        return None
+    base = Path(f"data/{date}")
+    summary: dict[str, Any] = {
+        "completed_at": state.get("updated_at"),
+        "status": state.get("status"),
+        "completed_steps": state.get("completed_steps") or [],
+        "blocked_reason": state.get("blocked_reason"),
+        "degraded_items": state.get("degraded_items") or [],
+    }
+    # Pull a few more useful fields from the artifacts when present.
+    report = base / "report.md"
+    if report.exists():
+        # Cheap parse: just grab total_duration, story_count, video title,
+        # publishable from the markdown table.
+        try:
+            txt = report.read_text(encoding="utf-8")
+        except OSError:
+            txt = ""
+        for key, label in [
+            ("总耗时", "total_duration"),
+            ("故事总数", "story_count"),
+            ("视频标题", "video_title"),
+            ("视频简介", "video_description"),
+        ]:
+            for line in txt.splitlines():
+                if label in line or key in line:
+                    if "|" in line:
+                        cells = [c.strip() for c in line.split("|") if c.strip()]
+                        if len(cells) >= 2:
+                            summary[label] = cells[-1]
+                            break
+    # Title file is the most direct "is this usable" signal.
+    title_path = base / "title.json"
+    if title_path.exists():
+        try:
+            t = json.loads(title_path.read_text(encoding="utf-8"))
+            summary["video_title"] = t.get("title") or summary.get("video_title")
+            summary["title_candidates_count"] = len(t.get("title_candidates") or [])
+        except (OSError, json.JSONDecodeError):
+            pass
+    # Variant decision: tells the agent which strategy won.
+    var = base / "agent_variant_decision.json"
+    if var.exists():
+        try:
+            v = json.loads(var.read_text(encoding="utf-8"))
+            summary["selected_variant"] = v.get("selected_variant")
+            summary["variant_score"] = (
+                (v.get("scores") or [{}])[0].get("total_score")
+                if v.get("scores")
+                else None
+            )
+        except (OSError, json.JSONDecodeError):
+            pass
+    return summary
+
+
 def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     path = Path(f"data/{date}/agent_tasks.json")
     if not path.exists():
@@ -170,17 +236,23 @@ def main() -> int:
     fatal = any(i["severity"] == "fatal" for i in issues)
     blocked = any(i["severity"] == "blocked" for i in issues)
     status = "fatal" if fatal else "blocked" if blocked else "ok"
+    last_run = _last_run_summary(args.date)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "date": args.date,
         "status": status,
         "issues": issues,
         "pipeline_state": state,
         "agent_tasks": tasks,
+        "last_run_summary": last_run,
         "known_steps": list(ALL_STEPS),
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 2 if fatal else 1 if blocked else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 
 
 if __name__ == "__main__":

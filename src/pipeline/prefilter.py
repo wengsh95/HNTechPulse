@@ -5,7 +5,7 @@ from typing import Any
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 5
+_CACHE_SCHEMA_VERSION = 7
 
 
 def _prompt_hash() -> str:
@@ -58,6 +58,7 @@ class Prefilter:
             self._save_cache(date, decisions, cache_meta)
 
         self._apply_editorial_signals(content.items, decisions)
+        original_items = list(content.items)
 
         # Apply decisions
         keep_ids = self._resolve_keep_set(content.items, decisions)
@@ -71,6 +72,7 @@ class Prefilter:
         # Filter by minimum newsworthiness (话题度门槛)
         prefilter_cfg = self.config.get("prefilter", {})
         min_nw = prefilter_cfg.get("min_newsworthiness", 3)
+        target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
         before_nw = len(content.items)
         content.items = [
             item
@@ -85,15 +87,18 @@ class Prefilter:
                 f"remaining {len(content.items)}"
             )
 
-        # Sort by composite score: ai_relevance*2 + newsworthiness (higher = better)
-        # Tiebreaker: HN score (higher = better)
+        if len(content.items) < target_count:
+            self._backfill_after_newsworthiness(
+                content, decisions, original_items=original_items, target_count=target_count
+            )
+
+        # Sort by Bilibili-oriented video value; tiebreaker: HN score.
         def _composite_key(item):
             return (-(item.editorial_score or 0), -(item.score or 0))
 
         content.items = sorted(content.items, key=_composite_key)
 
         # Cap to target_story_count (items already sorted by priority then score)
-        target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
         if len(content.items) > target_count:
             self.logger.info(
                 f"Capping from {len(content.items)} to {target_count} stories"
@@ -107,17 +112,70 @@ class Prefilter:
 
     @staticmethod
     def _editorial_score(decision: dict) -> float:
-        ai = decision.get("ai_relevance") or 0
+        ci = decision.get("china_interest") or 0
         nw = decision.get("newsworthiness") or 0
-        return float(ai * 2 + nw)
+        click = decision.get("click_potential") or 0
+        discussion = decision.get("discussion_potential") or 0
+        creator = decision.get("creator_value") or 0
+        retention = decision.get("retention_value") or 0
+        return float(
+            click * 2.0
+            + discussion * 1.6
+            + creator * 1.4
+            + retention * 1.2
+            + nw * 1.2
+            + ci * 1.0
+        )
 
     def _apply_editorial_signals(self, items, decisions: dict) -> None:
         for item in items:
             decision = decisions.get(str(item.source_id), {})
-            item.ai_relevance = decision.get("ai_relevance")
+            item.china_interest = decision.get("china_interest")
             item.newsworthiness = decision.get("newsworthiness")
+            item.click_potential = decision.get("click_potential")
+            item.discussion_potential = decision.get("discussion_potential")
+            item.creator_value = decision.get("creator_value")
+            item.retention_value = decision.get("retention_value")
+            item.headline_hook = decision.get("headline_hook")
+            item.cover_hook = decision.get("cover_hook")
+            item.debate_angle = decision.get("debate_angle")
+            if decision.get("category"):
+                item.category = decision.get("category")
             item.prefilter_reason = decision.get("reason") or ""
             item.editorial_score = self._editorial_score(decision)
+
+    def _backfill_after_newsworthiness(
+        self,
+        content: ContentPackage,
+        decisions: dict,
+        original_items: list,
+        target_count: int,
+    ) -> None:
+        existing_ids = {item.source_id for item in content.items}
+        candidates = []
+        for item in original_items:
+            if item.source_id in existing_ids:
+                continue
+            decision = decisions.get(str(item.source_id), {})
+            if not decision.get("keep"):
+                continue
+            if (decision.get("click_potential") or 0) >= 3 or (
+                decision.get("creator_value") or 0
+            ) >= 4:
+                candidates.append(item)
+
+        candidates = sorted(
+            candidates,
+            key=lambda item: (item.editorial_score or 0, item.score or 0),
+            reverse=True,
+        )
+        needed = max(0, target_count - len(content.items))
+        if needed and candidates:
+            additions = candidates[:needed]
+            content.items.extend(additions)
+            self.logger.info(
+                f"Backfilled {len(additions)} Bilibili-suitable stories after newsworthiness filter"
+            )
 
     def _run_llm(self, items):
         stories = [
@@ -143,8 +201,16 @@ class Prefilter:
             decisions[str(item.source_id)] = {
                 "keep": bool(d.get("keep", True)),
                 "reason": d.get("reason", ""),
-                "ai_relevance": d.get("ai_relevance"),
+                "category": d.get("category"),
+                "china_interest": d.get("china_interest"),
                 "newsworthiness": d.get("newsworthiness"),
+                "click_potential": d.get("click_potential"),
+                "discussion_potential": d.get("discussion_potential"),
+                "creator_value": d.get("creator_value"),
+                "retention_value": d.get("retention_value"),
+                "headline_hook": d.get("headline_hook"),
+                "cover_hook": d.get("cover_hook"),
+                "debate_angle": d.get("debate_angle"),
             }
         return decisions
 
@@ -214,6 +280,7 @@ class Prefilter:
             "min_keep": prefilter_cfg.get("min_keep", self.min_keep),
             "min_newsworthiness": prefilter_cfg.get("min_newsworthiness", 3),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
+            "scoring_strategy": "bilibili_daily_v1",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

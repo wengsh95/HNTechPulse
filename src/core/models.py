@@ -36,8 +36,15 @@ class ContentItem:
     score: Optional[int] = None
     comment_count: Optional[int] = None
     editorial_score: Optional[float] = None
-    ai_relevance: Optional[int] = None
+    china_interest: Optional[int] = None
     newsworthiness: Optional[int] = None
+    click_potential: Optional[int] = None
+    discussion_potential: Optional[int] = None
+    creator_value: Optional[int] = None
+    retention_value: Optional[int] = None
+    headline_hook: Optional[str] = None
+    cover_hook: Optional[str] = None
+    debate_angle: Optional[str] = None
     prefilter_reason: Optional[str] = None
     published_at: int = 0
     comments: List[ContentComment] = field(default_factory=list)

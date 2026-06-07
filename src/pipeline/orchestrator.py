@@ -474,6 +474,11 @@ class Orchestrator:
                 f"  Then re-run the pipeline. It will resume from this point."
             )
             self.content_preparer.save_content(content, date)
+        else:
+            # Always persist enrichment results back to content.json, even on
+            # the happy path. Without this, downstream steps (write_script,
+            # title, …) see items with editor_angle=None and crash.
+            self.content_preparer.save_content(content, date)
 
         return content, failed_items
 
@@ -675,15 +680,58 @@ class Orchestrator:
             ),
             "date": date,
         }
-        result = self.llm_provider.complete_prompt(
-            "prompts/title.md",
-            context,
-            label="title",
-            expect_json=True,
-            model=self.llm_provider.fast_model,
-            temperature=self.llm_provider.fast_temperature,
-        )
-        script.title = (result.get("title") or "").strip() or "HN每日观察"
+        try:
+            result = self.llm_provider.complete_prompt(
+                "prompts/title.md",
+                context,
+                label="title",
+                expect_json=True,
+                max_tokens=16384,
+                model=self.llm_provider.fast_model,
+                temperature=self.llm_provider.fast_temperature,
+            )
+        except (ValueError, Exception) as e:
+            self.logger.error(f"  Title LLM call failed: {e}")
+            raise
+
+        # Enforce a reasonable length cap on title candidates.
+        # The prompt asks for ≤30 visual chars; we allow up to 35 len()
+        # to accommodate English product names that are wider than CJK.
+        title_candidates = [c.strip() for c in (result.get("title_candidates") or []) if c]
+        chosen = (result.get("title") or "").strip()
+
+        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 35
+
+        def _fits(c: str) -> bool:
+            return TITLE_IDEAL_MIN <= len(c) <= TITLE_HARD_MAX
+
+        valid_candidates = [c for c in title_candidates if _fits(c)]
+        if not _fits(chosen):
+            if valid_candidates:
+                chosen = min(valid_candidates, key=len)
+                self.logger.info(
+                    f"  LLM's `title` field was {len(chosen)} chars; "
+                    f"picked shortest valid candidate: {chosen!r}"
+                )
+            else:
+                if title_candidates:
+                    self.logger.warning(
+                        f"  All {len(title_candidates)} title candidates out of range "
+                        f"(lengths: {[len(c) for c in title_candidates]}). "
+                        f"Falling back to LLM's chosen ({len(chosen)} chars)."
+                    )
+                else:
+                    self.logger.warning(
+                        "  LLM returned no title_candidates. "
+                        f"Using fallback title ({len(chosen)} chars)."
+                    )
+        if valid_candidates:
+            chosen = min(valid_candidates, key=len)
+            kept_candidates = title_candidates
+        else:
+            kept_candidates = title_candidates
+
+        script.title = chosen or "HN每日观察"
         script.description = (
             result.get("description") or ""
         ).strip() or f"每日快讯 - {date}"
@@ -695,7 +743,7 @@ class Orchestrator:
             json.dumps(
                 {
                     "title": script.title,
-                    "title_candidates": result.get("title_candidates") or [],
+                    "title_candidates": kept_candidates,
                     "description": script.description,
                     "cover_subtitle": (result.get("cover_subtitle") or "").strip(),
                     "tags": script.tags,

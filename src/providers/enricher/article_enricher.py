@@ -839,6 +839,19 @@ class ArticleEnricher:
                 raise ValueError(
                     f"enrichment result is not a JSON object (got {type(parsed).__name__})"
                 )
+            # Sanity: editor_angle and key_points are the load-bearing fields
+            # consumed by write_script. If the model hallucinates a valid-looking
+            # JSON object without them, retry rather than silently storing
+            # None and crashing downstream.
+            if not parsed.get("editor_angle") or not parsed.get("key_points"):
+                missing = [
+                    f
+                    for f in ("editor_angle", "key_points")
+                    if not parsed.get(f)
+                ]
+                raise ValueError(
+                    f"enrichment result missing required fields: {missing}"
+                )
 
         for attempt in range(self.retry_count):
             try:

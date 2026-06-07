@@ -198,9 +198,12 @@ def _expand_event_card(props, content, score_ranks=None):
     return result
 
 
-def _expand_atmosphere_card(props, content):
+def _expand_atmosphere_card(props, content, logger=None):
     """Expand atmosphere_card: inject controversy score, stance/distribution, and representative quotes."""
     import math
+
+    if logger is None:
+        logger = setup_logger("remotion_props")
 
     item = _safe_get_item(content, props.get("story_index"))
     if item is None:
@@ -266,10 +269,24 @@ def _expand_atmosphere_card(props, content):
         source_id = str(c.source_id) if c.source_id is not None else ""
         display_text = display_claims.get(source_id)
         if not display_text:
-            raise ValueError(
-                "atmosphere_card requires comment_lanes claim for selected "
-                f"comment {source_id or '<missing>'}; delete comment_judgement/script "
-                "cache and regenerate"
+            # Self-healing fallback: judge LLM may select a quote comment that has
+            # no claim in `comment_lanes` (claim is a separate LLM field). Rather
+            # than fail the whole prepare_render, synthesize a 50-char display
+            # from the cleaned comment text. Remotion side then gets a usable
+            # `display_text` even when the judge's `claim` field is missing.
+            fallback = clean_comment_text(c.content or "").strip()
+            if not fallback:
+                logger.warning(
+                    "atmosphere_card: skipping comment %s (no claim and empty text)",
+                    source_id or "<missing>",
+                )
+                continue
+            display_text = fallback[:50].rstrip()
+            logger.info(
+                "atmosphere_card: synthesized claim for comment %s from text "
+                "(no comment_lanes claim): %r",
+                source_id or "<missing>",
+                display_text,
             )
         quotes.append(
             {
