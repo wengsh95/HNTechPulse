@@ -4,6 +4,7 @@ from typing import Any
 
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
+from src.utils.text import normalize_cjk_mixed_spacing
 
 _CACHE_SCHEMA_VERSION = 7
 
@@ -136,13 +137,19 @@ class Prefilter:
             item.discussion_potential = decision.get("discussion_potential")
             item.creator_value = decision.get("creator_value")
             item.retention_value = decision.get("retention_value")
-            item.headline_hook = decision.get("headline_hook")
-            item.cover_hook = decision.get("cover_hook")
-            item.debate_angle = decision.get("debate_angle")
+            item.headline_hook = self._copy_text(decision.get("headline_hook"))
+            item.cover_hook = self._copy_text(decision.get("cover_hook"))
+            item.debate_angle = self._copy_text(decision.get("debate_angle"))
             if decision.get("category"):
                 item.category = decision.get("category")
             item.prefilter_reason = decision.get("reason") or ""
             item.editorial_score = self._editorial_score(decision)
+
+    @staticmethod
+    def _copy_text(value: Any) -> str | None:
+        if value is None:
+            return None
+        return normalize_cjk_mixed_spacing(str(value))
 
     def _backfill_after_newsworthiness(
         self,
@@ -208,9 +215,9 @@ class Prefilter:
                 "discussion_potential": d.get("discussion_potential"),
                 "creator_value": d.get("creator_value"),
                 "retention_value": d.get("retention_value"),
-                "headline_hook": d.get("headline_hook"),
-                "cover_hook": d.get("cover_hook"),
-                "debate_angle": d.get("debate_angle"),
+                "headline_hook": self._copy_text(d.get("headline_hook")),
+                "cover_hook": self._copy_text(d.get("cover_hook")),
+                "debate_angle": self._copy_text(d.get("debate_angle")),
             }
         return decisions
 

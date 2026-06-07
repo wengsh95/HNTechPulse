@@ -43,9 +43,9 @@ def _make_prefilter(comment_preview_count: int = 5):
             "discussion_potential": 3,
             "creator_value": 4,
             "retention_value": 4,
-            "headline_hook": "Strong hook",
-            "cover_hook": "Sharp cover",
-            "debate_angle": "Useful debate",
+            "headline_hook": "Meta 自家 AI 聊天机器人",
+            "cover_hook": "Windows PC 造 CPU",
+            "debate_angle": "AI 产品 新攻击面",
         }
     ]
     config = {
@@ -101,6 +101,18 @@ def test_prefilter_cache_invalidates_when_preview_comment_changes(
     prefilter.filter(_make_content("Different comment."), "2026-04-26")
 
     assert llm.prefilter_stories.call_count == 2
+
+
+def test_prefilter_normalizes_hook_spacing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    prefilter, _ = _make_prefilter()
+
+    filtered = prefilter.filter(_make_content(), "2026-04-26")
+
+    item = filtered.items[0]
+    assert item.headline_hook == "Meta自家AI聊天机器人"
+    assert item.cover_hook == "Windows PC造CPU"
+    assert item.debate_angle == "AI产品新攻击面"
 
 
 def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypatch):

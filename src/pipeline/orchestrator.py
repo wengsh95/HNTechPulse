@@ -32,6 +32,7 @@ from src.pipeline.transcript_generator import save_transcript
 from src.pipeline.translation_manager import TranslationManager
 from src.pipeline.tts_processor import TTSProcessor
 from src.utils.logger import setup_logger
+from src.utils.text import normalize_cjk_mixed_spacing
 
 
 # Ordered pipeline steps with their prerequisites.
@@ -662,10 +663,14 @@ class Orchestrator:
         if cache_path.exists():
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             self.logger.info(f"  Loaded cached title from {cache_path}")
-            script.title = cached.get("title", script.title)
+            script.title = normalize_cjk_mixed_spacing(
+                cached.get("title", script.title)
+            )
             script.description = cached.get("description", script.description)
             script.tags = cached.get("tags", script.tags)
-            script.cover_subtitle = cached.get("cover_subtitle", script.cover_subtitle)
+            script.cover_subtitle = normalize_cjk_mixed_spacing(
+                cached.get("cover_subtitle", script.cover_subtitle)
+            )
             return script
 
         if self.dry_run:
@@ -697,8 +702,12 @@ class Orchestrator:
         # Enforce a reasonable length cap on title candidates.
         # The prompt asks for ≤30 visual chars; we allow up to 35 len()
         # to accommodate English product names that are wider than CJK.
-        title_candidates = [c.strip() for c in (result.get("title_candidates") or []) if c]
-        chosen = (result.get("title") or "").strip()
+        title_candidates = [
+            normalize_cjk_mixed_spacing(str(c))
+            for c in (result.get("title_candidates") or [])
+            if c
+        ]
+        chosen = normalize_cjk_mixed_spacing(result.get("title") or "")
 
         TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 35
 
@@ -736,7 +745,9 @@ class Orchestrator:
             result.get("description") or ""
         ).strip() or f"每日快讯 - {date}"
         script.tags = list(result.get("tags") or [])
-        script.cover_subtitle = (result.get("cover_subtitle") or "").strip()
+        script.cover_subtitle = normalize_cjk_mixed_spacing(
+            result.get("cover_subtitle") or ""
+        )
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
@@ -745,7 +756,7 @@ class Orchestrator:
                     "title": script.title,
                     "title_candidates": kept_candidates,
                     "description": script.description,
-                    "cover_subtitle": (result.get("cover_subtitle") or "").strip(),
+                    "cover_subtitle": script.cover_subtitle,
                     "tags": script.tags,
                 },
                 ensure_ascii=False,

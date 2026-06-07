@@ -28,6 +28,7 @@
 - 至少有一个钩子是"秒懂型"——不看原稿也能立刻产生好奇心。
 - 不使用 emoji、不使用「【」/!/? 标点。
 - 英文人名翻译成中文或省略;公司/产品名(Gemma、Claude、Anthropic、Google 等)可保留英文。
+- 中文标题、封面副文、简介中的中英文混排要紧凑:中文和英文/数字之间不要加空格,例如写 `Meta自家AI`,不要写 `Meta 自家 AI`;写 `Nvidia要给Windows PC造CPU`,不要写 `Nvidia 要给 Windows PC 造 CPU`。纯英文词组内部可保留空格,例如 `Windows PC`、`OpenAI API`。
 
 **输出规则:**
 - 3 个候选放 `title_candidates` 数组。
