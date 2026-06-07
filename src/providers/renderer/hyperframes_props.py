@@ -16,6 +16,9 @@ from src.core.models import Script
 from src.providers.renderer.remotion_props import script_to_props
 from src.utils.logger import setup_logger
 
+# Shared CSS/JS templates for root composition
+_SHARED_DIR = Path(__file__).parent / "hyperframes" / "shared"
+
 
 # Map script element_type → sub-composition src + variable ids
 _ELEMENT_TO_SUB_COMP = {
@@ -375,6 +378,25 @@ def _extract_variables(
     return {}
 
 
+def _inject_hydration_data(
+    js_template: str,
+    subtitle_json: str,
+    story_markers_json: str,
+    waveform_json: str,
+    scene_runtime_json: str,
+    total_duration: float,
+) -> str:
+    """Replace __HF_DATA_BLOCK__ in the JS template with actual data declarations."""
+    data_block = (
+        f"const __hfSubtitleCues = {subtitle_json};\n"
+        f"const __hfStoryMarkers = {story_markers_json};\n"
+        f"const __hfWaveform = {waveform_json};\n"
+        f"const __hfSceneRuntime = {scene_runtime_json};\n"
+        f"const __hfTotalDuration = {total_duration};"
+    )
+    return js_template.replace("__HF_DATA_BLOCK__", data_block)
+
+
 def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
     """Build the root composition HTML for HyperFrames.
 
@@ -434,6 +456,10 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
         ensure_ascii=False,
     )
 
+    # Read shared CSS and JS templates
+    overlays_css = (_SHARED_DIR / "root-overlays.css").read_text(encoding="utf-8")
+    hydration_js = (_SHARED_DIR / "root-hydration.js").read_text(encoding="utf-8")
+
     body = (
         "<!doctype html>\n"
         '<html lang="zh-CN">\n'
@@ -441,17 +467,8 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
         '    <meta charset="UTF-8" />\n'
         f"    <title>{title_safe}</title>\n"
         "    <style>\n"
-        "      html, body { margin: 0; padding: 0; background: "
-        f"{bg};"
-        " }\n"
-        "      .hf-global-layer { position: absolute; inset: 0; pointer-events: none; z-index: 9999; font-family: 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }\n"
-        "      .hf-subtitle { position: absolute; left: 50%; bottom: 54px; width: min(1320px, calc(100% - 180px)); transform: translateX(-50%); box-sizing: border-box; padding: 14px 28px 16px; border: 1px solid rgba(32,25,20,.10); border-radius: 12px; background: linear-gradient(90deg, rgba(255,250,242,.10), rgba(255,250,242,.92) 16%, rgba(255,250,242,.92) 84%, rgba(255,250,242,.10)); color: #201914; font-size: 36px; line-height: 1.28; text-align: center; opacity: 0; transition: opacity .16s ease, transform .16s ease; text-wrap: balance; }\n"
-        "      .hf-subtitle.is-visible { opacity: 1; transform: translateX(-50%) translateY(-2px); }\n"
-        "      .hf-progress { position: absolute; left: 69px; right: 69px; bottom: 28px; height: 6px; border-radius: 999px; background: rgba(32,25,20,.08); overflow: hidden; }\n"
-        "      .hf-progress__bar { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff6600, rgba(255,102,0,.34)); }\n"
-        "      .hf-progress__marker { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: #b64a12; transform: translate(-50%, -50%); opacity: .75; }\n"
-        "      .hf-waveform { position: absolute; right: 76px; bottom: 102px; display: flex; align-items: center; gap: 5px; height: 34px; opacity: .58; }\n"
-        "      .hf-waveform span { width: 4px; height: 12px; border-radius: 999px; background: #b64a12; transform-origin: center bottom; }\n"
+        f"      html, body {{ margin: 0; padding: 0; background: {bg}; }}\n"
+        f"{overlays_css}\n"
         "    </style>\n"
         "  </head>\n"
         "  <body>\n"
@@ -466,110 +483,7 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
         "    </div>\n"
         '    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>\n'
         "    <script>\n"
-        "      window.__timelines = window.__timelines || {};\n"
-        f"      const __hfSubtitleCues = {subtitle_json};\n"
-        f"      const __hfStoryMarkers = {story_markers_json};\n"
-        f"      const __hfWaveform = {waveform_json};\n"
-        f"      const __hfSceneRuntime = {scene_runtime_json};\n"
-        f"      const __hfTotalDuration = {total_duration};\n"
-        "      const rootEl = document.querySelector('[data-composition-id=\"hn-techpulse-root\"]');\n"
-        "      const subtitleEl = rootEl.querySelector('.hf-subtitle');\n"
-        "      const progressBar = rootEl.querySelector('.hf-progress__bar');\n"
-        "      const progressTrack = rootEl.querySelector('.hf-progress');\n"
-        "      const waveEl = rootEl.querySelector('.hf-waveform');\n"
-        "      const waveBars = Array.from({ length: 28 }, () => { const s = document.createElement('span'); waveEl.appendChild(s); return s; });\n"
-        "      const parseJson = (value, fallback) => { try { return JSON.parse(value || ''); } catch (e) { return fallback; } };\n"
-        "      const setText = (root, selector, value) => { const el = root.querySelector(selector); if (el) el.textContent = value || ''; };\n"
-        "      const setHidden = (el, hidden) => { if (el) el.style.display = hidden ? 'none' : ''; };\n"
-        "      const fillList = (root, selector, items, render) => { const el = root.querySelector(selector); if (!el) return; el.innerHTML = ''; (items || []).filter(Boolean).forEach((item, index) => { const child = render(item, index); if (child) el.appendChild(child); }); };\n"
-        "      const div = (className, text) => { const el = document.createElement('div'); if (className) el.className = className; if (text !== undefined) el.textContent = text || ''; return el; };\n"
-        "      function hydrateCover(host, vars) {\n"
-        "        const root = host.querySelector('.hf-comp-cover'); if (!root) return false;\n"
-        "        setText(root, '.brand-strip__date', vars.date_label || '');\n"
-        "        setText(root, '.card-title', vars.headline || 'HN 每日观察');\n"
-        "        setText(root, '.card-deck', vars.subtitle || '快讯 / 洞察 / 趋势');\n"
-        "        const lineup = parseJson(vars.lineup_json, []);\n"
-        "        fillList(root, '.opening__list', lineup, (item, index) => { const row = div('opening__item'); row.appendChild(div('opening__index', String(index + 1).padStart(2, '0'))); row.appendChild(div('opening__text', typeof item === 'string' ? item : (item.title || item.text || item.headline || ''))); return row; });\n"
-        "        return true;\n"
-        "      }\n"
-        "      function hydrateEvent(host, vars) {\n"
-        "        const root = host.querySelector('.hf-comp-event'); if (!root) return false;\n"
-        "        setText(root, '.brand-strip__date', vars.date_label || '');\n"
-        "        setText(root, '.card-title', vars.title || '');\n"
-        "        setText(root, '.event-source-title', vars.sub_title || '');\n"
-        "        setText(root, '.lead__src', vars.source_domain || '');\n"
-        "        setText(root, '.metrics', `${Number(vars.score || 0)} points / ${Number(vars.comment_count || 0)} comments`);\n"
-        "        const why = root.querySelector('.why-section'); const impact = root.querySelector('.impact-section');\n"
-        "        setText(root, '.why-section .section-content', vars.why_it_matters || '');\n"
-        "        setText(root, '.impact-section .section-content', vars.impact || '');\n"
-        "        setHidden(why, !vars.why_it_matters); setHidden(impact, !vars.impact);\n"
-        "        const tags = parseJson(vars.tags_json, []);\n"
-        "        fillList(root, '.tags', tags, (tag) => { const el = document.createElement('span'); el.textContent = typeof tag === 'string' ? tag : String(tag || ''); return el; });\n"
-        "        const imageBox = root.querySelector('.event-image');\n"
-        "        if (imageBox && vars.image_src) { let img = imageBox.querySelector('img'); if (!img) { img = document.createElement('img'); imageBox.appendChild(img); } img.src = vars.image_src; img.alt = vars.title || ''; setHidden(imageBox, false); } else { setHidden(imageBox, true); }\n"
-        "        return true;\n"
-        "      }\n"
-        "      function hydrateAtmosphere(host, vars) {\n"
-        "        const root = host.querySelector('.hf-comp-atmosphere'); if (!root) return false;\n"
-        "        setText(root, '.brand-strip__date', vars.date_label || '');\n"
-        "        setText(root, '.card-title', vars.title || '');\n"
-        "        setText(root, '.card-deck', vars.subtitle || '');\n"
-        "        const stance = parseJson(vars.stance_json, {});\n"
-        "        fillList(root, '.stance', Object.entries(stance), ([label, value]) => { const row = div('stance__row'); row.appendChild(div('stance__label', label)); row.appendChild(div('stance__value', String(value ?? 0))); return row; });\n"
-        "        const focus = parseJson(vars.debate_focus_json, []);\n"
-        "        fillList(root, '.debate-list', focus, (item) => div('debate-list__item', typeof item === 'string' ? item : (item.text || item.title || '')));\n"
-        "        const quotes = parseJson(vars.quotes_json, []);\n"
-        "        fillList(root, '.quote-list', quotes, (item) => div('quote-list__item', typeof item === 'string' ? item : (item.text || item.quote || '')));\n"
-        "        return true;\n"
-        "      }\n"
-        "      function hydrateClosing(host, vars) {\n"
-        "        const root = host.querySelector('.hf-comp-closing'); if (!root) return false;\n"
-        "        setText(root, '.brand-strip__date', vars.date_label || '');\n"
-        "        setText(root, '.card-title', vars.title || '今日 HN 观察 / 回顾');\n"
-        "        setText(root, '.card-deck', vars.subtitle || '');\n"
-        "        const stories = parseJson(vars.stories_json, []);\n"
-        "        fillList(root, '.story-list', stories, (item, index) => {\n"
-        "          if (typeof item === 'string') return div('story', item);\n"
-        "          const row = div('story');\n"
-        "          const numDiv = div('num-disc', String(item.rank || index + 1));\n"
-        "          const textDiv = div('story__text');\n"
-        "          const zhDiv = div('story__zh', item.title || '');\n"
-        "          const enDiv = div('story__en', item.signal || '');\n"
-        "          textDiv.appendChild(zhDiv); textDiv.appendChild(enDiv);\n"
-        "          row.appendChild(numDiv); row.appendChild(textDiv);\n"
-        "          return row;\n"
-        "        });\n"
-        "        return true;\n"
-        "      }\n"
-        "      function hydrateScenes(attempt = 0) {\n"
-        "        let pending = 0;\n"
-        "        __hfSceneRuntime.forEach((scene) => {\n"
-        "          const host = document.getElementById(scene.host_id); if (!host) { pending += 1; return; }\n"
-        "          const vars = scene.variables || {}; let ok = false;\n"
-        "          if (scene.comp_id === 'cover-card') ok = hydrateCover(host, vars);\n"
-        "          if (scene.comp_id === 'event-card') ok = hydrateEvent(host, vars);\n"
-        "          if (scene.comp_id === 'atmosphere-card') ok = hydrateAtmosphere(host, vars);\n"
-        "          if (scene.comp_id === 'closing-card') ok = hydrateClosing(host, vars);\n"
-        "          if (!ok) pending += 1;\n"
-        "        });\n"
-        "        if (pending && attempt < 120) requestAnimationFrame(() => hydrateScenes(attempt + 1));\n"
-        "      }\n"
-        "      hydrateScenes();\n"
-        "      __hfStoryMarkers.forEach((marker) => { if (!__hfTotalDuration) return; const m = document.createElement('span'); m.className = 'hf-progress__marker'; m.style.left = Math.max(0, Math.min(100, (Number(marker.start || 0) / __hfTotalDuration) * 100)) + '%'; progressTrack.appendChild(m); });\n"
-        "      const rootTl = gsap.timeline({ paused: true });\n"
-        "      const cueAt = (time) => __hfSubtitleCues.find((cue) => time >= Number(cue.start || 0) && time < Number(cue.end || 0));\n"
-        "      rootTl.eventCallback('onUpdate', () => {\n"
-        "        const time = rootTl.time();\n"
-        "        const cue = cueAt(time);\n"
-        "        if (cue) { subtitleEl.textContent = cue.text || ''; subtitleEl.classList.add('is-visible'); } else { subtitleEl.classList.remove('is-visible'); }\n"
-        "        if (__hfTotalDuration > 0) progressBar.style.width = Math.max(0, Math.min(100, (time / __hfTotalDuration) * 100)) + '%';\n"
-        "        const rate = Number(__hfWaveform.sample_rate || 12);\n"
-        "        const values = __hfWaveform.values || [];\n"
-        "        const base = Math.max(0, Math.floor(time * rate));\n"
-        "        waveBars.forEach((bar, i) => { const amp = Number(values[(base + i) % Math.max(1, values.length)] || 0.2); bar.style.transform = 'scaleY(' + (0.35 + amp * 1.55).toFixed(3) + ')'; bar.style.opacity = String(0.34 + amp * 0.56); });\n"
-        "      });\n"
-        "      rootTl.to({}, { duration: __hfTotalDuration || 0.001 });\n"
-        '      window.__timelines["hn-techpulse-root"] = rootTl;\n'
+        f"{_inject_hydration_data(hydration_js, subtitle_json, story_markers_json, waveform_json, scene_runtime_json, total_duration)}\n"
         "    </script>\n"
         "  </body>\n"
         "</html>\n"
