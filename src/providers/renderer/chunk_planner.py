@@ -50,3 +50,50 @@ def compute_segment_chunks(
             chunks[-1] = (last_start, total_frames - 1, last_label)
 
     return chunks
+
+
+def compute_segment_chunks_seconds(
+    script: Script, total_duration: float
+) -> List[Tuple[float, float, str]]:
+    """Same as compute_segment_chunks but returns seconds directly.
+
+    Returns list of (start_sec, end_sec, label) tuples. Use this when you
+    need chunk boundaries in seconds (e.g. for filtering scene_spec JSON
+    where the HyperFrames renderer stores times as seconds).
+    """
+    if total_duration <= 0:
+        return []
+
+    chunks_sec: List[Tuple[float, float, str]] = []
+    story_idx = 0
+
+    for seg in script.segments:
+        seg_start = float(seg.start_time or 0)
+        seg_end = float(seg.end_time or 0)
+
+        if seg.segment_type == "story_scan" and seg.scene_elements:
+            for elem in seg.scene_elements:
+                abs_start = seg_start + float(elem.start_time or 0)
+                abs_end = seg_start + float(elem.end_time or 0)
+                if abs_start < abs_end:
+                    chunks_sec.append((abs_start, abs_end, f"story_{story_idx}"))
+                story_idx += 1
+        else:
+            if seg_end > seg_start:
+                chunks_sec.append((seg_start, seg_end, seg.segment_type or "segment"))
+
+    # Align boundaries: each chunk ends exactly at the next chunk's start
+    for i in range(len(chunks_sec) - 1):
+        next_start = chunks_sec[i + 1][0]
+        chunks_sec[i] = (chunks_sec[i][0], next_start, chunks_sec[i][2])
+
+    # Drop zero-length chunks
+    chunks_sec = [(s, e, lbl) for s, e, lbl in chunks_sec if e > s]
+
+    # Extend last chunk to cover total_duration
+    if chunks_sec:
+        last_start, last_end, last_label = chunks_sec[-1]
+        if last_end < total_duration:
+            chunks_sec[-1] = (last_start, total_duration, last_label)
+
+    return chunks_sec

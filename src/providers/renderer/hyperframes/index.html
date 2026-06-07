@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  This file is the HyperFrames project template checked into the repo.
+  Python's HyperFramesRenderer.write_props() OVERWRITES it per date under
+  data/{date}/hyperframes_project/index.html with the actual scene data.
+-->
+<html>
+  <body>
+    <div data-composition-id="hn-techpulse-root" data-width="1920" data-height="1080" data-start="0">
+      <p style="font-family: sans-serif; padding: 40px; color: #888;">
+        Placeholder root. Regenerate via `uv run python main.py --renderer hyperframes --steps prepare_render`.
+      </p>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const __rootTl = gsap.timeline({ paused: true });
+      window.__timelines["hn-techpulse-root"] = __rootTl;
+    </script>
+  </body>
+</html>

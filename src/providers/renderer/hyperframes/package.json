@@ -1,0 +1,12 @@
+{
+  "name": "hn-techpulse-hyperframes",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HN TechPulse daily video — HyperFrames composition template. Files under public/ and data/ are generated per render.",
+  "scripts": {
+    "lint": "hyperframes lint",
+    "inspect": "hyperframes inspect",
+    "preview": "hyperframes preview",
+    "render": "hyperframes render"
+  }
+}

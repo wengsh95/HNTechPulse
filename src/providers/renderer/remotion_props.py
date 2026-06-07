@@ -312,12 +312,86 @@ def _expand_atmosphere_card(props, content, logger=None):
     return result
 
 
+def _expand_closing_card(props, content):
+    """Map the closing-card raw props (signal/keywords/summary_items/takeaways)
+    to the variables the closing.html composition expects.
+
+    Closing card variables (see compositions/closing.html):
+      - title          : string, big orange title
+      - subtitle       : string, smaller gray subtitle
+      - stories        : list of {rank, original_title, title_zh, editor_angle}
+      - footer_text    : string, freeform bottom-left text
+      - badge          : string, pill text in the bottom-right
+
+    Source props (set by script/composer.py → templates.generate_fixed_closing):
+      - signal         : the closing one-liner
+      - keywords       : list of 3 keywords
+      - summary_items  : list of {category, title, signal} (one per story)
+      - takeaways      : list of closing takeaway sentences
+      - totals         : {story_count, score_total, comment_total}
+    """
+    result = dict(props)
+
+    signal = props.get("signal") or ""
+    summary_items = props.get("summary_items") or []
+    takeaways = props.get("takeaways") or []
+    keywords = props.get("keywords") or []
+    totals = props.get("totals") or {}
+
+    if signal:
+        title = signal
+    else:
+        title = "今日HN AI观察 · 回顾"
+
+    story_count = totals.get("story_count") or len(summary_items)
+    score_total = totals.get("score_total") or 0
+    comment_total = totals.get("comment_total") or 0
+    parts: list = []
+    if story_count:
+        parts.append(f"{story_count} 个故事")
+    if score_total:
+        parts.append(f"{score_total:,} 分")
+    if comment_total:
+        parts.append(f"{comment_total:,} 评论")
+    subtitle = " · ".join(parts) if parts else ""
+
+    stories: list = []
+    for rank, item in enumerate(summary_items, start=1):
+        if not isinstance(item, dict):
+            continue
+        editor_angle = item.get("signal") or ""
+        original_title = item.get("title") or ""
+        stories.append({
+            "rank": rank,
+            "original_title": original_title,
+            "title_zh": original_title,
+            "editor_angle": editor_angle,
+        })
+
+    if takeaways:
+        footer_text = takeaways[0]
+    elif keywords:
+        footer_text = " · ".join(str(k) for k in keywords)
+    else:
+        footer_text = ""
+
+    badge = props.get("badge") or "HN Daily Closing"
+
+    result["title"] = title
+    result["subtitle"] = subtitle
+    result["stories"] = stories
+    result["footer_text"] = footer_text
+    result["badge"] = badge
+    return result
+
+
 # Dispatch table: element_type -> expander function.
 # Each expander returns an expanded props dict, or None to signal "leave props unchanged".
 ELEMENT_EXPANDERS = {
     "cover_card": _expand_cover_card,
     "event_card": _expand_event_card,
     "atmosphere_card": _expand_atmosphere_card,
+    "closing_card": _expand_closing_card,
 }
 
 

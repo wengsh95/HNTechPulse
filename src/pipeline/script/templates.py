@@ -265,16 +265,20 @@ def generate_fixed_opening(
     if not hook_parts and top3_titles:
         hook_parts = top3_titles[:3]
     if hook_parts:
-        subtitle = " · ".join(_compact_copy(part, 14) for part in hook_parts)
-        if len(subtitle) > 40:
-            # 截断最后一个 hook, 保持 ≤40 字
-            while len(subtitle) > 40 and len(hook_parts) > 1:
-                hook_parts.pop()
-                subtitle = " · ".join(hook_parts) + (
-                    "…" if len(hook_parts) >= 1 else ""
-                )
-            if len(subtitle) > 40:
-                subtitle = subtitle[:39].rstrip(" ，,;；:：") + "…"
+        # Compact each hook once; reuse the compacted form when we have to
+        # drop tail items so a single un-compacted editor_angle never leaks
+        # past the joiner. Threshold ≈ 3 × 14 + 2 separators of " · " (6 chars)
+        # so all three compacted hooks fit comfortably on a 1920-wide badge
+        # without entering the fallback path.
+        compacted = [_compact_copy(part, 14) for part in hook_parts]
+        subtitle = " · ".join(compacted)
+        if len(subtitle) > 50:
+            # 截断最后一个 hook, 保持 ≤50 字
+            while len(subtitle) > 50 and len(compacted) > 1:
+                compacted.pop()
+                subtitle = " · ".join(compacted) + " · …"
+            if len(subtitle) > 50:
+                subtitle = subtitle[:49].rstrip(" ，,;；:：") + "…"
     else:
         subtitle = date_display  # fallback 到日期
 

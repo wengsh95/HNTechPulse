@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN TechPulse - 收尾卡</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/components.css">
+  <link rel="stylesheet" href="design/animations.css">
+</head>
+<body>
+  <div class="card closing">
+    <div class="card__head anim-rise-soft">
+      <div class="brand-strip">
+        <span class="brand-strip__brand"><span class="live-dot"></span>HN TechPulse</span>
+        <span class="brand-strip__date">{{ date }}</span>
+      </div>
+      <h1 class="h1 card-title">{{ title }}</h1>
+      <p class="subtitle card-deck">{{ subtitle }}</p>
+    </div>
+
+    <div class="story-list stagger">
+      {{#stories}}
+      <div class="story anim-rise">
+        <span class="num-disc num-disc--soft">{{rank}}</span>
+        <div class="story__text">
+          <div class="story__zh">{{zh}}</div>
+          <div class="story__en">{{en}}</div>
+        </div>
+      </div>
+      {{/stories}}
+    </div>
+
+  </div>
+
+  <script id="sample-data" type="application/json">
+  {
+    "date": "2026年6月7日",
+    "title": "今日 HN 观察 / 回顾",
+    "subtitle": "3 个关键故事，一条共同的结构变化",
+    "stories": [
+      {
+        "rank": 1,
+        "zh": "标普500拒绝 SpaceX 破例，AI 公司 IPO 通道受限",
+        "en": "S&P 500 rules tighten, limiting AI-era listings"
+      },
+      {
+        "rank": 2,
+        "zh": "Meta AI 客服漏洞导致 Instagram 账号被大规模劫持",
+        "en": "AI chatbot abuse leads to large-scale account takeover"
+      },
+      {
+        "rank": 3,
+        "zh": "NVIDIA 将高端 CPU 和 GPU 带入 Windows 笔记本架构",
+        "en": "Next-gen compute stack enters consumer PCs"
+      }
+    ]
+  }
+  </script>
+  <script src="design/render.js"></script>
+</body>
+</html>

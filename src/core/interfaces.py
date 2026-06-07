@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from .models import Script, ContentPackage, ScriptSegment, ImageResult
@@ -139,6 +139,14 @@ class Renderer(ABC):
     ) -> Tuple[Path, str]:
         """Prepare audio/image assets and write props.json. Returns (props_path, props_json)."""
         pass
+
+    def cache_paths(self, date: str) -> List[Path]:
+        """Renderer-specific cache directories to clean on --force.
+
+        Default: empty list (no extra cache to clean). Renderers that write
+        intermediate artifacts (chunk dirs, generated projects) should override.
+        """
+        return []
 
 
 class ImageGeneratorProvider(ABC):

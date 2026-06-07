@@ -1,0 +1,31 @@
+# ── 视频渲染器配置 ──
+# 同一时刻只有一个 provider 生效;切换不会影响其他 pipeline 步骤。
+# `provider` 决定 main.py 调 create_renderer(name, ...) 用哪个实现。
+# `hyperframes.*` 块只在 provider=hyperframes 时被读。
+
+renderer:
+  provider: "hyperframes"   # "remotion" | "hyperframes"
+
+  # Remotion 段(在 config/remotion.yaml 里继续维护;这里只是占位注释)
+  # remotion:
+  #   codec: "h264"
+  #   crf: 23
+
+  hyperframes:
+    # 模板项目根(checkin 到仓库,Python 在 write_props 时复制它)
+    project_dir: "src/providers/renderer/hyperframes"
+    # 每个日期生成的项目目录(相对 data/{date}/)
+    output_subdir: "hyperframes_project"
+    # 渲染质量:draft(快) | standard(默认) | high(慢)
+    default_quality: "standard"
+    # 不指定则取 config.video.fps
+    # fps: 24
+    # 预览端口
+    preview_port: 3002
+    # 并行段数(Python 线程池大小)。HyperFrames render 内部会自启 localhost 服务,
+    # 当前 CLI 不暴露端口参数;Windows/Chrome 下并发时可能撞到 unsafe port,先用 1 保稳定。
+    render_workers: 1
+    # 是否开启段级并行 + 段级缓存。False 时退化到单次整片渲染(老行为)。
+    resume_enabled: true
+    # 单个 chunk 渲染超时(秒)
+    chunk_timeout: 1800

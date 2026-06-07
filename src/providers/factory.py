@@ -76,6 +76,13 @@ def _auto_register():
             register_renderer,
         ),
         (
+            "renderer",
+            "hyperframes",
+            "src.providers.renderer.hyperframes_renderer",
+            "HyperFramesRenderer",
+            register_renderer,
+        ),
+        (
             "image_generator",
             "noop",
             "src.providers.image_generator.noop",

@@ -1,0 +1,341 @@
+<template id="event-template">
+  <div
+    data-composition-id="event-card"
+    data-width="1920"
+    data-height="1080"
+    data-composition-variables='[
+      {"id":"title","type":"string","label":"Title","default":""},
+      {"id":"sub_title","type":"string","label":"Subtitle","default":""},
+      {"id":"source_domain","type":"string","label":"Source Domain","default":""},
+      {"id":"date_label","type":"string","label":"Date","default":""},
+      {"id":"score","type":"number","label":"Score","default":0},
+      {"id":"comment_count","type":"number","label":"Comments","default":0},
+      {"id":"why_it_matters","type":"string","label":"Why It Matters","default":""},
+      {"id":"impact","type":"string","label":"Impact","default":""},
+      {"id":"tags_json","type":"string","label":"Tags JSON","default":"[]"},
+      {"id":"image_src","type":"string","label":"Image Src","default":""}
+    ]'
+  >
+    <style>
+      @font-face { font-family: "Source Han Serif SC"; src: local("Source Han Serif SC"), local("Noto Serif CJK SC"), local("Songti SC"), local("STSong"); }
+      @font-face { font-family: "Source Han Sans SC"; src: local("Source Han Sans SC"), local("PingFang SC"), local("Microsoft YaHei"), local("Noto Sans CJK SC"); }
+      @font-face { font-family: "JetBrains Mono"; src: local("JetBrains Mono"), local("SF Mono"), local("Consolas"), local("Menlo"); }
+      .hf-comp-event {
+        --color-bg: #fbf4e8;
+        --color-panel-warm: #f5eadb;
+        --color-ink: #201914;
+        --color-ink-soft: #4d4238;
+        --color-ink-muted: #7d7062;
+        --color-ink-faint: #a39482;
+        --color-border: rgba(32, 25, 20, 0.1);
+        --color-brand: #ff6600;
+        --color-brand-deep: #b64a12;
+        --font-display: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", "PingFang SC", serif;
+        --font-body: "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+        --font-mono: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace;
+        --card-padding-x: 69px;
+        --card-padding-y: 63px;
+        --card-safe-bottom: 168px;
+        width: 100%;
+        height: 100%;
+        position: relative;
+        box-sizing: border-box;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        padding: var(--card-padding-y) var(--card-padding-x) var(--card-safe-bottom);
+        border-radius: 27px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.58), transparent 34%), var(--color-bg);
+        color: var(--color-ink);
+        font-family: var(--font-body);
+      }
+      .hf-comp-event::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(32, 25, 20, 0.08);
+        border-radius: inherit;
+        pointer-events: none;
+      }
+      .hf-comp-event::after {
+        content: "";
+        position: absolute;
+        left: var(--card-padding-x);
+        right: var(--card-padding-x);
+        bottom: calc(var(--card-safe-bottom) - 51px);
+        height: 1px;
+        background: linear-gradient(90deg, var(--color-brand), transparent);
+        opacity: 0.55;
+      }
+      .brand-strip {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 18px;
+        min-height: 48px;
+        font-family: var(--font-mono);
+        font-size: 21px;
+        color: var(--color-ink-muted);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .brand-strip__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--color-ink);
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .brand-strip__brand::before {
+        content: "";
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--color-brand);
+      }
+      .brand-strip__date::before {
+        content: "/";
+        margin: 0 18px 0 0;
+        color: var(--color-ink-faint);
+      }
+      .card-title {
+        margin: 0;
+        max-width: 1560px;
+        color: var(--color-ink);
+        font-family: var(--font-display);
+        font-size: 66px;
+        font-weight: 900;
+        line-height: 1.14;
+        letter-spacing: 0;
+        text-wrap: balance;
+      }
+      .card-deck {
+        margin: 0;
+        max-width: 1350px;
+        color: var(--color-ink-muted);
+        font-size: 30px;
+        line-height: 1.3;
+      }
+      .lead__src {
+        display: block;
+        margin-top: 6px;
+        color: var(--color-ink-muted);
+        font-family: var(--font-mono);
+        font-size: 24px;
+      }
+      .event-card__body {
+        min-height: 0;
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        align-content: center;
+        gap: 24px 36px;
+      }
+      .event-card__meta {
+        grid-column: 1 / -1;
+        min-height: 63px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 30px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--color-border);
+      }
+      .metrics, .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+      .metric-pill, .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 45px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .metric-pill {
+        padding: 12px 24px;
+        background: var(--color-panel-warm);
+        color: var(--color-ink);
+        font-family: var(--font-mono);
+        font-size: 24px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .tags {
+        min-width: 0;
+        justify-content: flex-end;
+      }
+      .tag {
+        padding: 6px 18px;
+        border: 1px solid var(--color-border);
+        background: rgba(255, 255, 255, 0.48);
+        color: var(--color-ink-muted);
+        font-size: 24px;
+        font-weight: 600;
+      }
+      .event-card__main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .event-card__side {
+        min-width: 0;
+        display: flex;
+      }
+      .event-card__section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 24px 30px;
+        border: 1px solid var(--color-border);
+        border-radius: 21px;
+        background: rgba(255, 253, 248, 0.82);
+        box-shadow: 0 4px 12px rgba(32, 25, 20, 0.04);
+      }
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--color-brand-deep);
+        font-size: 36px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+      .section-title::before {
+        content: "";
+        width: 6px;
+        height: 27px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: var(--color-brand);
+      }
+      .section-content {
+        margin: 0;
+        color: var(--color-ink-soft);
+        font-size: 30px;
+        line-height: 1.45;
+      }
+      .event-image {
+        width: 100%;
+        min-height: 405px;
+        overflow: hidden;
+        border: 1px solid var(--color-border);
+        border-radius: 21px;
+        background: var(--color-panel-warm);
+        box-shadow: 0 10px 24px rgba(32, 25, 20, 0.08);
+      }
+      .event-image img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+      }
+    </style>
+    <div class="hf-comp-event">
+      <div class="brand-strip">
+        <span class="brand-strip__brand">HN TechPulse</span>
+        <span class="brand-strip__date"></span>
+      </div>
+      <h1 class="card-title"></h1>
+      <p class="card-deck"><span class="event-source-title"></span><span class="lead__src"></span></p>
+      <div class="event-card__body">
+        <div class="event-card__meta">
+          <div class="metrics"></div>
+          <div class="tags"></div>
+        </div>
+        <div class="event-card__main">
+          <section class="event-card__section why-section">
+            <div class="section-title">为什么重要</div>
+            <p class="section-content"></p>
+          </section>
+          <section class="event-card__section impact-section">
+            <div class="section-title">影响</div>
+            <p class="section-content"></p>
+          </section>
+        </div>
+        <div class="event-card__side">
+          <div class="event-image"></div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      (() => {
+        window.__timelines = window.__timelines || {};
+        const root = document.querySelector(".hf-comp-event") || document.currentScript.parentNode;
+        const host = root.closest("[data-variable-values]") || document.querySelector("#host-0");
+        const raw = host ? (host.getAttribute("data-variable-values") || "{}") : "{}";
+        const vars = Object.assign(
+          {},
+          (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {},
+          (() => { try { return JSON.parse(raw); } catch(e) { return {}; } })()
+        );
+
+        root.querySelector(".brand-strip__date").textContent = vars.date_label || "";
+        root.querySelector(".card-title").textContent = vars.title || "";
+        const sourceTitle = vars.sub_title || "";
+        const domain = vars.source_domain || "";
+        if (sourceTitle || domain) {
+          root.querySelector(".event-source-title").textContent = sourceTitle;
+          root.querySelector(".lead__src").textContent = domain;
+        } else {
+          root.querySelector(".card-deck").remove();
+        }
+
+        const metrics = root.querySelector(".metrics");
+        metrics.innerHTML = '<span class="metric-pill"></span><span class="metric-pill"></span>';
+        const pills = metrics.querySelectorAll(".metric-pill");
+        pills[0].textContent = "HOT " + (vars.score || 0);
+        pills[1].textContent = "COM " + (vars.comment_count || 0);
+
+        let tags = [];
+        try { tags = JSON.parse(vars.tags_json || "[]"); } catch (e) { tags = []; }
+        const tagsEl = root.querySelector(".tags");
+        tagsEl.innerHTML = "";
+        tags.slice(0, 4).forEach((t) => {
+          const tag = document.createElement("span");
+          tag.className = "tag";
+          tag.textContent = t;
+          tagsEl.appendChild(tag);
+        });
+        if (!tags.length) tagsEl.remove();
+
+        const why = vars.why_it_matters || "";
+        const impact = vars.impact || "";
+        if (why) root.querySelector(".why-section .section-content").textContent = why;
+        else root.querySelector(".why-section").remove();
+        if (impact) root.querySelector(".impact-section .section-content").textContent = impact;
+        else root.querySelector(".impact-section").remove();
+
+        const image = root.querySelector(".event-image");
+        if (vars.image_src) {
+          const img = document.createElement("img");
+          img.src = vars.image_src;
+          img.alt = "";
+          image.appendChild(img);
+        } else {
+          image.style.background = "linear-gradient(135deg, #f5eadb 0%, #ead2b6 100%)";
+        }
+
+        const tl = window.gsap ? gsap.timeline({ paused: true }) : { from(){ return this; } };
+        tl.from(root.querySelector(".brand-strip"), { y: 22, opacity: 0, duration: 0.42, ease: "power2.out" }, 0.08);
+        tl.from(root.querySelector(".card-title"), { y: 32, opacity: 0, duration: 0.58, ease: "power3.out" }, 0.16);
+        const deck = root.querySelector(".card-deck");
+        if (deck) tl.from(deck, { y: 18, opacity: 0, duration: 0.42, ease: "power2.out" }, 0.28);
+        tl.from(root.querySelector(".event-card__meta"), { y: 20, opacity: 0, duration: 0.42, ease: "power2.out" }, 0.38);
+        root.querySelectorAll(".event-card__section").forEach((el, i) => {
+          tl.from(el, { y: 24, opacity: 0, duration: 0.45, ease: "power2.out" }, 0.48 + i * 0.12);
+        });
+        tl.from(image, { x: 36, opacity: 0, duration: 0.58, ease: "power3.out" }, 0.38);
+        window.__timelines["event-card"] = tl;
+      })();
+    </script>
+  </div>
+</template>

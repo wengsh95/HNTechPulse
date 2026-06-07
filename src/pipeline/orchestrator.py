@@ -1032,11 +1032,15 @@ class Orchestrator:
             return
 
         audio_dir = f"data/{date}/audio"
-        props_path = Path("src/providers/renderer/remotion/public/props.json")
-        before_mtime = props_path.stat().st_mtime if props_path.exists() else None
-        self.renderer.write_props(script, audio_dir, content, date=date)
-        after_mtime = props_path.stat().st_mtime if props_path.exists() else None
-        if props_path.exists() and after_mtime != before_mtime:
+        try:
+            props_path, _, _ = self.renderer.write_props(
+                script, audio_dir, content, date=date
+            )
+        except Exception as e:
+            self.logger.error(f"Renderer.write_props failed: {e}", exc_info=True)
+            raise
+
+        if props_path and props_path.exists():
             write_artifact_manifest(
                 props_path,
                 step="prepare_render",
@@ -1045,6 +1049,7 @@ class Orchestrator:
                     "script_title": script.title,
                     "segment_count": len(script.segments),
                     "audio_dir": audio_dir,
+                    "renderer": type(self.renderer).__name__,
                 },
                 config=self.config,
             )
@@ -1119,9 +1124,25 @@ class Orchestrator:
     # ── Helpers ─────────────────────────────────────────────────────────
 
     def _clear_render_cache(self, date: str) -> None:
+        # Renderer-specific caches (Remotion chunk dirs, HyperFrames project, etc.)
+        try:
+            for path in self.renderer.cache_paths(date):
+                if path.exists():
+                    import shutil
+
+                    shutil.rmtree(path)
+                    self.logger.info(f"Cleared renderer cache: {path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to clear renderer cache_paths: {e}")
+
+        # RemotionRenderer also writes chunk outputs under its own out/; covered
+        # by cache_paths() above. Keep this fallback for any renderer that
+        # doesn't opt in.
         remotion_dir = Path("src/providers/renderer/remotion")
         chunk_dir = remotion_dir / "out" / "chunks"
-        if chunk_dir.exists():
+        if chunk_dir.exists() and not any(
+            str(p).startswith(str(remotion_dir)) for p in self.renderer.cache_paths(date)
+        ):
             import shutil
 
             shutil.rmtree(chunk_dir)

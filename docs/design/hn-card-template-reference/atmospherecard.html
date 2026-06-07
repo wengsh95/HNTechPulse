@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN TechPulse - 氛围卡</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/components.css">
+  <link rel="stylesheet" href="design/animations.css">
+</head>
+<body>
+  <div class="card atmo-card">
+    <div class="atmo-card__head anim-rise-soft">
+      <div class="card__head">
+        <div class="brand-strip">
+          <span class="brand-strip__brand"><span class="live-dot"></span>HN TechPulse</span>
+          <span class="brand-strip__date">{{ date }}</span>
+        </div>
+        <h1 class="h1 card-title atmo-card__title stat-block">
+          <span class="stat-block__prefix">争议指数</span>
+          <span class="stat-block__num">{{ dispute_score }}</span>
+          <span class="stat-block__label">{{ dispute_label }}</span>
+        </h1>
+        <p class="subtitle card-deck">{{ subtitle }}</p>
+      </div>
+    </div>
+    <div class="slide-indicator">{{ slide_index }} / {{ slide_total }}</div>
+
+    <div class="atmo-card__layout">
+      <section class="atmo-card__stance panel anim-rise-soft">
+        <div class="section-title">立场分布</div>
+        <div class="stance">
+          <div class="stance__row">
+            <div class="stance__label"><span>支持</span><span class="stance__label-val">{{ support }}%</span></div>
+            <div class="stance__bar"><div class="stance__fill stance__fill--support anim-bar" style="width: {{ support }}%"></div></div>
+          </div>
+          <div class="stance__row">
+            <div class="stance__label"><span>中立</span><span class="stance__label-val">{{ neutral }}%</span></div>
+            <div class="stance__bar"><div class="stance__fill stance__fill--neutral anim-bar" style="width: {{ neutral }}%"></div></div>
+          </div>
+          <div class="stance__row">
+            <div class="stance__label"><span>质疑</span><span class="stance__label-val">{{ skeptical }}%</span></div>
+            <div class="stance__bar"><div class="stance__fill stance__fill--skeptical anim-bar" style="width: {{ skeptical }}%"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="atmo-card__focus panel stagger">
+        <div class="section-title anim-rise-soft">讨论焦点</div>
+        <div class="focus-list">
+          {{#focus_items}}<div class="focus-item anim-slide-in">{{focus_items}}</div>{{/focus_items}}
+        </div>
+      </section>
+
+      <section class="atmo-card__quotes panel stagger">
+        <div class="section-title anim-rise-soft">评论金句</div>
+        <div class="focus-list">
+          {{#quotes}}<div class="focus-item focus-item--quote anim-slide-in">“{{quotes}}”</div>{{/quotes}}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script id="sample-data" type="application/json">
+  {
+    "date": "2026年6月7日",
+    "dispute_score": "3.7",
+    "dispute_label": "存在分歧",
+    "subtitle": "S&P 规则之争背后，是 AI 泡沫与指数权重的焦虑",
+    "slide_index": 1,
+    "slide_total": 3,
+    "support": 15,
+    "neutral": 30,
+    "skeptical": 55,
+    "focus_items": [
+      "S&P 是否应该为超级独角兽放宽盈利门槛",
+      "AI 公司估值、盈利真实性与被动投资风险"
+    ],
+    "quotes": [
+      "如果指数开始追逐故事，而不是追逐盈利，风险会被所有被动投资者共同承担。",
+      "这不是拒绝 SpaceX，而是在拒绝为整个 AI IPO 潮开后门。"
+    ],
+    "conclusion": "HN 讨论没有停在立场表态，而是把问题推向更具体的市场结构风险。"
+  }
+  </script>
+  <script src="design/render.js"></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN TechPulse - 事件卡</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/components.css">
+  <link rel="stylesheet" href="design/animations.css">
+</head>
+<body>
+  <div class="card event-card">
+    <div class="event-card__head anim-rise-soft">
+      <div class="card__head">
+        <div class="brand-strip">
+          <span class="brand-strip__brand"><span class="live-dot"></span>HN TechPulse</span>
+          <span class="brand-strip__date">{{ date }}</span>
+        </div>
+        <h1 class="h1 card-title event-card__title">{{ title }}</h1>
+        <p class="lead card-deck event-card__source-line">
+          {{ source_name }}
+          <small class="lead__src">{{ source_url }}</small>
+        </p>
+      </div>
+    </div>
+    <div class="slide-indicator">{{ slide_index }} / {{ slide_total }}</div>
+
+    <div class="event-card__body">
+      <div class="event-card__meta anim-rise-soft">
+        <div class="metrics">
+          <span class="metric-pill">hot {{ score }}</span>
+          <span class="metric-pill">com {{ comments }}</span>
+        </div>
+        <div class="tags">
+          {{#tags}}<span class="tag">{{tags}}</span>{{/tags}}
+        </div>
+      </div>
+
+      <div class="event-card__main stagger">
+        <div class="section event-card__section panel anim-rise-soft">
+          <div class="section-title">为何关注</div>
+          <p class="section-content">{{ why_watch }}</p>
+        </div>
+
+        <div class="section event-card__section panel anim-rise-soft">
+          <div class="section-title">影响分析</div>
+          <p class="section-content">{{ impact }}</p>
+        </div>
+      </div>
+
+      <aside class="event-card__side anim-rise-soft">
+        <div class="event-image">
+          <img src="{{ image_url }}" alt="事件配图">
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script id="sample-data" type="application/json">
+  {
+    "date": "2026年6月7日",
+    "title": "Meta AI 客服漏洞让黑客接管大量 Instagram 账号",
+    "source_name": "Meta confirms accounts were hacked by abusing its AI chatbot",
+    "source_url": "this.weekinsecurity.com",
+    "score": 424,
+    "comments": 151,
+    "why_watch": "这是 AI 客服进入核心账号流程后的典型风险：模型回复不再只是内容，而会影响真实权限边界。",
+    "impact": "当账号恢复、身份验证和自动化支持被串在一起，提示注入会从文本问题变成平台级安全问题。",
+    "image_url": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1280&q=80",
+    "slide_index": 2,
+    "slide_total": 3,
+    "tags": ["Meta AI", "提示注入", "Instagram", "安全漏洞"]
+  }
+  </script>
+  <script src="design/render.js"></script>
+</body>
+</html>

@@ -326,6 +326,10 @@ class TestStepPrepareRender:
         orch = _make_orchestrator(dry_run=False)
         script = _make_script()
         content = _make_content()
+        # write_props contract: returns (props_path, props_json, scenes_payload).
+        # The mock would otherwise return a bare MagicMock, which can't be
+        # unpacked into 3 values.
+        orch.renderer.write_props.return_value = (Path("/tmp/props.json"), "{}", {})
         orch._step_prepare_render(content, script, "2026-04-26")
         orch.renderer.write_props.assert_called_once()
 

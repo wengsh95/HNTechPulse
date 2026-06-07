@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN TechPulse - 开场卡</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/components.css">
+  <link rel="stylesheet" href="design/animations.css">
+</head>
+<body>
+  <div class="card opening">
+    <div class="card__head anim-rise-soft">
+      <div class="brand-strip">
+        <span class="brand-strip__brand"><span class="live-dot"></span>HN TechPulse</span>
+        <span class="brand-strip__date">{{ date }}</span>
+      </div>
+      <h1 class="h1 card-title">HN 每日观察</h1>
+      <p class="subtitle card-deck">{{ subtitle }}</p>
+    </div>
+
+    <div class="opening__list news-list stagger">
+      {{#stories}}
+      <div class="news-item anim-rise">
+        <span class="num-disc">{{rank}}</span>
+        <div class="news-item__info">
+          <div class="news-item__title">{{title}}</div>
+          <div class="news-item__subtitle">{{subtitle}}</div>
+        </div>
+        <div class="metrics">
+          <span class="metric-pill">hot {{score}}</span>
+          <span class="metric-pill">com {{comments}}</span>
+        </div>
+      </div>
+      {{/stories}}
+    </div>
+
+  </div>
+
+  <script id="sample-data" type="application/json">
+  {
+    "date": "2026年6月7日",
+    "subtitle": "AI 时代的快讯 / 洞察 / 趋势",
+    "stories": [
+      {
+        "rank": 1,
+        "title": "标普500拒绝 SpaceX 破例，AI 公司快通道受限",
+        "subtitle": "S&P 500 rejects SpaceX, also blocking OpenAI and Anthropic",
+        "score": 1370,
+        "comments": 472
+      },
+      {
+        "rank": 2,
+        "title": "Meta AI 客服漏洞导致 Instagram 账号被大规模劫持",
+        "subtitle": "Meta confirms Instagram accounts were hacked via its AI chatbot",
+        "score": 424,
+        "comments": 151
+      },
+      {
+        "rank": 3,
+        "title": "NVIDIA 把 Grace CPU 和 Blackwell GPU 塞进 Windows 笔记本",
+        "subtitle": "Nvidia proposes a beast of a CPU system for Windows PCs",
+        "score": 231,
+        "comments": 426
+      }
+    ]
+  }
+  </script>
+  <script src="design/render.js"></script>
+</body>
+</html>
