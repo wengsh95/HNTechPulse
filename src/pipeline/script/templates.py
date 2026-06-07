@@ -9,6 +9,7 @@ from src.core.models import (
     SceneElement,
     SelectionResult,
 )
+from src.utils.text import normalize_cjk_mixed_spacing
 
 
 CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
@@ -56,6 +57,153 @@ def highlight_audio_text(entries: list[dict]) -> str:
     return f"今天看{len(labels)}条：" + "；".join(labels) + "。我们一条条听。"
 
 
+# 默认截断长度：cover 副标题每个钩子的目标字符数 (≤14 让 3 个钩子 + 2 个 " · " 落在 40 字以内)
+DEFAULT_HOOK_MAX_LEN = 14
+
+# 开场钩子的目标字符数 (≤10 让 3 个钩子 + 2 个 "、" 在 35 字以内, 配音 ~5s)
+OPENING_HOOK_MAX_LEN = 10
+
+# 收尾/开场 thesis 规则 (顺序敏感, 命中第一个匹配)
+# - keywords: 命中 category 或 editor_angle 任一即可
+# - prefix: 开场前缀 ("今天的主线是" / "今天的主线不是")
+# - body: 接 prefix 后构成完整开场金句
+# - closing: 收尾独立句 (不再带 "今天的主线是" 这种开场框架词)
+THESIS_RULES: list[dict] = [
+    {
+        "keywords": ("安全", "隐私", "漏洞", "攻击面", "权限"),
+        "prefix": "今天的主线不是",
+        "body": "AI又变强了，而是AI进入真实系统后，风险开始外溢。",
+        "closing": "重点不是AI又变强了，而是AI进入真实系统后，风险开始外溢。",
+    },
+    {
+        "keywords": ("硬件", "芯片", "CPU", "GPU", "Windows PC", "Nvidia"),
+        "prefix": "今天的主线是",
+        "body": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
+        "closing": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
+    },
+    {
+        "keywords": ("开源", "开发", "工具", "Python", "CPython"),
+        "prefix": "今天的主线是",
+        "body": "开发者工具正在变快，但维护成本和信任边界也被重新摊开。",
+        "closing": "开发者工具正在变快，但维护成本和信任边界也被重新摊开。",
+    },
+    {
+        "keywords": ("资本", "融资", "IPO", "估值", "上市", "递表"),
+        "prefix": "今天的主线是",
+        "body": "AI热潮开始接受资本规则的反向拷问。",
+        "closing": "AI热潮开始接受资本规则的反向拷问。",
+    },
+]
+
+DEFAULT_THESIS = {
+    "prefix": "今天的三条HN讨论",
+    "body": "都在指向同一个问题：技术热度落到现实里，代价由谁承担。",
+    "closing": "今天的三条HN讨论，都在指向同一个问题：技术热度落到现实里，代价由谁承担。",
+}
+
+_NOISE_TOKENS = (
+    "真正的",
+    "今天的",
+    "评论区",
+    "开始",
+    "正在",
+    "变成",
+    "进入",
+    "要求",
+    "需要",
+)
+
+_CLAUSE_SEPARATORS = ("：", ":", "，", ",", "。", "？", "!", "！")
+
+
+def _normalize(text: str) -> str:
+    return normalize_cjk_mixed_spacing(str(text or "").strip())
+
+
+def _strip_noise(text: str) -> str:
+    """Remove boilerplate openers and connectors from a hook candidate.
+
+    Returns the stripped string, or ``""`` if stripping would leave
+    nothing meaningful (e.g. the source was only noise words)."""
+    for token in _NOISE_TOKENS:
+        text = text.replace(token, "")
+    return text.strip()
+
+
+def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
+    text = _normalize(text)
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip("，。！？；：,.!?;: ") + "…"
+
+
+def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
+    def _shorten_clause(text: str) -> str:
+        text = _normalize(text)
+        for sep in _CLAUSE_SEPARATORS:
+            if sep in text:
+                text = text.split(sep, 1)[0].strip()
+                break
+        return _strip_noise(text)
+
+    for key in ("signal", "editor_angle", "title_translation", "original_title"):
+        value = entry.get(key)
+        if not value:
+            continue
+        raw = str(value)
+        shortened = _shorten_clause(raw)
+        return _compact_copy(shortened or raw, max_len)
+    return "技术信号"
+
+
+def _match_thesis(entries: list[dict]) -> dict:
+    """Return the first THESIS_RULES entry whose keywords appear in the
+    first 3 stories' category or editor_angle. Falls back to DEFAULT_THESIS."""
+    haystack = " ".join(
+        [str(e.get("category") or "") for e in entries[:3]]
+        + [str(e.get("editor_angle") or "") for e in entries[:3]]
+    )
+    for rule in THESIS_RULES:
+        if any(kw in haystack for kw in rule["keywords"]):
+            return rule
+    return DEFAULT_THESIS
+
+
+def _daily_thesis(entries: list[dict]) -> dict:
+    """Return a structured thesis for the day's opening/closing.
+
+    Shape: ``{"prefix": str, "body": str, "closing": str}``
+
+    - ``prefix + body`` is the full opening line (e.g. "今天的主线是…")
+    - ``closing`` is the closing-friendly rewrite as a self-contained
+      sentence (no opening framing like "今天的主线是…")
+    """
+    return _match_thesis(entries)
+
+
+def _opening_audio(entries: list[dict]) -> str:
+    if not entries:
+        return "早上好，这里是HN每日观察。今天看三个值得停一下的技术信号。"
+    rule = _daily_thesis(entries)
+    thesis = f"{rule['prefix']}{rule['body']}"
+    hooks = "、".join(
+        _entry_hook(e, OPENING_HOOK_MAX_LEN) for e in entries[:3]
+    )
+    return f"早上好，这里是HN每日观察。{thesis}今天看{hooks}。"
+
+
+def _closing_audio(entries: list[dict], weekday: int | None) -> str:
+    if not entries:
+        return "今天的HN速览就到这里。想每天跟上HN技术风向，可以点个关注，我们下期继续。"
+    rule = _daily_thesis(entries)
+    question = "你最担心哪一个变化？评论区聊聊。"
+    if weekday in {4, 5}:
+        tail = "周末也会继续留意那些真正值得追的问题。"
+    else:
+        tail = "想每天用几分钟跟上HN技术风向，可以点个关注。"
+    return f"放在一起看，{rule['closing']}{question}{tail}"
+
+
 def generate_fixed_opening(
     date: str,
     selection: Optional[SelectionResult] = None,
@@ -72,15 +220,8 @@ def generate_fixed_opening(
 
     entries = highlight_entries or []
     focus_count = len([e for e in entries if e.get("coverage_tier") == "focus"])
-    if len(entries) > 3:
-        audio_text = (
-            f"早上好，这里是 HN每日观察。今天选了{len(entries)}条讨论，"
-            f"{focus_count}条重点。"
-        )
-        duration = 8
-    else:
-        audio_text = "早上好，这里是 HN每日观察，带你看昨天HN发生了什么。"
-        duration = 5
+    audio_text = _opening_audio(entries)
+    duration = 8 if len(audio_text) > 45 else 6
 
     top3_titles: list[str] = []
     if story_scan_segs:
@@ -124,7 +265,7 @@ def generate_fixed_opening(
     if not hook_parts and top3_titles:
         hook_parts = top3_titles[:3]
     if hook_parts:
-        subtitle = " · ".join(hook_parts)
+        subtitle = " · ".join(_compact_copy(part, 14) for part in hook_parts)
         if len(subtitle) > 40:
             # 截断最后一个 hook, 保持 ≤40 字
             while len(subtitle) > 40 and len(hook_parts) > 1:
@@ -147,7 +288,7 @@ def generate_fixed_opening(
                 start_time=0.0,
                 end_time=duration,
                 props={
-                    "headline": "每日HN AI观察",
+                    "headline": "每日HN观察",
                     "subtitle": subtitle,
                     "date_label": date_display,  # 保留日期用于 chrome 显示
                     "keywords": keywords[:3],
@@ -269,11 +410,8 @@ def generate_fixed_closing(
     except (ValueError, TypeError):
         weekday = None
 
-    if weekday in {4, 5}:
-        audio_text = "今天的 HN 速览就到这里，周末继续留意那些真正值得追的问题。"
-    else:
-        audio_text = "今天的 HN 速览就到这里，我们明天继续看哪些讨论值得停一下。"
-    duration = 8
+    audio_text = _closing_audio(highlight_entries or [], weekday)
+    duration = 12 if len(audio_text) > 55 else 9
     takeaways = closing_takeaways(highlight_entries)
     signal = "今日信号"
     kw = closing_keywords(highlight_entries)

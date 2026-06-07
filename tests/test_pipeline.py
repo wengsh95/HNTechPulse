@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock
 
 from src.core.models import (
@@ -297,3 +298,125 @@ class TestLLMProviderInterface:
         sig = inspect.signature(LLMProvider.generate_single_story_segment)
         assert "content" in sig.parameters
         assert "story_index" in sig.parameters
+
+
+class TestScriptTemplates:
+    def test_opening_and_closing_are_bilibili_oriented(self):
+        from src.pipeline.script.templates import (
+            generate_fixed_closing,
+            generate_fixed_opening,
+        )
+
+        entries = [
+            {
+                "category": "安全",
+                "editor_angle": "Meta AI客服泄露账号权限",
+                "title_translation": "Meta AI客服被滥用",
+                "signal": "AI客服变成新的攻击面",
+                "why_it_matters": "AI产品权限边界会影响真实用户安全",
+                "keywords": ["AI安全"],
+                "score": 100,
+                "comment_count": 20,
+                "coverage_tier": "focus",
+            },
+            {
+                "category": "硬件",
+                "editor_angle": "Nvidia把CPU塞进Windows PC",
+                "title_translation": "Nvidia Windows PC方案",
+                "signal": "本地AI硬件开始变成平台之争",
+                "why_it_matters": "本地AI会改变PC硬件和平台控制权",
+                "keywords": ["Windows PC"],
+                "score": 80,
+                "comment_count": 30,
+                "coverage_tier": "focus",
+            },
+        ]
+
+        opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
+        closing = generate_fixed_closing("2026-06-07", entries)
+
+        assert "风险开始外溢" in opening.audio_text
+        assert "今天看" in opening.audio_text
+        assert "评论区聊聊" in closing.audio_text
+        assert "点个关注" in closing.audio_text
+
+    @pytest.mark.parametrize(
+        "category, editor_angle, expected_fragment",
+        [
+            ("安全", "AI客服漏洞", "风险开始外溢"),
+            ("硬件", "Nvidia新CPU", "硬件和平台控制权之争"),
+            ("开源", "Python JIT暂停", "维护成本和信任边界"),
+            ("资本", "Anthropic融资", "资本规则的反向拷问"),
+        ],
+    )
+    def test_daily_thesis_matches_each_category_bucket(
+        self, category, editor_angle, expected_fragment
+    ):
+        from src.pipeline.script.templates import _daily_thesis
+
+        entries = [{"category": category, "editor_angle": editor_angle}]
+        rule = _daily_thesis(entries)
+        full = f"{rule['prefix']}{rule['body']}"
+        assert expected_fragment in full
+
+    def test_daily_thesis_falls_back_when_no_keywords_match(self):
+        from src.pipeline.script.templates import _daily_thesis, DEFAULT_THESIS
+
+        entries = [{"category": "杂谈", "editor_angle": "今天天气不错"}]
+        rule = _daily_thesis(entries)
+        assert rule is DEFAULT_THESIS
+        assert "技术热度落到现实里" in rule["body"]
+
+    def test_closing_audio_does_not_reuse_opening_framing(self):
+        """Closing should not start with '今天的主线是' (that's an opener)."""
+        from src.pipeline.script.templates import _closing_audio
+
+        entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
+        audio = _closing_audio(entries, weekday=2)
+        assert not audio.startswith("今天的主线是")
+
+    def test_closing_audio_uses_weekend_tail_on_friday_saturday(self):
+        from src.pipeline.script.templates import _closing_audio
+
+        entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
+        assert "周末也会继续留意" in _closing_audio(entries, weekday=4)
+        assert "周末也会继续留意" in _closing_audio(entries, weekday=5)
+        assert "想每天用几分钟" in _closing_audio(entries, weekday=2)
+
+    def test_compact_copy_normalizes_then_truncates(self):
+        from src.pipeline.script.templates import _compact_copy
+
+        # CJK↔ASCII spaces get tightened first
+        assert _compact_copy("Meta 自家 AI 大模型", 14) == "Meta自家AI大模型"
+        # Short input passes through unchanged
+        assert _compact_copy("短的", 14) == "短的"
+        # Over-length gets ellipsis at max_len - 1
+        out = _compact_copy("这是一个非常非常长的副标题需要被截断处理一下", 14)
+        assert len(out) <= 14
+        assert out.endswith("…")
+        # None / empty safe
+        assert _compact_copy("", 14) == ""
+        assert _compact_copy(None, 14) == ""
+
+    def test_entry_hook_falls_back_through_keys(self):
+        from src.pipeline.script.templates import _entry_hook
+
+        # signal wins; with no clause separator, noise stripping keeps the tail
+        assert _entry_hook({"signal": "评论区正在变成新的攻击面"}) == "新的攻击面"
+        # editor_angle with a clause separator: split first, then strip
+        assert _entry_hook({"editor_angle": "Nvidia本地CPU：Windows PC新方案"}) == "Nvidia本地CPU"
+        # then title_translation (no separator, no noise)
+        assert _entry_hook({"title_translation": "Anthropic融资递表"}) == "Anthropic融资递表"
+        # then original_title; long enough to trigger truncation
+        assert _entry_hook({"original_title": "Some English Title"}) == "Some English…"
+        # finally the placeholder when nothing is provided
+        assert _entry_hook({}) == "技术信号"
+
+    def test_entry_hook_strips_noise_tokens_safely(self):
+        from src.pipeline.script.templates import _entry_hook
+
+        # "评论区" and "变成" are noise; result should still be meaningful
+        out = _entry_hook({"signal": "评论区 正在 变成 新的攻击面"})
+        # After clause split on spaces (no separator), only noise strip applies
+        assert "评论区" not in out
+        assert "变成" not in out
