@@ -80,16 +80,8 @@ class ContentPreparer:
                         score=item_dict.get("score"),
                         comment_count=item_dict.get("comment_count"),
                         editorial_score=item_dict.get("editorial_score"),
-                        china_interest=item_dict.get("china_interest"),
+                        news_focus=item_dict.get("news_focus"),
                         newsworthiness=item_dict.get("newsworthiness"),
-                        click_potential=item_dict.get("click_potential"),
-                        discussion_potential=item_dict.get("discussion_potential"),
-                        creator_value=item_dict.get("creator_value"),
-                        retention_value=item_dict.get("retention_value"),
-                        headline_hook=item_dict.get("headline_hook"),
-                        cover_hook=item_dict.get("cover_hook"),
-                        debate_angle=item_dict.get("debate_angle"),
-                        prefilter_reason=item_dict.get("prefilter_reason"),
                         published_at=item_dict.get("published_at", 0),
                         comments=comments,
                         comments_partial=item_dict.get("comments_partial", False),
@@ -114,8 +106,6 @@ class ContentPreparer:
             return ContentPackage(
                 date=content_dict["date"],
                 items=items,
-                deep_dive_indices=content_dict.get("deep_dive_indices", []),
-                brief_indices=content_dict.get("brief_indices", []),
             )
         except (KeyError, TypeError) as e:
             raise ValueError(

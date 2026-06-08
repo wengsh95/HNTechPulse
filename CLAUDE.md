@@ -49,20 +49,20 @@ Full module map: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
 Three groups (see `src/pipeline/orchestrator.py`):
 
-- **Core chain (12)** — `DEFAULT_STEPS`, what `main.py` runs by default
-- **Optional production (3)** — `{cover_image, cover_thumbnail, publish_guide}`, opt-in via `--steps`
-- **Standalone (2)** — `{render, preview}`, always opt-in
+- **Default chain (16)** — `DEFAULT_STEPS`; what `main.py --agent` runs by default: core 12 + `cover_image` + `cover_thumbnail` + `publish_guide` + `render`
+- **Core chain (12)** — `fetch … title, prepare_render` minus the production trio; reachable via `--steps` for sub-chain runs
+- **Standalone (1)** — `preview`, always opt-in (manual QC after a successful render)
 
 ```
 fetch → prefilter → fetch_comments → enrich_articles → translate_titles
   → analyze_comments → judge_comments → write_script
   → translate_comments → synthesize_audio → title
-  → cover_image → cover_thumbnail → publish_guide → prepare_render
-                                                              ↓ (opt-in)
-                                                            render → preview
+  → cover_image → cover_thumbnail → publish_guide → prepare_render → render
+                                                                              ↓ (opt-in)
+                                                                            preview
 ```
 
-`--steps X` expands to all steps up to and including X. Each step has its own cache and can be re-run in isolation.
+`--steps X` expands to all steps up to and including X. Each step has its own cache and can be re-run in isolation. `--steps` overrides the default chain; pass an explicit subset to skip cover/render on dev iterations.
 
 ### Data Flow
 

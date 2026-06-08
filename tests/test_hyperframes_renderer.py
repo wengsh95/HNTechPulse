@@ -57,6 +57,8 @@ def _make_renderer(**overrides):
     renderer.default_quality = hf["default_quality"]
     renderer.preview_port = hf["preview_port"]
     renderer.fps_override = None
+    renderer.browser_gpu = hf.get("browser_gpu", None)
+    renderer.gpu_encoding = bool(hf.get("gpu_encoding", False))
     renderer.render_workers = hf["render_workers"]
     renderer.resume_enabled = hf["resume_enabled"]
     renderer.workers = None
@@ -498,7 +500,7 @@ class TestWriteChunkProject:
         assert (chunk_subdir / "public" / "images" / "pic.png").exists()
 
         # index.html references only this chunk's scenes
-        html = (chunk_subdir / "index.html").read_text()
+        html = (chunk_subdir / "index.html").read_text(encoding="utf-8")
         assert "id=\"host-0\"" in html  # at least one scene card host
         assert "story_0.mp3" in html
         assert "story_1.mp3" not in html

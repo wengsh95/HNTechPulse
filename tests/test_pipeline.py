@@ -50,8 +50,6 @@ def _make_content_package():
     return ContentPackage(
         date="2026-04-26",
         items=items,
-        deep_dive_indices=[0],
-        brief_indices=[1, 2],
     )
 
 
@@ -91,16 +89,9 @@ class TestContentPreparer:
         content = _make_content_package()
         content.items[0].why_it_matters = "影响开发工作流"
         content.items[0].editorial_score = 12.0
-        content.items[0].china_interest = 4
+        content.items[0].news_focus = 4
         content.items[0].newsworthiness = 4
-        content.items[0].click_potential = 5
-        content.items[0].discussion_potential = 4
-        content.items[0].creator_value = 5
-        content.items[0].retention_value = 4
-        content.items[0].headline_hook = "AI 大厂格局又变了"
-        content.items[0].cover_hook = "谁会先掉队？"
-        content.items[0].debate_angle = "开发者该押模型还是工具链"
-        content.items[0].prefilter_reason = "Strong developer impact"
+        content.items[0].category = "ai_company"
         content.items[0].comments_partial = True
         date = "2026-04-26"
 
@@ -108,8 +99,6 @@ class TestContentPreparer:
         loaded = preparer.load_content(date)
 
         assert loaded.date == content.date
-        assert loaded.deep_dive_indices == content.deep_dive_indices
-        assert loaded.brief_indices == content.brief_indices
         assert len(loaded.items) == len(content.items)
         for original, loaded_item in zip(content.items, loaded.items):
             assert loaded_item.source == original.source
@@ -119,16 +108,9 @@ class TestContentPreparer:
             assert loaded_item.score == original.score
             assert loaded_item.comment_count == original.comment_count
             assert loaded_item.editorial_score == original.editorial_score
-            assert loaded_item.china_interest == original.china_interest
+            assert loaded_item.news_focus == original.news_focus
             assert loaded_item.newsworthiness == original.newsworthiness
-            assert loaded_item.click_potential == original.click_potential
-            assert loaded_item.discussion_potential == original.discussion_potential
-            assert loaded_item.creator_value == original.creator_value
-            assert loaded_item.retention_value == original.retention_value
-            assert loaded_item.headline_hook == original.headline_hook
-            assert loaded_item.cover_hook == original.cover_hook
-            assert loaded_item.debate_angle == original.debate_angle
-            assert loaded_item.prefilter_reason == original.prefilter_reason
+            assert loaded_item.category == original.category
             assert loaded_item.comments_partial == original.comments_partial
             assert loaded_item.why_it_matters == original.why_it_matters
             assert len(loaded_item.comments) == len(original.comments)

@@ -43,8 +43,8 @@ class TestContentModels:
 
     def test_content_package(self):
         cp = ContentPackage(date="2026-04-26", items=[])
-        assert cp.deep_dive_indices == []
-        assert cp.brief_indices == []
+        assert cp.items == []
+        assert cp.date == "2026-04-26"
 
 
 class TestScriptModels:

@@ -385,13 +385,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping fetch")
             return ContentPackage(date=date, items=[])
 
-        hn_cfg = self.config.get("hn", {})
-        fetch_count = hn_cfg.get("target_stories_count", 30)
-        content = self.content_fetcher.fetch(
-            date,
-            num_deep_dive=0,
-            num_brief=fetch_count,
-        )
+        content = self.content_fetcher.fetch(date)
         self.content_preparer.save_content(content, date)
         return content
 
@@ -542,12 +536,12 @@ class Orchestrator:
         self.logger.info("Step: Write script — narration generation")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
         self.logger.info(f"Model: {self.config.get('llm', {}).get('model', 'unknown')}")
-        num_brief = min(
+        num_story_scan = min(
             self.config.get("pipeline", {}).get("target_story_count", 10),
             len(content.items),
         )
         self.logger.info(
-            f"Expected script LLM calls: story_scan={num_brief} "
+            f"Expected script LLM calls: story_scan={num_story_scan} "
             f"(translations/enrichment may add separate calls)"
         )
         self.logger.info("=" * 50)

@@ -28,9 +28,9 @@ uv run python -m pytest                        # 测试
 fetch → prefilter → fetch_comments → enrich_articles → translate_titles
   → analyze_comments → judge_comments → write_script
   → translate_comments → synthesize_audio → title
-  → cover_image → cover_thumbnail → publish_guide → prepare_render
-                                                              ↓
-                                                        render (opt-in)
+  → cover_image → cover_thumbnail → publish_guide → prepare_render → render
+                                                                              ↓
+                                                                          preview (opt-in)
 ```
 
 `--steps X` 自动展开为 X 及之前所有步骤。每个步骤有独立缓存，可单独重跑。

@@ -60,8 +60,6 @@ def _make_content_package():
     return ContentPackage(
         date="2026-04-26",
         items=items,
-        deep_dive_indices=[0],
-        brief_indices=[1],
     )
 
 
@@ -106,8 +104,6 @@ class TestSafeGetItem:
         content = ContentPackage(
             date="2026-04-26",
             items=[],
-            deep_dive_indices=[],
-            brief_indices=[],
         )
         assert _safe_get_item(content, 0) is None
 
@@ -328,6 +324,9 @@ class TestExpandAtmosphereCard:
         assert result["quotes"][0]["display_text"] == "边界才是真问题"
 
     def test_quote_display_text_requires_judgement_claim(self, monkeypatch):
+        # When comment_lanes has no claim for a selected quote, the expander
+        # self-heals by synthesizing a 50-char display_text from the comment
+        # text instead of failing the whole prepare_render.
         content = _make_content_package()
         content.date = "2026-04-26"
         content.items[0].source_id = "story0"
@@ -353,11 +352,17 @@ class TestExpandAtmosphereCard:
             },
         )
 
-        with pytest.raises(ValueError, match="requires comment_lanes claim"):
-            _expand_atmosphere_card(
-                {"story_index": 0, "selected_comment_ids": ["c0"]},
-                content,
-            )
+        result = _expand_atmosphere_card(
+            {"story_index": 0, "selected_comment_ids": ["c0"]},
+            content,
+        )
+
+        assert result["quotes"], "expected synthesized quote to be kept"
+        assert result["quotes"][0]["source_id"] == "c0"
+        # Display text is the first 50 chars of the cleaned comment, rstripped.
+        assert result["quotes"][0]["display_text"] == (
+            "This selected comment is intentionally much longer"
+        )
 
 
 # ── expand_element_props ───────────────────────────────────────────────

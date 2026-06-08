@@ -36,16 +36,8 @@ class ContentItem:
     score: Optional[int] = None
     comment_count: Optional[int] = None
     editorial_score: Optional[float] = None
-    china_interest: Optional[int] = None
+    news_focus: Optional[int] = None
     newsworthiness: Optional[int] = None
-    click_potential: Optional[int] = None
-    discussion_potential: Optional[int] = None
-    creator_value: Optional[int] = None
-    retention_value: Optional[int] = None
-    headline_hook: Optional[str] = None
-    cover_hook: Optional[str] = None
-    debate_angle: Optional[str] = None
-    prefilter_reason: Optional[str] = None
     published_at: int = 0
     comments: List[ContentComment] = field(default_factory=list)
     comments_partial: bool = False
@@ -81,8 +73,6 @@ class ContentPackage:
 
     date: str
     items: List[ContentItem]
-    deep_dive_indices: List[int] = field(default_factory=list)
-    brief_indices: List[int] = field(default_factory=list)
 
 
 # ================= LLM 交互模型 =================

@@ -1,7 +1,9 @@
 prefilter:
   enabled: true
   batch_size: 30
-  min_keep: 5
+  min_keep: 3
   temperature: 0.1
   comment_preview_enabled: true
   comment_preview_count: 5
+  news_focus_weight: 2.0          # 复合分权重：新闻类程度
+  newsworthiness_weight: 1.5      # 复合分权重：新闻价值

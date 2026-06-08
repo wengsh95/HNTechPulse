@@ -85,8 +85,27 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
         },
     )
     atomic_write_json(base / "content.json", {"items": []})
-    atomic_write_json(base / "script.json", {"title": "A", "segments": []})
-    atomic_write_json(selected_dir / "script.json", {"title": "B", "segments": []})
+    # The variant snapshot is the writer's content. The promoted (root) script
+    # is what later steps will post-process; here it has *different* segments,
+    # so the semantic comparison should fail and the run should be blocked.
+    atomic_write_json(
+        base / "script.json",
+        {
+            "title": "Promoted",
+            "segments": [
+                {"segment_type": "story_scan", "audio_text": "WRONG"}
+            ],
+        },
+    )
+    atomic_write_json(
+        selected_dir / "script.json",
+        {
+            "title": "Variant",
+            "segments": [
+                {"segment_type": "story_scan", "audio_text": "ORIGINAL"}
+            ],
+        },
+    )
 
     result = audit(date)
 

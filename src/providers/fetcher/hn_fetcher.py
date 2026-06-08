@@ -71,8 +71,6 @@ class HNFetcher(ContentFetcher):
     def fetch(
         self,
         date: str,
-        num_deep_dive: int = 1,
-        num_brief: int = 2,
         **kwargs,
     ) -> ContentPackage:
         import time as _time
@@ -733,8 +731,6 @@ class HNFetcher(ContentFetcher):
         return ContentPackage(
             date=date,
             items=items,
-            deep_dive_indices=[],
-            brief_indices=list(range(len(items))),
         )
 
     def _load_stories_from_cache(

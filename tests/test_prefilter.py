@@ -37,15 +37,8 @@ def _make_prefilter(comment_preview_count: int = 5):
             "keep": True,
             "reason": "good",
             "category": "developer_tools",
-            "china_interest": 4,
+            "news_focus": 4,
             "newsworthiness": 4,
-            "click_potential": 4,
-            "discussion_potential": 3,
-            "creator_value": 4,
-            "retention_value": 4,
-            "headline_hook": "Meta 自家 AI 聊天机器人",
-            "cover_hook": "Windows PC 造 CPU",
-            "debate_angle": "AI 产品 新攻击面",
         }
     ]
     config = {
@@ -103,18 +96,6 @@ def test_prefilter_cache_invalidates_when_preview_comment_changes(
     assert llm.prefilter_stories.call_count == 2
 
 
-def test_prefilter_normalizes_hook_spacing(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    prefilter, _ = _make_prefilter()
-
-    filtered = prefilter.filter(_make_content(), "2026-04-26")
-
-    item = filtered.items[0]
-    assert item.headline_hook == "Meta自家AI聊天机器人"
-    assert item.cover_hook == "Windows PC造CPU"
-    assert item.debate_angle == "AI产品新攻击面"
-
-
 def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     content = ContentPackage(
@@ -145,24 +126,16 @@ def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypa
             "keep": True,
             "reason": "technical but dry",
             "category": "infra",
-            "china_interest": 2,
+            "news_focus": 2,
             "newsworthiness": 3,
-            "click_potential": 1,
-            "discussion_potential": 1,
-            "creator_value": 2,
-            "retention_value": 2,
         },
         {
             "index": 1,
             "keep": True,
-            "reason": "strong video topic",
+            "reason": "strong news event",
             "category": "ai_company",
-            "china_interest": 4,
+            "news_focus": 5,
             "newsworthiness": 4,
-            "click_potential": 5,
-            "discussion_potential": 5,
-            "creator_value": 5,
-            "retention_value": 4,
         },
     ]
     prefilter = Prefilter(

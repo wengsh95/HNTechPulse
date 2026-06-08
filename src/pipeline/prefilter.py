@@ -4,9 +4,8 @@ from typing import Any
 
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
-from src.utils.text import normalize_cjk_mixed_spacing
 
-_CACHE_SCHEMA_VERSION = 7
+_CACHE_SCHEMA_VERSION = 8
 
 
 def _prompt_hash() -> str:
@@ -93,7 +92,7 @@ class Prefilter:
                 content, decisions, original_items=original_items, target_count=target_count
             )
 
-        # Sort by Bilibili-oriented video value; tiebreaker: HN score.
+        # Sort by news-first editorial score; tiebreaker: HN score.
         def _composite_key(item):
             return (-(item.editorial_score or 0), -(item.score or 0))
 
@@ -106,50 +105,33 @@ class Prefilter:
             )
             content.items = content.items[:target_count]
 
-        # Rebuild indices
-        self._rebuild_indices(content)
-
         return content
 
     @staticmethod
-    def _editorial_score(decision: dict) -> float:
-        ci = decision.get("china_interest") or 0
+    def _editorial_score(decision: dict, weights: dict) -> float:
+        nf = decision.get("news_focus") or 0
         nw = decision.get("newsworthiness") or 0
-        click = decision.get("click_potential") or 0
-        discussion = decision.get("discussion_potential") or 0
-        creator = decision.get("creator_value") or 0
-        retention = decision.get("retention_value") or 0
         return float(
-            click * 2.0
-            + discussion * 1.6
-            + creator * 1.4
-            + retention * 1.2
-            + nw * 1.2
-            + ci * 1.0
+            nf * weights.get("news_focus", 2.0)
+            + nw * weights.get("newsworthiness", 1.5)
         )
 
     def _apply_editorial_signals(self, items, decisions: dict) -> None:
+        weights = self._score_weights()
         for item in items:
             decision = decisions.get(str(item.source_id), {})
-            item.china_interest = decision.get("china_interest")
+            item.news_focus = decision.get("news_focus")
             item.newsworthiness = decision.get("newsworthiness")
-            item.click_potential = decision.get("click_potential")
-            item.discussion_potential = decision.get("discussion_potential")
-            item.creator_value = decision.get("creator_value")
-            item.retention_value = decision.get("retention_value")
-            item.headline_hook = self._copy_text(decision.get("headline_hook"))
-            item.cover_hook = self._copy_text(decision.get("cover_hook"))
-            item.debate_angle = self._copy_text(decision.get("debate_angle"))
             if decision.get("category"):
                 item.category = decision.get("category")
-            item.prefilter_reason = decision.get("reason") or ""
-            item.editorial_score = self._editorial_score(decision)
+            item.editorial_score = self._editorial_score(decision, weights)
 
-    @staticmethod
-    def _copy_text(value: Any) -> str | None:
-        if value is None:
-            return None
-        return normalize_cjk_mixed_spacing(str(value))
+    def _score_weights(self) -> dict:
+        cfg = self.config.get("prefilter", {})
+        return {
+            "news_focus": cfg.get("news_focus_weight", 2.0),
+            "newsworthiness": cfg.get("newsworthiness_weight", 1.5),
+        }
 
     def _backfill_after_newsworthiness(
         self,
@@ -166,9 +148,7 @@ class Prefilter:
             decision = decisions.get(str(item.source_id), {})
             if not decision.get("keep"):
                 continue
-            if (decision.get("click_potential") or 0) >= 3 or (
-                decision.get("creator_value") or 0
-            ) >= 4:
+            if (decision.get("news_focus") or 0) >= 3:
                 candidates.append(item)
 
         candidates = sorted(
@@ -181,7 +161,7 @@ class Prefilter:
             additions = candidates[:needed]
             content.items.extend(additions)
             self.logger.info(
-                f"Backfilled {len(additions)} Bilibili-suitable stories after newsworthiness filter"
+                f"Backfilled {len(additions)} news-type stories after newsworthiness filter"
             )
 
     def _run_llm(self, items):
@@ -209,15 +189,8 @@ class Prefilter:
                 "keep": bool(d.get("keep", True)),
                 "reason": d.get("reason", ""),
                 "category": d.get("category"),
-                "china_interest": d.get("china_interest"),
+                "news_focus": d.get("news_focus"),
                 "newsworthiness": d.get("newsworthiness"),
-                "click_potential": d.get("click_potential"),
-                "discussion_potential": d.get("discussion_potential"),
-                "creator_value": d.get("creator_value"),
-                "retention_value": d.get("retention_value"),
-                "headline_hook": self._copy_text(d.get("headline_hook")),
-                "cover_hook": self._copy_text(d.get("cover_hook")),
-                "debate_angle": self._copy_text(d.get("debate_angle")),
             }
         return decisions
 
@@ -260,13 +233,6 @@ class Prefilter:
 
         return keep_ids
 
-    def _rebuild_indices(self, content: ContentPackage):
-        pipeline_cfg = self.config.get("pipeline", {})
-        num_deep_dive = pipeline_cfg.get("target_story_count", 3)
-        n = len(content.items)
-        content.deep_dive_indices = list(range(min(num_deep_dive, n)))
-        content.brief_indices = list(range(num_deep_dive, n))
-
     def _cache_meta(self, content: ContentPackage) -> dict[str, Any]:
         return {
             "prompt_hash": _prompt_hash(),
@@ -286,8 +252,10 @@ class Prefilter:
             "temperature": prefilter_cfg.get("temperature", 0.1),
             "min_keep": prefilter_cfg.get("min_keep", self.min_keep),
             "min_newsworthiness": prefilter_cfg.get("min_newsworthiness", 3),
+            "news_focus_weight": prefilter_cfg.get("news_focus_weight", 2.0),
+            "newsworthiness_weight": prefilter_cfg.get("newsworthiness_weight", 1.5),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
-            "scoring_strategy": "bilibili_daily_v1",
+            "scoring_strategy": "news_focus_v1",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

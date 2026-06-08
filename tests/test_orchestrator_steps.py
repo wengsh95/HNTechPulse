@@ -20,7 +20,7 @@ from src.pipeline.orchestrator import (
 def _make_config():
     return {
         "logging": {"level": "WARNING"},
-        "pipeline": {"num_deep_dive": 1, "num_brief": 2, "target_story_count": 3},
+        "pipeline": {"target_story_count": 3},
         "llm": {"model": "test-model", "fast_model": "test-fast"},
     }
 
@@ -459,7 +459,7 @@ class TestRunDispatch:
         assert tasks["repair_contract"]["do_not_continue_without_source_context"]
         assert tasks["tasks"][0]["task_type"] == "fetch_article"
         assert tasks["tasks"][0]["save_as"]["html"].endswith("123.html")
-        assert tasks["tasks"][0]["acceptable_outputs"] == ["html", "pdf"]
+        assert tasks["tasks"][0]["acceptable_outputs"] == ["html", "pdf", "synthesis_html"]
         assert tasks["tasks"][0]["resume_command"].endswith("--resume --agent")
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
         events_path = tmp_path / "data" / "2026-04-26" / "agent_events.jsonl"

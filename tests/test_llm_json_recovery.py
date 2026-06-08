@@ -201,13 +201,20 @@ class TestSplitPrompt:
 
 class TestTemplateCache:
     def test_caches_first_read(self, tmp_path: Path):
+        import os
+        import time
+
         f = tmp_path / "tpl.md"
         f.write_text("v1", encoding="utf-8")
         _clear_template_cache()
         assert _read_template_cached(str(f)) == "v1"
         # Mutate the file on disk and bump mtime; the next read must see it.
+        # On Windows, rapid write+touch can land in the same mtime tick; bump
+        # mtime explicitly to make the invalidation deterministic.
+        time.sleep(0.05)
         f.write_text("v2", encoding="utf-8")
-        f.touch()  # ensure mtime change on platforms with coarse timestamps
+        future = f.stat().st_mtime + 2.0
+        os.utime(f, (future, future))
         assert _read_template_cached(str(f)) == "v2"
 
     def test_clear_resets(self, tmp_path: Path):

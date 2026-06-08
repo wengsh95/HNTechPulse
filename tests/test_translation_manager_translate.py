@@ -18,7 +18,7 @@ from src.pipeline.translation_manager import TranslationManager
 def _make_config():
     return {
         "logging": {"level": "WARNING"},
-        "pipeline": {"num_deep_dive": 1, "num_brief": 2},
+        "pipeline": {"target_story_count": 3},
         "llm": {"model": "test-model"},
     }
 

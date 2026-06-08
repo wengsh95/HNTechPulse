@@ -82,13 +82,16 @@ def main():
         default=(
             "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
             "analyze_comments,judge_comments,write_script,translate_comments,"
-            "synthesize_audio,title,prepare_render"
+            "synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,"
+            "prepare_render,render"
         ),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
             "write_script, translate_comments, synthesize_audio, title, cover_image, "
-            "cover_thumbnail, publish_guide, prepare_render, render, preview)"
+            "cover_thumbnail, publish_guide, prepare_render, render, preview). "
+            "Default runs the full 16-step chain through video render; preview is "
+            "always opt-in."
         ),
     )
     parser.add_argument(
