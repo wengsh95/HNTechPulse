@@ -238,3 +238,180 @@ class TestBuildCacheMeta:
             prompt="B", story_id="1", model="m", temperature=0.0
         )
         assert m1["prompt_hash"] != m2["prompt_hash"]
+
+
+# ── Dict cache (translation step) ───────────────────────────────────
+#
+# load_dict_cache / save_dict_cache serve the translation pipeline.
+# They share the segments/ directory with the segment cache but use
+# ``translation_{kind}.json`` filenames. Schema and invalidation match
+# the segment cache but the payload is an arbitrary dict (not a
+# ScriptSegment), so the contract is slightly different.
+
+
+@pytest.fixture
+def dict_cache(tmp_path, monkeypatch):
+    """LLMCache with both cache path helpers redirected to tmp_path."""
+    cache = LLMCache(logger=MagicMock(), cache_schema_version=4)
+
+    def _segment_path(date, segment_type, story_index):
+        d = tmp_path / date / "segments"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f"{segment_type}_{story_index}.json"
+
+    def _dict_path(date, kind):
+        d = tmp_path / date / "segments"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f"translation_{kind}.json"
+
+    monkeypatch.setattr(cache, "get_segment_cache_path", _segment_path)
+    monkeypatch.setattr(cache, "_dict_cache_path", _dict_path)
+    return cache
+
+
+class TestDictCacheRoundTrip:
+    def test_save_then_load_returns_equivalent_data(self, dict_cache):
+        payload = {"title_1": "标题1", "title_2": "标题2", "title_3": "标题3"}
+        meta = {"schema_version": 4, "model": "fast", "temperature": 0.1}
+
+        dict_cache.save_dict_cache("2026-06-08", "titles", payload, cache_meta=meta)
+        loaded = dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta=meta
+        )
+
+        assert loaded == payload
+
+    def test_preserves_unicode_keys_and_values(self, dict_cache):
+        payload = {"comment_0_3": "这是一条评论，保留换行\n和emoji 🚀"}
+        meta = {"v": 1}
+
+        dict_cache.save_dict_cache("2026-06-08", "comments", payload, cache_meta=meta)
+        loaded = dict_cache.load_dict_cache(
+            "2026-06-08", "comments", expected_cache_meta=meta
+        )
+
+        assert loaded == payload
+
+    def test_load_missing_returns_none(self, dict_cache):
+        assert dict_cache.load_dict_cache("2026-06-08", "titles") is None
+
+    def test_save_creates_parent_directory(self, dict_cache, tmp_path):
+        """save_dict_cache must mkdir segments/ if absent (atomic_write_text
+        creates parents via .parent.mkdir)."""
+        assert not (tmp_path / "2026-06-08" / "segments").exists()
+        dict_cache.save_dict_cache(
+            "2026-06-08", "titles", {"k": "v"}, cache_meta={"v": 1}
+        )
+        assert (
+            tmp_path / "2026-06-08" / "segments" / "translation_titles.json"
+        ).exists()
+
+
+class TestDictCacheInvalidation:
+    def test_meta_mismatch_returns_none(self, dict_cache):
+        save_meta = {"schema_version": 4, "model": "m1"}
+        different_meta = {"schema_version": 4, "model": "m2"}
+
+        dict_cache.save_dict_cache(
+            "2026-06-08", "titles", {"k": "v"}, cache_meta=save_meta
+        )
+        loaded = dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta=different_meta
+        )
+
+        assert loaded is None
+
+    def test_no_expected_meta_means_accept_anything(self, dict_cache):
+        """Backward-compat: callers without cache_meta get the cached result."""
+        dict_cache.save_dict_cache(
+            "2026-06-08", "titles", {"k": "v"}, cache_meta={"v": 1}
+        )
+        loaded = dict_cache.load_dict_cache("2026-06-08", "titles")
+        assert loaded == {"k": "v"}
+
+    def test_schema_version_bump_invalidates(self, dict_cache):
+        old_meta = {"schema_version": 3, "model": "m"}
+        new_meta = {"schema_version": 4, "model": "m"}
+
+        dict_cache.save_dict_cache(
+            "2026-06-08", "titles", {"k": "v"}, cache_meta=old_meta
+        )
+        loaded = dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta=new_meta
+        )
+
+        assert loaded is None
+
+    def test_different_kinds_are_isolated(self, dict_cache):
+        meta = {"v": 1}
+        dict_cache.save_dict_cache(
+            "2026-06-08", "titles", {"k": "titles"}, cache_meta=meta
+        )
+        dict_cache.save_dict_cache(
+            "2026-06-08", "comments", {"k": "comments"}, cache_meta=meta
+        )
+
+        assert dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta=meta
+        ) == {"k": "titles"}
+        assert dict_cache.load_dict_cache(
+            "2026-06-08", "comments", expected_cache_meta=meta
+        ) == {"k": "comments"}
+
+
+class TestDictCacheCorruption:
+    def test_corrupt_json_returns_none(self, dict_cache, tmp_path):
+        # Use the patched _dict_cache_path so we write in tmp_path.
+        path = dict_cache._dict_cache_path("2026-06-08", "titles")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not valid json", encoding="utf-8")
+
+        assert dict_cache.load_dict_cache("2026-06-08", "titles") is None
+
+    def test_missing_data_field_returns_none(self, dict_cache, tmp_path):
+        """A cache file with only _cache and no data field should not crash."""
+        path = dict_cache._dict_cache_path("2026-06-08", "titles")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"_cache": {}}), encoding="utf-8")
+
+        assert dict_cache.load_dict_cache("2026-06-08", "titles") is None
+
+    def test_overwrite_replaces_previous_data(self, dict_cache):
+        meta = {"v": 1}
+        dict_cache.save_dict_cache("2026-06-08", "titles", {"k": "v1"}, cache_meta=meta)
+        dict_cache.save_dict_cache("2026-06-08", "titles", {"k": "v2"}, cache_meta=meta)
+        loaded = dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta=meta
+        )
+        assert loaded == {"k": "v2"}
+
+
+class TestDictCacheConcurrentWrites:
+    def test_two_threads_writing_different_kinds_dont_clobber(self, dict_cache):
+        """Different (date, kind) tuples map to different files. Verify two
+        threads can write simultaneously without losing data."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def write_titles():
+            dict_cache.save_dict_cache(
+                "2026-06-08", "titles", {"k": "titles"}, cache_meta={"v": 1}
+            )
+
+        def write_comments():
+            dict_cache.save_dict_cache(
+                "2026-06-08", "comments", {"k": "comments"}, cache_meta={"v": 1}
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f1 = ex.submit(write_titles)
+            f2 = ex.submit(write_comments)
+            f1.result()
+            f2.result()
+
+        # Both files must exist with the right contents.
+        assert dict_cache.load_dict_cache(
+            "2026-06-08", "titles", expected_cache_meta={"v": 1}
+        ) == {"k": "titles"}
+        assert dict_cache.load_dict_cache(
+            "2026-06-08", "comments", expected_cache_meta={"v": 1}
+        ) == {"k": "comments"}
