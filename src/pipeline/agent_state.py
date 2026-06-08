@@ -198,7 +198,7 @@ class AgentState:
             return (
                 "Fetch the missing article pages with browser/MCP, save them to "
                 f"data/{self.date}/downloaded_pages/, then run: "
-                f"uv run python main.py --date {self.date} --resume --agent"
+                f"uv run python scripts/agent_run.py --date {self.date} --resume"
             )
         if (
             self.status == "blocked"
@@ -206,7 +206,7 @@ class AgentState:
         ):
             return (
                 "Gather more source context for the blocked stories, then run: "
-                f"uv run python main.py --date {self.date} --resume --agent"
+                f"uv run python scripts/agent_run.py --date {self.date} --resume"
             )
         if self.status == "blocked" and self.blocked_reason in {
             BLOCK_MISSING_CREDENTIALS,
@@ -216,13 +216,13 @@ class AgentState:
         next_step = self.failed_step or self.current_step or self._next_step()
         if next_step:
             return (
-                f"uv run python main.py --date {self.date} --steps {next_step} --agent"
+                f"uv run python scripts/agent_run.py --date {self.date} --steps {next_step}"
             )
         return None
 
     def _write_task_list(self) -> None:
         tasks = []
-        resume_command = f"uv run python main.py --date {self.date} --resume --agent"
+        resume_command = f"uv run python scripts/agent_run.py --date {self.date} --resume"
         for item in self.missing_manual_files:
             # `synthesis_from` declares which source categories the agent may use
             # as fallbacks when the original URL is unreachable. The default `any`

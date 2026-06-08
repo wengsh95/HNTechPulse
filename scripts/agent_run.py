@@ -110,6 +110,26 @@ def _failed_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     return [failed]
 
 
+def _manual_downloads_repaired(status: dict[str, Any]) -> bool:
+    if status.get("blocked_reason") != "manual_download_required":
+        return False
+    agent_tasks = status.get("agent_tasks") or {}
+    if agent_tasks.get("exists") and agent_tasks.get("pending_count") == 0:
+        return True
+    state = status.get("pipeline_state") or {}
+    missing = state.get("missing_manual_files") or []
+    if not missing:
+        return False
+    for item in missing:
+        html = item.get("expected_html")
+        pdf = item.get("expected_pdf")
+        has_html = bool(html and (ROOT / str(html)).exists())
+        has_pdf = bool(pdf and (ROOT / str(pdf)).exists())
+        if not has_html and not has_pdf:
+            return False
+    return True
+
+
 def _choose_steps(
     *,
     status: dict[str, Any],
@@ -122,6 +142,8 @@ def _choose_steps(
     pipeline_status = status.get("pipeline_status")
     if pipeline_status == "not_started":
         return DEFAULT_CHAIN
+    if pipeline_status == "blocked" and _manual_downloads_repaired(status):
+        return _failed_recovery_steps(status)
     if pipeline_status in {"failed", "running"} or force_resume:
         failed_steps = _failed_recovery_steps(status)
         if failed_steps:
@@ -154,11 +176,13 @@ def main() -> int:
 
     preflight_code = _preflight(args.date, args.config)
     if preflight_code not in {0}:
-        return preflight_code
+        preflight_status = build_status(args.date)
+        if not _manual_downloads_repaired(preflight_status):
+            return preflight_code
 
     status = build_status(args.date)
     _print_json({"event": "agent_status", **status})
-    if status.get("pipeline_status") == "blocked":
+    if status.get("pipeline_status") == "blocked" and not _manual_downloads_repaired(status):
         return 2
 
     steps = _choose_steps(
