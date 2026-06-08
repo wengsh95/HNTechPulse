@@ -86,7 +86,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
           <div
             style={{
               padding: `${d.scaled(6)}px ${d.scaled(20)}px`,
-              background: COLORS.warmBrown,
+              background: COLORS.brand,
               color: "#fff",
               fontWeight: FW.bold,
               fontSize: d.fs.caption,
@@ -132,7 +132,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
               maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
               height: d.scaled(CARD_LAYOUT.divider.height),
               borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-              background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+              background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
               opacity: titleProgress,
             }}
           />

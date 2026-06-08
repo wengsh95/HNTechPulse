@@ -30,26 +30,26 @@ const HEAT_LABELS: Record<HeatLevel, string> = {
 
 const HEAT_COLORS: Record<HeatLevel, { bg: string; fg: string }> = {
   L1: { bg: COLORS.sageBg, fg: COLORS.sage },
-  L2: { bg: COLORS.goldBg, fg: COLORS.warmGold },
-  L3: { bg: COLORS.brownBg, fg: COLORS.warmBrown },
+  L2: { bg: COLORS.goldBg, fg: COLORS.yellow },
+  L3: { bg: COLORS.brandSoft, fg: COLORS.brandDeep },
 };
 
 const ANALYSIS_META: Record<
   AnalysisItem["type"],
   { label: string; barColor: string; labelColor: string }
 > = {
-  why: { label: "为何关注", barColor: COLORS.warmBrown, labelColor: COLORS.warmBrown },
+  why: { label: "为何关注", barColor: COLORS.brand, labelColor: COLORS.brandDeep },
   impact: {
     label: "影响分析",
-    barColor: COLORS.warmGold,
-    labelColor: COLORS.warmGold,
+    barColor: COLORS.brandLight,
+    labelColor: COLORS.brandDeep,
   },
 };
 
 const PULSE = `
 @keyframes ec-pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%, 100% { opacity: 0.36; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
 }`;
 
 /* ---- inline-styles builder (design-system aligned) ---- */
@@ -57,11 +57,11 @@ const PULSE = `
 function buildStyles(d: ReturnType<typeof useDesign>) {
   return {
     dot: {
-      width: d.scaled(7),
-      height: d.scaled(7),
+      width: d.scaled(9),
+      height: d.scaled(9),
       borderRadius: "50%",
-      background: COLORS.warmBrown,
-      animation: "ec-pulse-dot 1.4s infinite",
+      background: COLORS.brand,
+      animation: "ec-pulse-dot 1.8s ease-in-out 3 both",
     } as React.CSSProperties,
     badge: {
       display: "inline-flex",
@@ -74,7 +74,7 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       textTransform: "uppercase" as const,
       padding: `${d.scaled(6)}px ${d.scaled(16)}px`,
       borderRadius: d.scaled(4),
-      background: COLORS.warmBrown,
+      background: COLORS.brand,
       color: "#fff",
     } as React.CSSProperties,
     divider: {
@@ -82,7 +82,7 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
       height: d.scaled(CARD_LAYOUT.divider.height),
       borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-      background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+      background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
     } as React.CSSProperties,
     domain: {
       fontSize: d.fs.bodySmall,
@@ -94,9 +94,10 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
       ({
         fontSize: d.fs.headline,
         fontWeight: FW.heavy,
-        lineHeight: 1.15,
-        letterSpacing: "-0.015em",
+        lineHeight: 1.14,
+        letterSpacing: "0",
         color: COLORS.fg,
+        fontFamily: FONTS.serifBold,
         maxWidth: maxW,
       }) as React.CSSProperties,
     titleEn: {
@@ -139,11 +140,12 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
         gap: d.scaled(4),
         fontFamily: FONTS.mono,
         fontSize: d.fs.pill,
-        fontWeight: FW.semibold,
-        padding: `${d.scaled(4)}px ${d.scaled(12)}px`,
+        fontWeight: FW.bold,
+        padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
         borderRadius: d.scaled(999),
-        background: bg,
-        color: fg,
+        background: COLORS.surface2,
+        color: COLORS.fg,
+        fontVariantNumeric: "tabular-nums",
       }) as React.CSSProperties,
     analysis: {
       display: "flex",
@@ -167,10 +169,20 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
     anLabel: (color: string) =>
       ({
         fontFamily: FONTS.sans,
-        fontSize: d.fs.caption,
-        fontWeight: FW.semibold,
-        color,
+        fontSize: d.fs.subhead,
+        fontWeight: FW.heavy,
+        color: COLORS.brandDeep,
+        display: "flex",
+        alignItems: "center",
+        gap: d.scaled(8),
       }) as React.CSSProperties,
+    anLabelBar: {
+      width: d.scaled(4),
+      height: d.scaled(18),
+      borderRadius: d.scaled(999),
+      background: COLORS.brand,
+      flexShrink: 0,
+    } as React.CSSProperties,
     anText: {
       fontSize: d.fs.bodySmall,
       lineHeight: 1.5,
@@ -178,17 +190,20 @@ function buildStyles(d: ReturnType<typeof useDesign>) {
     } as React.CSSProperties,
     tags: {
       display: "flex",
-      gap: d.scaled(12),
+      gap: d.scaled(8),
       flexWrap: "wrap" as const,
+      minWidth: 0,
+      justifyContent: "flex-end",
     } as React.CSSProperties,
     tag: {
       display: "inline-block",
       fontFamily: FONTS.sans,
       fontSize: d.fs.bodySmall,
-      fontWeight: FW.medium,
-      padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
+      fontWeight: FW.semibold,
+      padding: `${d.scaled(4)}px ${d.scaled(12)}px`,
       borderRadius: d.scaled(999),
-      background: COLORS.border,
+      border: `1px solid ${COLORS.border}`,
+      background: "rgba(255,255,255,0.48)",
       color: COLORS.muted,
       maxWidth: d.scaled(240),
       overflow: "hidden",
@@ -260,10 +275,10 @@ function TextContent(
       <div style={{ ...S.divider, marginTop: d.scaled(4) }} />
       <div style={{ ...S.stats, marginTop: d.scaled(-4) }}>
         <span style={S.heatLevel(heatLevel)}>{heatLabel || HEAT_LABELS[heatLevel]}</span>
-        <span style={S.metricPill(COLORS.brownBg, COLORS.warmBrown)}>
+        <span style={S.metricPill(COLORS.surface2, COLORS.fg)}>
           &#x1F525; {hnScore.toLocaleString()}
         </span>
-        <span style={S.metricPill(COLORS.goldBg, COLORS.warmGold)}>
+        <span style={S.metricPill(COLORS.surface2, COLORS.fg)}>
           &#x1F4AC; {commentCount.toLocaleString()}
         </span>
       </div>
@@ -281,8 +296,11 @@ function TextContent(
                     gap: d.scaled(4),
                   }}
                 >
-                  <span style={S.anLabel(m.labelColor)}>{m.label}</span>
-                  <p style={S.anText}>{a.text}</p>
+                  <span style={S.anLabel(m.labelColor)}>
+                    <span style={S.anLabelBar} />
+                    {m.label}
+                  </span>
+                  <p style={{ ...S.anText, marginLeft: d.scaled(12) }}>{a.text}</p>
                 </div>
               </div>
             );

@@ -24,7 +24,7 @@ export const CardAudioWaveform: React.FC<CardAudioWaveformProps> = ({ src }) => 
       barWidth={12}
       barGap={5}
       maxHeight={60}
-      color={COLORS.warmGold}
+      color={COLORS.brand}
       leftOffset={d.scaled(32)}
     />
   );

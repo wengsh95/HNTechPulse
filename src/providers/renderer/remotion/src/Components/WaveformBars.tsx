@@ -21,7 +21,7 @@ interface WaveformBarsProps {
   barGap?: number;
   /** 最大高度（px，参考值），默认 80 */
   maxHeight?: number;
-  /** 柱子颜色，默认 warmBrown */
+  /** 柱子颜色，默认 brand */
   color?: string;
   /** 距离底部偏移量，默认 20 */
   bottomOffset?: number;
@@ -37,7 +37,7 @@ export const WaveformBars: React.FC<WaveformBarsProps> = ({
   barWidth = 6,
   barGap = 4,
   maxHeight = 80,
-  color = COLORS.warmBrown,
+  color = COLORS.brand,
   bottomOffset = 20,
   roundTop = true,
   leftOffset,

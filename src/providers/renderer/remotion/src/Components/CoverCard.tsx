@@ -35,13 +35,11 @@ function HighlightRow({
   index: number;
   frame: number;
 }) {
-  // 圆形渐变序号
-  const badgeGradient =
-    h.rank === 1
-      ? `linear-gradient(135deg, ${COLORS.warmBrown}, ${COLORS.warmBrown}dd)`
-      : h.rank === 2
-        ? `linear-gradient(135deg, ${COLORS.warmGold}, ${COLORS.warmGold}dd)`
-        : `linear-gradient(135deg, ${COLORS.dim}, ${COLORS.dim}dd)`;
+  // 圆形纯色序号徽章 (对齐模板 .num-disc)
+  const badgeColor = COLORS.brand;
+  const badgeBg = h.rank === 1 ? COLORS.brand : h.rank === 2 ? COLORS.brandSoft : COLORS.muted;
+  const badgeTextColor = h.rank === 1 ? COLORS.white : h.rank === 2 ? COLORS.brandDeep : COLORS.white;
+  // 非第一名的徽章使用更柔和的样式
 
   // 进场动画延迟
   const rowProgress = interpolate(
@@ -66,23 +64,22 @@ function HighlightRow({
         transform: `translateX(${interpolate(rowProgress, [0, 1], [-20, 0])}px)`,
       }}
     >
-      {/* 圆形渐变序号徽章 */}
+      {/* 圆形纯色序号徽章 (对齐模板 .num-disc) */}
       <div
         style={{
-          width: d.scaled(64),
-          height: d.scaled(64),
-          borderRadius: 9999,
-          overflow: "hidden",
-          background: badgeGradient,
-          color: "#fff",
+          width: d.scaled(56),
+          height: d.scaled(56),
+          borderRadius: "50%",
+          background: h.rank === 1 ? COLORS.brand : h.rank === 2 ? COLORS.brandSoft : COLORS.brandSoft,
+          color: h.rank === 1 ? COLORS.white : COLORS.brandDeep,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: d.fs.subhead,
           fontWeight: FW.heavy,
-          fontFamily: FONTS.mono,
+          fontFamily: FONTS.serif,
           flexShrink: 0,
-          boxShadow: `0 4px 12px ${h.rank === 1 ? COLORS.warmBrown : COLORS.warmGold}33`,
+          boxShadow: h.rank === 1 ? "0 4px 12px rgba(255,102,0,0.24)" : "none",
         }}
       >
         {h.rank}
@@ -102,6 +99,7 @@ function HighlightRow({
               fontWeight: FW.bold,
               lineHeight: 1.3,
               color: COLORS.fg,
+              fontFamily: FONTS.serif,
             }}
           >
             {h.editorAngle}
@@ -113,11 +111,12 @@ function HighlightRow({
               gap: d.scaled(4),
               fontFamily: FONTS.mono,
               fontSize: d.fs.pill,
-              fontWeight: FW.semibold,
-              padding: `${d.scaled(4)}px ${d.scaled(12)}px`,
+              fontWeight: FW.bold,
+              padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
               borderRadius: d.scaled(999),
-              background: COLORS.brownBg,
-              color: COLORS.warmBrown,
+              background: COLORS.surface2, // 模板 metric-pill: warm panel bg
+              color: COLORS.fg,
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             &#x1F525; {h.hnScore.toLocaleString()}
@@ -129,11 +128,12 @@ function HighlightRow({
               gap: d.scaled(4),
               fontFamily: FONTS.mono,
               fontSize: d.fs.pill,
-              fontWeight: FW.semibold,
-              padding: `${d.scaled(4)}px ${d.scaled(12)}px`,
+              fontWeight: FW.bold,
+              padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
               borderRadius: d.scaled(999),
-              background: COLORS.goldBg,
-              color: COLORS.warmGold,
+              background: COLORS.surface2,
+              color: COLORS.fg,
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             &#x1F4AC; {h.commentCount.toLocaleString()}
@@ -208,21 +208,22 @@ export const CoverCard: React.FC<ElementProps> = ({
           top: d.scaled(140),
           width: d.scaled(2),
           height: d.scaled(300),
-          background: `linear-gradient(180deg, ${COLORS.warmGold}40, transparent)`,
+          background: `linear-gradient(180deg, ${COLORS.brandSoft}, transparent)`,
           borderRadius: d.scaled(1),
           opacity: decorProgress,
         }}
       />
 
       <Fill gap={36} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
-        {/* Headline */}
+        {/* Headline — Fraunces serif, 对齐模板 card-title */}
         <h1
           style={{
             fontSize: d.fs.hero,
             fontWeight: FW.heavy,
-            lineHeight: 1.1,
-            letterSpacing: "-0.02em",
+            lineHeight: 1.12,
+            letterSpacing: "0",
             color: COLORS.fg,
+            fontFamily: FONTS.serifBold,
             maxWidth: d.scaled(1400),
             opacity: titleProgress,
             transform: `translateY(${interpolate(titleProgress, [0, 1], [28, 0])}px)`,
@@ -246,7 +247,7 @@ export const CoverCard: React.FC<ElementProps> = ({
               maxWidth: d.scaled(1200),
               height: d.scaled(6),
               borderRadius: d.scaled(3),
-              background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+              background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
             }}
           />
           {/* 装饰圆点 */}
@@ -256,7 +257,7 @@ export const CoverCard: React.FC<ElementProps> = ({
               gap: d.scaled(6),
             }}
           >
-            {[COLORS.warmBrown, COLORS.warmGold, COLORS.dim].map((color, i) => (
+            {[COLORS.brand, COLORS.brandSoft, COLORS.dim].map((color, i) => (
               <div
                 key={i}
                 style={{

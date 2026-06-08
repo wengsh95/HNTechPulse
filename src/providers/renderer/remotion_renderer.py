@@ -314,7 +314,7 @@ class RemotionRenderer(Renderer):
                         f"--output={partial_file}",
                         f"--frames={start}-{end}",
                     ]
-                    self._run_render_cmd(cmd)
+                    self._run_render_cmd(cmd, label=label)
                     partial_file.rename(chunk_file)
                     return idx
 
@@ -374,7 +374,7 @@ class RemotionRenderer(Renderer):
 
         self.logger.info("Rendering complete")
 
-    def _run_render_cmd(self, cmd: list) -> None:
+    def _run_render_cmd(self, cmd: list, label: str | None = None) -> None:
         cmd_summary = []
         for part in cmd:
             if part.startswith("--props="):
@@ -383,25 +383,57 @@ class RemotionRenderer(Renderer):
                 cmd_summary.append(part)
         self.logger.debug(f"Command: {' '.join(cmd_summary)}")
 
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=str(self.remotion_dir),
-                capture_output=False,
-                text=True,
-                timeout=600,
-                env=self._build_env(),
-            )
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"Remotion render failed with code {result.returncode}"
+        if label is None:
+            # Single render — keep live streaming (no interleaving risk).
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(self.remotion_dir),
+                    capture_output=False,
+                    text=True,
+                    timeout=600,
+                    env=self._build_env(),
                 )
-        except subprocess.TimeoutExpired:
-            self.logger.error("Render timed out after 10 minutes!")
-            raise
-        except FileNotFoundError as e:
-            self.logger.error(f"Command not found: {e}")
-            raise
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"Remotion render failed with code {result.returncode}"
+                    )
+            except subprocess.TimeoutExpired:
+                self.logger.error("Render timed out after 10 minutes!")
+                raise
+            except FileNotFoundError as e:
+                self.logger.error(f"Command not found: {e}")
+                raise
+        else:
+            # Parallel chunk render — capture and label each line so output
+            # from concurrent subprocesses doesn't interleave on the terminal.
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(self.remotion_dir),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    env=self._build_env(),
+                )
+                assert process.stdout is not None
+                for line in process.stdout:
+                    stripped = line.rstrip("\n\r")
+                    if stripped:
+                        self.logger.info(f"[{label}] {stripped}")
+                process.wait(timeout=600)
+                if process.returncode != 0:
+                    raise RuntimeError(
+                        f"Remotion render failed with code {process.returncode}"
+                    )
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                self.logger.error(f"[{label}] Render timed out after 10 minutes!")
+                raise
+            except FileNotFoundError as e:
+                self.logger.error(f"Command not found: {e}")
+                raise
 
     def _finalize_output(self, remotion_output: Path, output_file: Path) -> None:
         if remotion_output.exists():

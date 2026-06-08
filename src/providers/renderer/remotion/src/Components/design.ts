@@ -27,14 +27,14 @@ const MOBILE_GAP_BOOST = 1.15;
 
 export const FONTS = {
   mono: '"JetBrains Mono", "SF Mono", "Menlo", "Source Code Pro", monospace',
-  sans: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
-  bold: '"Inter", "Noto Sans SC", -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif',
-  /** 衬线字体 (品牌名/章节标签), 比 Inter 更有编辑/杂志感 */
+  sans: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
+  bold: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
+  /** 衬线字体 (品牌名/章节标签/大标题), 与模板对齐：Fraunces 优先，中文回退思源宋体 */
   serif:
-    'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
-  /** 装饰字体 (大字周几), 衬线加粗 */
+    '"Fraunces", "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+  /** 装饰字体 (大字), 衬线加粗，与模板对齐 */
   serifBold:
-    'ui-serif, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+    '"Fraunces", "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
 };
 
 /** 标准字重 */
@@ -47,75 +47,84 @@ export const FW = {
 } as const;
 
 export const COLORS = {
-  // ── Warm paper canvas ──
-  bg: "#fefcf8",
-  surface: "rgba(44,36,22,0.04)",
-  surfaceHover: "rgba(44,36,22,0.07)",
-  surfaceBorder: "#e5ddd0",
-  surface2: "#f0e8d8",
+  // ── Warm paper canvas (aligned to template tokens.css) ──
+  bg: "#fbf4e8",
+  surface: "rgba(32,25,20,0.04)",
+  surfaceHover: "rgba(32,25,20,0.07)",
+  surfaceBorder: "rgba(32,25,20,0.10)",
+  surface2: "#f5eadb", // --color-panel-warm
 
-  text: "#2c2416",
-  fg: "#2c2416", // warm paper primary text — use over text
-  textSecondary: "rgba(44,36,22,0.65)",
-  textTertiary: "rgba(44,36,22,0.42)",
-  textBody: "rgba(44,36,22,0.88)",
-  textDim: "rgba(44,36,22,0.72)",
-  textFaint: "rgba(44,36,22,0.28)",
-  muted: "#8b8070", // warm paper secondary — use over textSecondary
-  dim: "rgba(44,36,22,0.55)", // warm paper tertiary — use over textTertiary
+  text: "#201914", // --color-ink
+  fg: "#201914",
+  textSecondary: "rgba(32,25,20,0.65)",
+  textTertiary: "rgba(32,25,20,0.42)",
+  textBody: "rgba(32,25,20,0.88)",
+  textDim: "rgba(32,25,20,0.72)",
+  textFaint: "rgba(32,25,20,0.28)",
+  muted: "#7d7062", // --color-ink-muted
+  dim: "rgba(32,25,20,0.55)",
+  inkSoft: "#4d4238", // --color-ink-soft
+  inkFaint: "#a39482", // --color-ink-faint
 
-  // ── Warm accents ──
-  accent: "#c17d4b",
-  accentLight: "#d4a854",
-  accentBg: "rgba(193,125,75,0.10)",
-  accentBorder: "rgba(193,125,75,0.28)",
+  // ── HN Orange accents (aligned to template) ──
+  accent: "#ff6600",
+  accentLight: "#b64a12", // --color-brand-deep
+  accentBg: "rgba(255,102,0,0.10)",
+  accentBorder: "rgba(255,102,0,0.28)",
 
-  brand: "#c17d4b",
-  brandLight: "#d4a854",
-  brandBg: "rgba(193,125,75,0.08)",
-  brandBorder: "rgba(193,125,75,0.25)",
+  brand: "#ff6600", // --color-brand
+  brandLight: "#b64a12",
+  brandBg: "rgba(255,102,0,0.08)",
+  brandBorder: "rgba(255,102,0,0.25)",
+  brandDeep: "#b64a12",
+  brandSoft: "#ffe0c7", // --color-brand-soft
 
-  warmBrown: "#c17d4b",
-  warmGold: "#d4a854",
-  sage: "#5a8a6a",
+  warmBrown: "#ff6600",
+  warmGold: "#b64a12",
+  sage: "#4f8761",
 
-  brownBg: "#faf0e5",
+  brownBg: "#ffe0c7", // brand-soft light bg for pills
   goldBg: "#faf3e0",
   sageBg: "#e8f0e5",
 
-  green: "#5a8a6a",
-  yellow: "#d4a854",
-  red: "#c17d4b",
-  orangeRed: "#c17d4b",
+  green: "#4f8761", // --color-green (stance support)
+  yellow: "#c69230", // --color-amber (stance skeptical)
+  red: "#ff6600",
+  orangeRed: "#ff6600",
   purple: "#9b7ec4",
-  orange: "#d4a854",
-  gray: "#b0a595",
+  orange: "#ff6600",
+  gray: "#8a8075", // --color-gray (stance neutral)
   white: "#ffffff",
 
-  surfaceSubtle: "rgba(44,36,22,0.03)",
-  surfaceFaint: "rgba(44,36,22,0.04)",
-  surfaceLow: "rgba(44,36,22,0.06)",
-  surfaceMid: "rgba(44,36,22,0.08)",
-  surfaceMed: "rgba(44,36,22,0.10)",
+  surfaceSubtle: "rgba(32,25,20,0.03)",
+  surfaceFaint: "rgba(32,25,20,0.04)",
+  surfaceLow: "rgba(32,25,20,0.06)",
+  surfaceMid: "rgba(32,25,20,0.08)",
+  surfaceMed: "rgba(32,25,20,0.10)",
 
-  borderSubtle: "rgba(44,36,22,0.06)",
-  borderLow: "rgba(44,36,22,0.08)",
-  borderMid: "rgba(44,36,22,0.15)",
+  borderSubtle: "rgba(32,25,20,0.06)",
+  borderLow: "rgba(32,25,20,0.08)",
+  borderMid: "rgba(32,25,20,0.15)",
 
-  accentSurface: "rgba(193,125,75,0.08)",
-  accentBorderSubtle: "rgba(193,125,75,0.15)",
-  accentBorderMid: "rgba(193,125,75,0.22)",
+  accentSurface: "rgba(255,102,0,0.08)",
+  accentBorderSubtle: "rgba(255,102,0,0.15)",
+  accentBorderMid: "rgba(255,102,0,0.22)",
 
-  brandBorderSubtle: "rgba(193,125,75,0.22)",
+  brandBorderSubtle: "rgba(255,102,0,0.22)",
 
-  bgTint75: "rgba(254,252,248,0.75)",
-  bgTint88: "rgba(254,252,248,0.88)",
-  bgStroke: "rgba(254,252,248,0.6)",
-  cardBg: "rgba(44,36,22,0.04)",
-  background: "#fefcf8",
-  border: "#e5ddd0",
-  borderLight: "rgba(44,36,22,0.06)",
-  textLight: "rgba(44,36,22,0.55)",
+  bgTint75: "rgba(251,244,232,0.75)",
+  bgTint88: "rgba(251,244,232,0.88)",
+  bgStroke: "rgba(251,244,232,0.6)",
+  cardBg: "rgba(32,25,20,0.04)",
+  background: "#fbf4e8",
+  border: "rgba(32,25,20,0.10)", // --color-border
+  borderStrong: "rgba(32,25,20,0.18)", // --color-border-strong
+  borderLight: "rgba(32,25,20,0.06)",
+  textLight: "rgba(32,25,20,0.55)",
+
+  // ── Panel colors ──
+  paper: "#fffaf2", // --color-paper
+  panel: "#fffdf8", // --color-panel
 };
 
 /** 1080p 参考布局值（运行时按实际尺寸缩放） */
@@ -295,20 +304,20 @@ export const CHAPTERS: Record<ChapterName, ChapterTone> = {
     viz: "imageHero",
   },
   atmosphere: {
-    accent: COLORS.purple,
-    accentLight: COLORS.purple,
+    accent: "#9b7ec4",
+    accentLight: "#9b7ec4",
     accentBg: "rgba(155,126,196,0.10)",
     accentBorder: "rgba(155,126,196,0.28)",
-    labelText: COLORS.purple,
+    labelText: "#9b7ec4",
     motion: "countUp",
     viz: "pieChart",
   },
   closing: {
-    accent: COLORS.accent,
-    accentLight: COLORS.accentLight,
-    accentBg: COLORS.accentBg,
-    accentBorder: COLORS.accentBorder,
-    labelText: COLORS.accentLight,
+    accent: COLORS.brand,
+    accentLight: COLORS.brandLight,
+    accentBg: COLORS.brandBg,
+    accentBorder: COLORS.brandBorderSubtle,
+    labelText: COLORS.brandLight,
     motion: "heroFadeUp",
     viz: "tally",
   },
@@ -341,20 +350,20 @@ export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
 };
 
 /** 暖纸卡片样式 */
-export const glassCardShadow = `0 2px 16px rgba(44,36,22,0.08), 0 1px 3px rgba(44,36,22,0.04)`;
+export const glassCardShadow = `0 2px 16px rgba(32,25,20,0.08), 0 1px 3px rgba(32,25,20,0.04)`;
 
-export const glassGlow = `0 0 32px rgba(193,125,75,0.06), 0 4px 16px rgba(44,36,22,0.08), 0 1px 4px rgba(44,36,22,0.04)`;
+export const glassGlow = `0 0 32px rgba(255,102,0,0.06), 0 4px 16px rgba(32,25,20,0.08), 0 1px 4px rgba(32,25,20,0.04)`;
 
 /** 命名渐变 */
 export const GRADIENTS = {
-  brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange})`,
+  brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brand})`,
   accentFill: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
   shimmerSweep: `linear-gradient(105deg, transparent 40%, ${COLORS.surfaceLow} 48%, ${COLORS.surfaceLow} 52%, transparent 60%)`,
-  divider: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.orange}99, transparent)`,
-  subtitleMinimal: `linear-gradient(90deg, rgba(254,252,248,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(254,252,248,0))`,
-  subtitleStandard: `linear-gradient(90deg, rgba(254,252,248,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(254,252,248,0))`,
-  keywordTagBg: `rgba(193,125,75,0.08)`,
-  dotGrid: `radial-gradient(circle, rgba(44,36,22,0.04) 1px, transparent 1px)`,
+  divider: `linear-gradient(90deg, ${COLORS.brand}, transparent)`,
+  subtitleMinimal: `linear-gradient(90deg, rgba(251,244,232,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(251,244,232,0))`,
+  subtitleStandard: `linear-gradient(90deg, rgba(251,244,232,0), ${COLORS.bgTint88} 14%, ${COLORS.bgTint88} 86%, rgba(251,244,232,0))`,
+  keywordTagBg: `rgba(255,102,0,0.08)`,
+  dotGrid: `radial-gradient(circle, rgba(32,25,20,0.04) 1px, transparent 1px)`,
 } as const;
 
 export const S: React.CSSProperties = { position: "absolute" as const };
@@ -380,27 +389,27 @@ export const CARD_PAD = {
  * 所有值均为 1080p 参考值，运行时通过 d.scaled() 缩放。
  */
 export const CARD_LAYOUT = {
-  /** 卡片内边距 */
+  /** 卡片内边距 (对齐模板: 1280→1920, 1.5×) */
   padding: {
-    top: 80,
-    bottom: 120, // 从 180 减少到 120，减少底部留白
-    left: 100,
-    right: 56, // 统一右间距
+    top: 64,
+    bottom: 160, // 对齐模板 --card-safe-bottom: 112px → 168px
+    left: 70, // 对齐模板 --card-padding-x: 46px → 69px
+    right: 70,
   },
 
-  /** Header 区域（节目名称 + 日期） */
+  /** Header 区域（品牌名 + live-dot + 日期） */
   header: {
-    height: 32,
+    height: 48,
     marginBottom: 16,
-    fontSize: 18, // d.fs.caption 或 d.fs.micro
+    fontSize: 18,
     color: COLORS.dim,
   },
 
   /** 页码水印 */
   watermark: {
-    top: 80,
-    right: 56,
-    fontSize: 113, // d.fs.watermarkLg
+    top: 64,
+    right: 70,
+    fontSize: 113,
   },
 
   /** 音频波形 */
@@ -408,11 +417,11 @@ export const CARD_LAYOUT = {
     bottom: 20,
   },
 
-  /** 渐变分隔线 */
+  /** 渐变分隔线 (对齐模板 card::after: bottom = safe-bottom - 34px) */
   divider: {
-    height: 6,
+    height: 2,
     maxWidth: 900,
-    borderRadius: 3,
+    borderRadius: 1,
   },
 
   /** 内容区最大宽度 */

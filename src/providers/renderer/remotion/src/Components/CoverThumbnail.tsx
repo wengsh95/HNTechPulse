@@ -50,7 +50,7 @@ const COVER_FS = {
 } as const;
 
 /** 品牌条文案 */
-const BRAND_TEXT = "HN每日观察";
+const BRAND_TEXT = "HN TechPulse";
 
 export interface CoverThumbnailProps {
   /** 背景插画路径（相对于 public/） */

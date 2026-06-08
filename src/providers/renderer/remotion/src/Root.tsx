@@ -19,6 +19,12 @@ import { ScriptProps } from "./types";
  * CLI 渲染模式：通过 --props 参数注入完整数据，Remotion 自动传递给组件
  */
 
+// ── Fraunces font loading (Google Fonts) ──
+// 对齐模板 hn-card-template-reference: Fraunces 500/700/900
+const FRAUNCES_FONT_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&display=swap');
+`;
+
 /** Validate and extract ScriptProps from raw props */
 function validateScriptProps(props: Record<string, unknown>): ScriptProps {
   const segments = Array.isArray(props.segments) ? props.segments : [];
@@ -26,7 +32,7 @@ function validateScriptProps(props: Record<string, unknown>): ScriptProps {
     width: typeof props.width === "number" ? props.width : 1920,
     height: typeof props.height === "number" ? props.height : 1080,
     fps: typeof props.fps === "number" ? props.fps : 24,
-    bgColor: typeof props.bgColor === "string" ? props.bgColor : "#fefcf8",
+    bgColor: typeof props.bgColor === "string" ? props.bgColor : "#fbf4e8",
     title: typeof props.title === "string" ? props.title : "",
     totalDuration: typeof props.totalDuration === "number" ? props.totalDuration : 0,
     segments,
@@ -54,7 +60,7 @@ const defaultProps: ScriptProps = {
   width: 1920,
   height: 1080,
   fps: 24,
-  bgColor: "#fefcf8",
+  bgColor: "#fbf4e8",
   title: "",
   totalDuration: 10,
   segments: [],

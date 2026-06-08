@@ -33,7 +33,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.85,
     y: 0.12,
     size: 700,
-    color: "rgba(193,125,75,0.04)", // warm brown glow
+    color: "rgba(255,102,0,0.04)", // HN orange glow
     freqX: 0.008,
     freqY: 0.006,
     phaseX: 0,
@@ -43,7 +43,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.1,
     y: 0.82,
     size: 650,
-    color: "rgba(155,126,196,0.04)", // warm purple glow
+    color: "rgba(155,126,196,0.04)",
     freqX: 0.006,
     freqY: 0.009,
     phaseX: 1.2,
@@ -53,7 +53,7 @@ const GLOW_SPOTS: GlowSpot[] = [
     x: 0.15,
     y: 0.45,
     size: 600,
-    color: "rgba(212,168,84,0.03)", // warm gold glow
+    color: "rgba(255,102,0,0.03)",
     freqX: 0.007,
     freqY: 0.005,
     phaseX: 2.5,

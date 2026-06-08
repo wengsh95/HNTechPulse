@@ -16,7 +16,7 @@ import { useCurrentFrame, interpolate } from "remotion";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractClosingProps } from "./propsExtractors";
-import { useDesign, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
 import { CardShell, Fill } from "./CardShell";
 
 /* ---- main component ---- */
@@ -63,15 +63,16 @@ export const ClosingCard: React.FC<ElementProps> = ({
       reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
       <Fill gap={20} maxWidth={CARD_LAYOUT.content.maxWidth}>
-        {/* Summary */}
+        {/* Summary — Fraunces serif title (对齐模板 card-title) */}
         {summary && (
           <h1
             style={{
               fontSize: d.fs.headline,
               fontWeight: FW.heavy,
-              lineHeight: 1.15,
-              letterSpacing: "-0.015em",
+              lineHeight: 1.12,
+              letterSpacing: "0",
               color: COLORS.fg,
+              fontFamily: FONTS.serifBold,
               opacity: titleProgress,
               transform: `translateY(${titleY}px)`,
             }}
@@ -87,7 +88,7 @@ export const ClosingCard: React.FC<ElementProps> = ({
             maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
             height: d.scaled(CARD_LAYOUT.divider.height),
             borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-            background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
+            background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
             opacity: titleProgress,
           }}
         />
@@ -108,35 +109,60 @@ export const ClosingCard: React.FC<ElementProps> = ({
               <div
                 key={i}
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: d.scaled(6),
-                  paddingBottom: d.scaled(16),
-                  borderBottom:
-                    i < completedStories.length - 1 ? `1px solid ${COLORS.border}` : undefined,
+                  display: "grid",
+                  gridTemplateColumns: `${d.scaled(38)}px minmax(0, 1fr)`,
+                  gap: d.scaled(16),
+                  alignItems: "center",
+                  padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: d.scaled(14),
+                  background: "rgba(255,253,248,0.82)",
+                  boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
                 }}
               >
+                {/* Num-disc --soft (alignment: template .num-disc--soft) */}
                 <span
                   style={{
-                    fontSize: d.fs.body,
+                    width: d.scaled(38),
+                    height: d.scaled(38),
+                    borderRadius: "50%",
+                    background: COLORS.brandSoft,
+                    color: COLORS.brandDeep,
+                    fontFamily: FONTS.serif,
+                    fontSize: d.fs.bodyLg,
                     fontWeight: FW.heavy,
-                    color: COLORS.fg,
-                    lineHeight: 1.3,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  {story.title}
+                  {i + 1}
                 </span>
-                {story.signal && (
-                  <span
+                <div style={{ minWidth: 0 }}>
+                  <div
                     style={{
-                      fontSize: d.fs.bodySmall,
-                      color: COLORS.muted,
-                      lineHeight: 1.5,
+                      fontSize: d.fs.subhead,
+                      fontWeight: FW.heavy,
+                      lineHeight: 1.3,
+                      color: COLORS.fg,
                     }}
                   >
-                    {story.signal}
-                  </span>
-                )}
+                    {story.title}
+                  </div>
+                  {story.signal && (
+                    <div
+                      style={{
+                        marginTop: d.scaled(4),
+                        fontSize: d.fs.bodySmall,
+                        color: COLORS.muted,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {story.signal}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

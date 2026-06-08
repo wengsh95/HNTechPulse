@@ -8,7 +8,7 @@
 # 写错位置 → 看似改了实际没生效(踩过一次)。
 
 renderer:
-  provider: "hyperframes"   # "remotion" | "hyperframes"
+  provider: "remotion"   # "remotion" | "hyperframes"
 
   # Remotion 段(在 config/remotion.yaml 里继续维护;这里只是占位注释)
   # remotion:

@@ -18,7 +18,7 @@ import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
 import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
-import { CardShell, Fill } from "./CardShell";
+import { CardShell, Fill, EvenSpread } from "./CardShell";
 import { STANCE_LABELS, STANCE_COLORS } from "./stance";
 
 /* ---- label maps ---- */
@@ -29,8 +29,12 @@ const CONTROVERSY_LABELS: Record<ControversyLevel, string> = {
   highly_controversial: "高度争议",
 };
 
-/** Only the 3 core stances rendered on the card. */
-const CORE_STANCES: Stance[] = ["support", "skeptic", "neutral"];
+/** Only the 3 core stances rendered on the card (aligned to template: support / neutral / skeptic). */
+const CORE_STANCE_ORDER: { label: string; key: Stance }[] = [
+  { label: "支持", key: "support" },
+  { label: "中立", key: "neutral" },
+  { label: "质疑", key: "skeptic" },
+];
 
 /* ---- sub-components ---- */
 
@@ -191,15 +195,24 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
     storyCount,
   } = typed;
 
-  // Compute percentages for stance bars (only core 3)
-  const totalStance =
-    stanceDistribution.support + stanceDistribution.skeptic + stanceDistribution.neutral;
-
+  // Compute percentages for stance bars (support/neutral/skeptic in template order)
+  // Normalize to ensure all 3 sum to 100%
+  const raw = stanceDistribution;
+  const rawSupport = raw.support || 0;
+  const rawSkeptic = raw.skeptic || 0;
+  const rawNeutral = raw.neutral || 0;
+  const totalStance = rawSupport + rawSkeptic + rawNeutral || 1;
   const stancePcts: Record<string, number> = {
-    support: totalStance > 0 ? Math.round((stanceDistribution.support / totalStance) * 100) : 0,
-    skeptic: totalStance > 0 ? Math.round((stanceDistribution.skeptic / totalStance) * 100) : 0,
-    neutral: totalStance > 0 ? Math.round((stanceDistribution.neutral / totalStance) * 100) : 0,
+    support: Math.round((rawSupport / totalStance) * 100),
+    neutral: Math.round((rawNeutral / totalStance) * 100),
+    skeptic: Math.round((rawSkeptic / totalStance) * 100),
   };
+  // Normalize to ensure they sum to 100
+  const pctsSum = stancePcts.support + stancePcts.neutral + stancePcts.skeptic;
+  if (pctsSum !== 100) {
+    const diff = 100 - pctsSum;
+    stancePcts.skeptic += diff;
+  }
 
   // Entrance animation
   const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
@@ -218,192 +231,164 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
       elementProps={elementProps}
       pageIndex={displayIndex}
       totalPages={storyCount}
-      justify="start" // 内容多, 从顶部开始
-      gutter={100} // 对称左右内边距
-      paddingTop={80}
-      paddingBottom={120}
+      justify="start"
+      gutter={70}
+      paddingTop={42}
+      paddingBottom={160}
       showTopBar
       showWatermark
       showWaveform
-      reserveSubtitle // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle
     >
-      <Fill gap={14} maxWidth={CARD_LAYOUT.content.maxWidth}>
-        {/* ① Controversy title + discussion summary subtitle */}
-        <h1
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.headline,
-            fontWeight: FW.heavy,
-            lineHeight: 1.15,
-            letterSpacing: "-0.015em",
-            color: COLORS.warmBrown,
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
-          }}
-        >
-          争议指数 {typed.controversyScore.toFixed(1)} · {CONTROVERSY_LABELS[controversyLevel]}
-        </h1>
-        <p
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: d.fs.body,
-            fontWeight: FW.semibold,
-            lineHeight: 1.4,
-            color: COLORS.dim,
-            marginTop: d.scaled(-8),
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [10, 0])}px)`,
-          }}
-        >
-          {(discussionSummary || "社区讨论").slice(0, 40)}
-        </p>
+      <Fill gap={16} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
+        {/* ① Stat-block header (对齐模板 stat-block: prefix + 大数字 + label) */}
+        <div style={{ opacity: titleProgress, transform: `translateY(${interpolate(titleProgress, [0, 1], [12, 0])}px)` }}>
+          <h1
+            style={{
+              fontFamily: FONTS.serifBold,
+              fontSize: d.fs.hero,
+              fontWeight: FW.heavy,
+              lineHeight: 1,
+              color: COLORS.brandDeep,
+              display: "flex",
+              alignItems: "baseline",
+              gap: d.scaled(12),
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: d.fs.subhead, fontWeight: FW.heavy }}>争议指数</span>
+            <span style={{ fontSize: d.scaled(96), fontFamily: FONTS.serif, fontWeight: FW.heavy, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {typed.controversyScore.toFixed(1)}
+            </span>
+            <span style={{ fontSize: d.fs.subhead, fontWeight: FW.heavy, color: COLORS.inkSoft }}>
+              {CONTROVERSY_LABELS[controversyLevel]}
+            </span>
+          </h1>
+          <p
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: d.fs.bodyLg,
+              fontWeight: FW.medium,
+              lineHeight: 1.4,
+              color: COLORS.muted,
+              marginTop: d.scaled(4),
+              maxWidth: d.scaled(980),
+            }}
+          >
+            {(discussionSummary || "社区讨论").slice(0, 60)}
+          </p>
+        </div>
 
-        {/* Divider line */}
+        {/* ② Three-panel grid (对齐模板: 0.9fr / 1.05fr / 1.05fr) */}
         <div
           style={{
-            width: "100%",
-            maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
-            height: d.scaled(CARD_LAYOUT.divider.height),
-            borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-            marginTop: d.scaled(4),
-            marginBottom: d.scaled(4),
-            background: `linear-gradient(90deg, ${COLORS.warmBrown}, ${COLORS.warmGold}99, transparent)`,
-          }}
-        />
-
-        {/* ②③ Debate topics + Stance distribution two-column */}
-        <div
-          style={{
-            display: "flex",
-            gap: d.scaled(60),
+            display: "grid",
+            gridTemplateColumns: `${d.scaled(360)}fr ${d.scaled(420)}fr ${d.scaled(420)}fr`,
+            gap: d.scaled(20),
             flex: 1,
             minHeight: 0,
             opacity: bodyProgress,
             transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
           }}
         >
-          {/* Left: stance distribution with concerns */}
+          {/* Panel A: 立场分布 */}
           <div
             style={{
-              flex: 1,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: d.scaled(14),
+              background: "rgba(255,253,248,0.82)",
+              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
+              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
               display: "flex",
-              flexDirection: "column" as const,
-              gap: d.scaled(12),
+              flexDirection: "column",
+              gap: d.scaled(16),
+              minHeight: d.scaled(300),
             }}
           >
-            <h3
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: d.fs.caption,
-                fontWeight: FW.bold,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase" as const,
-                color: COLORS.warmGold,
-                marginBottom: d.scaled(6),
-              }}
-            >
+            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
+              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
               立场分布
-            </h3>
-            {CORE_STANCES.map((s) => (
-              <StanceBarWithConcern
-                key={s}
-                stance={s}
-                pct={stancePcts[s]}
-                concern={stanceConcerns[s as keyof typeof stanceConcerns]}
-                d={d}
-              />
-            ))}
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(16) }}>
+              {CORE_STANCE_ORDER.map(({ label, key }) => {
+                const stanceKey = key as Stance;
+                const pct = stancePcts[stanceKey] ?? 0;
+                const color = STANCE_COLORS[stanceKey];
+                return (
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: d.scaled(8) }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", color: COLORS.inkSoft, fontSize: d.fs.bodySmall, fontWeight: FW.bold }}>
+                      <span>{label}</span>
+                      <span style={{ color: COLORS.fg, fontFamily: FONTS.mono, fontSize: d.fs.body, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: d.scaled(11), overflow: "hidden", borderRadius: d.scaled(999), background: "rgba(32,25,20,0.09)" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: "inherit", background: color, transformOrigin: "left center" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Right: debate topics + compact stance bar */}
+          {/* Panel B: 讨论焦点 */}
           <div
             style={{
-              flex: 1,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: d.scaled(14),
+              background: "rgba(255,253,248,0.82)",
+              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
+              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
               display: "flex",
-              flexDirection: "column" as const,
+              flexDirection: "column",
               gap: d.scaled(16),
+              minHeight: d.scaled(300),
             }}
           >
-            <h3
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: d.fs.caption,
-                fontWeight: FW.bold,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase" as const,
-                color: COLORS.warmGold,
-                marginBottom: d.scaled(6),
-              }}
-            >
-              辩论焦点
-            </h3>
-            {debateTopics.map((topic, i) => (
-              <div
-                key={i}
-                style={{ display: "flex", gap: d.scaled(8), alignItems: "center" as const }}
-              >
-                <span
-                  style={{
-                    fontFamily: FONTS.mono,
-                    fontSize: d.fs.bodySmall,
-                    fontWeight: FW.bold,
-                    color: COLORS.warmBrown,
-                    flexShrink: 0,
-                    width: d.scaled(36),
-                    textAlign: "right" as const,
-                  }}
-                >
-                  {i + 1}.
-                </span>
-                <span
-                  style={{
-                    fontSize: d.fs.body,
-                    fontWeight: FW.semibold,
-                    lineHeight: 1.4,
-                    color: COLORS.fg,
-                  }}
-                >
+            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
+              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
+              讨论焦点
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(12) }}>
+              {debateTopics.map((topic, i) => (
+                <div key={i} style={{ paddingLeft: d.scaled(12), borderLeft: `3px solid ${COLORS.brandSoft}`, color: COLORS.fg, fontSize: d.fs.body, lineHeight: 1.3 }}>
                   {topic}
-                </span>
-              </div>
-            ))}
-            {debateTopics.length === 0 && (
-              <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无显著辩论焦点</span>
-            )}
+                </div>
+              ))}
+              {debateTopics.length === 0 && (
+                <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无显著辩论焦点</span>
+              )}
+            </div>
+          </div>
+
+          {/* Panel C: 评论金句 */}
+          <div
+            style={{
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: d.scaled(14),
+              background: "rgba(255,253,248,0.82)",
+              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
+              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
+              display: "flex",
+              flexDirection: "column",
+              gap: d.scaled(16),
+              minHeight: d.scaled(300),
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
+              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
+              评论金句
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(12) }}>
+              {quotes.slice(0, 3).map((q, i) => (
+                <div key={i} style={{ paddingLeft: d.scaled(12), borderLeft: `3px solid ${COLORS.brand}`, color: COLORS.inkSoft, fontSize: d.fs.body, fontStyle: "italic", lineHeight: 1.3 }}>
+                  &ldquo;{q.text}&rdquo;
+                </div>
+              ))}
+              {quotes.length === 0 && (
+                <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无金句</span>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* ④ Quotes (max 2 to prevent overflow) */}
-        {quotes.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column" as const,
-              gap: d.scaled(12),
-              maxWidth: d.scaled(CARD_LAYOUT.content.maxWidth),
-              opacity: bodyProgress,
-              transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
-              flexShrink: 1,
-              minHeight: 0,
-              overflow: "hidden",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: d.fs.caption,
-                fontWeight: FW.semibold,
-                color: COLORS.warmGold,
-                marginBottom: d.scaled(2),
-              }}
-            >
-              评论金句
-            </h3>
-            {quotes.slice(0, 2).map((q, i) => (
-              <QuoteBlock key={i} q={q} last={i === Math.min(quotes.length, 2) - 1} d={d} />
-            ))}
-          </div>
-        )}
       </Fill>
     </CardShell>
   );

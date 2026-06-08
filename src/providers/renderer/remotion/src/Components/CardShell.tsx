@@ -144,65 +144,108 @@ export const CardShell: React.FC<CardShellProps> = ({
       style={{
         width: d.scaled(CARD_REF.width),
         height: "100%",
-        background: COLORS.bg,
         position: "relative",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        // 对齐模板 .card: gradient overlay + bg color
+        background: `linear-gradient(180deg, rgba(255,255,255,0.58), transparent 34%), ${COLORS.bg}`,
+        borderRadius: d.scaled(18), // 模板 --radius-xl
+        boxShadow: "0 24px 60px rgba(32,25,20,0.16)", // 模板 --shadow-card
         opacity: cardProgress,
         transform: `translateY(${cardY}px)`,
         ...style,
       }}
     >
-      {/* ── Chrome: 顶部 masthead (极简 — 只显示品牌名 + 日期) ── */}
+      {/* 卡片边框 (对齐模板 card::before) */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          border: "1px solid rgba(32,25,20,0.08)",
+          borderRadius: "inherit",
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      />
+
+      {/* HN橙色渐变底部分割线 (对齐模板 card::after) */}
+      <div
+        style={{
+          position: "absolute",
+          left: pLeft,
+          right: pRight,
+          bottom: d.scaled(112 + 34), // safe-bottom + offset (模板: bottom = safe-bottom - 34px)
+          height: d.scaled(2),
+          background: `linear-gradient(90deg, ${COLORS.brand}, transparent)`,
+          opacity: 0.55,
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      />
+
+      {/* pulse-dot keyframes */}
+      <style>{`
+        @keyframes hn-pulse-dot {
+          0%, 100% { opacity: 0.36; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.35); }
+        }
+      `}</style>
+      {/* ── Chrome: 顶部 masthead (brand-strip 风格 — 对齐模板) ── */}
       {showTopBar && (
         <div
           style={{
             position: "absolute",
-            top: d.scaled(20),
+            top: d.scaled(42), // 对齐模板 --card-padding-y
             left: pLeft,
+            right: pRight,
             display: "flex",
             alignItems: "center",
             gap: d.scaled(12),
-            zIndex: 10,
+            zIndex: 10, // above border overlay (z-index: 1)
+            fontFamily: FONTS.mono,
+            fontSize: d.fs.bodySmall,
+            color: COLORS.muted,
+            letterSpacing: "0.04em",
           }}
         >
-          {/* 品牌名 */}
+          {/* live-dot + 品牌名 */}
           <span
             style={{
-              fontFamily: FONTS.sans,
-              fontSize: d.fs.bodySmall,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: d.scaled(8),
+              fontFamily: FONTS.mono,
+              fontSize: d.fs.body,
               fontWeight: FW.bold,
               color: COLORS.fg,
-              letterSpacing: "0.02em",
             }}
           >
-            HN每日观察
-          </span>
-
-          {/* 竖线分隔符 */}
-          {dateStr && (
             <span
               style={{
-                width: 1,
-                height: d.scaled(14),
-                background: COLORS.border,
-                margin: `0 ${d.scaled(2)}px`,
+                width: d.scaled(9),
+                height: d.scaled(9),
+                borderRadius: "50%",
+                background: COLORS.brand,
+                display: "inline-block",
+                flexShrink: 0,
+                animation: `hn-pulse-dot 1.8s ease-in-out 3 both`,
               }}
             />
-          )}
+            HN TechPulse
+          </span>
 
-          {/* 日期 */}
+          {/* "/" 分隔符 + 日期 */}
           {dateStr && (
             <span
               style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.fs.bodySmall,
-                fontWeight: FW.medium,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: d.scaled(12),
                 color: COLORS.muted,
-                letterSpacing: "0.04em",
               }}
             >
+              <span style={{ color: COLORS.inkFaint }}>/</span>
               {dateStr}
             </span>
           )}
@@ -226,7 +269,7 @@ export const CardShell: React.FC<CardShellProps> = ({
             background: COLORS.surface,
             border: `1px solid ${COLORS.border}`,
             borderRadius: d.scaled(999),
-            boxShadow: `0 1px 0 ${COLORS.surface} inset, 0 2px 6px ${COLORS.warmBrown}11`,
+            boxShadow: `0 1px 0 ${COLORS.surface} inset, 0 2px 6px ${COLORS.brand}11`,
             whiteSpace: "nowrap" as const,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -238,8 +281,8 @@ export const CardShell: React.FC<CardShellProps> = ({
               width: d.scaled(6),
               height: d.scaled(6),
               borderRadius: "50%",
-              background: COLORS.warmBrown,
-              boxShadow: `0 0 0 2px ${COLORS.warmBrown}22`,
+              background: COLORS.brand,
+              boxShadow: `0 0 0 2px ${COLORS.brand}22`,
               flexShrink: 0,
             }}
           />
@@ -248,7 +291,7 @@ export const CardShell: React.FC<CardShellProps> = ({
               fontFamily: FONTS.serif,
               fontSize: d.fs.caption,
               fontWeight: FW.bold,
-              color: COLORS.warmBrown,
+              color: COLORS.brand,
               letterSpacing: "0.12em",
               textTransform: "uppercase" as const,
             }}
@@ -259,7 +302,7 @@ export const CardShell: React.FC<CardShellProps> = ({
             style={{
               fontFamily: FONTS.mono,
               fontSize: d.fs.caption,
-              color: COLORS.warmBrown,
+              color: COLORS.brand,
               opacity: 0.6,
             }}
           >

@@ -6,7 +6,6 @@
    display label (Chinese) and a color from the design system.
    ================================================================ */
 
-import { COLORS } from "./design";
 import type { Stance } from "./cardTypes";
 
 export const STANCE_LABELS: Record<Stance, string> = {
@@ -18,9 +17,9 @@ export const STANCE_LABELS: Record<Stance, string> = {
 };
 
 export const STANCE_COLORS: Record<Stance, string> = {
-  support: COLORS.sage,
-  skeptic: COLORS.warmGold,
-  neutral: COLORS.dim,
-  tease: COLORS.purple,
-  worry: COLORS.warmBrown,
+  support: "#4f8761", // 模板 --color-green (stance support bar)
+  skeptic: "#c69230", // 模板 --color-amber (stance skeptical bar)
+  neutral: "#8a8075", // 模板 --color-gray (stance neutral bar)
+  tease: "#9b7ec4",
+  worry: "#ff6600",
 };
