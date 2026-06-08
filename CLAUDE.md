@@ -83,7 +83,6 @@ HN API → [fetch] ContentPackage
   → [publish_guide] LLM publish checklist → publish_guide.md
   → [prepare_render] Write props + copy assets → cli_props.json
   → [render] Remotion video → output.mp4 (opt-in)
-  → [always] ReportGenerator → report.md
 ```
 
 **Key principle**: CommentAnalyzer scores → CommentJudge selects `quote_candidates` → ScriptWriter consumes directly. No independent re-selection downstream.

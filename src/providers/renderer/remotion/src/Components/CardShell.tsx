@@ -18,7 +18,20 @@ import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
 import type { ElementProps } from "./utils";
 import { CardAudioWaveform } from "./CardAudioWaveform";
-import { COLORS, CARD_REF, useDesign, FONTS, FW, CARD_LAYOUT, EASE_CARD, ANIM } from "./design";
+import {
+  COLORS,
+  CARD_REF,
+  useDesign,
+  FONTS,
+  FW,
+  CARD_LAYOUT,
+  EASE_CARD,
+  ANIM,
+  SHADOWS,
+  SURFACES,
+  COMMON_LAYOUT,
+  GRADIENTS,
+} from "./design";
 
 /** 内容区域在子 slot 内的垂直对齐方式 */
 export type ContentJustify =
@@ -64,7 +77,7 @@ export interface CardShellProps {
 
   /**
    * 章节上下文 (居中显示在 masthead 中间), 用于平衡左右视觉重量.
-   * 推荐: cover="今日封面", event="EVENT 0X · 标题缩写", atmosphere="讨论", closing="今日信号".
+   * 推荐: cover="今日封面", event="EVENT 0X · 标题缩写", atmosphere="讨论".
    * 不传则居中区不渲染.
    */
   chapterLabel?: string;
@@ -131,7 +144,7 @@ export const CardShell: React.FC<CardShellProps> = ({
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const cardY = interpolate(cardProgress, [0, 1], [32, 0]);
+  const cardY = interpolate(cardProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0]);
 
   const dateStr = String(elementProps?.dateLabel ?? "");
   // chapterLabel 优先从 prop 读, fallback 从 elementProps 读 (SegmentRenderer 通过 extraProps 注入)
@@ -150,8 +163,8 @@ export const CardShell: React.FC<CardShellProps> = ({
         flexDirection: "column",
         // 对齐模板 .card: gradient overlay + bg color
         background: `linear-gradient(180deg, rgba(255,255,255,0.58), transparent 34%), ${COLORS.bg}`,
-        borderRadius: d.scaled(18), // 模板 --radius-xl
-        boxShadow: "0 24px 60px rgba(32,25,20,0.16)", // 模板 --shadow-card
+        borderRadius: d.scaled(CARD_LAYOUT.shell.radius),
+        boxShadow: SHADOWS.card,
         opacity: cardProgress,
         transform: `translateY(${cardY}px)`,
         ...style,
@@ -162,7 +175,7 @@ export const CardShell: React.FC<CardShellProps> = ({
         style={{
           position: "absolute",
           inset: 0,
-          border: "1px solid rgba(32,25,20,0.08)",
+          border: SURFACES.cardBorder,
           borderRadius: "inherit",
           pointerEvents: "none",
           zIndex: 1,
@@ -175,9 +188,9 @@ export const CardShell: React.FC<CardShellProps> = ({
           position: "absolute",
           left: pLeft,
           right: pRight,
-          bottom: d.scaled(112 + 34), // safe-bottom + offset (模板: bottom = safe-bottom - 34px)
-          height: d.scaled(2),
-          background: `linear-gradient(90deg, ${COLORS.brand}, transparent)`,
+          bottom: d.scaled(CARD_LAYOUT.shell.dividerBottom),
+          height: d.scaled(CARD_LAYOUT.divider.height),
+          background: GRADIENTS.divider,
           opacity: 0.55,
           pointerEvents: "none",
           zIndex: 1,
@@ -196,15 +209,15 @@ export const CardShell: React.FC<CardShellProps> = ({
         <div
           style={{
             position: "absolute",
-            top: d.scaled(42), // 对齐模板 --card-padding-y
+            top: d.scaled(CARD_LAYOUT.shell.topBarTop),
             left: pLeft,
             right: pRight,
             display: "flex",
             alignItems: "center",
-            gap: d.scaled(12),
+            gap: d.scaled(CARD_LAYOUT.shell.dateGap),
             zIndex: 10, // above border overlay (z-index: 1)
             fontFamily: FONTS.mono,
-            fontSize: d.fs.bodySmall,
+            fontSize: d.fs.textXs,
             color: COLORS.muted,
             letterSpacing: "0.04em",
           }}
@@ -214,18 +227,18 @@ export const CardShell: React.FC<CardShellProps> = ({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: d.scaled(8),
+              gap: d.scaled(CARD_LAYOUT.shell.brandGap),
               fontFamily: FONTS.mono,
-              fontSize: d.fs.body,
+              fontSize: d.fs.textSm,
               fontWeight: FW.bold,
               color: COLORS.fg,
             }}
           >
             <span
               style={{
-                width: d.scaled(9),
-                height: d.scaled(9),
-                borderRadius: "50%",
+                width: d.scaled(CARD_LAYOUT.shell.liveDotSize),
+                height: d.scaled(CARD_LAYOUT.shell.liveDotSize),
+                borderRadius: COMMON_LAYOUT.circleRadius,
                 background: COLORS.brand,
                 display: "inline-block",
                 flexShrink: 0,
@@ -241,7 +254,7 @@ export const CardShell: React.FC<CardShellProps> = ({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: d.scaled(12),
+                gap: d.scaled(CARD_LAYOUT.shell.dateGap),
                 color: COLORS.muted,
               }}
             >
@@ -258,28 +271,27 @@ export const CardShell: React.FC<CardShellProps> = ({
         <div
           style={{
             position: "absolute",
-            top: d.scaled(15),
+            top: d.scaled(CARD_LAYOUT.shell.chapterLabelTop),
             left: "50%",
             transform: "translateX(-50%)",
             display: "flex",
             alignItems: "center",
-            gap: d.scaled(8),
-            maxWidth: d.scaled(560),
-            padding: `${d.scaled(7)}px ${d.scaled(18)}px`,
+            gap: d.scaled(CARD_LAYOUT.shell.chapterLabelGap),
+            maxWidth: d.scaled(CARD_LAYOUT.shell.chapterLabelMaxWidth),
+            padding: `${d.scaled(CARD_LAYOUT.shell.chapterLabelPaddingY)}px ${d.scaled(CARD_LAYOUT.shell.chapterLabelPaddingX)}px`,
             background: COLORS.surface,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: d.scaled(999),
+            borderRadius: d.scaled(COMMON_LAYOUT.pillRadius),
             boxShadow: `0 1px 0 ${COLORS.surface} inset, 0 2px 6px ${COLORS.brand}11`,
             whiteSpace: "nowrap" as const,
             overflow: "hidden",
-            textOverflow: "ellipsis",
             zIndex: 11,
           }}
         >
           <span
             style={{
-              width: d.scaled(6),
-              height: d.scaled(6),
+              width: d.scaled(CARD_LAYOUT.shell.chapterLabelDotSize),
+              height: d.scaled(CARD_LAYOUT.shell.chapterLabelDotSize),
               borderRadius: "50%",
               background: COLORS.brand,
               boxShadow: `0 0 0 2px ${COLORS.brand}22`,
@@ -289,7 +301,7 @@ export const CardShell: React.FC<CardShellProps> = ({
           <span
             style={{
               fontFamily: FONTS.serif,
-              fontSize: d.fs.caption,
+              fontSize: d.fs.textXs,
               fontWeight: FW.bold,
               color: COLORS.brand,
               letterSpacing: "0.12em",
@@ -301,7 +313,7 @@ export const CardShell: React.FC<CardShellProps> = ({
           <span
             style={{
               fontFamily: FONTS.mono,
-              fontSize: d.fs.caption,
+              fontSize: d.fs.textXs,
               color: COLORS.brand,
               opacity: 0.6,
             }}
@@ -319,7 +331,7 @@ export const CardShell: React.FC<CardShellProps> = ({
             top: d.scaled(CARD_LAYOUT.watermark.top),
             right: d.scaled(CARD_LAYOUT.watermark.right),
             fontFamily: FONTS.mono,
-            fontSize: d.fs.watermarkLg,
+            fontSize: d.fs.text6xl,
             fontWeight: FW.heavy,
             color: COLORS.dim,
             letterSpacing: "0.1em",
@@ -335,7 +347,7 @@ export const CardShell: React.FC<CardShellProps> = ({
         <div
           style={{
             flexShrink: 0,
-            padding: `${d.scaled(60)}px ${pRight}px 0 ${pLeft}px`, // 顶部给 chrome 让位
+            padding: `${d.scaled(CARD_LAYOUT.shell.headerSlotTop)}px ${pRight}px 0 ${pLeft}px`,
             ...(direction === "row" ? { display: "flex", flexDirection: "row" } : {}),
           }}
         >
@@ -350,19 +362,23 @@ export const CardShell: React.FC<CardShellProps> = ({
           minHeight: 0,
           padding: (() => {
             // 顶部 padding: 有 header 让位 / 否则用 pTop
-            const top = header ? d.scaled(20) : pTop;
+            const top = header
+              ? d.scaled(CARD_LAYOUT.shell.headerContentTop)
+              : pTop + (showTopBar ? d.scaled(CARD_LAYOUT.header.height + 18) : 0);
             // 底部 padding: 字幕总是显示, 给字幕让位 (除非 footer 自己会占满)
             // 字幕布局: bottom = subtitleBottom(100) + 8, 高度 ~50, 边距 ~12
             // 总共约 130-150px. 这里用 150 保证安全.
             const bottomReserve =
-              reserveSubtitle && !footer ? Math.max(pBottom, d.scaled(150)) : pBottom;
+              reserveSubtitle && !footer
+                ? Math.max(pBottom, d.scaled(CARD_LAYOUT.shell.subtitleReserve))
+                : pBottom;
             return `${top}px ${pRight}px ${bottomReserve}px ${pLeft}px`;
           })(),
           display: "flex",
           flexDirection: direction,
           justifyContent: JUSTIFY_MAP[justify],
           alignItems: direction === "row" ? "stretch" : "stretch",
-          gap: d.scaled(20),
+          gap: d.scaled(CARD_LAYOUT.shell.contentGap),
           position: "relative",
           maxWidth: "100%",
           ...contentStyle,
@@ -377,7 +393,7 @@ export const CardShell: React.FC<CardShellProps> = ({
           style={{
             marginTop: "auto", // ← 关键: 任何剩余空间都堆在 footer 上面
             flexShrink: 0,
-            padding: `${d.scaled(20)}px ${pRight}px ${pBottom}px ${pLeft}px`,
+            padding: `${d.scaled(CARD_LAYOUT.shell.footerTop)}px ${pRight}px ${pBottom}px ${pLeft}px`,
           }}
         >
           {footer}
@@ -423,7 +439,7 @@ export interface ContentFillProps {
 export const Fill: React.FC<ContentFillProps> = ({
   children,
   direction = "column",
-  gap = 20,
+  gap = COMMON_LAYOUT.contentGap,
   maxWidth,
   style,
 }) => {

@@ -228,7 +228,7 @@ class TestPreview:
         with patch.object(
             renderer,
             "write_props",
-            return_value=(Path("public/props.json"), '{"ok": true}'),
+            return_value=(Path("public/props.json"), '{"ok": true}', None),
         ):
             with patch.object(renderer, "_ensure_dependencies_installed"):
                 with patch.object(
@@ -262,7 +262,9 @@ class TestChunkCacheDir:
         may_13 = renderer._chunk_cache_dir("2026-05-13", '{"title": "May 13"}')
 
         assert may_11 != may_13
-        assert may_11.parent == renderer.remotion_dir / "out" / "chunks"
+        # Chunk caches now live under data/{date}/remotion/chunks/ (per-date
+        # runtime dir), not under the Remotion source tree.
+        assert may_11.parent == Path("data") / "2026-05-11" / "remotion" / "chunks"
         assert may_11.name.startswith("2026-05-11_")
         assert may_13.name.startswith("2026-05-13_")
 

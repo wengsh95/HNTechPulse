@@ -19,8 +19,19 @@ import type { Highlight } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractCoverProps } from "./propsExtractors";
-import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import {
+  useDesign,
+  FONTS,
+  FW,
+  ANIM,
+  EASE_CARD,
+  CARD_LAYOUT,
+  COMMON_LAYOUT,
+  COVER_LAYOUT,
+  GRADIENTS,
+} from "./design";
 import { CardShell, Fill } from "./CardShell";
+import { MetricPill, NumberDisc, Panel } from "./CardPrimitives";
 
 /* ---- sub-component ---- */
 
@@ -36,15 +47,12 @@ function HighlightRow({
   frame: number;
 }) {
   // 圆形纯色序号徽章 (对齐模板 .num-disc)
-  const badgeColor = COLORS.brand;
-  const badgeBg = h.rank === 1 ? COLORS.brand : h.rank === 2 ? COLORS.brandSoft : COLORS.muted;
-  const badgeTextColor = h.rank === 1 ? COLORS.white : h.rank === 2 ? COLORS.brandDeep : COLORS.white;
-  // 非第一名的徽章使用更柔和的样式
-
-  // 进场动画延迟
   const rowProgress = interpolate(
     frame,
-    [ANIM.bodyStart + index * 6, ANIM.bodyEnd + index * 6],
+    [
+      ANIM.bodyStart + index * COVER_LAYOUT.rowStagger,
+      ANIM.bodyEnd + index * COVER_LAYOUT.rowStagger,
+    ],
     [0, 1],
     {
       easing: EASE_CARD,
@@ -54,48 +62,38 @@ function HighlightRow({
   );
 
   return (
-    <div
+    <Panel
       style={{
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: `${d.scaled(COMMON_LAYOUT.numDiscSize)}px minmax(0, 1fr) auto`,
         alignItems: "center",
-        gap: d.scaled(24),
-        padding: `${d.scaled(18)}px 0`,
+        gap: d.scaled(COVER_LAYOUT.rowGap),
+        padding: `${d.scaled(COVER_LAYOUT.rowPaddingY)}px ${d.scaled(30)}px`,
         opacity: rowProgress,
-        transform: `translateX(${interpolate(rowProgress, [0, 1], [-20, 0])}px)`,
+        transform: `translateX(${interpolate(rowProgress, [0, 1], [-COMMON_LAYOUT.contentGap, 0])}px)`,
       }}
     >
-      {/* 圆形纯色序号徽章 (对齐模板 .num-disc) */}
+      <NumberDisc variant={h.rank === 1 ? "solid" : "soft"} size={COVER_LAYOUT.rankBadgeSize}>
+        {h.rank}
+      </NumberDisc>
       <div
         style={{
-          width: d.scaled(56),
-          height: d.scaled(56),
-          borderRadius: "50%",
-          background: h.rank === 1 ? COLORS.brand : h.rank === 2 ? COLORS.brandSoft : COLORS.brandSoft,
-          color: h.rank === 1 ? COLORS.white : COLORS.brandDeep,
+          flex: 1,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: d.fs.subhead,
-          fontWeight: FW.heavy,
-          fontFamily: FONTS.serif,
-          flexShrink: 0,
-          boxShadow: h.rank === 1 ? "0 4px 12px rgba(255,102,0,0.24)" : "none",
+          flexDirection: "column" as const,
+          gap: d.scaled(COVER_LAYOUT.originalGap),
         }}
       >
-        {h.rank}
-      </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: d.scaled(12),
-            flexWrap: "wrap" as const,
+            gap: d.scaled(COVER_LAYOUT.titleGap),
           }}
         >
           <span
             style={{
-              fontSize: d.fs.subhead,
+              fontSize: d.fs.textXl,
               fontWeight: FW.bold,
               lineHeight: 1.3,
               color: COLORS.fg,
@@ -104,45 +102,11 @@ function HighlightRow({
           >
             {h.editorAngle}
           </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: d.scaled(4),
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.pill,
-              fontWeight: FW.bold,
-              padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
-              borderRadius: d.scaled(999),
-              background: COLORS.surface2, // 模板 metric-pill: warm panel bg
-              color: COLORS.fg,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            &#x1F525; {h.hnScore.toLocaleString()}
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: d.scaled(4),
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.pill,
-              fontWeight: FW.bold,
-              padding: `${d.scaled(6)}px ${d.scaled(14)}px`,
-              borderRadius: d.scaled(999),
-              background: COLORS.surface2,
-              color: COLORS.fg,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            &#x1F4AC; {h.commentCount.toLocaleString()}
-          </span>
         </div>
         {h.originalTitle && (
           <div
             style={{
-              fontSize: d.fs.body,
+              fontSize: d.fs.textSm,
               color: COLORS.muted,
               fontFamily: FONTS.mono,
             }}
@@ -151,7 +115,25 @@ function HighlightRow({
           </div>
         )}
       </div>
-    </div>
+      <div
+        style={{ display: "flex", gap: d.scaled(12), flexWrap: "wrap", justifyContent: "flex-end" }}
+      >
+        <MetricPill
+          background="rgba(245,234,219,0.72)"
+          fontSize={Math.round(d.fs.textXs * 1.05)}
+          style={{ padding: `${d.scaled(8)}px ${d.scaled(18)}px` }}
+        >
+          hot {h.hnScore.toLocaleString()}
+        </MetricPill>
+        <MetricPill
+          background="rgba(245,234,219,0.72)"
+          fontSize={Math.round(d.fs.textXs * 1.05)}
+          style={{ padding: `${d.scaled(8)}px ${d.scaled(18)}px` }}
+        >
+          com {h.commentCount.toLocaleString()}
+        </MetricPill>
+      </div>
+    </Panel>
   );
 }
 
@@ -167,6 +149,10 @@ export const CoverCard: React.FC<ElementProps> = ({
 
   const typed = extractCoverProps(elementProps);
   const { headline, highlights } = typed;
+  const subtitle =
+    typeof elementProps.subtitle === "string" && elementProps.subtitle !== elementProps.date_label
+      ? elementProps.subtitle
+      : "";
   const hasHighlights = highlights.length > 0;
 
   // Entrance animation
@@ -181,89 +167,85 @@ export const CoverCard: React.FC<ElementProps> = ({
     extrapolateRight: "clamp",
   });
 
-  // 装饰线条动画
-  const decorProgress = interpolate(frame, [6, 24], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
   return (
     <CardShell
       elementProps={elementProps}
       justify="center" // 内容垂直居中 (有 headline + 几条 highlight, 中等密度)
-      gutter={100} // 对称左右内边距
-      paddingTop={60} // 上移, 让 cover 内容更靠近 header
-      paddingBottom={120}
+      gutter={COVER_LAYOUT.gutter}
+      paddingTop={COVER_LAYOUT.paddingTop}
+      paddingBottom={COVER_LAYOUT.paddingBottom}
       showTopBar
       showWatermark={false}
       showWaveform
       reserveSubtitle // 字幕始终显示, 底部给字幕让位
     >
-      {/* 右侧装饰竖线 */}
-      <div
-        style={{
-          position: "absolute",
-          right: d.scaled(CARD_LAYOUT.padding.right + 20),
-          top: d.scaled(140),
-          width: d.scaled(2),
-          height: d.scaled(300),
-          background: `linear-gradient(180deg, ${COLORS.brandSoft}, transparent)`,
-          borderRadius: d.scaled(1),
-          opacity: decorProgress,
-        }}
-      />
-
-      <Fill gap={36} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
+      <Fill gap={COVER_LAYOUT.fillGap} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
         {/* Headline — Fraunces serif, 对齐模板 card-title */}
         <h1
           style={{
-            fontSize: d.fs.hero,
+            margin: 0,
+            fontSize: d.fs.text5xl,
             fontWeight: FW.heavy,
             lineHeight: 1.12,
             letterSpacing: "0",
             color: COLORS.fg,
             fontFamily: FONTS.serifBold,
-            maxWidth: d.scaled(1400),
+            maxWidth: d.scaled(COVER_LAYOUT.headlineMaxWidth),
             opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [28, 0])}px)`,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0])}px)`,
           }}
         >
           {headline}
         </h1>
+
+        {subtitle && (
+          <p
+            style={{
+              margin: 0,
+              maxWidth: d.scaled(COVER_LAYOUT.deckMaxWidth),
+              color: COLORS.muted,
+              fontFamily: FONTS.sans,
+              fontSize: d.fs.textLg,
+              lineHeight: 1.3,
+              opacity: titleProgress,
+            }}
+          >
+            {subtitle}
+          </p>
+        )}
 
         {/* 分隔线 — 延伸到更宽 + 装饰圆点 */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: d.scaled(12),
+            gap: d.scaled(COVER_LAYOUT.titleGap),
             opacity: bodyProgress,
           }}
         >
           <div
             style={{
               flex: 1,
-              maxWidth: d.scaled(1200),
-              height: d.scaled(6),
-              borderRadius: d.scaled(3),
-              background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
+              maxWidth: d.scaled(COVER_LAYOUT.dividerMaxWidth),
+              height: d.scaled(COVER_LAYOUT.dividerHeight),
+              borderRadius: d.scaled(COVER_LAYOUT.dividerRadius),
+              background: GRADIENTS.accentSoft,
             }}
           />
           {/* 装饰圆点 */}
           <div
             style={{
               display: "flex",
-              gap: d.scaled(6),
+              gap: d.scaled(COVER_LAYOUT.dotGap),
             }}
           >
             {[COLORS.brand, COLORS.brandSoft, COLORS.dim].map((color, i) => (
               <div
                 key={i}
                 style={{
-                  width: d.scaled(8),
-                  height: d.scaled(8),
-                  borderRadius: "50%",
+                  width: d.scaled(COVER_LAYOUT.dotSize),
+                  height: d.scaled(COVER_LAYOUT.dotSize),
+                  borderRadius: COMMON_LAYOUT.circleRadius,
                   background: color,
                   opacity: interpolate(bodyProgress, [0, 1], [0, 0.6]),
                 }}
@@ -278,7 +260,7 @@ export const CoverCard: React.FC<ElementProps> = ({
             style={{
               display: "flex",
               flexDirection: "column" as const,
-              gap: d.scaled(24),
+              gap: d.scaled(COVER_LAYOUT.rowGap),
               width: "100%",
               opacity: bodyProgress,
             }}

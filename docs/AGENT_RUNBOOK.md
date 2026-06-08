@@ -225,7 +225,7 @@ data/YYYY-MM-DD/script.json.manifest.json
 data/YYYY-MM-DD/title.json.manifest.json
 data/YYYY-MM-DD/cover_props.json.manifest.json
 data/YYYY-MM-DD/publish_guide.md.manifest.json
-src/providers/renderer/remotion/public/props.json.manifest.json
+data/YYYY-MM-DD/cli_props.json.manifest.json
 ```
 
 Manifests include:

@@ -10,7 +10,7 @@
 import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 
-import { GRADIENTS } from "./design";
+import { BACKGROUND_LAYOUT, COMMON_LAYOUT, GRADIENTS } from "./design";
 
 type GlowSpot = {
   /** Base position as fraction of canvas size (0-1) */
@@ -61,16 +61,13 @@ const GLOW_SPOTS: GlowSpot[] = [
   },
 ];
 
-/** Maximum drift amplitude in px */
-const DRIFT_AMPLITUDE = 30;
-
 export const BackgroundAtmosphere: React.FC<{
   width: number;
   height: number;
 }> = ({ width, height }) => {
   const frame = useCurrentFrame();
-  const scale = Math.min(width / 1920, height / 1080);
-  const dotSize = Math.round(40 * scale);
+  const scale = Math.min(width / BACKGROUND_LAYOUT.width, height / BACKGROUND_LAYOUT.height);
+  const dotSize = Math.round(BACKGROUND_LAYOUT.dotGridSize * scale);
 
   return (
     <div
@@ -89,12 +86,18 @@ export const BackgroundAtmosphere: React.FC<{
         const driftX = interpolate(
           Math.sin(spot.freqX * frame + spot.phaseX),
           [-1, 1],
-          [-DRIFT_AMPLITUDE * scale, DRIFT_AMPLITUDE * scale],
+          [
+            -BACKGROUND_LAYOUT.glowDriftAmplitude * scale,
+            BACKGROUND_LAYOUT.glowDriftAmplitude * scale,
+          ],
         );
         const driftY = interpolate(
           Math.sin(spot.freqY * frame + spot.phaseY),
           [-1, 1],
-          [-DRIFT_AMPLITUDE * scale, DRIFT_AMPLITUDE * scale],
+          [
+            -BACKGROUND_LAYOUT.glowDriftAmplitude * scale,
+            BACKGROUND_LAYOUT.glowDriftAmplitude * scale,
+          ],
         );
 
         return (
@@ -106,9 +109,9 @@ export const BackgroundAtmosphere: React.FC<{
               top: spot.y * height - Math.round(spot.size * scale) / 2 + driftY,
               width: Math.round(spot.size * scale),
               height: Math.round(spot.size * scale),
-              borderRadius: "50%",
-              background: `radial-gradient(circle, ${spot.color} 0%, transparent 55%)`,
-              filter: `blur(${Math.round(40 * scale)}px)`,
+              borderRadius: COMMON_LAYOUT.circleRadius,
+              background: `radial-gradient(circle, ${spot.color} 0%, transparent ${BACKGROUND_LAYOUT.glowTransparentStop}%)`,
+              filter: `blur(${Math.round(BACKGROUND_LAYOUT.glowBlur * scale)}px)`,
               pointerEvents: "none",
             }}
           />

@@ -7,7 +7,7 @@
 - `templates.py:generate_fixed_opening` 生成的 `audio_text` (开场旁白)
 - `templates.py:generate_fixed_opening` 生成的 cover_card.props.subtitle (封面副标题)
 - `templates.py:generate_fixed_closing` 生成的 `audio_text` (收尾旁白)
-- `templates.py:generate_fixed_closing` 生成的 closing_card.props.signal_label (收尾标题)
+- `templates.py:generate_fixed_closing` 生成的 closing_card.props.summary_items / takeaways (收尾列表)
 
 ## 受众
 
@@ -52,14 +52,10 @@
 - 风格不变, 但允许每天略微变化 (基于今日 takeaway)
 - 例: `今天的 3 件事: [takeaway 1]、[takeaway 2]、[takeaway 3]. 明天继续。`
 
-### closing_card.signal_label (收尾标题)
+### closing_card 标题
 
-**当前硬编码**: `今日信号`
-
-**升级方向** (待实现):
-- 默认: `今日信号`
-- 替代 1: `今日 3 件事`
-- 替代 2: `今日 1 句总结`
+收尾卡不再生成 `signal_label`, 也不使用“今日信号”这类固定标题。
+标题由 Remotion 模板层统一处理, 内容侧只提供 `summary_items` / `takeaways`。
 
 ## 实现方式
 
@@ -67,7 +63,7 @@
 
 1. **P0**: cover_card.subtitle 改成"今日 3 件事钩子" (rule-based, 5 行代码) ← 立即做
 2. **P1**: opening audio_text 改成"3 关键词开场" (rule-based, 5 行代码) ← 立即做
-3. **P2**: closing audio_text / signal_label 改成动态 (LLM 调用, 较复杂) ← 后续
+3. **P2**: closing audio_text / takeaways 改成动态 (LLM 调用, 较复杂) ← 后续
 
 ## 注意事项
 

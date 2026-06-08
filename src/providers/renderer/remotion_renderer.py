@@ -83,10 +83,21 @@ class RemotionRenderer(Renderer):
 
     def write_props(
         self, script: Script, audio_dir: str, content=None, date: str = ""
-    ) -> tuple[Path, str]:
-        self._prepare_audio_assets(script, audio_dir)
+    ) -> tuple[Path, str, None]:
+        data_dir = self._remotion_data_dir(date) if date else None
+        if data_dir:
+            audio_target_dir = data_dir / "public" / "audio"
+            image_target_dir = data_dir / "public" / "images"
+        else:
+            # Fallback: no date means nowhere under data/ to scope, so keep
+            # the historical "remotion/public" layout as a last resort.
+            audio_target_dir = self.remotion_dir / "public" / "audio"
+            image_target_dir = self.remotion_dir / "public" / "images"
+        self._prepare_audio_assets(script, audio_dir, target_dir=audio_target_dir)
         if content and date:
-            self._prepare_image_assets(content, date)
+            self._prepare_image_assets(
+                content, date, target_dir=image_target_dir
+            )
 
         props_data = script_to_props(
             script,
@@ -100,13 +111,20 @@ class RemotionRenderer(Renderer):
         )
         props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
-        public_dir = self.remotion_dir / "public"
-        public_dir.mkdir(parents=True, exist_ok=True)
-        props_file = public_dir / "props.json"
-        props_file.write_text(props_json, encoding="utf-8")
-        self.logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
+        # Always also write to data/{date}/cli_props.json for CLI use.
+        # The data/{date}/remotion/public/props.json copy is the file
+        # Remotion Studio hot-reloads from when --public-dir points there.
+        cli_props_path = self._write_props_file(props_json, date=date)
+        if data_dir:
+            public_dir = data_dir / "public"
+            public_dir.mkdir(parents=True, exist_ok=True)
+            public_props = public_dir / "props.json"
+            public_props.write_text(props_json, encoding="utf-8")
+            self.logger.info(
+                f"Props (public mirror) written to {public_props} ({len(props_json)} bytes)"
+            )
 
-        return props_file, props_json
+        return Path(cli_props_path), props_json, None
 
     def preview(
         self, script: Script, audio_dir: str, content=None, date: str = ""
@@ -117,7 +135,7 @@ class RemotionRenderer(Renderer):
         if not self._node_path:
             raise RuntimeError("Node.js not found!")
 
-        _, props_json = self.write_props(script, audio_dir, content, date=date)
+        _, props_json, _ = self.write_props(script, audio_dir, content, date=date)
         self._ensure_dependencies_installed()
 
         props_file = self._write_props_file(props_json, date=date)
@@ -130,6 +148,9 @@ class RemotionRenderer(Renderer):
             "3000",
             f"--props={props_file}",
         ]
+        if date:
+            public_dir = self._remotion_data_dir(date) / "public"
+            cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
             cmd.append(f"--browser-executable={self.chrome_path}")
@@ -164,7 +185,7 @@ class RemotionRenderer(Renderer):
     ) -> None:
         """Regenerate props.json and static assets without starting the studio."""
         self.logger.info("Syncing preview props...")
-        _, props_json = self.write_props(script, audio_dir, content, date=date)
+        _, props_json, _ = self.write_props(script, audio_dir, content, date=date)
         self._write_props_file(props_json, date=date)
         self.logger.info(
             "Props synced. Remotion Studio will hot-reload on next change."
@@ -203,7 +224,9 @@ class RemotionRenderer(Renderer):
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        props_file, props_json = self.write_props(script, audio_dir, content, date=date)
+        props_file, props_json, _ = self.write_props(
+            script, audio_dir, content, date=date
+        )
 
         self._ensure_dependencies_installed()
 
@@ -229,6 +252,9 @@ class RemotionRenderer(Renderer):
             f"--height={self.height}",
             f"--props={cli_props_file}",
         ]
+        if date:
+            public_dir = self._remotion_data_dir(date) / "public"
+            base_cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
             base_cmd.append(f"--browser-executable={self.chrome_path}")
@@ -247,8 +273,13 @@ class RemotionRenderer(Renderer):
         base_cmd.append("--overwrite")
 
         if not self.resume_enabled or len(script.segments) <= 1:
-            # Render whole video at once
-            remotion_output = self.remotion_dir / "out" / "output.mp4"
+            # Render whole video at once. Single-shot temp goes under
+            # data/{date}/remotion/ (not the Remotion source dir) so the
+            # source tree stays clean.
+            remotion_output = (
+                self._remotion_data_dir(date) / "single.mp4" if date
+                else self.remotion_dir / "out" / "output.mp4"
+            )
             cmd = base_cmd + [f"--output={remotion_output}"]
             self._run_render_cmd(cmd)
             self._finalize_output(remotion_output, output_file)
@@ -374,6 +405,16 @@ class RemotionRenderer(Renderer):
 
         self.logger.info("Rendering complete")
 
+    # Remotion prints one stdout line per rendered frame (e.g.
+    # "Rendered 228/517, time remaining: 16s"). With multiple workers in
+    # parallel, this floods the log. We match the progress line and throttle
+    # it to ~5% granularity; non-progress lines (Bundling, Encoding, errors,
+    # warnings, final summary) pass through unchanged.
+    _RENDER_PROGRESS_RE = re.compile(
+        r"^Rendered\s+(\d+)/(\d+),\s+time\s+remaining:\s+\S+$"
+    )
+    _PROGRESS_LOG_STEP = 0.05  # log at most every 5% of total frames
+
     def _run_render_cmd(self, cmd: list, label: str | None = None) -> None:
         cmd_summary = []
         for part in cmd:
@@ -417,10 +458,27 @@ class RemotionRenderer(Renderer):
                     env=self._build_env(),
                 )
                 assert process.stdout is not None
+                # Per-call throttle state: which progress percentages have
+                # already been logged for this chunk's render.
+                last_pct = -1.0
                 for line in process.stdout:
                     stripped = line.rstrip("\n\r")
-                    if stripped:
-                        self.logger.info(f"[{label}] {stripped}")
+                    if not stripped:
+                        continue
+                    m = self._RENDER_PROGRESS_RE.match(stripped)
+                    if m:
+                        current = int(m.group(1))
+                        total = int(m.group(2))
+                        pct = current / total if total else 1.0
+                        # Always log the first and last frame; throttle the
+                        # rest to ~5% steps to keep the log readable.
+                        if (
+                            current != total
+                            and (pct - last_pct) < self._PROGRESS_LOG_STEP
+                        ):
+                            continue
+                        last_pct = pct
+                    self.logger.info(f"[{label}] {stripped}")
                 process.wait(timeout=600)
                 if process.returncode != 0:
                     raise RuntimeError(
@@ -463,17 +521,19 @@ class RemotionRenderer(Renderer):
 
         return env
 
-    def _prepare_audio_assets(self, script: "Script", audio_dir: str):
-        public_dir = self.remotion_dir / "public"
-        audio_subdir = public_dir / "audio"
+    def _prepare_audio_assets(
+        self, script: "Script", audio_dir: str, target_dir: Path | None = None
+    ):
+        audio_subdir = (target_dir or self.remotion_dir / "public" / "audio")
         audio_subdir.mkdir(parents=True, exist_ok=True)
 
         audio_path_obj = Path(audio_dir).resolve()
         copied_files: set = set()
 
         def _copy_audio(src_path: str) -> str | None:
-            """Copy one audio file to public/audio/ if not already copied.
-            Returns the relative path (audio/filename) or None on failure.
+            """Copy one audio file to the target public/audio/ if not already
+            copied. Returns the relative path (audio/filename) or None on
+            failure.
             """
             src = Path(src_path)
             if not src.is_absolute():
@@ -489,7 +549,9 @@ class RemotionRenderer(Renderer):
                 return f"audio/{src.name}"
             shutil.copy2(src, audio_subdir / src.name)
             copied_files.add(str(src))
-            self.logger.debug(f"Copied audio: {src.name} -> public/audio/")
+            self.logger.debug(
+                f"Copied audio: {src.name} -> {audio_subdir}"
+            )
             return f"audio/{src.name}"
 
         for segment in script.segments:
@@ -511,12 +573,17 @@ class RemotionRenderer(Renderer):
     def _is_remote_url(path: str) -> bool:
         return path.startswith(("http://", "https://"))
 
-    def _prepare_image_assets(self, content, date: str):
-        """Copy enriched images to Remotion public/images/ for serving."""
+    def _prepare_image_assets(
+        self, content, date: str, target_dir: Path | None = None
+    ):
+        """Copy enriched images to the Remotion public/images/ for serving.
+
+        ``target_dir`` defaults to ``remotion/public/images`` for backwards
+        compatibility when no date is supplied.
+        """
         if content is None:
             return
-        public_dir = self.remotion_dir / "public"
-        image_subdir = public_dir / "images"
+        image_subdir = target_dir or (self.remotion_dir / "public" / "images")
         image_subdir.mkdir(parents=True, exist_ok=True)
 
         def _resolve_local(path: str) -> Path | None:
@@ -625,7 +692,35 @@ class RemotionRenderer(Renderer):
         return str(props_path.resolve())
 
     def _chunk_cache_dir(self, date: str, props_json: str) -> Path:
-        """Return a chunk cache directory scoped to the exact render input."""
+        """Return a chunk cache directory scoped to the exact render input.
+
+        Chunks live under ``data/{date}/remotion/chunks/`` so the source tree
+        stays clean. Falls back to ``remotion/out/chunks/`` when no date is
+        supplied (test/legacy path).
+        """
         date_label = re.sub(r"[^0-9A-Za-z_-]+", "_", date).strip("_") or "undated"
         props_hash = sha256(props_json.encode("utf-8")).hexdigest()[:12]
-        return self.remotion_dir / "out" / "chunks" / f"{date_label}_{props_hash}"
+        base = self._remotion_data_dir(date) if date else self.remotion_dir / "out"
+        return base / "chunks" / f"{date_label}_{props_hash}"
+
+    def _remotion_data_dir(self, date: str) -> Path:
+        """Return the per-date Remotion runtime dir under ``data/``.
+
+        All non-source runtime files (public/ assets, chunk caches, single
+        render temp output) live here so the source tree in
+        ``src/providers/renderer/remotion/`` stays clean.
+        """
+        if not date:
+            raise ValueError(
+                "RemotionRenderer requires a non-empty date for runtime dirs"
+            )
+        d = Path("data") / date / "remotion"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def cache_paths(self, date: str) -> list[Path]:
+        """Paths the orchestrator should clear on a forced re-render."""
+        if not date:
+            return []
+        d = self._remotion_data_dir(date)
+        return [d / "chunks", d / "single.mp4", d / "public"]

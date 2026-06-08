@@ -8,7 +8,7 @@
 
 import React from "react";
 import { AudioWaveform } from "./AudioWaveform";
-import { COLORS, useDesign } from "./design";
+import { CARD_WAVEFORM_LAYOUT, COLORS, useDesign } from "./design";
 
 interface CardAudioWaveformProps {
   src?: string;
@@ -20,12 +20,12 @@ export const CardAudioWaveform: React.FC<CardAudioWaveformProps> = ({ src }) => 
   return (
     <AudioWaveform
       src={src}
-      barCount={64}
-      barWidth={12}
-      barGap={5}
-      maxHeight={60}
+      barCount={CARD_WAVEFORM_LAYOUT.barCount}
+      barWidth={CARD_WAVEFORM_LAYOUT.barWidth}
+      barGap={CARD_WAVEFORM_LAYOUT.barGap}
+      maxHeight={CARD_WAVEFORM_LAYOUT.maxHeight}
       color={COLORS.brand}
-      leftOffset={d.scaled(32)}
+      leftOffset={d.scaled(CARD_WAVEFORM_LAYOUT.leftOffset)}
     />
   );
 };

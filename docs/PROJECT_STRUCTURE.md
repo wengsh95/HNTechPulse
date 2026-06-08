@@ -110,7 +110,6 @@ src/pipeline/
 |-- timing_engine.py
 |-- tts_processor.py
 |-- transcript_generator.py
-|-- report_generator.py
 |-- agent_io.py
 |-- agent_state.py
 |-- agent_decision.py
@@ -297,10 +296,10 @@ cover_props.json.manifest.json
 publish_guide.md.manifest.json
 ```
 
-The Remotion props manifest lives beside generated render props:
+The Remotion props manifest lives beside the canonical render props file:
 
 ```text
-src/providers/renderer/remotion/public/props.json.manifest.json
+data/YYYY-MM-DD/cli_props.json.manifest.json
 ```
 
 ## Agent Blocking Model

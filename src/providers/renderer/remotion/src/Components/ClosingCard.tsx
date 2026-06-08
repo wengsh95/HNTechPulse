@@ -1,38 +1,35 @@
-/* ================================================================
-   ClosingCard — 结束卡 (Warm Paper Theme)
-   ================================================================
-
-   Layout: single-column centered vertical
-     - "今日信号" headline
-     - Gradient divider (same as EventCard)
-     - Signal entries: one per story (category · title · note)
-
-   Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
-   adds entrance animation via useCurrentFrame/interpolate.
-*/
-
 import React from "react";
-import { useCurrentFrame, interpolate } from "remotion";
-import { COLORS } from "./design";
-import type { ElementProps } from "./utils";
-import { extractClosingProps } from "./propsExtractors";
-import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
+import { interpolate, useCurrentFrame } from "remotion";
+
 import { CardShell, Fill } from "./CardShell";
+import { NumberDisc, Panel } from "./CardPrimitives";
+import {
+  ANIM,
+  CARD_LAYOUT,
+  CLOSING_LAYOUT,
+  COLORS,
+  COMMON_LAYOUT,
+  EASE_CARD,
+  FONTS,
+  FW,
+  useDesign,
+} from "./design";
+import { extractClosingProps } from "./propsExtractors";
+import type { ElementProps } from "./utils";
 
-/* ---- main component ---- */
-
-export const ClosingCard: React.FC<ElementProps> = ({
-  elementProps,
-  width: _width,
-  height: _height,
-}) => {
+export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
   const frame = useCurrentFrame();
   const d = useDesign();
+  const props = extractClosingProps(elementProps);
+  const { summary, completedStories } = props;
 
-  const typed = extractClosingProps(elementProps);
-  const { summary, completedStories } = typed;
+  const subtitle =
+    props.takeaways.length > 0
+      ? props.takeaways.join(" / ")
+      : props.stats.storyCount > 0
+        ? `${props.stats.storyCount} 个关键故事，一条共同的结构变化`
+        : "";
 
-  // Entrance animation
   const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
     easing: EASE_CARD,
     extrapolateLeft: "clamp",
@@ -44,108 +41,105 @@ export const ClosingCard: React.FC<ElementProps> = ({
     extrapolateRight: "clamp",
   });
 
-  const titleY = interpolate(titleProgress, [0, 1], [12, 0]);
-  const bodyY = interpolate(bodyProgress, [0, 1], [12, 0]);
-
-  // 内容少时用 center, 多时用 start; 这里动态判断 (1-2 条 vs 3+ 条)
-  const justify = completedStories.length >= 3 ? "start" : "center";
+  const titleY = interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0]);
+  const bodyY = interpolate(bodyProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0]);
+  const justify = completedStories.length >= CLOSING_LAYOUT.centerThreshold ? "start" : "center";
 
   return (
     <CardShell
       elementProps={elementProps}
       justify={justify}
-      gutter={100} // 对称左右内边距
-      paddingTop={80}
-      paddingBottom={100}
+      gutter={CLOSING_LAYOUT.gutter}
+      paddingTop={CLOSING_LAYOUT.paddingTop}
+      paddingBottom={CLOSING_LAYOUT.paddingBottom}
       showTopBar
       showWatermark={false}
       showWaveform
-      reserveSubtitle // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle
     >
-      <Fill gap={20} maxWidth={CARD_LAYOUT.content.maxWidth}>
-        {/* Summary — Fraunces serif title (对齐模板 card-title) */}
-        {summary && (
-          <h1
-            style={{
-              fontSize: d.fs.headline,
-              fontWeight: FW.heavy,
-              lineHeight: 1.12,
-              letterSpacing: "0",
-              color: COLORS.fg,
-              fontFamily: FONTS.serifBold,
-              opacity: titleProgress,
-              transform: `translateY(${titleY}px)`,
-            }}
-          >
-            {summary}
-          </h1>
-        )}
-
-        {/* Divider */}
+      <Fill gap={CLOSING_LAYOUT.fillGap} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
         <div
           style={{
-            width: "100%",
-            maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
-            height: d.scaled(CARD_LAYOUT.divider.height),
-            borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-            background: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
+            display: "flex",
+            flexDirection: "column",
+            gap: d.scaled(18),
             opacity: titleProgress,
+            transform: `translateY(${titleY}px)`,
           }}
-        />
+        >
+          <h1
+            style={{
+              margin: 0,
+              color: COLORS.fg,
+              fontFamily: FONTS.serifBold,
+              fontSize: Math.round(d.fs.text5xl * CLOSING_LAYOUT.titleScale),
+              fontWeight: FW.heavy,
+              lineHeight: 1.12,
+              letterSpacing: 0,
+            }}
+          >
+            今日回顾
+          </h1>
+          {summary && (
+            <p
+              style={{
+                margin: 0,
+                maxWidth: d.scaled(CARD_LAYOUT.content.wideMaxWidth),
+                color: COLORS.inkSoft,
+                fontFamily: FONTS.sans,
+                fontSize: d.fs.textBase,
+                lineHeight: 1.3,
+              }}
+            >
+              {summary}
+            </p>
+          )}
+          {subtitle && (
+            <p
+              style={{
+                margin: 0,
+                maxWidth: d.scaled(CARD_LAYOUT.content.wideMaxWidth),
+                color: COLORS.muted,
+                fontFamily: FONTS.sans,
+                fontSize: d.fs.textLg,
+                lineHeight: 1.3,
+              }}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
 
-        {/* Signal entries — one per story */}
         {completedStories.length > 0 && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: d.scaled(24),
+              gap: d.scaled(CLOSING_LAYOUT.listGap),
               width: "100%",
               opacity: bodyProgress,
               transform: `translateY(${bodyY}px)`,
             }}
           >
             {completedStories.map((story, i) => (
-              <div
-                key={i}
+              <Panel
+                key={`${story.title}-${i}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: `${d.scaled(38)}px minmax(0, 1fr)`,
-                  gap: d.scaled(16),
+                  gridTemplateColumns: `${d.scaled(COMMON_LAYOUT.numDiscSize)}px minmax(0, 1fr)`,
+                  gap: d.scaled(CLOSING_LAYOUT.rowGap),
                   alignItems: "center",
-                  padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
-                  border: `1px solid ${COLORS.border}`,
-                  borderRadius: d.scaled(14),
-                  background: "rgba(255,253,248,0.82)",
-                  boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
                 }}
               >
-                {/* Num-disc --soft (alignment: template .num-disc--soft) */}
-                <span
-                  style={{
-                    width: d.scaled(38),
-                    height: d.scaled(38),
-                    borderRadius: "50%",
-                    background: COLORS.brandSoft,
-                    color: COLORS.brandDeep,
-                    fontFamily: FONTS.serif,
-                    fontSize: d.fs.bodyLg,
-                    fontWeight: FW.heavy,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {i + 1}
-                </span>
+                <NumberDisc>{i + 1}</NumberDisc>
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: d.fs.subhead,
+                      color: COLORS.fg,
+                      fontFamily: FONTS.sans,
+                      fontSize: d.fs.textXl,
                       fontWeight: FW.heavy,
                       lineHeight: 1.3,
-                      color: COLORS.fg,
                     }}
                   >
                     {story.title}
@@ -153,22 +147,21 @@ export const ClosingCard: React.FC<ElementProps> = ({
                   {story.signal && (
                     <div
                       style={{
-                        marginTop: d.scaled(4),
-                        fontSize: d.fs.bodySmall,
-                        color: COLORS.muted,
-                        lineHeight: 1.3,
+                        marginTop: d.scaled(CLOSING_LAYOUT.subtitleMarginTop),
+                        color: COLORS.inkFaint,
+                        fontFamily: FONTS.sans,
+                        fontSize: d.fs.textSm,
+                        lineHeight: 1.25,
                       }}
                     >
                       {story.signal}
                     </div>
                   )}
                 </div>
-              </div>
+              </Panel>
             ))}
           </div>
         )}
-
-        {/* 结束语由 Subtitle 组件承载, 不再在卡片内部重复 */}
       </Fill>
     </CardShell>
   );

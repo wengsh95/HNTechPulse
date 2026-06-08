@@ -579,9 +579,10 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
 
-    # Copy image assets to Remotion public/
-    remotion_dir = Path(__file__).parent / "remotion"
-    image_subdir = remotion_dir / "public" / "images"
+    # Copy image assets to data/{date}/remotion/public/images/
+    data_remotion = Path(f"data/{date}/remotion")
+    data_remotion.mkdir(parents=True, exist_ok=True)
+    image_subdir = data_remotion / "public" / "images"
     image_subdir.mkdir(parents=True, exist_ok=True)
 
     def _is_remote(p: str) -> bool:
@@ -641,8 +642,9 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     )
     props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
-    # Write to Remotion public/ (studio hot-reloads from here)
-    public_dir = remotion_dir / "public"
+    # Write to data/{date}/remotion/public/props.json (studio hot-reloads
+    # from here when launched with --public-dir)
+    public_dir = data_remotion / "public"
     public_dir.mkdir(parents=True, exist_ok=True)
     props_file = public_dir / "props.json"
     props_file.write_text(props_json, encoding="utf-8")

@@ -136,8 +136,16 @@ class Renderer(ABC):
         audio_dir: str,
         content: Optional["ContentPackage"] = None,
         date: str = "",
-    ) -> Tuple[Path, str]:
-        """Prepare audio/image assets and write props.json. Returns (props_path, props_json)."""
+    ) -> Tuple[Path, str, object]:
+        """Prepare audio/image assets and write props.json.
+
+        Returns ``(props_path, props_json, scenes_payload)``:
+          - ``props_path``: absolute path to the props file written.
+          - ``props_json``: serialized JSON string of the props.
+          - ``scenes_payload``: renderer-specific metadata (e.g. HyperFrames
+            scene spec). RemotionRenderer returns ``None`` since it doesn't
+            use this channel.
+        """
         pass
 
     def cache_paths(self, date: str) -> List[Path]:

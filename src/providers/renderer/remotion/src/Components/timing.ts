@@ -1,4 +1,6 @@
-import { Easing, interpolate } from "remotion";
+import { interpolate } from "remotion";
+
+import { EASE_CARD, TIMING_LAYOUT } from "./design";
 
 /** Shared animation presets for all cards (1080p reference). */
 export const ANIM_PRESETS = {
@@ -27,15 +29,15 @@ export const segmentTransitionOpacity = ({
   const localFrame = segmentLocalFrame(absoluteFrame, startFrame);
   // 与 ElementFadeWrap 对齐: 每张卡 6 帧淡入淡出, 段间靠 premountFor + 双方各 6 帧 = 12 帧 cross-fade.
   // 首段和末段沿用较长的 transitionFrames, 避免首帧突兀 / 收尾硬切.
-  const fadeInFrames = startFrame === 0 ? transitionFrames : 6;
-  const fadeOutFrames = isLastSegment ? transitionFrames : 6;
+  const fadeInFrames = startFrame === 0 ? transitionFrames : TIMING_LAYOUT.segmentFadeFrames;
+  const fadeOutFrames = isLastSegment ? transitionFrames : TIMING_LAYOUT.segmentFadeFrames;
   const fadeIn = interpolate(localFrame, [0, fadeInFrames], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
   const fadeOut = interpolate(durationFrames - localFrame, [0, fadeOutFrames], [0, 1], {
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    easing: EASE_CARD,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

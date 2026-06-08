@@ -13,13 +13,23 @@
 
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
-import type { ControversyLevel, Stance, Quote } from "./cardTypes";
+import type { ControversyLevel, Stance } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
-import { useDesign, FONTS, FW, ANIM, EASE_CARD, CARD_LAYOUT } from "./design";
-import { CardShell, Fill, EvenSpread } from "./CardShell";
-import { STANCE_LABELS, STANCE_COLORS } from "./stance";
+import {
+  useDesign,
+  FONTS,
+  FW,
+  ANIM,
+  EASE_CARD,
+  CARD_LAYOUT,
+  COMMON_LAYOUT,
+  ATMOSPHERE_LAYOUT,
+} from "./design";
+import { CardShell, Fill } from "./CardShell";
+import { Panel, SectionHeading, SlideIndicator } from "./CardPrimitives";
+import { STANCE_COLORS } from "./stance";
 
 /* ---- label maps ---- */
 
@@ -38,141 +48,6 @@ const CORE_STANCE_ORDER: { label: string; key: Stance }[] = [
 
 /* ---- sub-components ---- */
 
-function StanceBarWithConcern({
-  stance,
-  pct,
-  concern,
-  d,
-}: {
-  stance: Stance;
-  pct: number;
-  concern: string | undefined;
-  d: ReturnType<typeof useDesign>;
-}) {
-  const color = STANCE_COLORS[stance];
-  return (
-    <div style={{ display: "flex", flexDirection: "column" as const, gap: d.scaled(6) }}>
-      <div style={{ display: "flex", alignItems: "center", gap: d.scaled(14) }}>
-        <span
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: d.fs.caption,
-            fontWeight: FW.semibold,
-            width: d.scaled(60),
-            textAlign: "right" as const,
-            color: COLORS.muted,
-          }}
-        >
-          {STANCE_LABELS[stance]}
-        </span>
-        <div
-          style={{
-            flex: 1,
-            height: d.scaled(28),
-            background: COLORS.surface2,
-            borderRadius: d.scaled(4),
-            overflow: "hidden",
-            position: "relative" as const,
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              borderRadius: d.scaled(4),
-              transition: "width 1.2s ease",
-              width: `${pct}%`,
-              background: color,
-            }}
-          />
-        </div>
-        <span
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: d.fs.caption,
-            fontWeight: FW.bold,
-            width: d.scaled(48),
-            color: COLORS.fg,
-          }}
-        >
-          {pct}%
-        </span>
-      </div>
-      {concern && (
-        <div
-          style={{
-            paddingLeft: d.scaled(74),
-            fontSize: d.fs.caption,
-            color: COLORS.dim,
-            lineHeight: 1.3,
-          }}
-        >
-          {concern}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function QuoteBlock({ q, last, d }: { q: Quote; last: boolean; d: ReturnType<typeof useDesign> }) {
-  const color = STANCE_COLORS[q.stance];
-  const stanceLabel = STANCE_LABELS[q.stance];
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: d.scaled(16),
-        padding: `${d.scaled(12)}px 0`,
-        borderBottom: last ? undefined : `1px solid ${COLORS.border}`,
-      }}
-    >
-      <div
-        style={{
-          width: d.scaled(4),
-          borderRadius: d.scaled(2),
-          flexShrink: 0,
-          background: color,
-        }}
-      />
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: d.scaled(8) }}>
-        <div
-          style={{
-            fontSize: d.fs.caption,
-            lineHeight: 1.5,
-            color: COLORS.fg,
-            fontStyle: "italic",
-          }}
-        >
-          &ldquo;{q.text}&rdquo;
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: d.scaled(12) }}>
-          <span
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.caption,
-              color: COLORS.dim,
-            }}
-          >
-            {q.author}
-          </span>
-          <span
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.caption,
-              fontWeight: FW.semibold,
-              color,
-              background: `${color}18`,
-              padding: `${d.scaled(2)}px ${d.scaled(8)}px`,
-              borderRadius: d.scaled(3),
-            }}
-          >
-            {stanceLabel}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ---- main component ---- */
 
 export const AtmosphereCard: React.FC<ElementProps> = ({
@@ -189,7 +64,6 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
     discussionSummary,
     debateTopics,
     stanceDistribution,
-    stanceConcerns,
     quotes,
     displayIndex,
     storyCount,
@@ -232,50 +106,64 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
       pageIndex={displayIndex}
       totalPages={storyCount}
       justify="start"
-      gutter={70}
-      paddingTop={42}
-      paddingBottom={160}
+      gutter={ATMOSPHERE_LAYOUT.gutter}
+      paddingTop={ATMOSPHERE_LAYOUT.paddingTop}
+      paddingBottom={ATMOSPHERE_LAYOUT.paddingBottom}
       showTopBar
-      showWatermark
+      showWatermark={false}
       showWaveform
       reserveSubtitle
     >
-      <Fill gap={16} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
+      <SlideIndicator current={displayIndex + 1} total={storyCount} />
+      <Fill gap={ATMOSPHERE_LAYOUT.fillGap} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
         {/* ① Stat-block header (对齐模板 stat-block: prefix + 大数字 + label) */}
-        <div style={{ opacity: titleProgress, transform: `translateY(${interpolate(titleProgress, [0, 1], [12, 0])}px)` }}>
+        <div
+          style={{
+            opacity: titleProgress,
+            transform: `translateY(${interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0])}px)`,
+          }}
+        >
           <h1
             style={{
               fontFamily: FONTS.serifBold,
-              fontSize: d.fs.hero,
+              fontSize: d.fs.text5xl,
               fontWeight: FW.heavy,
               lineHeight: 1,
               color: COLORS.brandDeep,
               display: "flex",
               alignItems: "baseline",
-              gap: d.scaled(12),
+              gap: d.scaled(COMMON_LAYOUT.itemGap),
               flexWrap: "wrap",
             }}
           >
-            <span style={{ fontSize: d.fs.subhead, fontWeight: FW.heavy }}>争议指数</span>
-            <span style={{ fontSize: d.scaled(96), fontFamily: FONTS.serif, fontWeight: FW.heavy, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontSize: d.fs.text3xl, fontWeight: FW.heavy }}>争议指数</span>
+            <span
+              style={{
+                fontSize: d.fs.text6xl,
+                fontFamily: FONTS.serif,
+                fontWeight: FW.heavy,
+                lineHeight: 1,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
               {typed.controversyScore.toFixed(1)}
             </span>
-            <span style={{ fontSize: d.fs.subhead, fontWeight: FW.heavy, color: COLORS.inkSoft }}>
+            <span style={{ fontSize: d.fs.text2xl, fontWeight: FW.heavy, color: COLORS.inkSoft }}>
               {CONTROVERSY_LABELS[controversyLevel]}
             </span>
           </h1>
           <p
             style={{
               fontFamily: FONTS.sans,
-              fontSize: d.fs.bodyLg,
+              fontSize: d.fs.textLg,
               fontWeight: FW.medium,
               lineHeight: 1.4,
               color: COLORS.muted,
-              marginTop: d.scaled(4),
-              maxWidth: d.scaled(980),
+              marginTop: d.scaled(COMMON_LAYOUT.smallRadius),
+              maxWidth: d.scaled(ATMOSPHERE_LAYOUT.summaryMaxWidth),
             }}
           >
-            {(discussionSummary || "社区讨论").slice(0, 60)}
+            {discussionSummary || "社区讨论"}
           </p>
         </div>
 
@@ -283,111 +171,143 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: `${d.scaled(360)}fr ${d.scaled(420)}fr ${d.scaled(420)}fr`,
-            gap: d.scaled(20),
+            gridTemplateColumns: ATMOSPHERE_LAYOUT.gridColumns.map((col) => `${col}fr`).join(" "),
+            gap: d.scaled(ATMOSPHERE_LAYOUT.gridGap),
             flex: 1,
             minHeight: 0,
             opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [12, 0])}px)`,
+            transform: `translateY(${interpolate(bodyProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0])}px)`,
           }}
         >
           {/* Panel A: 立场分布 */}
-          <div
-            style={{
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: d.scaled(14),
-              background: "rgba(255,253,248,0.82)",
-              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
-              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: d.scaled(16),
-              minHeight: d.scaled(300),
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
-              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
-              立场分布
-            </span>
-            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(16) }}>
+          <Panel minHeight={ATMOSPHERE_LAYOUT.panelMinHeight}>
+            <SectionHeading>立场分布</SectionHeading>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: d.scaled(COMMON_LAYOUT.panelGap),
+              }}
+            >
               {CORE_STANCE_ORDER.map(({ label, key }) => {
                 const stanceKey = key as Stance;
                 const pct = stancePcts[stanceKey] ?? 0;
                 const color = STANCE_COLORS[stanceKey];
                 return (
-                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: d.scaled(8) }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", color: COLORS.inkSoft, fontSize: d.fs.bodySmall, fontWeight: FW.bold }}>
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: d.scaled(ATMOSPHERE_LAYOUT.stanceRowGap),
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        justifyContent: "space-between",
+                        color: COLORS.inkSoft,
+                        fontSize: d.fs.textSm,
+                        fontWeight: FW.bold,
+                      }}
+                    >
                       <span>{label}</span>
-                      <span style={{ color: COLORS.fg, fontFamily: FONTS.mono, fontSize: d.fs.body, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+                      <span
+                        style={{
+                          color: COLORS.fg,
+                          fontFamily: FONTS.mono,
+                          fontSize: d.fs.textBase,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {pct}%
+                      </span>
                     </div>
-                    <div style={{ height: d.scaled(11), overflow: "hidden", borderRadius: d.scaled(999), background: "rgba(32,25,20,0.09)" }}>
-                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: "inherit", background: color, transformOrigin: "left center" }} />
+                    <div
+                      style={{
+                        height: d.scaled(ATMOSPHERE_LAYOUT.stanceBarHeight),
+                        overflow: "hidden",
+                        borderRadius: d.scaled(COMMON_LAYOUT.pillRadius),
+                        background: COLORS.surfaceMid,
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          borderRadius: "inherit",
+                          background: color,
+                          transformOrigin: "left center",
+                        }}
+                      />
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </Panel>
 
           {/* Panel B: 讨论焦点 */}
-          <div
-            style={{
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: d.scaled(14),
-              background: "rgba(255,253,248,0.82)",
-              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
-              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: d.scaled(16),
-              minHeight: d.scaled(300),
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
-              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
-              讨论焦点
-            </span>
-            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(12) }}>
+          <Panel minHeight={ATMOSPHERE_LAYOUT.panelMinHeight}>
+            <SectionHeading>讨论焦点</SectionHeading>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: d.scaled(ATMOSPHERE_LAYOUT.focusGap),
+              }}
+            >
               {debateTopics.map((topic, i) => (
-                <div key={i} style={{ paddingLeft: d.scaled(12), borderLeft: `3px solid ${COLORS.brandSoft}`, color: COLORS.fg, fontSize: d.fs.body, lineHeight: 1.3 }}>
+                <div
+                  key={i}
+                  style={{
+                    paddingLeft: d.scaled(COMMON_LAYOUT.itemGap),
+                    borderLeft: `${d.scaled(COMMON_LAYOUT.sectionRuleWidth)}px solid ${COLORS.brandSoft}`,
+                    color: COLORS.fg,
+                    fontSize: d.fs.textBase,
+                    lineHeight: 1.3,
+                  }}
+                >
                   {topic}
                 </div>
               ))}
               {debateTopics.length === 0 && (
-                <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无显著辩论焦点</span>
+                <span style={{ color: COLORS.dim, fontSize: d.fs.textBase }}>暂无显著辩论焦点</span>
               )}
             </div>
-          </div>
+          </Panel>
 
           {/* Panel C: 评论金句 */}
-          <div
-            style={{
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: d.scaled(14),
-              background: "rgba(255,253,248,0.82)",
-              boxShadow: "0 4px 12px rgba(32,25,20,0.04)",
-              padding: `${d.scaled(16)}px ${d.scaled(20)}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: d.scaled(16),
-              minHeight: d.scaled(300),
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: d.scaled(8), color: COLORS.brandDeep, fontSize: d.fs.subhead, fontWeight: FW.heavy }}>
-              <span style={{ width: d.scaled(4), height: d.scaled(18), borderRadius: d.scaled(999), background: COLORS.brand, flexShrink: 0 }} />
-              评论金句
-            </span>
-            <div style={{ display: "flex", flexDirection: "column", gap: d.scaled(12) }}>
-              {quotes.slice(0, 3).map((q, i) => (
-                <div key={i} style={{ paddingLeft: d.scaled(12), borderLeft: `3px solid ${COLORS.brand}`, color: COLORS.inkSoft, fontSize: d.fs.body, fontStyle: "italic", lineHeight: 1.3 }}>
+          <Panel minHeight={ATMOSPHERE_LAYOUT.panelMinHeight}>
+            <SectionHeading>评论金句</SectionHeading>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: d.scaled(ATMOSPHERE_LAYOUT.focusGap),
+              }}
+            >
+              {quotes.slice(0, ATMOSPHERE_LAYOUT.quoteLimit).map((q, i) => (
+                <div
+                  key={i}
+                  style={{
+                    paddingLeft: d.scaled(COMMON_LAYOUT.itemGap),
+                    borderLeft: `${d.scaled(COMMON_LAYOUT.sectionRuleWidth)}px solid ${COLORS.brand}`,
+                    color: COLORS.inkSoft,
+                    fontSize: d.fs.textBase,
+                    fontStyle: "italic",
+                    lineHeight: 1.3,
+                  }}
+                >
                   &ldquo;{q.text}&rdquo;
                 </div>
               ))}
               {quotes.length === 0 && (
-                <span style={{ color: COLORS.dim, fontSize: d.fs.body }}>暂无金句</span>
+                <span style={{ color: COLORS.dim, fontSize: d.fs.textBase }}>暂无金句</span>
               )}
             </div>
-          </div>
+          </Panel>
         </div>
       </Fill>
     </CardShell>

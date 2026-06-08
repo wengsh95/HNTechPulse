@@ -10,6 +10,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, staticFile } from "remotion";
 import { useAudioData, visualizeAudio } from "@remotion/media-utils";
 import { WaveformBars } from "./WaveformBars";
+import { AUDIO_ANALYSIS_LAYOUT, WAVEFORM_LAYOUT } from "./design";
 
 interface AudioWaveformProps {
   /** 音频文件路径（相对于 public 目录） */
@@ -30,10 +31,10 @@ interface AudioWaveformProps {
 
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   src,
-  barCount = 64,
-  barWidth = 12,
-  barGap = 5,
-  maxHeight = 30,
+  barCount = WAVEFORM_LAYOUT.barCount,
+  barWidth = WAVEFORM_LAYOUT.barWidth,
+  barGap = WAVEFORM_LAYOUT.barGap,
+  maxHeight = WAVEFORM_LAYOUT.maxHeight,
   color,
   leftOffset,
 }) => {
@@ -58,9 +59,9 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       });
       // 语音 amplitude 集中在低值区，做对数放大让波形更明显
       amplitudes = result.map((v) => {
-        const db = 20 * Math.log10(Math.max(v, 1e-6));
-        const scaled = (db + 80) / 80; // -80dB~0dB → 0~1
-        return Math.max(0.02, Math.min(1, scaled));
+        const db = 20 * Math.log10(Math.max(v, AUDIO_ANALYSIS_LAYOUT.silenceFloor));
+        const scaled = (db + AUDIO_ANALYSIS_LAYOUT.dbRange) / AUDIO_ANALYSIS_LAYOUT.dbRange;
+        return Math.max(AUDIO_ANALYSIS_LAYOUT.minVisualAmplitude, Math.min(1, scaled));
       });
     } catch (e) {
       console.warn("[AudioWaveform] visualizeAudio error:", e);

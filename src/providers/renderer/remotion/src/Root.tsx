@@ -4,6 +4,7 @@ import { Composition } from "remotion";
 import { HNTechPulseComposition } from "./Components/HNTechPulseComposition";
 import { CoverThumbnail } from "./Components/CoverThumbnail";
 import { CardShellDemo } from "./Components/CardShellDemo";
+import { VIDEO_DEFAULTS } from "./Components/design";
 import { ScriptProps } from "./types";
 
 /**
@@ -21,18 +22,18 @@ import { ScriptProps } from "./types";
 
 // ── Fraunces font loading (Google Fonts) ──
 // 对齐模板 hn-card-template-reference: Fraunces 500/700/900
-const FRAUNCES_FONT_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&display=swap');
+const FONT_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap');
 `;
 
 /** Validate and extract ScriptProps from raw props */
 function validateScriptProps(props: Record<string, unknown>): ScriptProps {
   const segments = Array.isArray(props.segments) ? props.segments : [];
   return {
-    width: typeof props.width === "number" ? props.width : 1920,
-    height: typeof props.height === "number" ? props.height : 1080,
-    fps: typeof props.fps === "number" ? props.fps : 24,
-    bgColor: typeof props.bgColor === "string" ? props.bgColor : "#fbf4e8",
+    width: typeof props.width === "number" ? props.width : VIDEO_DEFAULTS.width,
+    height: typeof props.height === "number" ? props.height : VIDEO_DEFAULTS.height,
+    fps: typeof props.fps === "number" ? props.fps : VIDEO_DEFAULTS.fps,
+    bgColor: typeof props.bgColor === "string" ? props.bgColor : VIDEO_DEFAULTS.bgColor,
     title: typeof props.title === "string" ? props.title : "",
     totalDuration: typeof props.totalDuration === "number" ? props.totalDuration : 0,
     segments,
@@ -45,7 +46,9 @@ const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
   const p = validateScriptProps(props);
   const fps = p.fps;
   const totalDuration =
-    p.totalDuration || p.segments.reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0) || 10;
+    p.totalDuration ||
+    p.segments.reduce((sum: number, seg) => sum + (seg.duration ?? 0), 0) ||
+    VIDEO_DEFAULTS.fallbackDurationSeconds;
 
   return {
     durationInFrames: Math.ceil(totalDuration * fps),
@@ -57,12 +60,12 @@ const calcMeta = async ({ props }: { props: Record<string, unknown> }) => {
 
 /** 默认 props（CLI 模式下被 --props 覆盖，Studio 模式下被 calculateMetadata 返回的 props 覆盖） */
 const defaultProps: ScriptProps = {
-  width: 1920,
-  height: 1080,
-  fps: 24,
-  bgColor: "#fbf4e8",
+  width: VIDEO_DEFAULTS.width,
+  height: VIDEO_DEFAULTS.height,
+  fps: VIDEO_DEFAULTS.fps,
+  bgColor: VIDEO_DEFAULTS.bgColor,
   title: "",
-  totalDuration: 10,
+  totalDuration: VIDEO_DEFAULTS.fallbackDurationSeconds,
   segments: [],
   audioDir: "",
 };
@@ -92,23 +95,24 @@ const CardShellDemoWrapper: React.FC<Record<string, unknown>> = (rawProps) => {
 export const Root: React.FC = () => {
   return (
     <>
+      <style>{FONT_CSS}</style>
       <Composition
         id="HNTechPulseComposition"
         component={ValidatedComposition}
-        durationInFrames={240}
-        fps={24}
-        width={1920}
-        height={1080}
+        durationInFrames={VIDEO_DEFAULTS.durationInFrames}
+        fps={VIDEO_DEFAULTS.fps}
+        width={VIDEO_DEFAULTS.width}
+        height={VIDEO_DEFAULTS.height}
         defaultProps={defaultProps}
         calculateMetadata={calcMeta}
       />
       <Composition
         id="CoverThumbnail"
         component={CoverThumbnailWrapper}
-        durationInFrames={1}
-        fps={24}
-        width={1920}
-        height={1080}
+        durationInFrames={VIDEO_DEFAULTS.stillDurationInFrames}
+        fps={VIDEO_DEFAULTS.fps}
+        width={VIDEO_DEFAULTS.width}
+        height={VIDEO_DEFAULTS.height}
         defaultProps={{
           backgroundImage: "cover_test.png",
           title: "开源、隐私、和一行没写的代码",
@@ -119,39 +123,39 @@ export const Root: React.FC = () => {
       <Composition
         id="CardShellDemo-Fill"
         component={CardShellDemoWrapper}
-        durationInFrames={60}
-        fps={24}
-        width={1920}
-        height={1080}
+        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
+        fps={VIDEO_DEFAULTS.fps}
+        width={VIDEO_DEFAULTS.width}
+        height={VIDEO_DEFAULTS.height}
         defaultProps={{
           mode: "start",
-          title: "今日信号 · 2026-06-02",
+          title: "今日回顾 · 2026-06-02",
           itemCount: 6,
         }}
       />
       <Composition
         id="CardShellDemo-Center"
         component={CardShellDemoWrapper}
-        durationInFrames={60}
-        fps={24}
-        width={1920}
-        height={1080}
+        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
+        fps={VIDEO_DEFAULTS.fps}
+        width={VIDEO_DEFAULTS.width}
+        height={VIDEO_DEFAULTS.height}
         defaultProps={{
           mode: "center",
-          title: "今日信号 · 2026-06-02",
+          title: "今日回顾 · 2026-06-02",
           itemCount: 1,
         }}
       />
       <Composition
         id="CardShellDemo-Evenly"
         component={CardShellDemoWrapper}
-        durationInFrames={60}
-        fps={24}
-        width={1920}
-        height={1080}
+        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
+        fps={VIDEO_DEFAULTS.fps}
+        width={VIDEO_DEFAULTS.width}
+        height={VIDEO_DEFAULTS.height}
         defaultProps={{
           mode: "evenly",
-          title: "今日信号 · 2026-06-02",
+          title: "今日回顾 · 2026-06-02",
           itemCount: 3,
         }}
       />

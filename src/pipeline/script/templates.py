@@ -49,7 +49,7 @@ def highlight_audio_text(entries: list[dict]) -> str:
         assert title, f"Story {idx} missing title_translation"
         title = str(title).strip()
         if len(title) > 18:
-            title = title[:18].rstrip("，。！？；：,.!?;:") + "…"
+            title = _compact_copy(title, 18)
         ordinal = CHINESE_ORDINALS[idx] if idx < len(CHINESE_ORDINALS) else str(idx + 1)
         labels.append(f"第{ordinal}，{title}")
     if not labels:
@@ -134,7 +134,12 @@ def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
     text = _normalize(text)
     if len(text) <= max_len:
         return text
-    return text[: max_len - 1].rstrip("，。！？；：,.!?;: ") + "…"
+    for sep in _CLAUSE_SEPARATORS:
+        if sep in text:
+            head = text.split(sep, 1)[0].strip()
+            if 0 < len(head) <= max_len:
+                return head
+    return text[:max_len].rstrip("，。！？；：,.!?;: ")
 
 
 def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
@@ -153,6 +158,29 @@ def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
         raw = str(value)
         shortened = _shorten_clause(raw)
         return _compact_copy(shortened or raw, max_len)
+    return "技术信号"
+
+
+def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
+    """Opening narration hook: compact but never ellipsized."""
+
+    def _shorten_clause(text: str) -> str:
+        text = _normalize(text)
+        for sep in _CLAUSE_SEPARATORS:
+            if sep in text:
+                text = text.split(sep, 1)[0].strip()
+                break
+        return _strip_noise(text)
+
+    for key in ("signal", "editor_angle", "title_translation", "original_title"):
+        value = entry.get(key)
+        if not value:
+            continue
+        raw = str(value)
+        shortened = _shorten_clause(raw) or _normalize(raw)
+        if len(shortened) <= max_len:
+            return shortened
+        return shortened[:max_len].rstrip("，。！？；：,.!?;: ")
     return "技术信号"
 
 
@@ -187,7 +215,7 @@ def _opening_audio(entries: list[dict]) -> str:
     rule = _daily_thesis(entries)
     thesis = f"{rule['prefix']}{rule['body']}"
     hooks = "、".join(
-        _entry_hook(e, OPENING_HOOK_MAX_LEN) for e in entries[:3]
+        _entry_spoken_hook(e) for e in entries[:3]
     )
     return f"早上好，这里是HN每日观察。{thesis}今天看{hooks}。"
 
@@ -265,20 +293,16 @@ def generate_fixed_opening(
     if not hook_parts and top3_titles:
         hook_parts = top3_titles[:3]
     if hook_parts:
-        # Compact each hook once; reuse the compacted form when we have to
-        # drop tail items so a single un-compacted editor_angle never leaks
-        # past the joiner. Threshold ≈ 3 × 14 + 2 separators of " · " (6 chars)
-        # so all three compacted hooks fit comfortably on a 1920-wide badge
-        # without entering the fallback path.
+        # Compact each hook once; if the full subtitle still does not fit,
+        # drop tail hooks instead of adding ellipses.
         compacted = [_compact_copy(part, 14) for part in hook_parts]
         subtitle = " · ".join(compacted)
         if len(subtitle) > 50:
-            # 截断最后一个 hook, 保持 ≤50 字
             while len(subtitle) > 50 and len(compacted) > 1:
                 compacted.pop()
-                subtitle = " · ".join(compacted) + " · …"
+                subtitle = " · ".join(compacted)
             if len(subtitle) > 50:
-                subtitle = subtitle[:49].rstrip(" ，,;；:：") + "…"
+                subtitle = _compact_copy(subtitle, 50)
     else:
         subtitle = date_display  # fallback 到日期
 
@@ -399,7 +423,7 @@ def closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[st
         assert text, "Story missing why_it_matters"
         text = str(text).strip()
         if len(text) > 34:
-            text = text[:34].rstrip("，。！？；：,.!?;:") + "…"
+            text = _compact_copy(text, 34)
         takeaways.append(text)
     return takeaways[:3]
 
@@ -417,7 +441,6 @@ def generate_fixed_closing(
     audio_text = _closing_audio(highlight_entries or [], weekday)
     duration = 12 if len(audio_text) > 55 else 9
     takeaways = closing_takeaways(highlight_entries)
-    signal = "今日信号"
     kw = closing_keywords(highlight_entries)
     summary_items = closing_summary_items(highlight_entries)
     totals = closing_totals(highlight_entries)
@@ -432,8 +455,6 @@ def generate_fixed_closing(
                 start_time=0.0,
                 end_time=duration,
                 props={
-                    "signal_label": "今日信号",
-                    "signal": signal,
                     "keywords_label": "今日关键词",
                     "keywords": kw,
                     "summary_label": "今日脉络",

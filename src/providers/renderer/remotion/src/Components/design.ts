@@ -5,23 +5,18 @@ import { Easing, useVideoConfig } from "remotion";
 const REF_WIDTH = 1920;
 const REF_HEIGHT = 1080;
 
-/**
- * 手机端字号放大系数 (B 站主战场)
- *
- * 视频输出 1920×1080,在 B 站手机端(竖屏)实际显示宽度约 380-420pt,
- * 缩放因子 ≈ 0.21。原始 FS.body=32 在手机端实际只有 ~6.7pt,
- * 远低于 iOS 11pt 的可读阈值,导致副文本(pill/caption/micro)几乎看不清。
- *
- * 把所有 fs 字段统一乘这个 boost,等价于"在视频里就把字做大",
- * 让手机端最终显示的字号回到可读区间。桌面端(全屏 1920×1080)
- * 字号会略大,密度下降,但在 1080p 全屏下仍可接受。
- *
- * 调这个常量即可全局调整;不要在卡片里单独硬编码。
- */
-const MOBILE_FONT_BOOST = 1.3;
+const TEMPLATE_TO_1080P_SCALE = 1.5;
 
-/** 文字上下文间距放大系数(比字号 boost 小,避免过度稀释密度) */
-const MOBILE_GAP_BOOST = 1.15;
+export const VIDEO_DEFAULTS = {
+  width: REF_WIDTH,
+  height: REF_HEIGHT,
+  fps: 24,
+  durationInFrames: 240,
+  fallbackDurationSeconds: 10,
+  demoDurationInFrames: 60,
+  stillDurationInFrames: 1,
+  bgColor: "#fbf4e8",
+} as const;
 
 /** Keynote 风格暗色设计系统（基于 1080p 参考值，运行时按实际分辨率缩放） */
 
@@ -127,6 +122,21 @@ export const COLORS = {
   panel: "#fffdf8", // --color-panel
 };
 
+export const SHADOWS = {
+  card: "0 24px 60px rgba(32,25,20,0.16)",
+  panel: "0 4px 12px rgba(32,25,20,0.04)",
+  brandBadge: "0 4px 12px rgba(255,102,0,0.24)",
+  titleLight: "0 2px 12px rgba(0,0,0,0.6)",
+  titleStrong: "0 2px 20px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)",
+} as const;
+
+export const SURFACES = {
+  panel: "rgba(255,253,248,0.82)",
+  tag: "rgba(255,255,255,0.48)",
+  subtitle: "rgba(254,252,248,0.88)",
+  cardBorder: "1px solid rgba(32,25,20,0.08)",
+} as const;
+
 /** 1080p 参考布局值（运行时按实际尺寸缩放） */
 export const LAYOUT = {
   pageInset: 96,
@@ -149,25 +159,42 @@ export const LAYOUT = {
   subtitleMaxWidth: 1216,
 };
 
-/** 1080p 参考字号（运行时按实际尺寸缩放） */
+export const COMMON_LAYOUT = {
+  circleRadius: "50%",
+  pillRadius: 999,
+  smallRadius: 6,
+  hairlineRadius: 2,
+  dividerRadius: 3,
+  panelRadius: 21,
+  sectionMarkerWidth: 6,
+  sectionMarkerHeight: 27,
+  sectionRuleWidth: 5,
+  numDiscSize: 57,
+  metricGap: 12,
+  metricPaddingY: 12,
+  metricPaddingX: 24,
+  panelPaddingY: 24,
+  panelPaddingX: 30,
+  panelGap: 24,
+  itemGap: 18,
+  contentGap: 30,
+  riseSmall: 12,
+  riseMedium: 16,
+  riseLarge: 28,
+} as const;
+
+/** Reference template text tokens, converted from 1280x720 to 1920x1080. */
 export const FS = {
-  hero: 80,
-  headline: 58,
-  subhead: 40,
-  closing: 72,
-
-  body: 32,
-  bodySmall: 26,
-  bodyLg: 30,
-  subtitle2: 26,
-
-  label: 26,
-  caption: 22,
-  pill: 17,
-  micro: 15,
-
-  watermark: 85,
-  watermarkLg: 113,
+  text6xl: 64 * TEMPLATE_TO_1080P_SCALE,
+  text5xl: 54 * TEMPLATE_TO_1080P_SCALE,
+  text4xl: 44 * TEMPLATE_TO_1080P_SCALE,
+  text3xl: 34 * TEMPLATE_TO_1080P_SCALE,
+  text2xl: 28 * TEMPLATE_TO_1080P_SCALE,
+  textXl: 24 * TEMPLATE_TO_1080P_SCALE,
+  textLg: 21 * TEMPLATE_TO_1080P_SCALE,
+  textBase: 20 * TEMPLATE_TO_1080P_SCALE,
+  textSm: 16 * TEMPLATE_TO_1080P_SCALE,
+  textXs: 14 * TEMPLATE_TO_1080P_SCALE,
   subtitle: 40,
 };
 
@@ -186,10 +213,8 @@ export interface DesignTokens {
 function createDesignTokens(width: number, height: number): DesignTokens {
   const scale = Math.min(width / REF_WIDTH, height / REF_HEIGHT);
   const scaled = (px: number) => Math.round(px * scale);
-  // 字号专用:全量乘 MOBILE_FONT_BOOST 解决 B 站手机端字号过小
-  const fsScaled = (px: number) => Math.round(px * scale * MOBILE_FONT_BOOST);
-  // 间距专用:同步放大(系数小于字号,避免内容布局过度稀释)
-  const gapScaled = (px: number) => Math.round(px * scale * MOBILE_GAP_BOOST);
+  const fsScaled = (px: number) => Math.round(px * scale);
+  const gapScaled = scaled;
 
   const isPortrait = height > width;
   const isCompactHeight = scale < 0.8;
@@ -218,20 +243,16 @@ function createDesignTokens(width: number, height: number): DesignTokens {
   };
 
   const fs: typeof FS = {
-    hero: fsScaled(FS.hero),
-    headline: fsScaled(FS.headline),
-    subhead: fsScaled(FS.subhead),
-    closing: fsScaled(FS.closing),
-    body: fsScaled(FS.body),
-    bodySmall: fsScaled(FS.bodySmall),
-    bodyLg: fsScaled(FS.bodyLg),
-    subtitle2: fsScaled(FS.subtitle2),
-    label: fsScaled(FS.label),
-    caption: fsScaled(FS.caption),
-    pill: fsScaled(FS.pill),
-    micro: fsScaled(FS.micro),
-    watermark: fsScaled(FS.watermark),
-    watermarkLg: fsScaled(FS.watermarkLg),
+    text6xl: fsScaled(FS.text6xl),
+    text5xl: fsScaled(FS.text5xl),
+    text4xl: fsScaled(FS.text4xl),
+    text3xl: fsScaled(FS.text3xl),
+    text2xl: fsScaled(FS.text2xl),
+    textXl: fsScaled(FS.textXl),
+    textLg: fsScaled(FS.textLg),
+    textBase: fsScaled(FS.textBase),
+    textSm: fsScaled(FS.textSm),
+    textXs: fsScaled(FS.textXs),
     subtitle: fsScaled(FS.subtitle),
   };
 
@@ -341,14 +362,6 @@ export const ChapterProvider: React.FC<{
 }> = ({ chapter, children }) =>
   React.createElement(ChapterContext.Provider, { value: chapter }, children);
 
-/** element_type → chapter 的标准映射（GlobalChrome / 卡片均可用） */
-export const ELEMENT_TYPE_TO_CHAPTER: Record<string, ChapterName> = {
-  cover_card: "cover",
-  event_card: "focus",
-  atmosphere_card: "atmosphere",
-  closing_card: "closing",
-};
-
 /** 暖纸卡片样式 */
 export const glassCardShadow = `0 2px 16px rgba(32,25,20,0.08), 0 1px 3px rgba(32,25,20,0.04)`;
 
@@ -358,6 +371,7 @@ export const glassGlow = `0 0 32px rgba(255,102,0,0.06), 0 4px 16px rgba(32,25,2
 export const GRADIENTS = {
   brandBar: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brand})`,
   accentFill: `linear-gradient(90deg, ${COLORS.accent}, ${COLORS.accentLight})`,
+  accentSoft: `linear-gradient(90deg, ${COLORS.brand}, ${COLORS.brandSoft}, transparent)`,
   shimmerSweep: `linear-gradient(105deg, transparent 40%, ${COLORS.surfaceLow} 48%, ${COLORS.surfaceLow} 52%, transparent 60%)`,
   divider: `linear-gradient(90deg, ${COLORS.brand}, transparent)`,
   subtitleMinimal: `linear-gradient(90deg, rgba(251,244,232,0), ${COLORS.bgTint75} 16%, ${COLORS.bgTint75} 84%, rgba(251,244,232,0))`,
@@ -391,10 +405,10 @@ export const CARD_PAD = {
 export const CARD_LAYOUT = {
   /** 卡片内边距 (对齐模板: 1280→1920, 1.5×) */
   padding: {
-    top: 64,
-    bottom: 160, // 对齐模板 --card-safe-bottom: 112px → 168px
-    left: 70, // 对齐模板 --card-padding-x: 46px → 69px
-    right: 70,
+    top: 63,
+    bottom: 168,
+    left: 69,
+    right: 69,
   },
 
   /** Header 区域（品牌名 + live-dot + 日期） */
@@ -420,15 +434,205 @@ export const CARD_LAYOUT = {
   /** 渐变分隔线 (对齐模板 card::after: bottom = safe-bottom - 34px) */
   divider: {
     height: 2,
-    maxWidth: 900,
+    maxWidth: 1560,
     borderRadius: 1,
   },
 
   /** 内容区最大宽度 */
   content: {
-    maxWidth: 1400,
-    wideMaxWidth: 1600,
+    maxWidth: 1560,
+    wideMaxWidth: 1782,
   },
+
+  shell: {
+    radius: 27,
+    topBarTop: 63,
+    dividerBottom: 117,
+    headerSlotTop: 63,
+    headerContentTop: 30,
+    subtitleReserve: 255,
+    contentGap: 36,
+    footerTop: 30,
+    brandGap: 12,
+    dateGap: 18,
+    liveDotSize: 14,
+    chapterLabelTop: 15,
+    chapterLabelGap: 8,
+    chapterLabelMaxWidth: 560,
+    chapterLabelPaddingY: 7,
+    chapterLabelPaddingX: 18,
+    chapterLabelDotSize: 6,
+  },
+} as const;
+
+export const COVER_LAYOUT = {
+  gutter: CARD_LAYOUT.padding.left,
+  paddingTop: CARD_LAYOUT.padding.top,
+  paddingBottom: CARD_LAYOUT.padding.bottom,
+  fillGap: 36,
+  rowGap: 24,
+  rowPaddingY: 24,
+  rowStagger: 6,
+  rankBadgeSize: COMMON_LAYOUT.numDiscSize,
+  titleGap: 24,
+  originalGap: 6,
+  headlineMaxWidth: 1560,
+  deckMaxWidth: 1350,
+  dividerMaxWidth: 1200,
+  dividerHeight: 6,
+  dividerRadius: 3,
+  dotSize: 8,
+  dotGap: 6,
+  decorRightOffset: 20,
+  decorTop: 140,
+  decorWidth: 2,
+  decorHeight: 300,
+  decorRadius: 1,
+  decorStart: 6,
+  decorEnd: 24,
+} as const;
+
+export const EVENT_LAYOUT = {
+  gutter: CARD_LAYOUT.padding.left,
+  paddingTop: CARD_LAYOUT.padding.top,
+  paddingBottom: CARD_LAYOUT.padding.bottom,
+  badgeGap: 6,
+  badgePaddingY: 6,
+  badgePaddingX: 16,
+  badgeRadius: 4,
+  titleEnMarginTop: -12,
+  titleEnMarginBottom: 2,
+  headerGap: 16,
+  statsGap: 12,
+  heatPaddingX: 18,
+  analysisGap: 12,
+  analysisMaxWidth: 690,
+  analysisItemGap: 24,
+  analysisBarMinHeight: 56,
+  tagGap: 8,
+  tagPaddingY: 6,
+  tagPaddingX: 18,
+  tagMaxWidth: 360,
+  imageWidth: 760,
+  imageTextReserve: 0,
+  imageTop: 0,
+  imageBottom: 0,
+  imageRadius: 21,
+  imageMaskHeight: 120,
+  logoWidth: 220,
+  twoColumnGap: 36,
+  textGap: 24,
+  bodyColumnGap: 36,
+  bodyRowGap: 24,
+  metaMinHeight: 63,
+  imageMinHeight: 405,
+  titleMaxWidth: 1500,
+  titleScale: 0.94,
+  bodyMaxHeight: 445,
+} as const;
+
+export const ATMOSPHERE_LAYOUT = {
+  gutter: CARD_LAYOUT.padding.left,
+  paddingTop: CARD_LAYOUT.padding.top,
+  paddingBottom: CARD_LAYOUT.padding.bottom,
+  fillGap: 24,
+  summaryMaxWidth: 1350,
+  gridGap: 30,
+  gridColumns: [0.9, 1.05, 1.05],
+  panelMinHeight: 405,
+  stanceRowGap: 8,
+  stanceBarHeight: 17,
+  focusGap: 18,
+  quoteLimit: 3,
+} as const;
+
+export const BACKGROUND_LAYOUT = {
+  width: REF_WIDTH,
+  height: REF_HEIGHT,
+  dotGridSize: 40,
+  glowBlur: 40,
+  glowDriftAmplitude: 30,
+  glowTransparentStop: 55,
+} as const;
+
+export const CARD_WAVEFORM_LAYOUT = {
+  barCount: 56,
+  barWidth: 10,
+  barGap: 4,
+  maxHeight: 44,
+  leftOffset: 32,
+} as const;
+
+export const WAVEFORM_LAYOUT = {
+  barCount: 28,
+  barWidth: 6,
+  barGap: 4,
+  maxHeight: 80,
+  bottomOffset: 20,
+  fallbackMinHeight: 4,
+  fallbackAmplitude: 0.2,
+  simulatedMinAmplitude: 0.05,
+  simulatedBaseAmplitude: 0.5,
+  frameSpeed: 0.06,
+  barPhaseStep: 0.35,
+  opacityBase: 0.35,
+  opacityScale: 0.25,
+  canvasWidth: REF_WIDTH,
+} as const;
+
+export const AUDIO_ANALYSIS_LAYOUT = {
+  silenceFloor: 1e-6,
+  dbRange: 80,
+  minVisualAmplitude: 0.02,
+} as const;
+
+export const CLOSING_LAYOUT = {
+  gutter: CARD_LAYOUT.padding.left,
+  paddingTop: CARD_LAYOUT.padding.top,
+  paddingBottom: CARD_LAYOUT.padding.bottom,
+  fillGap: 36,
+  listGap: 24,
+  rowGap: 24,
+  subtitleMarginTop: 6,
+  centerThreshold: 3,
+  titleScale: 0.86,
+} as const;
+
+export const SUBTITLE_LAYOUT = {
+  cueToleranceSeconds: 0.05,
+  fadeOutSeconds: 0.5,
+  fadeInSeconds: 0.15,
+  bottomOffset: 8,
+  paddingY: 7,
+  paddingX: 24,
+  minHeight: 42,
+  opacity: 0.84,
+  radius: 12,
+  fontScale: 0.8,
+  lineHeight: 1.35,
+  maxLines: 2,
+  enterSlideY: 6,
+  exitSlideY: 4,
+} as const;
+
+export const PROGRESS_LAYOUT = {
+  fadeInFrames: 12,
+  barHeight: 3,
+  tickHeight: 8,
+  tickWidth: 1.5,
+  tickRadius: 1,
+  outerPaddingBottom: 8,
+} as const;
+
+export const COMPOSITION_LAYOUT = {
+  fadeFrames: 6,
+  transitionFrames: 12,
+  chapterTitleMaxChars: 14,
+  chapterTitleSliceChars: 13,
+} as const;
+
+export const TIMING_LAYOUT = {
+  segmentFadeFrames: 6,
 } as const;
 
 /** Standard animation timing (frames at 30fps) */

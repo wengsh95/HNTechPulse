@@ -89,7 +89,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
               background: COLORS.brand,
               color: "#fff",
               fontWeight: FW.bold,
-              fontSize: d.fs.caption,
+              fontSize: d.fs.textXs,
               letterSpacing: "0.1em",
               borderRadius: d.scaled(4),
             }}
@@ -113,7 +113,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
           {/* Title */}
           <h1
             style={{
-              fontSize: d.fs.headline,
+              fontSize: d.fs.text4xl,
               fontWeight: FW.heavy,
               lineHeight: 1.15,
               letterSpacing: "-0.015em",
@@ -162,7 +162,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
                 >
                   <span
                     style={{
-                      fontSize: d.fs.body,
+                      fontSize: d.fs.textBase,
                       fontWeight: FW.heavy,
                       color: COLORS.fg,
                       lineHeight: 1.3,
@@ -172,7 +172,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
                   </span>
                   <span
                     style={{
-                      fontSize: d.fs.bodySmall,
+                      fontSize: d.fs.textSm,
                       color: COLORS.muted,
                       lineHeight: 1.5,
                     }}
@@ -187,7 +187,7 @@ export const CardShellDemo: React.FC<CardShellDemoProps> = ({
           {/* Footer line */}
           <p
             style={{
-              fontSize: d.fs.bodySmall,
+              fontSize: d.fs.textSm,
               color: COLORS.dim,
               marginTop: d.scaled(20),
               opacity: bodyProgress,

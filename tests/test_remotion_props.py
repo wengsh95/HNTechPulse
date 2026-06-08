@@ -5,6 +5,7 @@ from src.core.models import (
     ContentItem,
     ContentComment,
     ContentPackage,
+    Cue,
     Script,
     ScriptSegment,
     SceneElement,
@@ -459,6 +460,25 @@ class TestBuildCues:
         logger = MagicMock()
         cues = build_cues(seg, 5.0, logger)
         assert len(cues) >= 1
+
+    def test_existing_long_cue_is_split_for_display(self):
+        seg = _make_script_segment(audio_text="", duration=12.0)
+        seg.cues = [
+            Cue(
+                text="早上好，这里是HN每日观察。今天的主线是开发者工具正在变快，但维护成本和信任边界也被重新摊开。你最担心哪一个变化？",
+                start_time=0.0,
+                end_time=12.0,
+            )
+        ]
+        logger = MagicMock()
+
+        cues = build_cues(seg, 12.0, logger)
+
+        assert len(cues) > 1
+        assert cues[0]["start_time"] == 0.0
+        assert cues[-1]["end_time"] == 12.0
+        for left, right in zip(cues, cues[1:]):
+            assert right["start_time"] == pytest.approx(left["end_time"])
 
 
 # ── _split_into_cues ───────────────────────────────────────────────────

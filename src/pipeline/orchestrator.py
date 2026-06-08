@@ -25,7 +25,6 @@ from src.pipeline.content_io import ContentPreparer
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
 from src.providers.renderer.binary_finder import find_npx
-from src.pipeline.report_generator import ReportGenerator
 from src.pipeline.script import ScriptWriter
 from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.transcript_generator import save_transcript
@@ -158,7 +157,6 @@ class Orchestrator:
         self.translation_manager = TranslationManager(
             llm_provider, self.content_preparer, config, debug=debug, level=log_level
         )
-        self.report_generator = ReportGenerator(debug=debug, level=log_level)
         self.comment_analyzer = CommentAnalyzer(config, debug=debug)
         self.comment_refiner = CommentRefiner(llm_provider, config, debug=debug)
         self.comment_judge = CommentJudge(
@@ -373,8 +371,7 @@ class Orchestrator:
         if script and SCRIPT_MUTATING_STEPS & set(steps):
             save_transcript(script, date, content, logger=self.logger)
 
-        elapsed = self._progress.elapsed()
-        self.report_generator.generate(date, steps, elapsed, content, script)
+        # report.md generation disabled
         if self._agent_state:
             self._agent_state.finish_run()
 
@@ -884,8 +881,10 @@ class Orchestrator:
             config=self.config,
         )
 
-        remotion_dir = Path("src/providers/renderer/remotion")
-        public_bg = remotion_dir / "public" / bg_path.name
+        # Mirror the cover background into the per-date Remotion runtime dir
+        # so the source tree stays clean. The renderer also points
+        # --public-dir here when rendering.
+        public_bg = Path(f"data/{date}/remotion/public") / bg_path.name
         public_bg.parent.mkdir(parents=True, exist_ok=True)
         try:
             same_file = public_bg.samefile(bg_path)
@@ -938,6 +937,7 @@ class Orchestrator:
             f"--props={props_path.resolve()}",
             "--frame=0",
             f"--output={output_abs}",
+            f"--public-dir={Path(f'data/{date}/remotion/public').resolve()}",
         ]
         try:
             result = subprocess.run(
@@ -1139,7 +1139,8 @@ class Orchestrator:
         # by cache_paths() above. Keep this fallback for any renderer that
         # doesn't opt in.
         remotion_dir = Path("src/providers/renderer/remotion")
-        chunk_dir = remotion_dir / "out" / "chunks"
+        # Match the new per-date runtime layout: data/{date}/remotion/chunks.
+        chunk_dir = Path(f"data/{date}/remotion/chunks")
         if chunk_dir.exists() and not any(
             str(p).startswith(str(remotion_dir)) for p in self.renderer.cache_paths(date)
         ):

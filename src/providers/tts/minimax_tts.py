@@ -56,51 +56,52 @@ class MinimaxTTSProvider(TTSProvider):
 
             headers = {"Authorization": f"Bearer {self.api_key}"}
 
-            ws = await websockets.connect(
+            audio_data = b""
+            async with websockets.connect(
                 "wss://api.minimaxi.com/ws/v1/t2a_v2",
                 additional_headers=headers,
                 ssl=ssl_context,
-            )
-            connected = json.loads(await ws.recv())
-            if connected.get("event") != "connected_success":
-                raise RuntimeError(f"MiniMax connection failed: {connected}")
+                close_timeout=2,
+                ping_interval=None,
+            ) as ws:
+                connected = json.loads(await ws.recv())
+                if connected.get("event") != "connected_success":
+                    raise RuntimeError(f"MiniMax connection failed: {connected}")
 
-            start_msg = {
-                "event": "task_start",
-                "model": self.model,
-                "voice_setting": {
-                    "voice_id": self.voice_id,
-                    "speed": self.speed,
-                    "vol": self.vol,
-                    "pitch": self.pitch,
-                    "english_normalization": self.english_normalization,
-                },
-                "audio_setting": {
-                    "sample_rate": self.sample_rate,
-                    "bitrate": self.bitrate,
-                    "format": self.audio_format,
-                    "channel": self.channel,
-                },
-            }
-            await ws.send(json.dumps(start_msg))
-            response = json.loads(await ws.recv())
-            if response.get("event") != "task_started":
-                raise RuntimeError(f"MiniMax task start failed: {response}")
-
-            await ws.send(json.dumps({"event": "task_continue", "text": text}))
-
-            audio_data = b""
-            while True:
+                start_msg = {
+                    "event": "task_start",
+                    "model": self.model,
+                    "voice_setting": {
+                        "voice_id": self.voice_id,
+                        "speed": self.speed,
+                        "vol": self.vol,
+                        "pitch": self.pitch,
+                        "english_normalization": self.english_normalization,
+                    },
+                    "audio_setting": {
+                        "sample_rate": self.sample_rate,
+                        "bitrate": self.bitrate,
+                        "format": self.audio_format,
+                        "channel": self.channel,
+                    },
+                }
+                await ws.send(json.dumps(start_msg))
                 response = json.loads(await ws.recv())
-                if "data" in response and "audio" in response["data"]:
-                    audio = response["data"]["audio"]
-                    if audio:
-                        audio_data += bytes.fromhex(audio)
-                if response.get("is_final"):
-                    break
+                if response.get("event") != "task_started":
+                    raise RuntimeError(f"MiniMax task start failed: {response}")
 
-            await ws.send(json.dumps({"event": "task_finish"}))
-            await ws.close()
+                await ws.send(json.dumps({"event": "task_continue", "text": text}))
+
+                while True:
+                    response = json.loads(await ws.recv())
+                    if "data" in response and "audio" in response["data"]:
+                        audio = response["data"]["audio"]
+                        if audio:
+                            audio_data += bytes.fromhex(audio)
+                    if response.get("is_final"):
+                        break
+
+                await ws.send(json.dumps({"event": "task_finish"}))
 
             if not audio_data:
                 raise RuntimeError("MiniMax TTS returned no audio data")

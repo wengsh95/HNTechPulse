@@ -231,7 +231,7 @@ class TestScriptWriter:
             == "c1"
         )
 
-    def test_closing_card_includes_daily_signal(self):
+    def test_closing_card_omits_daily_signal_heading(self):
         writer = ScriptWriter(_make_config(), MagicMock(), debug=True)
         segment = writer._generate_fixed_closing(
             "2026-04-26",
@@ -252,8 +252,8 @@ class TestScriptWriter:
         )
 
         props = segment.scene_elements[0].props
-        assert props["signal_label"] == "今日信号"
-        assert props["signal"] == "今日信号"
+        assert "signal_label" not in props
+        assert props.get("signal") != "今日信号"
         assert props["keywords_label"] == "今日关键词"
         assert props["keywords"] == ["AI", "Agents", "Infra"]
         assert props["summary_label"] == "今日脉络"
@@ -383,17 +383,17 @@ class TestScriptTemplates:
         assert "周末也会继续留意" in _closing_audio(entries, weekday=5)
         assert "想每天用几分钟" in _closing_audio(entries, weekday=2)
 
-    def test_compact_copy_normalizes_then_truncates(self):
+    def test_compact_copy_normalizes_then_compacts_without_ellipsis(self):
         from src.pipeline.script.templates import _compact_copy
 
         # CJK↔ASCII spaces get tightened first
         assert _compact_copy("Meta 自家 AI 大模型", 14) == "Meta自家AI大模型"
         # Short input passes through unchanged
         assert _compact_copy("短的", 14) == "短的"
-        # Over-length gets ellipsis at max_len - 1
+        # Over-length gets compacted without adding ellipsis
         out = _compact_copy("这是一个非常非常长的副标题需要被截断处理一下", 14)
         assert len(out) <= 14
-        assert out.endswith("…")
+        assert "…" not in out
         # None / empty safe
         assert _compact_copy("", 14) == ""
         assert _compact_copy(None, 14) == ""
@@ -407,8 +407,8 @@ class TestScriptTemplates:
         assert _entry_hook({"editor_angle": "Nvidia本地CPU：Windows PC新方案"}) == "Nvidia本地CPU"
         # then title_translation (no separator, no noise)
         assert _entry_hook({"title_translation": "Anthropic融资递表"}) == "Anthropic融资递表"
-        # then original_title; long enough to trigger truncation
-        assert _entry_hook({"original_title": "Some English Title"}) == "Some English…"
+        # then original_title; long enough to trigger compaction
+        assert _entry_hook({"original_title": "Some English Title"}) == "Some English T"
         # finally the placeholder when nothing is provided
         assert _entry_hook({}) == "技术信号"
 
@@ -420,3 +420,26 @@ class TestScriptTemplates:
         # After clause split on spaces (no separator), only noise strip applies
         assert "评论区" not in out
         assert "变成" not in out
+
+    def test_opening_audio_does_not_ellipsize_spoken_hooks(self):
+        from src.pipeline.script.templates import _opening_audio
+
+        entries = [
+            {
+                "signal": "LLM正把专家工程师拉平成可复制的提示词操作者",
+                "editor_angle": "十年支付后端工程师称三大专业壁垒已被LLM逐个击穿",
+            },
+            {
+                "signal": "多智能体写代码的瓶颈不在生成，而在反复评审吃掉的token。",
+                "editor_angle": "ChatDev跑30个SDLC任务发现评审吃掉六成token",
+            },
+            {
+                "signal": "游戏停服后玩家一无所有，立法和钱包投票到底谁管用",
+                "editor_angle": "玩家发起运动迫使欧盟与立法机构介入游戏停运争议",
+            },
+        ]
+
+        audio = _opening_audio(entries)
+
+        assert "…" not in audio
+        assert "今天看" in audio

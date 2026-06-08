@@ -840,7 +840,8 @@ class HyperFramesRenderer(Renderer):
                     ]
                 )
             paths.append(self.project_dir / "public" / "images" / name)
-            paths.append(Path("src/providers/renderer/remotion/public/images") / name)
+            # Per-date Remotion runtime dir is where audio/images now live.
+            paths.append(Path("data") / date / "remotion" / "public" / "images" / name)
             return paths
 
         for scene in scenes_payload.get("scenes", []):

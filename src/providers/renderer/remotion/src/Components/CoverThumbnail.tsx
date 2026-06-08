@@ -145,7 +145,7 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
             lineHeight: 1.15,
             color: "#ffffff",
             margin: 0,
-            whiteSpace: "pre-line",  // 保留 \n 自动换行；其他空白折叠
+            whiteSpace: "pre-line", // 保留 \n 自动换行；其他空白折叠
             textShadow: "0 2px 20px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)",
             maxWidth: "100%",
           }}

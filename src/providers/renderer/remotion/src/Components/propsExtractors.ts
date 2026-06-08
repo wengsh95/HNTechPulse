@@ -146,6 +146,7 @@ export function extractEventProps(elementProps: Record<string, unknown>): EventC
     keywords,
     imageUrl,
     logoUrl,
+    imageType,
   };
 }
 
@@ -241,8 +242,8 @@ export function extractAtmosphereProps(elementProps: Record<string, unknown>): A
 // ---- ClosingCard ----
 
 export function extractClosingProps(elementProps: Record<string, unknown>): ClosingCardProps {
-  const signalLabel = str(elementProps.signal_label, "今日信号");
-  const summary = str(elementProps.signal) || str(elementProps.question) || "";
+  const rawSummary = str(elementProps.signal) || str(elementProps.question) || "";
+  const summary = rawSummary.trim() === "今日信号" ? "" : rawSummary;
 
   const keywords = arr<string>(elementProps.keywords)
     .filter((k): k is string => typeof k === "string" && k.length > 0)
@@ -272,7 +273,6 @@ export function extractClosingProps(elementProps: Record<string, unknown>): Clos
   const vibe = str(elementProps.visual_mood, "");
 
   return {
-    signalLabel,
     summary,
     keywords,
     takeaways,

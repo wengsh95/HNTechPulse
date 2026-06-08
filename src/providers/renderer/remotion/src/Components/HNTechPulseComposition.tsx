@@ -8,10 +8,15 @@ import React, { useMemo } from "react";
 import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
-import { Subtitle, ClosingCard, CoverCard, EventCard, AtmosphereCard } from "./Elements";
+import { Subtitle } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
-import { COLORS, ChapterName, ChapterProvider, ELEMENT_TYPE_TO_CHAPTER, S } from "./design";
+import { COLORS, ChapterName, ChapterProvider, COMPOSITION_LAYOUT, S } from "./design";
+import {
+  cardChapterForElementType,
+  getCardRegistryEntry,
+  isStoryMarkerElement,
+} from "./cardRegistry";
 import { segmentTransitionOpacity } from "./timing";
 
 type StoryChapter = {
@@ -31,8 +36,6 @@ type StoryEvent = {
   props: Record<string, unknown>;
 };
 
-const STORY_MARKER_TYPES = new Set(["event_card"]);
-
 const asNumber = (value: unknown): number | undefined => {
   const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
@@ -50,7 +53,7 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
 
   segments.forEach((seg) => {
     seg.scene_elements.forEach((elem) => {
-      if (!STORY_MARKER_TYPES.has(elem.element_type)) return;
+      if (!isStoryMarkerElement(elem)) return;
 
       const props = elem.props as Record<string, unknown>;
       const storyIndex = asNumber(props.story_index ?? props.display_index);
@@ -72,22 +75,6 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
   return events.sort((a, b) => a.startTime - b.startTime);
 };
 
-/** 元素类型 → React 组件映射 */
-const ELEMENT_RENDERERS: Record<
-  string,
-  React.FC<{
-    elementProps: Record<string, unknown>;
-    duration: number;
-    width: number;
-    height: number;
-  }>
-> = {
-  closing_card: (props) => <ClosingCard {...props} />,
-  cover_card: (props) => <CoverCard {...props} />,
-  event_card: (props) => <EventCard {...props} />,
-  atmosphere_card: (props) => <AtmosphereCard {...props} />,
-};
-
 /** 卡片元素淡入淡出包装 */
 const ElementFadeWrap: React.FC<{
   needsFade: boolean;
@@ -95,7 +82,7 @@ const ElementFadeWrap: React.FC<{
   children: React.ReactNode;
 }> = ({ needsFade, durationFrames, children }) => {
   const frame = useCurrentFrame();
-  const FADE_FRAMES = 6;
+  const FADE_FRAMES = COMPOSITION_LAYOUT.fadeFrames;
   // 元素太短时跳过淡入淡出，避免 inputRange 非单调（[0, F, mid, dur] 中 mid < F 时崩溃）
   const opacity =
     needsFade && durationFrames > 2 * FADE_FRAMES
@@ -124,7 +111,8 @@ const SceneElementRenderer: React.FC<{
   /** 额外注入的 props，会与 elem.props merge（用于 story_gap 的 prev/next chapter） */
   extraProps?: Record<string, unknown>;
 }> = ({ elem, width, height, fps, extraProps }) => {
-  const RendererComponent = ELEMENT_RENDERERS[elem.element_type];
+  const registryEntry = getCardRegistryEntry(elem.element_type);
+  const RendererComponent = registryEntry?.component;
   if (!RendererComponent) {
     console.warn(`[Remotion] Unknown element type: ${elem.element_type}`);
     return null;
@@ -135,7 +123,7 @@ const SceneElementRenderer: React.FC<{
 
   const startFrame = Math.floor(elem.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(duration * fps));
-  const chapter: ChapterName = ELEMENT_TYPE_TO_CHAPTER[elem.element_type] ?? "focus";
+  const chapter: ChapterName = registryEntry?.chapter ?? "focus";
   const mergedProps = extraProps
     ? { ...(elem.props as Record<string, unknown>), ...extraProps }
     : (elem.props as Record<string, unknown>);
@@ -179,7 +167,7 @@ const SegmentRenderer: React.FC<{
       ? "standard"
       : "standard";
 
-  const TRANSITION_FRAMES = 12;
+  const TRANSITION_FRAMES = COMPOSITION_LAYOUT.transitionFrames;
   const segOpacity = segmentTransitionOpacity({
     absoluteFrame: frame,
     startFrame,
@@ -191,7 +179,7 @@ const SegmentRenderer: React.FC<{
   // 章节上下文 (居中 masthead 标签) — 按 segment_type 派生
   const chapterLabel = (() => {
     if (segment.segment_type === "opening") return "今日封面";
-    if (segment.segment_type === "closing") return "今日信号";
+    if (segment.segment_type === "closing") return undefined;
     if (segment.segment_type === "story_scan") {
       // 找 segment 第一个 event_card 拿 category / editor_angle
       const firstEvent = segment.scene_elements.find((e) => e.element_type === "event_card");
@@ -203,7 +191,10 @@ const SegmentRenderer: React.FC<{
       const cat = String(props.category ?? "").trim();
       const headline = String(props.editor_angle ?? "").trim();
       // 截断标题到合适长度, 配合 EVENT 01 · 标题
-      const short = headline.length > 14 ? headline.slice(0, 13) + "…" : headline;
+      const short =
+        headline.length > COMPOSITION_LAYOUT.chapterTitleMaxChars
+          ? headline.slice(0, COMPOSITION_LAYOUT.chapterTitleSliceChars)
+          : headline;
       const totalPart = total ? ` / ${total}` : "";
       if (cat && short) return `EVENT 0${idx}${totalPart} · ${cat} · ${short}`;
       if (short) return `EVENT 0${idx}${totalPart} · ${short}`;
@@ -291,7 +282,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
         endTime: events[i + 1]?.startTime ?? event.segmentEndTime,
         title: titleFromProps(event.props),
         category: String(event.props.category ?? ""),
-        chapter: ELEMENT_TYPE_TO_CHAPTER[event.elementType] ?? "focus",
+        chapter: cardChapterForElementType(event.elementType),
         displayIndex: displayOrdinal,
         total,
       };

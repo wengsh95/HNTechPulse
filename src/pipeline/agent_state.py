@@ -339,7 +339,7 @@ class AgentState:
             "title": base / "title.json",
             "cover": base / "cover.png",
             "publish_guide": base / "publish_guide.md",
-            "render_props": Path("src/providers/renderer/remotion/public/props.json"),
+            "render_props": base / "cli_props.json",
             "output": base / "output.mp4",
         }
         return {

@@ -8,7 +8,7 @@
 
 import React from "react";
 import { useCurrentFrame } from "remotion";
-import { COLORS } from "./design";
+import { COLORS, WAVEFORM_LAYOUT } from "./design";
 
 interface WaveformBarsProps {
   /** 预计算的分帧振幅数据（每帧一个 0~1 的值），优先使用 */
@@ -33,19 +33,19 @@ interface WaveformBarsProps {
 
 export const WaveformBars: React.FC<WaveformBarsProps> = ({
   amplitudeData,
-  barCount = 28,
-  barWidth = 6,
-  barGap = 4,
-  maxHeight = 80,
+  barCount = WAVEFORM_LAYOUT.barCount,
+  barWidth = WAVEFORM_LAYOUT.barWidth,
+  barGap = WAVEFORM_LAYOUT.barGap,
+  maxHeight = WAVEFORM_LAYOUT.maxHeight,
   color = COLORS.brand,
-  bottomOffset = 20,
+  bottomOffset = WAVEFORM_LAYOUT.bottomOffset,
   roundTop = true,
   leftOffset,
 }) => {
   const frame = useCurrentFrame();
 
   const totalWidth = barCount * barWidth + (barCount - 1) * barGap;
-  const startX = leftOffset ?? (1920 - totalWidth) / 2;
+  const startX = leftOffset ?? (WAVEFORM_LAYOUT.canvasWidth - totalWidth) / 2;
 
   return (
     <>
@@ -59,20 +59,22 @@ export const WaveformBars: React.FC<WaveformBarsProps> = ({
         let amp: number;
 
         if (sampleIdx >= 0) {
-          amp = amplitudeData![Math.min(sampleIdx, amplitudeData!.length - 1)] ?? 0.2;
+          amp =
+            amplitudeData![Math.min(sampleIdx, amplitudeData!.length - 1)] ??
+            WAVEFORM_LAYOUT.fallbackAmplitude;
         } else {
           // 模拟模式：多谐波正弦叠加，平滑变化
-          const t = frame * 0.06 + i * 0.35;
+          const t = frame * WAVEFORM_LAYOUT.frameSpeed + i * WAVEFORM_LAYOUT.barPhaseStep;
           amp =
             Math.sin(t * 1.7) * 0.28 +
             Math.sin(t * 3.2) * 0.22 +
             Math.sin(t * 5.1) * 0.12 +
             Math.sin(t * 7.7) * 0.08 +
-            0.5;
-          amp = Math.max(0.05, Math.min(1, amp));
+            WAVEFORM_LAYOUT.simulatedBaseAmplitude;
+          amp = Math.max(WAVEFORM_LAYOUT.simulatedMinAmplitude, Math.min(1, amp));
         }
 
-        const barHeight = Math.max(4, maxHeight * amp);
+        const barHeight = Math.max(WAVEFORM_LAYOUT.fallbackMinHeight, maxHeight * amp);
 
         return (
           <div
@@ -85,7 +87,7 @@ export const WaveformBars: React.FC<WaveformBarsProps> = ({
               height: barHeight,
               background: color,
               borderRadius: roundTop ? barWidth / 2 : 0,
-              opacity: 0.65 + amp * 0.35,
+              opacity: WAVEFORM_LAYOUT.opacityBase + amp * WAVEFORM_LAYOUT.opacityScale,
             }}
           />
         );

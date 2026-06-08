@@ -157,7 +157,7 @@ class PipelineProgress:
             entries.append(("publish_guide", "-", "will generate guide"))
 
         # 15. prepare_render
-        props_file = Path("src/providers/renderer/remotion/public/props.json")
+        props_file = base / "cli_props.json"
         if props_file.exists():
             entries.append(("prepare_render", "✓", "props.json cached"))
         else:

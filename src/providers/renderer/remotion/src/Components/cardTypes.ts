@@ -65,6 +65,7 @@ export interface EventCardProps {
   keywords: string[];
   imageUrl?: string;
   logoUrl?: string;
+  imageType?: string;
 }
 
 // ================================================================
@@ -120,7 +121,6 @@ export interface DigestStats {
 }
 
 export interface ClosingCardProps {
-  signalLabel: string;
   summary: string;
   keywords: string[];
   takeaways: string[];
