@@ -31,6 +31,55 @@ from src.providers.llm.llm_client import (
 )
 
 _TEMPLATE_CACHE: Dict[str, tuple[float, str]] = {}
+MAX_SUBTITLE_TEXT_CHARS = 48
+# Hard ceiling after autosplit: an originally-long subtitle is split until
+# every chunk is at most this many characters. Bigger than MAX to give split
+# logic room; 60 is well within renderer comfort.
+MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD = 60
+_AUTOSPLIT_SEPARATORS = ("。", "！", "?", "？", "!", ";", "；", "，")
+
+
+def _autosplit_subtitle(text: str) -> Optional[List[str]]:
+    """Try to break an over-long subtitle into 2-3 smaller pieces.
+
+    Returns ``None`` if no split keeps every piece under the hard ceiling.
+    Strategy: prefer sentence-final punctuation, then clause-level commas;
+    fall back to a positional mid-point break if the text has no separators.
+    The first piece keeps its original trailing punctuation; mid pieces get
+    a `。` appended if they have none, and the final piece is forced to end
+    with a sentence terminator (else downstream validator rejects it).
+    """
+    text = text.strip()
+    if len(text) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD:
+        return None  # already fits, no need to split
+
+    # 1) Try splitting on each separator class from strongest to weakest.
+    for sep in _AUTOSPLIT_SEPARATORS:
+        pieces: List[str] = []
+        for part in text.split(sep):
+            chunk = (part + sep).strip()
+            if chunk:
+                pieces.append(chunk)
+        # We need ≥2 chunks and every chunk fits.
+        if len(pieces) >= 2 and all(
+            len(p) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD for p in pieces
+        ):
+            return pieces
+
+    # 2) No separator split worked — try positional mid break.
+    if len(text) > MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD:
+        mid = len(text) // 2
+        left = text[:mid].rstrip() + "。"
+        right = text[mid:].strip()
+        if not right or right[-1] not in "。！？.!?":
+            right = right + "。"
+        if (
+            len(left) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD
+            and len(right) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD
+        ):
+            return [left, right]
+
+    return None
 
 
 def _read_template_cached(path: str) -> str:
@@ -93,6 +142,21 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
                 raise ValueError(
                     f"card_narrations[{i}].subtitle_texts must be a non-empty list of strings"
                 )
+            for j, text in enumerate(texts):
+                if not isinstance(text, str):
+                    raise ValueError(
+                        f"card_narrations[{i}].subtitle_texts[{j}] must be a string"
+                    )
+                stripped = text.strip()
+                if len(stripped) > MAX_SUBTITLE_TEXT_CHARS:
+                    raise ValueError(
+                        f"card_narrations[{i}].subtitle_texts[{j}] is too long "
+                        f"({len(stripped)} chars > {MAX_SUBTITLE_TEXT_CHARS}); split it"
+                    )
+                if stripped and stripped[-1] not in "。！？.!?":
+                    raise ValueError(
+                        f"card_narrations[{i}].subtitle_texts[{j}] must end with punctuation"
+                    )
 
     return _validate
 

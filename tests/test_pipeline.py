@@ -428,14 +428,17 @@ class TestScriptTemplates:
             {
                 "signal": "LLM正把专家工程师拉平成可复制的提示词操作者",
                 "editor_angle": "十年支付后端工程师称三大专业壁垒已被LLM逐个击穿",
+                "keywords": ["Claude Code", "MCP协议"],
             },
             {
                 "signal": "多智能体写代码的瓶颈不在生成，而在反复评审吃掉的token。",
                 "editor_angle": "ChatDev跑30个SDLC任务发现评审吃掉六成token",
+                "keywords": ["Token消耗"],
             },
             {
                 "signal": "游戏停服后玩家一无所有，立法和钱包投票到底谁管用",
                 "editor_angle": "玩家发起运动迫使欧盟与立法机构介入游戏停运争议",
+                "keywords": ["Stop Killing Games"],
             },
         ]
 
@@ -443,3 +446,19 @@ class TestScriptTemplates:
 
         assert "…" not in audio
         assert "今天看" in audio
+        assert "可复制的提" not in audio
+        assert "立法机" not in audio
+        assert "Claude Code" in audio
+
+    def test_spoken_hook_prefers_complete_fallback_over_truncated_phrase(self):
+        from src.pipeline.script.templates import _entry_spoken_hook
+
+        out = _entry_spoken_hook(
+            {
+                "signal": "LLM正把专家工程师拉平成可复制的提示词操作者",
+                "editor_angle": "十年支付后端工程师称三大专业壁垒已被LLM逐个击穿",
+                "keywords": ["Claude Code", "MCP协议"],
+            }
+        )
+
+        assert out == "Claude Code"

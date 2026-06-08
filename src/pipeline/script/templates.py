@@ -114,6 +114,7 @@ _NOISE_TOKENS = (
 )
 
 _CLAUSE_SEPARATORS = ("：", ":", "，", ",", "。", "？", "!", "！")
+_SENTENCE_ENDERS = ("。", "？", "！", ".", "?", "!")
 
 
 def _normalize(text: str) -> str:
@@ -162,7 +163,7 @@ def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
 
 
 def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
-    """Opening narration hook: compact but never ellipsized."""
+    """Opening narration hook: compact, complete, and never ellipsized."""
 
     def _shorten_clause(text: str) -> str:
         text = _normalize(text)
@@ -172,6 +173,7 @@ def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
                 break
         return _strip_noise(text)
 
+    candidates: list[str] = []
     for key in ("signal", "editor_angle", "title_translation", "original_title"):
         value = entry.get(key)
         if not value:
@@ -180,7 +182,19 @@ def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
         shortened = _shorten_clause(raw) or _normalize(raw)
         if len(shortened) <= max_len:
             return shortened
-        return shortened[:max_len].rstrip("，。！？；：,.!?;: ")
+        if shortened.endswith(_SENTENCE_ENDERS):
+            shortened = shortened.rstrip("。！？.!? ")
+        candidates.append(shortened)
+    for keyword in entry.get("keywords") or []:
+        token = _normalize(keyword)
+        if token and len(token) <= max_len:
+            return token
+    for candidate in candidates:
+        for sep in ("的", "在", "把", "让", "被", "与", "和"):
+            if sep in candidate:
+                head = candidate.split(sep, 1)[0].strip()
+                if 4 <= len(head) <= max_len:
+                    return head
     return "技术信号"
 
 
