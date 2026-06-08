@@ -1,93 +1,35 @@
 # AGENTS.md
 
-## Quick start
+Quick-start checklist for coding agents operating the pipeline.
+
+## Commands
 
 ```bash
-uv sync                          # install
-uv run python main.py            # run full pipeline
-uv run python -m pytest          # tests
-uv run python scripts/quality_check.py  # lint + typecheck + test + coverage
+uv run python scripts/agent_preflight.py --date YYYY-MM-DD   # 1. Always preflight first
+uv run python main.py --date YYYY-MM-DD --agent              # 2. First run
+uv run python main.py --date YYYY-MM-DD --resume --agent     # 3. Resume after repair
+uv run python scripts/agent_audit.py --date YYYY-MM-DD       # 4. Final publishability audit
+uv run python -m pytest                                       # Tests
 ```
 
-## Agent operating guide
+## Key References
 
-If you are an agent running or repairing the pipeline, start with:
+- **Full guidance**: [CLAUDE.md](CLAUDE.md) — architecture, patterns, pitfalls, behavioral rules
+- **Agent contract**: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) — state files, blocked reasons, decision gates, step handling policy, variants
+- **Module map**: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
-- `docs/README.md`
-- `docs/AGENT_RUNBOOK.md`
-- `docs/PROJECT_STRUCTURE.md`
+## State Files (under `data/{date}/`)
 
-Prefer machine-readable state over human logs:
+| File | Purpose |
+|------|---------|
+| `pipeline_state.json` | Pipeline status, completed/failed steps, blocked reason |
+| `agent_events.jsonl` | Append-only event log |
+| `agent_tasks.json` | Pending repair tasks (e.g. manual article fetch) |
+| `agent_decision.json` | Decision gate result (confidence, scores, thresholds) |
 
-```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
-uv run python main.py --date YYYY-MM-DD --agent
-uv run python main.py --date YYYY-MM-DD --resume --agent
-```
+## Rules
 
-Important agent files:
-
-- `data/{date}/pipeline_state.json`
-- `data/{date}/agent_events.jsonl`
-- `data/{date}/agent_tasks.json`
-
-## Windows path gotcha
-
-- Git Bash mounts drives as `/d/`, `/c/` — **not** `D:\`, `C:\`
-- Always use Unix-style paths: `cd /d/code/HNTechPulse/...`
-
-## Console encoding
-
-If Chinese output is garbled in PowerShell, run once per session:
-
-```powershell
-. .\scripts\encoding.ps1
-```
-
-Sets `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `chcp 65001`.
-
-## Config
-
-- YAML files in `config/` are deep-merged at runtime (`src/utils/config.py`)
-- Env vars in `.env` (copy from `.env.example`)
-
-## Pipeline steps
-
-```text
-fetch → prefilter → fetch_comments → enrich_articles → translate_titles
-  → analyze_comments → judge_comments → write_script
-  → translate_comments → synthesize_audio → title
-  → cover_image → cover_thumbnail → publish_guide → prepare_render
-                                                              ↓
-                                                            render (opt-in)
-```
-
-Run a subset (expands to all prerequisites): `uv run python main.py --steps fetch,write_script`. Each sub-step has its own cache file/condition and can be re-run in isolation.
-
-## Key patterns agents might miss
-
-- **Provider factory**: Implement an ABC, add to the `_auto_register()` `attempts` list in `src/providers/factory.py`. Auto-registers on import.
-- **Prompt placeholders**: `{{ foo }}` tokens must be `PH_FOO` constants in `src/core/prompts.py`. `render_prompt()` raises on typos.
-- **Two-model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.
-- **Comment flow**: `CommentAnalyzer` (VADER + quality) → `CommentJudge` (LLM top-15) → `quote_candidates`. ScriptWriter consumes `quote_candidates` directly. No re-selection downstream.
-- **LLM JSON retry**: `_call_llm_with_json_retry()` retries on bad JSON; doubles `max_tokens` on `finish_reason=length`, capped by `llm.max_completion_tokens_cap`.
-- **Cache schema version**: Bump `llm.cache_schema_version` in config when segment-cache semantics change.
-- **Remotion render temp filename**: Use `.partial.mp4` (mid-suffix), NOT `.mp4.partial` (post-suffix). Remotion's h264+aac validator strictly requires the filename to end in `.mp4` / `.mkv` / `.mov`; `.mp4.partial` will be rejected with `TypeError: When using the h264 codec with the aac audio codec, the output filename must end in one of the following: mp4, mkv, mov.` See `src/providers/renderer/remotion_renderer.py:285`.
-
-## Code quality
-
-| Check | Command |
-|-------|---------|
-| All | `uv run python scripts/quality_check.py` |
-| Auto-fix | `uv run python scripts/quality_check.py --fix` |
-| Skip a check | `--skip mypy,pip-audit` |
-| Ruff lint | `uv run ruff check src/ tests/` |
-| Ruff format | `uv run ruff format src/ tests/` |
-| Dead code | `uv run vulture src/ --min-confidence 80` |
-| Type check | `uv run mypy src/ --ignore-missing-imports` |
-
-`pre-commit` hooks run `ruff` and `vulture` only.
-
-## Entry point
-
-`main.py` → `Orchestrator` → individual step modules. Not a web app.
+1. Always run preflight before any pipeline command.
+2. Read JSON state files, never parse human logs.
+3. On `blocked` status → read `blocked_reason` in `pipeline_state.json` → follow [AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md).
+4. Never use `--allow-degraded-enrichment` for final output without explicit user approval.
