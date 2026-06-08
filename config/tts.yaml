@@ -32,4 +32,4 @@ tts:
   format: "mp3"
   channel: 1
   whisper_model: "small"
-  whisper_model_path: "E:/Code/models/models/whisper"
+  whisper_model_path: "D:/code/HNTechPulse/whisper"

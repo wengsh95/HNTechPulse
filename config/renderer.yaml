@@ -2,6 +2,10 @@
 # 同一时刻只有一个 provider 生效;切换不会影响其他 pipeline 步骤。
 # `provider` 决定 main.py 调 create_renderer(name, ...) 用哪个实现。
 # `hyperframes.*` 块只在 provider=hyperframes 时被读。
+#
+# 注意:Hyperframes 的全部 `renderer.hyperframes.*` 设置都在本文件,**不要**写到
+# config/remotion.yaml —— 那只放 Remotion 自己的键。两边同名键时,本文件字母序在后会赢,
+# 写错位置 → 看似改了实际没生效(踩过一次)。
 
 renderer:
   provider: "hyperframes"   # "remotion" | "hyperframes"
@@ -22,10 +26,23 @@ renderer:
     # fps: 24
     # 预览端口
     preview_port: 3002
-    # 并行段数(Python 线程池大小)。HyperFrames render 内部会自启 localhost 服务,
+    # 并行段数(Python 线程池大小,外层并发)。HyperFrames render 内部会自启 localhost 服务,
     # 当前 CLI 不暴露端口参数;Windows/Chrome 下并发时可能撞到 unsafe port,先用 1 保稳定。
-    render_workers: 1
+    # 实测 3 在 34GB RAM 机器上稳定:8 块串行 849s → 并行 3 约 ~350s。
+    render_workers: 3
+    # 单块 chunk 内部传给 `npx hyperframes --workers` 的值(每个 worker 起一个 Chrome,~256MB)。
+    # null = 让 hyperframes auto-detect;整数则强制。外层 × 内层 = 总 Chrome 进程数,留意内存。
+    workers: 2
     # 是否开启段级并行 + 段级缓存。False 时退化到单次整片渲染(老行为)。
     resume_enabled: true
     # 单个 chunk 渲染超时(秒)
     chunk_timeout: 1800
+    # GPU 加速。
+    # browser_gpu: true → 强制 Chrome 用 GPU 截屏(WebGL/canvas),false → 强制 SwiftShader,
+    #              null → 让 hyperframes auto-probe(默认)。本机有独显时填 true。
+    # gpu_encoding: true → ffmpeg 用 NVENC/QSV/AMF 硬编码(快但码率/CRF 行为可能变)。
+    browser_gpu: true
+    gpu_encoding: true
+    # 总把 npx hyperframes 的 stdout/stderr 写到每个 chunk 的 render.log,
+    # 即便成功也写。开发调优时打开看各阶段耗时;production 可以关掉省磁盘 IO。
+    always_log_render: true
