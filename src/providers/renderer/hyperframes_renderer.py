@@ -70,7 +70,9 @@ class HyperFramesRenderer(Renderer):
 
         hf_config = config.get("renderer", {}).get("hyperframes", {}) or {}
         default_template = Path(__file__).parent / "hyperframes"
-        self.project_dir = Path(hf_config.get("project_dir", str(default_template))).resolve()
+        self.project_dir = Path(
+            hf_config.get("project_dir", str(default_template))
+        ).resolve()
         # Output location is per-date so multiple dates can be rendered in parallel
         self.output_subdir = hf_config.get(
             "output_subdir", "hyperframes_project"
@@ -92,6 +94,19 @@ class HyperFramesRenderer(Renderer):
         self.workers = hf_config.get("workers", None)
         # Per-chunk render timeout (seconds). Each npx subprocess gets this.
         self._chunk_timeout = int(hf_config.get("chunk_timeout", 1800))
+        # GPU knobs. browser_gpu controls Chrome's WebGL/canvas backend
+        # (rendering side); gpu_encoding controls ffmpeg's encoder
+        # (final mp4 side). Both default off here — hyperframes' own
+        # default for --browser-gpu is "auto" (probe, fall back). We only
+        # pass the flag when the config opts in explicitly; pass-through
+        # of None leaves auto-probe behavior intact.
+        self.browser_gpu = hf_config.get("browser_gpu", None)
+        self.gpu_encoding = bool(hf_config.get("gpu_encoding", False))
+        # Always persist npx stdout+stderr to <cwd>/render.log so we can
+        # postmortem timing/phase output even on successful runs. Without
+        # this, hyperframes' per-stage timestamps live and die inside the
+        # subprocess pipe.
+        self._always_log_render = bool(hf_config.get("always_log_render", True))
 
         self._node_path = find_node()
         self._npx_path = find_npx(self._node_path)
@@ -199,7 +214,11 @@ class HyperFramesRenderer(Renderer):
         # Same for image_src in variables
         for s in scenes_payload["scenes"]:
             img = (s.get("variables") or {}).get("image_src")
-            if not img or img.startswith("public/") or img.startswith(("http://", "https://")):
+            if (
+                not img
+                or img.startswith("public/")
+                or img.startswith(("http://", "https://"))
+            ):
                 continue
             s["variables"]["image_src"] = "public/images/" + Path(img).name
         self._copy_scene_image_assets(scenes_payload, date, out_root)
@@ -281,7 +300,9 @@ class HyperFramesRenderer(Renderer):
         )
         # Reuse write_props' asset copying and index.html emission; pass the
         # pre-computed payload to skip a second build.
-        self.write_props(script, audio_dir, content, date=date, scenes_payload=full_scenes_payload)
+        self.write_props(
+            script, audio_dir, content, date=date, scenes_payload=full_scenes_payload
+        )
 
         total_duration = float(script.total_duration or 0)
         if total_duration <= 0:
@@ -359,15 +380,17 @@ class HyperFramesRenderer(Renderer):
             )
             chunk_file = chunk_subdir / "chunk.mp4"
             partial_file = chunk_subdir / "chunk.partial.mp4"
-            prepared.append({
-                "idx": idx,
-                "start_sec": start_sec,
-                "end_sec": end_sec,
-                "label": label,
-                "subdir": chunk_subdir,
-                "chunk_file": chunk_file,
-                "partial_file": partial_file,
-            })
+            prepared.append(
+                {
+                    "idx": idx,
+                    "start_sec": start_sec,
+                    "end_sec": end_sec,
+                    "label": label,
+                    "subdir": chunk_subdir,
+                    "chunk_file": chunk_file,
+                    "partial_file": partial_file,
+                }
+            )
 
         # Cache check: skip chunks that already have a non-empty .mp4.
         pending: List[Dict] = []
@@ -414,7 +437,14 @@ class HyperFramesRenderer(Renderer):
                     f"Rendering chunk {idx + 1}/{len(prepared)} [{label}]: "
                     f"{entry['start_sec']:.2f}s-{entry['end_sec']:.2f}s"
                 )
-                cmd = self._build_base_cmd(partial_file, workers=1, cwd=subdir)
+                # Inner workers come from config (renderer.hyperframes.workers).
+                # None → let hyperframes auto-detect. Hardcoding 1 here would
+                # silently cap each chunk to one Chrome process regardless of
+                # config. Outer × inner = total Chrome processes; tune both
+                # together against host RAM (~256 MB / worker).
+                cmd = self._build_base_cmd(
+                    partial_file, workers=self.workers, cwd=subdir
+                )
                 self._run_render_cmd(cmd, cwd=subdir, label=label)
                 # Atomic rename on success. os.replace is atomic on both POSIX
                 # and Windows (Path.rename on Windows can fall back to copy
@@ -497,7 +527,9 @@ class HyperFramesRenderer(Renderer):
         """
         if cwd is not None:
             try:
-                rel_output = Path(output_file).resolve().relative_to(Path(cwd).resolve())
+                rel_output = (
+                    Path(output_file).resolve().relative_to(Path(cwd).resolve())
+                )
                 output_arg = str(rel_output).replace("\\", "/")
             except ValueError:
                 # output_file is not under cwd — fall back to absolute
@@ -515,18 +547,29 @@ class HyperFramesRenderer(Renderer):
             cmd.append(f"--fps={self.fps_override}")
         if workers is not None:
             cmd.append(f"--workers={workers}")
+        # GPU flags. browser_gpu: True → force-on, False → force-off (SwiftShader),
+        # None → leave hyperframes' default auto-probe (recommended unless you
+        # know your machine). gpu_encoding: True → ffmpeg uses NVENC/QSV/AMF.
+        if self.browser_gpu is True:
+            cmd.append("--browser-gpu")
+        elif self.browser_gpu is False:
+            cmd.append("--no-browser-gpu")
+        if self.gpu_encoding:
+            cmd.append("--gpu")
         return cmd
 
     def _run_render_cmd(self, cmd: list, cwd: Path, label: str = "") -> None:
         """Run one npx hyperframes render subprocess. Raises on non-zero exit.
 
-        On failure, capture stdout+stderr to a per-call log file under cwd
-        and surface the last lines in the exception. Without capture, npx's
-        output streams to the parent terminal but disappears the moment the
-        ThreadPoolExecutor unwinds the worker, leaving no trace in the run
-        log. The log path is logged at error time for postmortem.
+        Always writes captured stdout+stderr to ``<cwd>/render.log`` when
+        ``always_log_render`` is True (default), so per-stage timing from
+        hyperframes survives the run. Without this, npx's output streams to
+        the parent terminal but disappears the moment the ThreadPoolExecutor
+        unwinds the worker, leaving no trace in the run log. On failure,
+        the log path is surfaced in the exception for postmortem.
         """
         self.logger.debug(f"Command ({label}): {' '.join(cmd)} (cwd={cwd})")
+        log_path = Path(cwd) / "render.log"
         try:
             result = subprocess.run(
                 cmd,
@@ -538,15 +581,17 @@ class HyperFramesRenderer(Renderer):
                 timeout=self._chunk_timeout,
                 env=self._build_env(),
             )
-            if result.returncode != 0:
-                log_path = Path(cwd) / "render.log"
+            if self._always_log_render or result.returncode != 0:
                 try:
                     log_path.write_text(
+                        f"--- cmd ---\n{' '.join(cmd)}\n--- cwd ---\n{cwd}\n"
+                        f"--- exit ---\n{result.returncode}\n"
                         f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}\n",
                         encoding="utf-8",
                     )
                 except OSError as e:
                     self.logger.warning(f"Could not write {log_path}: {e}")
+            if result.returncode != 0:
                 tail = (result.stderr or result.stdout or "").strip().splitlines()
                 tail_text = "\n".join(tail[-20:]) if tail else "(no output captured)"
                 self.logger.error(
@@ -610,9 +655,7 @@ class HyperFramesRenderer(Renderer):
             if src_abs.exists():
                 shutil.copy2(src_abs, audio_target / src_name)
             else:
-                self.logger.debug(
-                    f"Chunk audio source missing (skipping): {src_abs}"
-                )
+                self.logger.debug(f"Chunk audio source missing (skipping): {src_abs}")
 
         # Images: copy the full set from the parent project. They're shared
         # across chunks (same article images), and copy2 is a no-op if the
@@ -702,9 +745,7 @@ class HyperFramesRenderer(Renderer):
             except OSError as e:
                 self.logger.warning(f"Failed to clean {child}: {e}")
 
-    def _copy_audio_assets(
-        self, script: Script, audio_dir: str, out_root: Path
-    ) -> int:
+    def _copy_audio_assets(self, script: Script, audio_dir: str, out_root: Path) -> int:
         """Copy each segment's audio file into <out>/public/audio/."""
         audio_dir_path = Path(audio_dir).resolve()
         target = out_root / "public" / "audio"
@@ -776,7 +817,9 @@ class HyperFramesRenderer(Renderer):
         self.logger.info(f"Copied {len(copied)} images to {target}")
         return len(copied)
 
-    def _copy_scene_image_assets(self, scenes_payload: Dict, date: str, out_root: Path) -> int:
+    def _copy_scene_image_assets(
+        self, scenes_payload: Dict, date: str, out_root: Path
+    ) -> int:
         """Copy image_src files referenced directly by scene variables.
 
         This covers the fast CLI-props re-render path where ``content`` is not
@@ -790,10 +833,12 @@ class HyperFramesRenderer(Renderer):
             name = Path(src).name
             paths = [Path(src)]
             if date:
-                paths.extend([
-                    Path("data") / date / src,
-                    Path("data") / date / "images" / name,
-                ])
+                paths.extend(
+                    [
+                        Path("data") / date / src,
+                        Path("data") / date / "images" / name,
+                    ]
+                )
             paths.append(self.project_dir / "public" / "images" / name)
             paths.append(Path("src/providers/renderer/remotion/public/images") / name)
             return paths
