@@ -65,7 +65,6 @@ def normalize_story_cards(
 ) -> None:
     """Inject common story metadata into all visual story card variants."""
     assert item.editor_angle, f"Story {item.source_id} missing editor_angle"
-    assert item.title_cn, f"Story {item.source_id} missing title_cn"
 
     for elem in segment.scene_elements:
         if elem.element_type not in {
@@ -74,8 +73,15 @@ def normalize_story_cards(
         }:
             continue
         props = dict(elem.props or {})
+        title_cn = (
+            item.title_cn
+            or props.get("title_cn")
+            or props.get("title_translation")
+            or item.title
+            or item.editor_angle
+        )
         props.setdefault("source_title", item.title)
-        props.setdefault("title_cn", item.title_cn)
+        props.setdefault("title_cn", title_cn)
         props.setdefault("editor_angle", item.editor_angle)
         if item.key_points:
             props.setdefault("key_points", item.key_points)

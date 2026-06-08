@@ -40,6 +40,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const sampleCount = Math.pow(2, Math.ceil(Math.log2(Math.max(1, barCount))));
 
   // useAudioData requires a string; pass an empty path when src is missing
   // so hook order stays stable across renders where the audio_path arrives
@@ -54,7 +55,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         fps,
         frame,
         audioData,
-        numberOfSamples: barCount,
+        numberOfSamples: sampleCount,
         smoothing: true,
       });
       // 语音 amplitude 集中在低值区，做对数放大让波形更明显

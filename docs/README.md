@@ -13,11 +13,15 @@ maintainers.
 ## Common Agent Commands
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
-uv run python main.py --date YYYY-MM-DD --agent
-uv run python main.py --date YYYY-MM-DD --resume --agent
-uv run python main.py --date YYYY-MM-DD --steps write_script --agent --refresh-variants
+uv run python scripts/agent_run.py --date YYYY-MM-DD
+uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+uv run python scripts/agent_status.py --date YYYY-MM-DD
+uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
 ```
+
+Autonomous agents should not call `main.py --agent` directly. Use
+`scripts/agent_run.py`; it performs preflight/status checks and chooses safe
+steps before invoking the pipeline.
 
 ## Agent Output Contracts
 
@@ -38,4 +42,3 @@ The normal publishable script is always promoted to:
 ```text
 data/{date}/script.json
 ```
-

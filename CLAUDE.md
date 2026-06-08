@@ -17,14 +17,18 @@ uv run python main.py --dry-run                        # Skip API calls
 uv run python -m pytest                                # Tests
 ```
 
-Agent mode — always run preflight first, then resume:
+Agent mode - always use the managed wrapper:
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD          # JSON status + next_recommended_command
-uv run python main.py --date YYYY-MM-DD --agent                     # First run
-uv run python main.py --date YYYY-MM-DD --resume --agent            # Continue after repair
+uv run python scripts/agent_run.py --date YYYY-MM-DD                # Preflight + status + safe pipeline run + audit
+uv run python scripts/agent_run.py --date YYYY-MM-DD --resume       # Continue after repair
+uv run python scripts/agent_status.py --date YYYY-MM-DD             # Inspect machine-readable state/artifacts
 uv run python scripts/agent_audit.py --date YYYY-MM-DD              # Final publishability audit
 ```
+
+Do not call `main.py --agent` directly during autonomous runs. It is guarded and
+will reject direct agent calls unless `--direct-agent-run` is passed for manual
+debugging.
 
 Code quality:
 
@@ -49,7 +53,7 @@ Full module map: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
 Three groups (see `src/pipeline/orchestrator.py`):
 
-- **Default chain (16)** — `DEFAULT_STEPS`; what `main.py --agent` runs by default: core 12 + `cover_image` + `cover_thumbnail` + `publish_guide` + `render`
+- **Default chain (16)** — `DEFAULT_STEPS`; what `scripts/agent_run.py` runs by default: core 12 + `cover_image` + `cover_thumbnail` + `publish_guide` + `render`
 - **Core chain (12)** — `fetch … title, prepare_render` minus the production trio; reachable via `--steps` for sub-chain runs
 - **Standalone (1)** — `preview`, always opt-in (manual QC after a successful render)
 
@@ -122,11 +126,21 @@ Config: [config/](config/) (YAML deep-merged, alphabetically layered), env vars 
 
 ## Agent Mode
 
-`--agent` enables machine-readable, resumable pipeline execution. Always read JSON state files, never parse human logs. Run preflight before each command.
+`scripts/agent_run.py` is the canonical entrypoint for machine-readable,
+resumable agent execution. It runs preflight, inspects state/artifacts, selects
+safe steps, invokes `main.py --agent` with the internal runner environment, then
+runs status/audit checks. Always read JSON state files, never parse human logs.
 
 Full contract: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md)
 
-**Flags**: `--agent` (structured state), `--resume` (restore from `pipeline_state.json`), `--allow-degraded-enrichment` (continue past enrichment failures), `--refresh-variants` (regenerate script variants), `--force` (clear render cache).
+**Managed flags**: `--resume` (continue from `pipeline_state.json`), `--steps`
+(explicit repair path), `--allow-degraded-enrichment` (continue past enrichment
+failures only with user approval), `--refresh-variants` (regenerate script
+variants), `--force` (clear render cache), `--dry-run` (show the selected command
+without mutating state).
+
+Manual debugging may use `main.py --agent --direct-agent-run`, but autonomous
+agents should not use that escape hatch.
 
 ## Tool & Environment Pitfalls
 

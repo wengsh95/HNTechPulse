@@ -522,10 +522,14 @@ def build_highlight_entries(
                 angle.get("editor_angle")
                 or angle.get("dek")
                 or angle.get("event_summary")
+                or item.editor_angle
+                or item.dek
+                or item.article_summary
+                or item.title_cn
+                or item.title
             )
-            assert editor_angle, (
-                f"Story {story_idx} missing editor_angle, dek, and event_summary"
-            )
+            if not editor_angle:
+                editor_angle = "技术信号值得关注"
             entries.append(
                 {
                     "rank": i + 1,

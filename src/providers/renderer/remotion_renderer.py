@@ -149,7 +149,7 @@ class RemotionRenderer(Renderer):
             f"--props={props_file}",
         ]
         if date:
-            public_dir = self._remotion_data_dir(date) / "public"
+            public_dir = (self._remotion_data_dir(date) / "public").resolve()
             cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
@@ -253,7 +253,7 @@ class RemotionRenderer(Renderer):
             f"--props={cli_props_file}",
         ]
         if date:
-            public_dir = self._remotion_data_dir(date) / "public"
+            public_dir = (self._remotion_data_dir(date) / "public").resolve()
             base_cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
@@ -280,7 +280,7 @@ class RemotionRenderer(Renderer):
                 self._remotion_data_dir(date) / "single.mp4" if date
                 else self.remotion_dir / "out" / "output.mp4"
             )
-            cmd = base_cmd + [f"--output={remotion_output}"]
+            cmd = base_cmd + [f"--output={remotion_output.resolve()}"]
             self._run_render_cmd(cmd)
             self._finalize_output(remotion_output, output_file)
         else:
@@ -342,7 +342,7 @@ class RemotionRenderer(Renderer):
                         f"Rendering chunk {idx + 1}/{len(chunks)} [{label}]: frames {start}-{end}"
                     )
                     cmd = base_cmd + [
-                        f"--output={partial_file}",
+                        f"--output={partial_file.resolve()}",
                         f"--frames={start}-{end}",
                     ]
                     self._run_render_cmd(cmd, label=label)
@@ -432,6 +432,8 @@ class RemotionRenderer(Renderer):
                     cwd=str(self.remotion_dir),
                     capture_output=False,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=600,
                     env=self._build_env(),
                 )
@@ -455,6 +457,8 @@ class RemotionRenderer(Renderer):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     env=self._build_env(),
                 )
                 assert process.stdout is not None
@@ -642,6 +646,8 @@ class RemotionRenderer(Renderer):
                 cwd=str(self.remotion_dir),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=300,
                 env=self._build_env(),
             )

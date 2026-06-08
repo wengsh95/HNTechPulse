@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import sys
 from datetime import datetime
 
@@ -57,6 +58,14 @@ def main():
         help="Enable agent-friendly state tracking and structured blocking",
     )
     parser.add_argument(
+        "--direct-agent-run",
+        action="store_true",
+        help=(
+            "Bypass the agent_run.py wrapper guard. Intended for manual "
+            "debugging only; agents should use scripts/agent_run.py."
+        ),
+    )
+    parser.add_argument(
         "--allow-degraded-enrichment",
         action="store_true",
         help="In agent mode, continue after article enrichment failures",
@@ -99,6 +108,13 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.agent and not args.direct_agent_run and not os.environ.get("HN_AGENT_RUNNER"):
+        parser.error(
+            "--agent runs must use the managed wrapper: "
+            "uv run python scripts/agent_run.py --date YYYY-MM-DD. "
+            "For manual debugging only, add --direct-agent-run."
+        )
+
     config = load_config(args.config)
     if args.resume:
         state = load_pipeline_state(args.date)
@@ -123,7 +139,10 @@ def main():
                 "--resume requested but pipeline_state.json has no pending step"
             )
         state_steps = [str(step) for step in state.get("steps", []) if step]
-        steps = state_steps or [str(resume_step)]
+        if state_steps and str(resume_step) in state_steps:
+            steps = state_steps[state_steps.index(str(resume_step)) :]
+        else:
+            steps = [str(resume_step)]
     else:
         steps = [s.strip() for s in args.steps.split(",")]
 

@@ -32,54 +32,74 @@ from src.providers.llm.llm_client import (
 
 _TEMPLATE_CACHE: Dict[str, tuple[float, str]] = {}
 MAX_SUBTITLE_TEXT_CHARS = 48
-# Hard ceiling after autosplit: an originally-long subtitle is split until
-# every chunk is at most this many characters. Bigger than MAX to give split
-# logic room; 60 is well within renderer comfort.
-MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD = 60
-_AUTOSPLIT_SEPARATORS = ("。", "！", "?", "？", "!", ";", "；", "，")
+_AUTOSPLIT_SEPARATORS = ("。", "！", "？", ".", "?", "!", "；", ";", "，", ",", "、")
+_SUBTITLE_PUNCTUATION = "。！？.!?"
 
 
-def _autosplit_subtitle(text: str) -> Optional[List[str]]:
-    """Try to break an over-long subtitle into 2-3 smaller pieces.
-
-    Returns ``None`` if no split keeps every piece under the hard ceiling.
-    Strategy: prefer sentence-final punctuation, then clause-level commas;
-    fall back to a positional mid-point break if the text has no separators.
-    The first piece keeps its original trailing punctuation; mid pieces get
-    a `。` appended if they have none, and the final piece is forced to end
-    with a sentence terminator (else downstream validator rejects it).
-    """
+def _with_sentence_punctuation(text: str) -> str:
     text = text.strip()
-    if len(text) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD:
-        return None  # already fits, no need to split
+    if text and text[-1] not in _SUBTITLE_PUNCTUATION:
+        return text + "。"
+    return text
 
-    # 1) Try splitting on each separator class from strongest to weakest.
-    for sep in _AUTOSPLIT_SEPARATORS:
-        pieces: List[str] = []
-        for part in text.split(sep):
-            chunk = (part + sep).strip()
-            if chunk:
-                pieces.append(chunk)
-        # We need ≥2 chunks and every chunk fits.
-        if len(pieces) >= 2 and all(
-            len(p) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD for p in pieces
-        ):
-            return pieces
 
-    # 2) No separator split worked — try positional mid break.
-    if len(text) > MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD:
-        mid = len(text) // 2
-        left = text[:mid].rstrip() + "。"
-        right = text[mid:].strip()
-        if not right or right[-1] not in "。！？.!?":
-            right = right + "。"
-        if (
-            len(left) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD
-            and len(right) <= MAX_SUBTITLE_TEXT_CHARS_AUTOSPLIT_HARD
-        ):
-            return [left, right]
+def _split_subtitle_once(text: str) -> tuple[str, str] | None:
+    midpoint = len(text) // 2
+    candidates = [
+        idx
+        for idx, ch in enumerate(text)
+        if ch in _AUTOSPLIT_SEPARATORS and 0 < idx < len(text) - 1
+    ]
+    if candidates:
+        split_at = min(candidates, key=lambda idx: abs(idx - midpoint)) + 1
+    else:
+        split_at = midpoint
 
-    return None
+    left = text[:split_at].strip()
+    right = text[split_at:].strip()
+    if not left or not right:
+        return None
+    return left, right
+
+
+def _autosplit_subtitle(text: str) -> List[str]:
+    """Normalize one LLM subtitle into display-safe subtitle cues.
+
+    The prompt asks the model to split each cue, but real runs sometimes miss by
+    one or two Chinese characters. Fixing that deterministically is cheaper and
+    more reliable than burning retry attempts.
+    """
+
+    queue = [text.strip()]
+    result: List[str] = []
+    while queue:
+        current = queue.pop(0).strip()
+        if not current:
+            continue
+        if len(current) <= MAX_SUBTITLE_TEXT_CHARS:
+            result.append(_with_sentence_punctuation(current))
+            continue
+
+        split = _split_subtitle_once(current)
+        if split is None:
+            result.append(_with_sentence_punctuation(current))
+            continue
+        queue.insert(0, split[1])
+        queue.insert(0, split[0])
+    return result
+
+
+def _normalize_card_narration_subtitles(cards: list) -> None:
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        texts = card.get("subtitle_texts") or []
+        normalized_texts: List[str] = []
+        if isinstance(texts, list):
+            for text in texts:
+                if isinstance(text, str):
+                    normalized_texts.extend(_autosplit_subtitle(text))
+        card["subtitle_texts"] = normalized_texts
 
 
 def _read_template_cached(path: str) -> str:
@@ -142,7 +162,8 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
                 raise ValueError(
                     f"card_narrations[{i}].subtitle_texts must be a non-empty list of strings"
                 )
-            for j, text in enumerate(texts):
+            _normalize_card_narration_subtitles([card])
+            for j, text in enumerate(card["subtitle_texts"]):
                 if not isinstance(text, str):
                     raise ValueError(
                         f"card_narrations[{i}].subtitle_texts[{j}] must be a string"
@@ -343,6 +364,7 @@ class LLMProviderBase(LLMProvider):
         )
 
         seg_dict = self._extract_json(response_text)
+        _normalize_card_narration_subtitles(seg_dict.get("card_narrations") or [])
 
         for elem in seg_dict.get("scene_elements", []):
             props = elem.get("props", {})

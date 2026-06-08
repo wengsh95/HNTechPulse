@@ -135,7 +135,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     f"{name}_exists",
                     f"Required artifact is missing: {path}",
                     path=path,
-                    recommendation=f"uv run python main.py --date {date} --resume --agent",
+                    recommendation=f"uv run python scripts/agent_run.py --date {date} --resume",
                     why=(
                         f"{name}.json is produced by the pipeline. Either no run "
                         f"has been attempted for this date, or a previous run was "
@@ -207,7 +207,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "pipeline_state_exists",
                 "pipeline_state.json is missing or unreadable.",
                 path=Path(f"data/{date}/pipeline_state.json"),
-                recommendation="Run in --agent mode to produce machine-readable state.",
+                recommendation=f"uv run python scripts/agent_run.py --date {date}",
             )
         ]
 
@@ -348,7 +348,10 @@ def _variant_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, An
                     "selected_variant_promoted",
                     "script.json segments do not match the selected variant script.",
                     path=promoted_script,
-                    recommendation="Rerun write_script with --agent or promote the selected variant.",
+                    recommendation=(
+                        "Rerun write_script through scripts/agent_run.py or promote the "
+                        "selected variant."
+                    ),
                 )
             )
     elif selected:
@@ -388,7 +391,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
         candidates.append(
             (
                 "pipeline_state_error",
-                f"uv run python main.py --date {date} --resume --agent",
+                f"uv run python scripts/agent_run.py --date {date} --resume",
                 "An error in pipeline_state.json needs --resume to retry the failed step.",
             )
         )
@@ -415,7 +418,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
             candidates.append(
                 (
                     check,
-                    f"uv run python main.py --date {date} --steps {step} --agent",
+                    f"uv run python scripts/agent_run.py --date {date} --steps {step}",
                     why,
                 )
             )

@@ -5,19 +5,35 @@ and state files in this document over scraping human-readable logs.
 
 ## Standard Flow
 
-Run a preflight first:
+Agents must use the managed wrapper:
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
+uv run python scripts/agent_run.py --date YYYY-MM-DD
 ```
 
-If preflight returns `status=ok`, run the pipeline in agent mode:
+`agent_run.py` performs the agent contract in order:
+
+```text
+agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
+```
+
+Do not call `main.py --agent` directly. `main.py --agent` is guarded and will
+reject direct agent calls unless `--direct-agent-run` is passed for manual
+debugging. Autonomous agents should not use `--direct-agent-run`.
+
+To inspect state without running the pipeline:
 
 ```bash
-uv run python main.py --date YYYY-MM-DD --agent
+uv run python scripts/agent_status.py --date YYYY-MM-DD
 ```
 
-If the pipeline blocks or fails, inspect:
+To preview the managed command without mutating state:
+
+```bash
+uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
+```
+
+If the pipeline blocks or fails, inspect JSON files:
 
 ```text
 data/YYYY-MM-DD/pipeline_state.json
@@ -28,12 +44,14 @@ data/YYYY-MM-DD/agent_tasks.json
 After repairing the issue, resume:
 
 ```bash
-uv run python main.py --date YYYY-MM-DD --resume --agent
+uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 ```
 
-`--resume` reads `pipeline_state.json` and restores the original step chain.
-Earlier steps should hit caches; the blocked or failed point is retried and the
-remaining steps continue.
+The managed wrapper resumes from the failed/current step. It does not rerun
+earlier steps unless the selected repair path requires it.
+
+`main.py --resume` also resumes from the failed/current step when used manually
+with `--direct-agent-run`; it no longer restores the full original step chain.
 
 ## Agent Mode Flags
 
@@ -42,12 +60,23 @@ remaining steps continue.
 ```
 
 Enables machine-readable state tracking and structured blocking.
+In normal agent operation, this flag is supplied by `scripts/agent_run.py`.
+Direct `main.py --agent` calls are rejected unless `--direct-agent-run` is also
+present for manual debugging.
 
 ```bash
 --resume
 ```
 
-Resumes from `pipeline_state.json`.
+On `scripts/agent_run.py`, resumes from `pipeline_state.json` after preflight
+and status checks. On `main.py`, resumes from the failed/current step and should
+only be used with `--direct-agent-run` for manual debugging.
+
+```bash
+--direct-agent-run
+```
+
+Manual-debug escape hatch for `main.py --agent`. Agents should not use it.
 
 ```bash
 --allow-degraded-enrichment
@@ -82,7 +111,7 @@ The primary state contract. Important fields:
   "blocked_items": [],
   "missing_manual_files": [],
   "agent_task_file": "data/YYYY-MM-DD/agent_tasks.json",
-  "next_recommended_command": "uv run python main.py --date YYYY-MM-DD --resume --agent",
+  "next_recommended_command": "uv run python scripts/agent_run.py --date YYYY-MM-DD --resume",
   "artifacts": {
     "content": "data/YYYY-MM-DD/content.json",
     "script": "data/YYYY-MM-DD/script.json"
@@ -126,7 +155,7 @@ Created when the pipeline blocks on article fetching. Example task:
 ```
 
 Use browser/MCP tools to fetch the URL. Save an HTML page when possible; save a
-PDF when the URL is a PDF. Then run `--resume --agent`.
+PDF when the URL is a PDF. Then run `scripts/agent_run.py --resume`.
 
 ## Blocked Reasons
 
@@ -143,7 +172,7 @@ Agent action:
 4. Run:
 
    ```bash
-   uv run python main.py --date YYYY-MM-DD --resume --agent
+   uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
    ```
 
 ### `insufficient_story_context`
@@ -333,7 +362,7 @@ videos. TTS and render happen only after the selected script has been promoted.
 To force a fresh variant run without refetching facts:
 
 ```bash
-uv run python main.py --date YYYY-MM-DD --steps write_script --agent --refresh-variants
+uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
 ```
 
 Read `variants/selection_brief.md` for a compact review of the selected variant,
@@ -382,14 +411,13 @@ review.
 ### Start a Date
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
-uv run python main.py --date YYYY-MM-DD --agent
+uv run python scripts/agent_run.py --date YYYY-MM-DD
 ```
 
 ### Continue After Article Repair
 
 ```bash
-uv run python main.py --date YYYY-MM-DD --resume --agent
+uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 ```
 
 ### Force a Degraded Draft
@@ -397,14 +425,23 @@ uv run python main.py --date YYYY-MM-DD --resume --agent
 Use only when the user explicitly accepts incomplete source context:
 
 ```bash
-uv run python main.py --date YYYY-MM-DD --resume --agent --allow-degraded-enrichment
+uv run python scripts/agent_run.py --date YYYY-MM-DD --resume --allow-degraded-enrichment
 ```
 
 ### Inspect Agent State
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
+uv run python scripts/agent_status.py --date YYYY-MM-DD
 ```
 
 The command prints JSON. Prefer this over reading logs when choosing the next
 action.
+
+### Manual Debugging Only
+
+```bash
+uv run python scripts/agent_preflight.py --date YYYY-MM-DD
+uv run python main.py --date YYYY-MM-DD --agent --direct-agent-run --steps render
+```
+
+Use this only when intentionally bypassing the wrapper during development.
