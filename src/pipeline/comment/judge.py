@@ -13,7 +13,10 @@ from src.core.interfaces import LLMProvider
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment.text import clean_comment_text
 from src.pipeline.comment.scoring import compute_comment_quality
-from src.pipeline.comment.selection import select_judge_candidate_comments
+from src.pipeline.comment.selection import (
+    select_discussion_profile_comments,
+    select_judge_candidate_comments,
+)
 from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
@@ -281,7 +284,7 @@ class CommentAnalyzer:
             n = self.max_comments_for_llm
         if self.judge_candidate_strategy != "balanced":
             return self.get_top_comments(item, n=n)
-        return select_judge_candidate_comments(
+        return select_discussion_profile_comments(
             item,
             max_n=n,
             min_quality=float(self.judge_candidate_min_quality),

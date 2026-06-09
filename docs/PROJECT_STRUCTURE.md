@@ -162,6 +162,7 @@ src/pipeline/comment/
 |-- selection.py
 |-- judge.py
 |-- refiner.py
+|-- stance_classifier.py
 `-- text.py
 ```
 
@@ -173,6 +174,14 @@ CommentAnalyzer -> CommentJudge -> quote_candidates -> ScriptWriter
 
 Downstream script generation consumes `quote_candidates` directly. It should
 not independently reselect comments.
+
+`stance_classifier.py` contains the local CPU classifier used to estimate
+`支持 / 质疑 / 中立` distributions over all fetched comments. Training labels
+are generated once with the configured LLM via
+`scripts/train_comment_stance.py`; local reports are written to
+`data/{date}/stance_distribution.local.json`. See
+[Comment Stance Classifier](comment_stance_classifier.md) for the current
+findings and training strategy.
 
 ## Providers
 
@@ -226,6 +235,7 @@ scripts/
 |-- agent_status.py
 |-- agent_preflight.py
 |-- agent_audit.py
+|-- train_comment_stance.py
 |-- quality_check.py
 |-- encoding.ps1
 `-- _archive/

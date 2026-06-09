@@ -9,6 +9,9 @@ maintainers.
   and audit the pipeline.
 - [Project Structure](PROJECT_STRUCTURE.md): where the major modules,
   generated artifacts, configs, prompts, and tests live.
+- [Comment Stance Classifier](comment_stance_classifier.md): local stance
+  classifier notes, LLM teacher labeling workflow, evaluation results, and
+  follow-up plan for the `支持 / 质疑 / 中立` chart.
 
 ## Common Agent Commands
 

@@ -17,7 +17,7 @@
 #   max_concurrent: 6
 #   # ── Whisper 对齐（每段 TTS 后用 Whisper 获取字幕时间戳，不切割音频）──
 #   whisper_model: "small"
-#   whisper_model_path: "whisper"
+#   whisper_model_path: "data/models/whisper"
 
 tts:
   provider: "minimax"
@@ -33,4 +33,4 @@ tts:
   channel: 1
   max_concurrent: 2
   whisper_model: "small"
-  whisper_model_path: "whisper"
+  whisper_model_path: "data/models/whisper"

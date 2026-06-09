@@ -166,6 +166,125 @@ def select_judge_candidate_comments(
     return [row[1] for row in selected[:max_n]]
 
 
+def select_discussion_profile_comments(
+    item: ContentItem,
+    max_n: int = 15,
+    min_quality: float = 0.05,
+    similarity_threshold: float = 0.58,
+) -> List[ContentComment]:
+    """Pick a judge sample that represents the discussion, not only quote quality.
+
+    The comment judge is responsible for both quote selection and the existing
+    discussion profile fields. A pure quality ranking is good for quotes but can
+    overstate the most polished minority thread. This sampler keeps strong
+    comments, then adds stance/type/depth slices so `discussion_mode`,
+    `stance_distribution`, and `debate_focus` see a broader cross-section.
+    """
+    from src.pipeline.comment.scoring import local_comment_type_hints
+
+    if max_n <= 0:
+        return []
+
+    rows: list[tuple[float, ContentComment, str, set[str], int]] = []
+    for ordinal, comment in enumerate(item.comments):
+        if comment.source_id is None:
+            continue
+        text = clean_comment_text(comment.content or "")
+        if len(text) < 20:
+            continue
+        quality = comment.quality_score
+        if quality is None:
+            quality = compute_comment_quality(comment, item)
+            comment.quality_score = quality
+        hints = local_comment_type_hints(text)
+        if "resource_only" in hints or "low_signal" in hints:
+            continue
+
+        upvotes = comment.upvotes or 0
+        has_profile_signal = bool(
+            hints
+            & {
+                "experience",
+                "skeptical",
+                "correction",
+                "comparison",
+                "question",
+                "viewpoint",
+            }
+        )
+        if (
+            float(quality or 0.0) < min_quality
+            and upvotes < 2
+            and not has_profile_signal
+        ):
+            continue
+
+        # Earlier comments tend to be higher-level discussion starters in HN's
+        # tree traversal. Keep that as a weak profile signal without letting it
+        # dominate quote-quality scoring.
+        early_bonus = max(0.0, 1.0 - (ordinal / max(len(item.comments), 1))) * 0.04
+        score = compute_judge_candidate_score(comment, item) + early_bonus
+        rows.append((round(min(score, 1.0), 4), comment, text, hints, ordinal))
+
+    rows.sort(
+        key=lambda row: (
+            row[0],
+            row[1].quality_score or 0.0,
+            -1 * (row[1].depth if row[1].depth is not None else 3),
+            -row[4],
+        ),
+        reverse=True,
+    )
+
+    selected: list[tuple[float, ContentComment, str, set[str], int]] = []
+    selected_ids: set[str] = set()
+
+    def can_add(row: tuple[float, ContentComment, str, set[str], int]) -> bool:
+        _score, comment, text, _hints, _ordinal = row
+        cid = str(comment.source_id)
+        if cid in selected_ids:
+            return False
+        return all(
+            _similarity(text, existing_text) < similarity_threshold
+            for _s, _c, existing_text, _h, _o in selected
+        )
+
+    def add_from(
+        candidates: list[tuple[float, ContentComment, str, set[str], int]], limit: int
+    ) -> None:
+        for row in candidates:
+            if len(selected) >= max_n or limit <= 0:
+                return
+            if not can_add(row):
+                continue
+            selected.append(row)
+            selected_ids.add(str(row[1].source_id))
+            limit -= 1
+
+    anchor_limit = min(max_n, max(3, max_n // 3))
+    add_from(rows, anchor_limit)
+    add_from([r for r in rows if (r[1].depth or 0) <= 1], 3)
+    add_from(
+        [r for r in rows if "skeptical" in r[3] or (r[1].sentiment or 0) <= -0.25], 3
+    )
+    add_from([r for r in rows if (r[1].sentiment or 0) >= 0.25], 2)
+    add_from([r for r in rows if "experience" in r[3]], 2)
+    add_from([r for r in rows if "correction" in r[3] or "comparison" in r[3]], 2)
+    add_from([r for r in rows if "question" in r[3]], 1)
+    add_from([r for r in rows if r[1].depth is not None and r[1].depth >= 2], 3)
+    add_from(rows, max_n - len(selected))
+
+    selected.sort(
+        key=lambda row: (
+            row[0],
+            row[1].quality_score or 0.0,
+            -1 * (row[1].depth if row[1].depth is not None else 3),
+        ),
+        reverse=True,
+    )
+    return [row[1] for row in selected[:max_n]]
+
+
 def select_representative_comments(
     comments: Iterable[ContentComment],
     max_n: int = 3,

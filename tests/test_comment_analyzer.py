@@ -258,6 +258,75 @@ class TestGetJudgeCandidates:
 
         assert [c.source_id for c in selected] == ["view"]
 
+    def test_balanced_profile_sample_keeps_discussion_slices(self):
+        with patch("src.pipeline.comment.judge.setup_logger"):
+            analyzer = CommentAnalyzer(
+                _make_config(
+                    judge_candidate_strategy="balanced",
+                    judge_candidate_min_quality=0.05,
+                )
+            )
+        comments = [
+            _make_comment(
+                content=(
+                    "The main implementation seems useful because it removes a "
+                    "lot of repeated glue code for teams."
+                ),
+                source_id=f"polished{i}",
+                quality_score=0.9 - i * 0.01,
+                sentiment=0.45,
+                depth=0,
+            )
+            for i in range(12)
+        ]
+        comments.extend(
+            [
+                _make_comment(
+                    content=(
+                        "Actually the title is misleading because the benchmark "
+                        "does not include the fallback path."
+                    ),
+                    source_id="correction",
+                    quality_score=0.35,
+                    sentiment=-0.15,
+                    depth=0,
+                ),
+                _make_comment(
+                    content=(
+                        "Why would this work when the dependency graph changes "
+                        "during deployment?"
+                    ),
+                    source_id="question",
+                    quality_score=0.28,
+                    sentiment=0.0,
+                    depth=1,
+                ),
+                _make_comment(
+                    content=(
+                        "In production we tried something similar and debugging "
+                        "partial rollback state was the hard part."
+                    ),
+                    source_id="experience",
+                    quality_score=0.32,
+                    sentiment=-0.1,
+                    depth=3,
+                ),
+            ]
+        )
+        item = _make_item(
+            title="Deployment tool benchmark",
+            article_summary="A deployment tool benchmark skips fallback behavior.",
+            comments=comments,
+        )
+
+        selected = analyzer.get_judge_candidates(item, n=10)
+        selected_ids = {c.source_id for c in selected}
+
+        assert "correction" in selected_ids
+        assert "question" in selected_ids
+        assert "experience" in selected_ids
+        assert len(selected) <= 10
+
     def test_top_quality_strategy_uses_original_ranking(self):
         with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(
