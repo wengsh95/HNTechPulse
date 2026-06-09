@@ -113,6 +113,16 @@ _NOISE_TOKENS = (
     "需要",
 )
 
+_GENERIC_HOOKS = {
+    "AI",
+    "LLM",
+    "Claude",
+    "Anthropic",
+    "Steam",
+    "Podman",
+    "Linux",
+}
+
 _CLAUSE_SEPARATORS = ("：", ":", "，", ",", "。", "？", "!", "！")
 _SENTENCE_ENDERS = ("。", "？", "！", ".", "?", "!")
 
@@ -138,9 +148,22 @@ def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
     for sep in _CLAUSE_SEPARATORS:
         if sep in text:
             head = text.split(sep, 1)[0].strip()
-            if 0 < len(head) <= max_len:
+            if 0 < len(head) <= max_len + 4:
                 return head
-    return text[:max_len].rstrip("，。！？；：,.!?;: ")
+    for sep in ("，", "。", "、", "：", "；", "的", "为", "让", "把", "后", "在"):
+        idx = text.find(sep)
+        if 3 <= idx <= max_len + 4:
+            candidate = text[:idx].strip()
+            if candidate:
+                return candidate
+    clipped = text[:max_len].rstrip("，。！？；：,.!?;: ")
+    while clipped and clipped[-1].isascii() and clipped[-1].isalnum():
+        next_char = text[len(clipped)] if len(clipped) < len(text) else ""
+        if next_char and next_char.isascii() and next_char.isalnum():
+            clipped = clipped[:-1]
+        else:
+            break
+    return clipped.strip() or text[: max_len + 4].rstrip("，。！？；：,.!?;: ")
 
 
 def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
@@ -180,21 +203,26 @@ def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
             continue
         raw = str(value)
         shortened = _shorten_clause(raw) or _normalize(raw)
-        if len(shortened) <= max_len:
+        if len(shortened) <= max_len and shortened not in _GENERIC_HOOKS:
             return shortened
         if shortened.endswith(_SENTENCE_ENDERS):
             shortened = shortened.rstrip("。！？.!? ")
         candidates.append(shortened)
     for keyword in entry.get("keywords") or []:
         token = _normalize(keyword)
-        if token and len(token) <= max_len:
+        if token and len(token) <= max_len and token not in _GENERIC_HOOKS:
             return token
     for candidate in candidates:
+        if candidate in _GENERIC_HOOKS:
+            continue
         for sep in ("的", "在", "把", "让", "被", "与", "和"):
             if sep in candidate:
                 head = candidate.split(sep, 1)[0].strip()
-                if 4 <= len(head) <= max_len:
+                if 4 <= len(head) <= max_len and head not in _GENERIC_HOOKS:
                     return head
+        compacted = _compact_copy(candidate, max_len)
+        if compacted and compacted not in _GENERIC_HOOKS:
+            return compacted
     return "技术信号"
 
 
@@ -225,25 +253,42 @@ def _daily_thesis(entries: list[dict]) -> dict:
 
 def _opening_audio(entries: list[dict]) -> str:
     if not entries:
-        return "早上好，这里是HN每日观察。今天看三个值得停一下的技术信号。"
+        return "早上好，这里是HN每日观察。今天看三个值得停一下的技术变化。"
     rule = _daily_thesis(entries)
-    thesis = f"{rule['prefix']}{rule['body']}"
-    hooks = "、".join(
-        _entry_spoken_hook(e) for e in entries[:3]
+    hooks = "、".join(_entry_spoken_hook(e, max_len=16) for e in entries[:3])
+    thesis = _normalize(str(rule.get("closing") or rule.get("body") or "")).rstrip(
+        "。！？?! "
     )
-    return f"早上好，这里是HN每日观察。{thesis}今天看{hooks}。"
+    if thesis:
+        return f"早上好，这里是HN每日观察。今天看{hooks}，背后是{thesis}。"
+    return f"早上好，这里是HN每日观察。今天看{hooks}。"
 
 
 def _closing_audio(entries: list[dict], weekday: int | None) -> str:
     if not entries:
         return "今天的HN速览就到这里。想每天跟上HN技术风向，可以点个关注，我们下期继续。"
     rule = _daily_thesis(entries)
-    question = "你最担心哪一个变化？评论区聊聊。"
+    question = _closing_question(entries)
     if weekday in {4, 5}:
-        tail = "周末也会继续留意那些真正值得追的问题。"
+        tail = "周末我也会继续盯那些真正影响开发者的问题。"
     else:
         tail = "想每天用几分钟跟上HN技术风向，可以点个关注。"
-    return f"放在一起看，{rule['closing']}{question}{tail}"
+    closing = str(rule.get("closing") or "").strip()
+    return f"放在一起看，{closing}{question}{tail}"
+
+
+def _closing_question(entries: list[dict]) -> str:
+    categories = {
+        str(entry.get("category") or "").strip()
+        for entry in entries[:3]
+        if entry.get("category")
+    }
+    if len(categories) >= 2:
+        return "你更担心工具效率变快后的成本问题，还是稳定性问题？"
+    if categories:
+        category = next(iter(categories))
+        return f"这类{category}变化，你会优先追效率，还是追风险？"
+    return "这些变化里，你最想继续追哪一个后续？"
 
 
 def generate_fixed_opening(
@@ -301,15 +346,15 @@ def generate_fixed_opening(
     # 优先用 highlight_entries[:3] 的 editor_angle 拼接, 替换原纯日期显示.
     hook_parts: list[str] = []
     for entry in (highlight_entries or [])[:3]:
-        angle = str(entry.get("editor_angle") or "").strip()
-        if angle:
-            hook_parts.append(angle)
+        hook = _entry_hook(entry, max_len=16)
+        if hook:
+            hook_parts.append(hook)
     if not hook_parts and top3_titles:
         hook_parts = top3_titles[:3]
     if hook_parts:
         # Compact each hook once; if the full subtitle still does not fit,
         # drop tail hooks instead of adding ellipses.
-        compacted = [_compact_copy(part, 14) for part in hook_parts]
+        compacted = [_compact_copy(part, 16) for part in hook_parts]
         subtitle = " · ".join(compacted)
         if len(subtitle) > 50:
             while len(subtitle) > 50 and len(compacted) > 1:
@@ -381,15 +426,22 @@ def closing_summary_items(
 ) -> list[dict]:
     items: list[dict] = []
     for entry in (highlight_entries or [])[:3]:
-        title = entry.get("title_translation")
-        assert title, "Story missing title_translation"
+        title = (
+            entry.get("title_translation")
+            or entry.get("title_cn")
+            or entry.get("title")
+            or entry.get("editor_angle")
+        )
+        assert title, "Story missing display title"
         signal = entry.get("signal") or entry.get("editor_angle") or ""
         category = entry.get("category") or "观察"
+        short_title = _compact_copy(str(title), 24)
+        short_signal = _compact_copy(str(signal), 28) if signal else short_title
         items.append(
             {
                 "category": str(category),
-                "title": str(title),
-                "signal": str(signal),
+                "title": short_title,
+                "signal": short_signal,
             }
         )
 
@@ -433,12 +485,14 @@ def closing_totals(highlight_entries: Optional[list[dict]] = None) -> dict:
 def closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[str]:
     takeaways: list[str] = []
     for entry in (highlight_entries or [])[:3]:
-        text = entry.get("why_it_matters")
+        text = entry.get("why_it_matters") or entry.get("signal") or entry.get(
+            "editor_angle"
+        )
         assert text, "Story missing why_it_matters"
         text = str(text).strip()
-        if len(text) > 34:
-            text = _compact_copy(text, 34)
-        takeaways.append(text)
+        if len(text) > 28:
+            text = _compact_copy(text, 28)
+        takeaways.append(text.rstrip("。！？?! "))
     return takeaways[:3]
 
 

@@ -319,7 +319,7 @@ class TestScriptTemplates:
 
         assert "风险开始外溢" in opening.audio_text
         assert "今天看" in opening.audio_text
-        assert "评论区聊聊" in closing.audio_text
+        assert "更担心" in closing.audio_text
         assert "点个关注" in closing.audio_text
 
     @pytest.mark.parametrize(
@@ -361,8 +361,8 @@ class TestScriptTemplates:
         from src.pipeline.script.templates import _closing_audio
 
         entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
-        assert "周末也会继续留意" in _closing_audio(entries, weekday=4)
-        assert "周末也会继续留意" in _closing_audio(entries, weekday=5)
+        assert "周末我也会继续盯" in _closing_audio(entries, weekday=4)
+        assert "周末我也会继续盯" in _closing_audio(entries, weekday=5)
         assert "想每天用几分钟" in _closing_audio(entries, weekday=2)
 
     def test_compact_copy_normalizes_then_compacts_without_ellipsis(self):
@@ -390,7 +390,7 @@ class TestScriptTemplates:
         # then title_translation (no separator, no noise)
         assert _entry_hook({"title_translation": "Anthropic融资递表"}) == "Anthropic融资递表"
         # then original_title; long enough to trigger compaction
-        assert _entry_hook({"original_title": "Some English Title"}) == "Some English T"
+        assert _entry_hook({"original_title": "Some English Title"}) == "Some English"
         # finally the placeholder when nothing is provided
         assert _entry_hook({}) == "技术信号"
 

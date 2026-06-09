@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from contextlib import contextmanager
@@ -32,6 +33,41 @@ from src.pipeline.translation_manager import TranslationManager
 from src.pipeline.tts_processor import TTSProcessor
 from src.utils.logger import setup_logger
 from src.utils.text import normalize_cjk_mixed_spacing
+
+
+_PUBLISH_DISCUSSION_CLICHES = (
+    "你怎么看，欢迎在评论区聊聊。",
+    "欢迎在评论区聊聊。",
+    "欢迎评论区聊聊。",
+    "你怎么看？",
+    "你怎么看。",
+)
+
+
+def _clean_publish_description(text: str, max_len: int = 130) -> str:
+    """Keep generated publishing copy dense enough for Bilibili metadata."""
+    text = normalize_cjk_mixed_spacing(str(text or "")).strip()
+    for phrase in _PUBLISH_DISCUSSION_CLICHES:
+        text = text.replace(phrase, "")
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= max_len:
+        return text
+
+    parts = re.findall(r"[^。！？!?]+[。！？!?]?", text)
+    kept: list[str] = []
+    total = 0
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if kept and total + len(part) > max_len:
+            break
+        kept.append(part)
+        total += len(part)
+    compacted = "".join(kept).strip()
+    if compacted:
+        return compacted
+    return text[:max_len].rstrip("，。！？；：,.!?;: ")
 
 
 # Ordered pipeline steps with their prerequisites.
@@ -700,17 +736,18 @@ class Orchestrator:
         ]
         chosen = normalize_cjk_mixed_spacing(result.get("title") or "")
 
-        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 35
+        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 34
 
         def _fits(c: str) -> bool:
             return TITLE_IDEAL_MIN <= len(c) <= TITLE_HARD_MAX
 
+        original_chosen_len = len(chosen)
         valid_candidates = [c for c in title_candidates if _fits(c)]
         if not _fits(chosen):
             if valid_candidates:
                 chosen = min(valid_candidates, key=len)
                 self.logger.info(
-                    f"  LLM's `title` field was {len(chosen)} chars; "
+                    f"  LLM's `title` field was {original_chosen_len} chars; "
                     f"picked shortest valid candidate: {chosen!r}"
                 )
             else:
@@ -725,16 +762,14 @@ class Orchestrator:
                         "  LLM returned no title_candidates. "
                         f"Using fallback title ({len(chosen)} chars)."
                     )
-        if valid_candidates:
-            chosen = min(valid_candidates, key=len)
-            kept_candidates = title_candidates
-        else:
-            kept_candidates = title_candidates
+        kept_candidates = [chosen] + [
+            c for c in title_candidates if c != chosen and _fits(c)
+        ]
 
         script.title = chosen or "HN每日观察"
-        script.description = (
+        script.description = _clean_publish_description(
             result.get("description") or ""
-        ).strip() or f"每日快讯 - {date}"
+        ) or f"每日快讯 - {date}"
         script.tags = list(result.get("tags") or [])
         script.cover_subtitle = normalize_cjk_mixed_spacing(
             result.get("cover_subtitle") or ""

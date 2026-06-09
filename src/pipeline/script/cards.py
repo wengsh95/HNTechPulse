@@ -1,5 +1,7 @@
 """Card normalization for story and atmosphere cards."""
 
+import re
+
 from src.core.models import ContentItem, SceneElement, ScriptSegment
 from src.pipeline.comment import (
     candidate_ids_for_story,
@@ -146,6 +148,7 @@ def coerce_card_narrations_for_mode(segment: ScriptSegment, mode: str) -> None:
 
 def split_long_subtitle(text: str, max_cjk: int = 36, max_chars: int = 70) -> list[str]:
     """Split a single subtitle into 1-2 cues when it exceeds the readable width."""
+    text = _clean_subtitle_text(text)
     cjk_count = sum(1 for ch in text if "一" <= ch <= "鿿")
     ascii_count = len(text) - cjk_count
     weight = cjk_count + ascii_count / 2
@@ -164,6 +167,8 @@ def split_long_subtitle(text: str, max_cjk: int = 36, max_chars: int = 70) -> li
                 best_idx = i
     if best_idx <= 0 or best_idx >= len(text) - 1:
         return [text]
+    if _splits_ascii_token(text, best_idx):
+        return [text]
     left = text[: best_idx + 1].rstrip(breakers + " ").strip()
     right = text[best_idx + 1 :].lstrip(breakers + " ").strip()
     if not left or not right:
@@ -171,14 +176,49 @@ def split_long_subtitle(text: str, max_cjk: int = 36, max_chars: int = 70) -> li
     return [left, right]
 
 
+def _splits_ascii_token(text: str, split_idx: int) -> bool:
+    left = text[: split_idx + 1]
+    right = text[split_idx + 1 :].lstrip()
+    if not left or not right:
+        return False
+    prev_char = left[-1]
+    next_char = right[0]
+    if prev_char == "." and next_char.isascii() and next_char.isalpha():
+        return True
+    return (
+        prev_char.isascii()
+        and prev_char.isalnum()
+        and next_char.isascii()
+        and next_char.isalnum()
+    )
+
+
 _CLOSING_PUNCT = set("。！？.!?：:；;")
 
 
 def _ensure_punctuation(text: str) -> str:
     """Append 。 if the subtitle doesn't end with closing punctuation."""
+    text = _clean_subtitle_text(text)
     if text and text[-1] not in _CLOSING_PUNCT:
         return text + "。"
     return text
+
+
+def _clean_subtitle_text(text: str) -> str:
+    text = str(text or "").strip()
+    text = re.sub(
+        r"(?<=[\u4e00-\u9fff])。\s*(?=[\u4e00-\u9fff]{2,10}(?:和|与|及|、))",
+        "、",
+        text,
+    )
+    text = re.sub(r"(?<=(?:时|后|前|上|下))。\s*(?=[\u4e00-\u9fff])", "，", text)
+    text = re.sub(r"([，、；：])。+$", "。", text)
+    text = re.sub(r"([。！？])。+$", r"\1", text)
+    text = re.sub(r"(?<=\d)\.\s+(?=\d)", ".", text)
+    text = re.sub(r"(?<=[A-Za-z])\.\s+(?=[A-Za-z])", "", text)
+    text = re.sub(r"(?<=[A-Za-z0-9_])\.\s+(?=[A-Za-z0-9_])", ".", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def extract_subtitle_texts(card: dict) -> list[str]:

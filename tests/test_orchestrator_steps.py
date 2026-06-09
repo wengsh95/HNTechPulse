@@ -460,7 +460,9 @@ class TestRunDispatch:
         assert tasks["tasks"][0]["task_type"] == "fetch_article"
         assert tasks["tasks"][0]["save_as"]["html"].endswith("123.html")
         assert tasks["tasks"][0]["acceptable_outputs"] == ["html", "pdf", "synthesis_html"]
-        assert tasks["tasks"][0]["resume_command"].endswith("--resume --agent")
+        assert tasks["tasks"][0]["resume_command"].endswith(
+            "scripts/agent_run.py --date 2026-04-26 --resume"
+        )
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
         events_path = tmp_path / "data" / "2026-04-26" / "agent_events.jsonl"
         assert "run_blocked" in events_path.read_text(encoding="utf-8")
