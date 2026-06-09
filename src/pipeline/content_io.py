@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.agent_io import write_artifact_manifest
+from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
 
@@ -25,8 +26,7 @@ class ContentPreparer:
 
         content_dict = asdict(content)
 
-        with open(content_path, "w", encoding="utf-8") as f:
-            json.dump(content_dict, f, ensure_ascii=False, indent=2)
+        atomic_write_json(content_path, content_dict)
         write_artifact_manifest(
             content_path,
             step="content",

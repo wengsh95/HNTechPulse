@@ -22,6 +22,7 @@ from src.pipeline.comment import (
     load_comment_judgements,
 )
 from src.providers.renderer.cue_builder import build_cues
+from src.utils.atomic_io import atomic_write_text
 from src.utils.logger import setup_logger
 
 
@@ -361,12 +362,14 @@ def _expand_closing_card(props, content):
             continue
         editor_angle = item.get("signal") or ""
         original_title = item.get("title") or ""
-        stories.append({
-            "rank": rank,
-            "original_title": original_title,
-            "title_zh": original_title,
-            "editor_angle": editor_angle,
-        })
+        stories.append(
+            {
+                "rank": rank,
+                "original_title": original_title,
+                "title_zh": original_title,
+                "editor_angle": editor_angle,
+            }
+        )
 
     if takeaways:
         footer_text = takeaways[0]
@@ -647,13 +650,12 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     public_dir = data_remotion / "public"
     public_dir.mkdir(parents=True, exist_ok=True)
     props_file = public_dir / "props.json"
-    props_file.write_text(props_json, encoding="utf-8")
+    atomic_write_text(props_file, props_json)
     logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
 
     # Also write to data/{date}/ for CLI use
     cli_path = Path(f"data/{date}/cli_props.json")
-    cli_path.parent.mkdir(parents=True, exist_ok=True)
-    cli_path.write_text(props_json, encoding="utf-8")
+    atomic_write_text(cli_path, props_json)
     logger.info(f"Props written to {cli_path}")
 
     return str(props_file)

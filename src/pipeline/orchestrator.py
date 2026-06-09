@@ -36,6 +36,7 @@ from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.transcript_generator import save_transcript
 from src.pipeline.translation_manager import TranslationManager
 from src.pipeline.tts_processor import TTSProcessor
+from src.utils.atomic_io import atomic_write_json, atomic_write_text
 from src.utils.logger import setup_logger
 from src.utils.text import normalize_cjk_mixed_spacing
 
@@ -173,7 +174,10 @@ def _resolve_steps(requested: List[str]) -> List[str]:
         max_idx = max(CORE_PIPELINE_STEPS.index(s) for s in core_requested)
         resolved.extend(CORE_PIPELINE_STEPS[: max_idx + 1])
 
-    if "cover_thumbnail" in optional_requested and "cover_image" not in optional_requested:
+    if (
+        "cover_thumbnail" in optional_requested
+        and "cover_image" not in optional_requested
+    ):
         optional_requested = ["cover_image", *optional_requested]
 
     for step in optional_requested:
@@ -577,7 +581,9 @@ class Orchestrator:
             # is_quotable_comment() filters (quality_score >= 0.22) silently
             # drop every selected comment and the rendered video has no
             # atmosphere_card quotes.
-            self.logger.info(f"  Comment analysis cached at {analysis_path}, merging into content")
+            self.logger.info(
+                f"  Comment analysis cached at {analysis_path}, merging into content"
+            )
         else:
             self.logger.info("  No comment analysis cache; running fresh")
 
@@ -802,28 +808,24 @@ class Orchestrator:
         ]
 
         script.title = chosen or "HN每日观察"
-        script.description = _clean_publish_description(
-            result.get("description") or ""
-        ) or f"每日快讯 - {date}"
+        script.description = (
+            _clean_publish_description(result.get("description") or "")
+            or f"每日快讯 - {date}"
+        )
         script.tags = list(result.get("tags") or [])
         script.cover_subtitle = normalize_cjk_mixed_spacing(
             result.get("cover_subtitle") or ""
         )
 
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(
-            json.dumps(
-                {
-                    "title": script.title,
-                    "title_candidates": kept_candidates,
-                    "description": script.description,
-                    "cover_subtitle": script.cover_subtitle,
-                    "tags": script.tags,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        atomic_write_json(
+            cache_path,
+            {
+                "title": script.title,
+                "title_candidates": kept_candidates,
+                "description": script.description,
+                "cover_subtitle": script.cover_subtitle,
+                "tags": script.tags,
+            },
         )
         write_artifact_manifest(
             cache_path,
@@ -919,19 +921,14 @@ class Orchestrator:
             subtitle = date
         date_label = date
 
-        props_path.parent.mkdir(parents=True, exist_ok=True)
-        props_path.write_text(
-            json.dumps(
-                {
-                    "backgroundImage": bg_path.name,
-                    "title": title,
-                    "subtitle": subtitle,
-                    "dateLabel": date_label,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        atomic_write_json(
+            props_path,
+            {
+                "backgroundImage": bg_path.name,
+                "title": title,
+                "subtitle": subtitle,
+                "dateLabel": date_label,
+            },
         )
         write_artifact_manifest(
             props_path,
@@ -974,7 +971,7 @@ class Orchestrator:
             return
 
         if not bg_path.exists() or not props_path.exists():
-            self.logger.error(
+            raise FileNotFoundError(
                 "  cover_thumbnail requires cover_bg.png and cover_props.json; "
                 "run --steps cover_image first"
             )
@@ -986,10 +983,9 @@ class Orchestrator:
 
         npx_path = find_npx()
         if not npx_path:
-            self.logger.error(
-                "npx not found — install Node.js or set PATH to include npx"
+            raise FileNotFoundError(
+                "npx not found; install Node.js or set PATH to include npx"
             )
-            return
 
         remotion_dir = Path("src/providers/renderer/remotion")
         output_abs = cover_path.resolve()
@@ -1016,15 +1012,19 @@ class Orchestrator:
                 self.logger.info(f"  [remotion] {result.stdout.strip()}")
             self.logger.info(f"  Cover thumbnail written to {cover_path}")
         except subprocess.CalledProcessError as e:
-            self.logger.error(
+            raise RuntimeError(
                 f"Cover render failed (exit={e.returncode}):\n"
                 f"  stderr: {(e.stderr or '').strip()}\n"
                 f"  stdout: {(e.stdout or '').strip()}"
-            )
+            ) from e
         except subprocess.TimeoutExpired as e:
-            self.logger.error(f"Cover render timed out after 120s: {e}")
+            raise RuntimeError(f"Cover render timed out after 120s: {e}") from e
         except FileNotFoundError as e:
-            self.logger.error(f"npx not found: {e}")
+            raise FileNotFoundError(f"npx not found: {e}") from e
+        if not cover_path.exists() or cover_path.stat().st_size <= 0:
+            raise RuntimeError(
+                f"Cover render did not produce a valid file: {cover_path}"
+            )
 
     def _step_publish_guide(
         self, content: ContentPackage, script: Optional[Script], date: str
@@ -1097,8 +1097,7 @@ class Orchestrator:
             temperature=self.llm_provider.fast_temperature,
         )
 
-        guide_path.parent.mkdir(parents=True, exist_ok=True)
-        guide_path.write_text(text, encoding="utf-8")
+        atomic_write_text(guide_path, text)
         write_artifact_manifest(
             guide_path,
             step="publish_guide",
@@ -1113,8 +1112,7 @@ class Orchestrator:
     ) -> None:
         self.logger.info("Step: Prepare render — write props.json and copy assets")
         if script is None:
-            self.logger.warning("Script not loaded; skipping prepare_render")
-            return
+            raise ValueError("Script not loaded; cannot prepare render")
 
         if self.dry_run:
             self.logger.info("Dry run: skipping prepare_render")
@@ -1129,19 +1127,23 @@ class Orchestrator:
             self.logger.error(f"Renderer.write_props failed: {e}", exc_info=True)
             raise
 
-        if props_path and props_path.exists():
-            write_artifact_manifest(
-                props_path,
-                step="prepare_render",
-                date=date,
-                inputs={
-                    "script_title": script.title,
-                    "segment_count": len(script.segments),
-                    "audio_dir": audio_dir,
-                    "renderer": type(self.renderer).__name__,
-                },
-                config=self.config,
+        if not props_path or not props_path.exists() or props_path.stat().st_size <= 0:
+            raise RuntimeError(
+                "Renderer.write_props did not produce a valid props file"
             )
+
+        write_artifact_manifest(
+            props_path,
+            step="prepare_render",
+            date=date,
+            inputs={
+                "script_title": script.title,
+                "segment_count": len(script.segments),
+                "audio_dir": audio_dir,
+                "renderer": type(self.renderer).__name__,
+            },
+            config=self.config,
+        )
 
     def _step_render(
         self,
@@ -1159,8 +1161,7 @@ class Orchestrator:
             try:
                 script = self.script_writer.load_script(date)
             except FileNotFoundError:
-                self.logger.error("Script not found; cannot render")
-                return
+                raise FileNotFoundError("Script not found; cannot render")
 
         if content is None:
             try:
@@ -1176,6 +1177,11 @@ class Orchestrator:
         output_path = f"data/{date}/output.mp4"
         audio_dir = f"data/{date}/audio"
         self.renderer.render(script, audio_dir, output_path, content, date=date)
+        rendered = Path(output_path)
+        if not rendered.exists() or rendered.stat().st_size <= 0:
+            raise RuntimeError(
+                f"Renderer did not produce a valid output file: {output_path}"
+            )
 
     def _step_preview(
         self,
@@ -1231,7 +1237,8 @@ class Orchestrator:
         # Match the new per-date runtime layout: data/{date}/remotion/chunks.
         chunk_dir = Path(f"data/{date}/remotion/chunks")
         if chunk_dir.exists() and not any(
-            str(p).startswith(str(remotion_dir)) for p in self.renderer.cache_paths(date)
+            str(p).startswith(str(remotion_dir))
+            for p in self.renderer.cache_paths(date)
         ):
             import shutil
 

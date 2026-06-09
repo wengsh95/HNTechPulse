@@ -2,6 +2,8 @@ import json
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
+import pytest
+
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.core.models import ContentPackage, Script, ScriptSegment
 from src.core.models import ContentComment, ContentItem
@@ -194,7 +196,10 @@ class TestStepPrefilter:
 
     def test_fetches_comment_preview_before_prefilter(self):
         orch = _make_orchestrator(dry_run=False)
-        orch.config["prefilter"] = {"comment_preview_enabled": True, "comment_preview_count": 3}
+        orch.config["prefilter"] = {
+            "comment_preview_enabled": True,
+            "comment_preview_count": 3,
+        }
         content = _make_failed_content()
         orch.content_fetcher.fetch_comment_preview = MagicMock(return_value=content)
         orch.prefilter = MagicMock()
@@ -354,7 +359,9 @@ class TestStepPublishGuide:
         result = orch._step_publish_guide(_make_content(), _make_script(), "2026-04-26")
         assert result is None
 
-    def test_regenerates_when_manifest_input_hash_is_missing(self, tmp_path, monkeypatch):
+    def test_regenerates_when_manifest_input_hash_is_missing(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
         base = tmp_path / "data" / date
@@ -408,19 +415,22 @@ class TestStepPrepareRender:
         orch._step_prepare_render(_make_content(), _make_script(), "2026-04-26")
         orch.renderer.write_props.assert_not_called()
 
-    def test_no_script_warns_and_skips(self):
+    def test_no_script_raises(self):
         orch = _make_orchestrator(dry_run=False)
-        orch._step_prepare_render(_make_content(), None, "2026-04-26")
+        with pytest.raises(ValueError, match="Script not loaded"):
+            orch._step_prepare_render(_make_content(), None, "2026-04-26")
         orch.renderer.write_props.assert_not_called()
 
-    def test_invokes_renderer_write_props(self):
+    def test_invokes_renderer_write_props(self, tmp_path):
         orch = _make_orchestrator(dry_run=False)
         script = _make_script()
         content = _make_content()
         # write_props contract: returns (props_path, props_json, scenes_payload).
         # The mock would otherwise return a bare MagicMock, which can't be
         # unpacked into 3 values.
-        orch.renderer.write_props.return_value = (Path("/tmp/props.json"), "{}", {})
+        props_path = tmp_path / "props.json"
+        props_path.write_text("{}", encoding="utf-8")
+        orch.renderer.write_props.return_value = (props_path, "{}", {})
         orch._step_prepare_render(content, script, "2026-04-26")
         orch.renderer.write_props.assert_called_once()
 
@@ -550,7 +560,11 @@ class TestRunDispatch:
         assert tasks["repair_contract"]["do_not_continue_without_source_context"]
         assert tasks["tasks"][0]["task_type"] == "fetch_article"
         assert tasks["tasks"][0]["save_as"]["html"].endswith("123.html")
-        assert tasks["tasks"][0]["acceptable_outputs"] == ["html", "pdf", "synthesis_html"]
+        assert tasks["tasks"][0]["acceptable_outputs"] == [
+            "html",
+            "pdf",
+            "synthesis_html",
+        ]
         assert tasks["tasks"][0]["resume_command"].endswith(
             "scripts/agent_run.py --date 2026-04-26 --resume"
         )

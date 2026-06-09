@@ -413,14 +413,18 @@ class TestNextRecommendedCommand:
         state.block_for_manual_files("enrich_articles", [_make_item(source_id="7")])
         snapshot = load_pipeline_state("2026-06-08")
         cmd = snapshot["next_recommended_command"]
-        assert "--resume --agent" in cmd
+        assert "scripts/agent_run.py" in cmd
+        assert "--resume" in cmd
+        assert "--agent" not in cmd
         assert "2026-06-08" in cmd
         assert "downloaded_pages" in cmd
 
     def test_blocked_insufficient_context_recommends_resume(self, state, tmp_path):
         state.block("write_script", BLOCK_INSUFFICIENT_CONTEXT)
         snapshot = load_pipeline_state("2026-06-08")
-        assert "--resume --agent" in snapshot["next_recommended_command"]
+        assert "scripts/agent_run.py" in snapshot["next_recommended_command"]
+        assert "--resume" in snapshot["next_recommended_command"]
+        assert "--agent" not in snapshot["next_recommended_command"]
         assert "Gather more source context" in snapshot["next_recommended_command"]
 
     def test_failed_step_recommends_just_that_step(self, state, tmp_path):
@@ -430,7 +434,9 @@ class TestNextRecommendedCommand:
         snapshot = load_pipeline_state("2026-06-08")
         cmd = snapshot["next_recommended_command"]
         assert cmd is not None
-        assert "--steps write_script --agent" in cmd
+        assert "scripts/agent_run.py" in cmd
+        assert "--steps write_script" in cmd
+        assert "--agent" not in cmd
         assert "--resume" not in cmd  # not blocked, just failed
 
     def test_running_recommends_next_incomplete_step(self, state, tmp_path):
@@ -439,7 +445,9 @@ class TestNextRecommendedCommand:
         state.complete_step("fetch")
         # Did not start prefilter → next step is prefilter
         snapshot = load_pipeline_state("2026-06-08")
-        assert "--steps prefilter --agent" in snapshot["next_recommended_command"]
+        assert "scripts/agent_run.py" in snapshot["next_recommended_command"]
+        assert "--steps prefilter" in snapshot["next_recommended_command"]
+        assert "--agent" not in snapshot["next_recommended_command"]
 
 
 # ── state file schema stability ──────────────────────────────────────

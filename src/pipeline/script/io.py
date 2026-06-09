@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.core.models import Script, ScriptSegment, SceneElement, Cue
 from src.pipeline.agent_io import write_artifact_manifest
+from src.utils.atomic_io import atomic_write_json
 
 
 def save_script_to_path(
@@ -18,8 +19,7 @@ def save_script_to_path(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     script_dict = asdict(script)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(script_dict, f, ensure_ascii=False, indent=2)
+    atomic_write_json(path, script_dict)
     write_artifact_manifest(
         path,
         step=step,
