@@ -26,6 +26,7 @@ PH_STORIES_JSON = "stories_json"
 PH_HIGHLIGHT_ENTRIES = "highlight_entries"
 PH_SCRIPT_TITLE = "script_title"
 PH_SCRIPT_DESCRIPTION = "script_description"
+PH_SCRIPT_RUNTIME = "script_runtime"
 
 _KNOWN_PLACEHOLDERS = frozenset(
     {
@@ -44,6 +45,7 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_HIGHLIGHT_ENTRIES,
         PH_SCRIPT_TITLE,
         PH_SCRIPT_DESCRIPTION,
+        PH_SCRIPT_RUNTIME,
     }
 )
 

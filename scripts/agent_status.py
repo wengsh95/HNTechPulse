@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import load_pipeline_state, stable_hash  # noqa: E402
+from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
+from src.utils.text import normalize_cjk_mixed_spacing  # noqa: E402
 
 
 def _default_date() -> str:
@@ -49,8 +50,38 @@ def _is_newer(a: Path, b: Path) -> bool:
     return a.exists() and b.exists() and a.stat().st_mtime > b.stat().st_mtime
 
 
+def _format_mmss(seconds: float | int | None) -> str:
+    total = max(0, int(round(float(seconds or 0))))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _script_runtime_payload(script_data: dict[str, Any]) -> dict[str, Any]:
+    chapters = []
+    for segment in script_data.get("segments") or []:
+        if not isinstance(segment, dict):
+            continue
+        label = {
+            "opening": "开场",
+            "story_scan": "逐条速览",
+            "closing": "收尾",
+        }.get(segment.get("segment_type"), segment.get("segment_type"))
+        chapters.append(
+            {
+                "start": _format_mmss(segment.get("start_time")),
+                "end": _format_mmss(segment.get("end_time")),
+                "label": label,
+                "summary": normalize_cjk_mixed_spacing(
+                    segment.get("audio_text") or ""
+                )[:90],
+            }
+        )
+    return {
+        "total_duration": _format_mmss(script_data.get("total_duration")),
+        "chapters": chapters,
+    }
+
+
 def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
-    reasons = [item.get("reason", "") for item in stale]
     artifacts = [item.get("artifact", "") for item in stale]
     if any("script.json" in artifact for artifact in artifacts):
         return {
@@ -94,11 +125,16 @@ def _pending_tasks(base: Path) -> dict[str, Any]:
     }
 
 
-def _publish_guide_context(date: str, content_path: Path, script_path: Path) -> dict[str, Any] | None:
+def _publish_guide_context(
+    date: str, content_path: Path, script_path: Path
+) -> dict[str, Any] | None:
     content_data = _read_json(content_path)
     script_data = _read_json(script_path)
     if not isinstance(content_data, dict) or not isinstance(script_data, dict):
         return None
+    title_data = _read_json(content_path.parent / "title.json")
+    if not isinstance(title_data, dict):
+        title_data = {}
     items_payload = []
     for item in content_data.get("items") or []:
         if not isinstance(item, dict):
@@ -115,9 +151,17 @@ def _publish_guide_context(date: str, content_path: Path, script_path: Path) -> 
             }
         )
     return {
-        "script_title": script_data.get("title") or "HN每日观察",
-        "script_description": script_data.get("description") or "",
+        "script_title": title_data.get("title")
+        or script_data.get("title")
+        or "HN每日观察",
+        "script_description": title_data.get("description")
+        or script_data.get("description")
+        or "",
+        "script_runtime": json.dumps(
+            _script_runtime_payload(script_data), ensure_ascii=False, indent=2
+        ),
         "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
+        "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
         "date": date,
     }
 

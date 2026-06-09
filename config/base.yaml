@@ -4,7 +4,7 @@ logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 pipeline:
-  target_story_count: 5        # 正式日报条目数量（也是深讲条数），预留 2 条 buffer 应对 enrich 失败
+  target_story_count: 3        # 每日固定 3 条新闻（也是深讲条数）
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
 prefilter:
@@ -12,6 +12,8 @@ prefilter:
   max_workers: 5               # 每条 story 独立评分的并发数
   min_news_focus: 4            # 新闻类门槛（1-5），低于此分数视为观点/教程/资源帖，直接过滤
   min_newsworthiness: 3        # 话题度门槛（1-5），低于此分数的故事直接过滤
+  audience_interest_weight: 1.8 # B站观众兴趣/视频钩子排序权重
+  discussion_heat_weight: 1.2   # HN讨论热度排序权重
 
 hn:
   base_url: "https://hacker-news.firebaseio.com/v0"

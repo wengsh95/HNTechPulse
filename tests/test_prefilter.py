@@ -39,6 +39,9 @@ def _make_prefilter(comment_preview_count: int = 5):
             "category": "developer_tools",
             "news_focus": 4,
             "newsworthiness": 4,
+            "audience_interest": 4,
+            "discussion_heat": 4,
+            "video_hook": "测试钩子",
         }
     ]
     config = {
@@ -129,6 +132,9 @@ def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypa
             "category": "infra",
             "news_focus": 2,
             "newsworthiness": 3,
+            "audience_interest": 2,
+            "discussion_heat": 5,
+            "video_hook": "弱新闻",
         },
         {
             "index": 1,
@@ -137,6 +143,9 @@ def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypa
             "category": "ai_company",
             "news_focus": 5,
             "newsworthiness": 4,
+            "audience_interest": 5,
+            "discussion_heat": 4,
+            "video_hook": "强钩子",
         },
     ]
     prefilter = Prefilter(
@@ -198,6 +207,9 @@ def test_prefilter_requires_news_focus_even_when_hn_score_is_high(
             "category": "developer_tools",
             "news_focus": 2,
             "newsworthiness": 5,
+            "audience_interest": 5,
+            "discussion_heat": 5,
+            "video_hook": "职业焦虑很热",
         },
         {
             "index": 1,
@@ -206,6 +218,9 @@ def test_prefilter_requires_news_focus_even_when_hn_score_is_high(
             "category": "infra",
             "news_focus": 4,
             "newsworthiness": 3,
+            "audience_interest": 4,
+            "discussion_heat": 3,
+            "video_hook": "API变了",
         },
     ]
     prefilter = Prefilter(
@@ -266,6 +281,9 @@ def test_prefilter_does_not_backfill_non_news_to_reach_target_count(
             "category": "security",
             "news_focus": 4,
             "newsworthiness": 3,
+            "audience_interest": 4,
+            "discussion_heat": 3,
+            "video_hook": "安全修复发布",
         },
         {
             "index": 1,
@@ -274,6 +292,9 @@ def test_prefilter_does_not_backfill_non_news_to_reach_target_count(
             "category": "developer_tools",
             "news_focus": 2,
             "newsworthiness": 4,
+            "audience_interest": 5,
+            "discussion_heat": 5,
+            "video_hook": "教程很有用",
         },
     ]
     prefilter = Prefilter(
@@ -298,3 +319,138 @@ def test_prefilter_does_not_backfill_non_news_to_reach_target_count(
     filtered = prefilter.filter(content, "2026-04-26")
 
     assert [item.source_id for item in filtered.items] == ["news"]
+
+
+def test_prefilter_ranks_by_bilibili_interest_after_news_gate(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id="dry",
+                title="Important but dry standard update",
+                url="https://example.com/dry",
+                score=300,
+                comment_count=80,
+            ),
+            ContentItem(
+                source="hackernews",
+                source_id="hook",
+                title="Platform outage hits developers in production",
+                url="https://example.com/hook",
+                score=180,
+                comment_count=120,
+            ),
+        ],
+    )
+    llm = MagicMock()
+    llm.prefilter_stories.return_value = [
+        {
+            "index": 0,
+            "keep": True,
+            "reason": "standard update",
+            "category": "policy",
+            "news_focus": 5,
+            "newsworthiness": 4,
+            "audience_interest": 2,
+            "discussion_heat": 2,
+            "video_hook": "标准更新",
+        },
+        {
+            "index": 1,
+            "keep": True,
+            "reason": "developer-facing platform outage",
+            "category": "infra",
+            "news_focus": 4,
+            "newsworthiness": 4,
+            "audience_interest": 5,
+            "discussion_heat": 5,
+            "video_hook": "平台故障打到生产环境",
+        },
+    ]
+    prefilter = Prefilter(
+        llm,
+        {
+            "logging": {"level": "WARNING"},
+            "pipeline": {"target_story_count": 2},
+            "prefilter": {
+                "enabled": True,
+                "min_keep": 1,
+                "min_news_focus": 4,
+                "min_newsworthiness": 3,
+                "temperature": 0.1,
+                "comment_preview_enabled": False,
+                "comment_preview_count": 0,
+                "audience_interest_weight": 1.8,
+                "discussion_heat_weight": 1.2,
+            },
+            "llm": {"provider": "test", "model": "test-model"},
+        },
+        debug=True,
+    )
+
+    filtered = prefilter.filter(content, "2026-04-26")
+
+    assert [item.source_id for item in filtered.items] == ["hook", "dry"]
+
+
+def test_prefilter_caps_valid_news_to_daily_three(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id=f"story-{idx}",
+                title=f"News story {idx}",
+                url=f"https://example.com/{idx}",
+                score=100 - idx,
+                comment_count=10 + idx,
+            )
+            for idx in range(5)
+        ],
+    )
+    llm = MagicMock()
+    llm.prefilter_stories.return_value = [
+        {
+            "index": idx,
+            "keep": True,
+            "reason": "valid news item",
+            "category": "tech_news",
+            "news_focus": 4,
+            "newsworthiness": 3,
+            "audience_interest": 5 - idx,
+            "discussion_heat": 5 - idx,
+            "video_hook": f"Hook {idx}",
+        }
+        for idx in range(5)
+    ]
+    prefilter = Prefilter(
+        llm,
+        {
+            "logging": {"level": "WARNING"},
+            "pipeline": {"target_story_count": 3},
+            "prefilter": {
+                "enabled": True,
+                "min_keep": 1,
+                "min_news_focus": 4,
+                "min_newsworthiness": 3,
+                "temperature": 0.1,
+                "comment_preview_enabled": False,
+                "comment_preview_count": 0,
+                "audience_interest_weight": 1.8,
+                "discussion_heat_weight": 1.2,
+            },
+            "llm": {"provider": "test", "model": "test-model"},
+        },
+        debug=True,
+    )
+
+    filtered = prefilter.filter(content, "2026-04-26")
+
+    assert [item.source_id for item in filtered.items] == [
+        "story-0",
+        "story-1",
+        "story-2",
+    ]

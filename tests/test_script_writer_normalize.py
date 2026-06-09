@@ -1,4 +1,5 @@
 from src.core.models import ContentComment, ContentItem, ScriptSegment, SceneElement
+from src.pipeline.script.cards import extract_subtitle_texts
 from src.pipeline.script import ScriptWriter
 
 
@@ -173,3 +174,19 @@ class TestAudioOnlyScriptHelpers:
         assert "progress" not in text.lower()
         assert "Bambu Lab" in text
         assert "TanStack" in text
+
+
+class TestSubtitleEditorialCleanup:
+    def test_merges_dangling_time_setup_with_next_sentence(self):
+        texts = extract_subtitle_texts(
+            {
+                "subtitle_texts": [
+                    "3月起Steam Networking API更新后。",
+                    "新版客户端不再尝试STUN直连。",
+                ]
+            }
+        )
+
+        assert texts == [
+            "3月起Steam Networking API更新后，新版客户端不再尝试STUN直连。"
+        ]

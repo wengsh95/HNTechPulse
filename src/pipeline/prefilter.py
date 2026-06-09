@@ -5,7 +5,7 @@ from typing import Any
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 9
+_CACHE_SCHEMA_VERSION = 11
 
 
 def _prompt_hash() -> str:
@@ -114,9 +114,13 @@ class Prefilter:
     def _editorial_score(decision: dict, weights: dict) -> float:
         nf = decision.get("news_focus") or 0
         nw = decision.get("newsworthiness") or 0
+        ai = decision.get("audience_interest") or 0
+        dh = decision.get("discussion_heat") or 0
         return float(
             nf * weights.get("news_focus", 2.0)
             + nw * weights.get("newsworthiness", 1.5)
+            + ai * weights.get("audience_interest", 1.8)
+            + dh * weights.get("discussion_heat", 1.2)
         )
 
     @staticmethod
@@ -143,6 +147,8 @@ class Prefilter:
         return {
             "news_focus": cfg.get("news_focus_weight", 2.0),
             "newsworthiness": cfg.get("newsworthiness_weight", 1.5),
+            "audience_interest": cfg.get("audience_interest_weight", 1.8),
+            "discussion_heat": cfg.get("discussion_heat_weight", 1.2),
         }
 
     def _backfill_after_newsworthiness(
@@ -184,6 +190,8 @@ class Prefilter:
                 i,
                 item.title or "",
                 item.url or "",
+                item.score or 0,
+                item.comment_count or 0,
                 self._extract_comment_texts(item),
             )
             for i, item in enumerate(items)
@@ -205,6 +213,9 @@ class Prefilter:
                 "category": d.get("category"),
                 "news_focus": d.get("news_focus"),
                 "newsworthiness": d.get("newsworthiness"),
+                "audience_interest": d.get("audience_interest"),
+                "discussion_heat": d.get("discussion_heat"),
+                "video_hook": d.get("video_hook"),
             }
         return decisions
 
@@ -237,7 +248,7 @@ class Prefilter:
             if d and self._passes_news_gate(d, min_nf, min_nw):
                 keep_ids.add(item.source_id)
 
-        # Safety valve: ensure min_keep, but never backfill non-news stories.
+        # Safety valve: report shortages, but never backfill non-news stories.
         if len(keep_ids) < self.min_keep:
             self.logger.warning(
                 f"Only {len(keep_ids)} stories passed strict news filter; "
@@ -268,8 +279,12 @@ class Prefilter:
             "min_news_focus": prefilter_cfg.get("min_news_focus", 4),
             "news_focus_weight": prefilter_cfg.get("news_focus_weight", 2.0),
             "newsworthiness_weight": prefilter_cfg.get("newsworthiness_weight", 1.5),
+            "audience_interest_weight": prefilter_cfg.get(
+                "audience_interest_weight", 1.8
+            ),
+            "discussion_heat_weight": prefilter_cfg.get("discussion_heat_weight", 1.2),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
-            "scoring_strategy": "strict_news_only_v1",
+            "scoring_strategy": "bilibili_news_editor_v1",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

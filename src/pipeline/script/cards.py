@@ -223,9 +223,45 @@ def _clean_subtitle_text(text: str) -> str:
 
 def extract_subtitle_texts(card: dict) -> list[str]:
     raw_texts = card.get("subtitle_texts", []) or []
-    return [
+    cleaned = [
         _ensure_punctuation(piece)
         for t in raw_texts
         if t and t.strip()
         for piece in split_long_subtitle(t.strip())
     ]
+    return _merge_dangling_context_sentences(cleaned)
+
+
+_DANGLING_CONTEXT_RE = re.compile(
+    r"(?:"
+    r".{1,32}(?:后|前|时|起|以来|以后|之前)|"
+    r"(?:如果|当|在|随着|因为|由于|为了).{1,32}"
+    r")[。！？.!?]$"
+)
+
+
+def _merge_dangling_context_sentences(texts: list[str]) -> list[str]:
+    """Merge subtitle cues that are only a time/condition setup.
+
+    LLMs sometimes emit cues such as ``3月起Steam API更新后。`` followed by
+    the actual clause. That reads like a broken sentence in narration and also
+    looks amateurish on screen, so treat it as punctuation cleanup.
+    """
+    merged: list[str] = []
+    pending = ""
+    for text in texts:
+        current = _ensure_punctuation(text)
+        if not current:
+            continue
+        if pending:
+            current = _clean_subtitle_text(
+                pending.rstrip("。！？.!? ") + "，" + current
+            )
+            pending = ""
+        if _DANGLING_CONTEXT_RE.match(current) and len(current) <= 36:
+            pending = current
+            continue
+        merged.append(current)
+    if pending:
+        merged.append(pending)
+    return merged

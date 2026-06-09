@@ -82,6 +82,19 @@ THESIS_RULES: list[dict] = [
         "closing": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
     },
     {
+        "keywords": (
+            "基础设施",
+            "中继",
+            "P2P",
+            "停服",
+            "数字所有权",
+            "平台",
+        ),
+        "prefix": "今天的主线是",
+        "body": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
+        "closing": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
+    },
+    {
         "keywords": ("开源", "开发", "工具", "Python", "CPython"),
         "prefix": "今天的主线是",
         "body": "开发者工具正在变快，但维护成本和信任边界也被重新摊开。",
@@ -260,7 +273,7 @@ def _opening_audio(entries: list[dict]) -> str:
         "。！？?! "
     )
     if thesis:
-        return f"早上好，这里是HN每日观察。今天看{hooks}，背后是{thesis}。"
+        return f"早上好，这里是HN每日观察。今天看{hooks}，真正要问的是{thesis}。"
     return f"早上好，这里是HN每日观察。今天看{hooks}。"
 
 
@@ -273,7 +286,7 @@ def _closing_audio(entries: list[dict], weekday: int | None) -> str:
         tail = "周末我也会继续盯那些真正影响开发者的问题。"
     else:
         tail = "想每天用几分钟跟上HN技术风向，可以点个关注。"
-    closing = str(rule.get("closing") or "").strip()
+    closing = _closing_reframe(entries, str(rule.get("closing") or "").strip())
     return f"放在一起看，{closing}{question}{tail}"
 
 
@@ -283,12 +296,26 @@ def _closing_question(entries: list[dict]) -> str:
         for entry in entries[:3]
         if entry.get("category")
     }
+    primary = _entry_spoken_hook(entries[0], max_len=12) if entries else "这类变化"
     if len(categories) >= 2:
-        return "你更担心工具效率变快后的成本问题，还是稳定性问题？"
+        return "这类代价应该由平台、开发者还是用户承担？"
     if categories:
         category = next(iter(categories))
-        return f"这类{category}变化，你会优先追效率，还是追风险？"
-    return "这些变化里，你最想继续追哪一个后续？"
+        return f"这类{category}变化落到真实使用里，你最先担心哪一步失控？"
+    return f"{primary}这条线，你最想继续追哪个后续？"
+
+
+def _closing_reframe(entries: list[dict], thesis: str) -> str:
+    thesis = _normalize(thesis).rstrip("。！？?! ")
+    if not thesis:
+        return "这些变化都在把技术选择背后的代价摊到台前。"
+    if len(entries) < 2:
+        return f"{thesis}。"
+    first = _entry_spoken_hook(entries[0], max_len=12)
+    second = _entry_spoken_hook(entries[1], max_len=12)
+    if first and second and first != second:
+        return f"从{first}到{second}，{thesis}。"
+    return f"{thesis}。"
 
 
 def generate_fixed_opening(

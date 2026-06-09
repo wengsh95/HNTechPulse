@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from scripts.agent_audit import audit
-from src.pipeline.agent_io import file_sha256
+from scripts.agent_audit import _publish_guide_context, audit
+from src.pipeline.agent_io import file_sha256, write_artifact_manifest
 from src.utils.atomic_io import atomic_write_json
 
 
@@ -137,3 +137,56 @@ def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
 
     assert result["publishable"] is True
     assert any(i["check"] == "publish_guide_fresh" for i in result["issues"])
+
+
+def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    base = tmp_path / "data" / date
+    base.mkdir(parents=True)
+
+    atomic_write_json(
+        base / "pipeline_state.json",
+        {"schema_version": 1, "date": date, "status": "complete"},
+    )
+    atomic_write_json(
+        base / "agent_decision.json",
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(base / "content.json", {"items": []})
+    atomic_write_json(
+        base / "script.json",
+        {
+            "title": "Script default",
+            "description": "Default desc",
+            "total_duration": 12,
+            "segments": [
+                {
+                    "segment_type": "opening",
+                    "audio_text": "开场。",
+                    "start_time": 0,
+                    "end_time": 12,
+                }
+            ],
+        },
+    )
+    atomic_write_json(
+        base / "title.json",
+        {
+            "title": "Published title",
+            "description": "Published desc",
+        },
+    )
+    guide = base / "publish_guide.md"
+    guide.write_text("fresh guide", encoding="utf-8")
+    context = _publish_guide_context(date, base / "content.json", base / "script.json")
+    assert context is not None
+    assert context["script_title"] == "Published title"
+    assert context["script_description"] == "Published desc"
+    assert "script_runtime" in context
+    write_artifact_manifest(guide, step="publish_guide", date=date, inputs=context)
+
+    result = audit(date)
+
+    assert result["publishable"] is True
+    assert not any(i["check"] == "publish_guide_fresh" for i in result["issues"])

@@ -15,7 +15,12 @@ from src.core.interfaces import (
 )
 from src.core.models import ContentPackage, Script
 from src.pipeline.agent_decision import AgentDecisionEngine
-from src.pipeline.agent_io import append_agent_event, stable_hash, write_artifact_manifest
+from src.pipeline.agent_io import (
+    append_agent_event,
+    file_sha256,
+    stable_hash,
+    write_artifact_manifest,
+)
 from src.pipeline.agent_variants import (
     promote_variant_script,
     write_variants_index,
@@ -68,6 +73,36 @@ def _clean_publish_description(text: str, max_len: int = 130) -> str:
     if compacted:
         return compacted
     return text[:max_len].rstrip("，。！？；：,.!?;: ")
+
+
+def _format_mmss(seconds: float | int | None) -> str:
+    total = max(0, int(round(float(seconds or 0))))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _script_chapter_payload(script: Optional[Script]) -> dict:
+    if script is None:
+        return {"total_duration": "00:00", "chapters": []}
+    chapters = []
+    for segment in script.segments:
+        label = {
+            "opening": "开场",
+            "story_scan": "逐条速览",
+            "closing": "收尾",
+        }.get(segment.segment_type, segment.segment_type)
+        text = normalize_cjk_mixed_spacing(segment.audio_text or "")
+        chapters.append(
+            {
+                "start": _format_mmss(segment.start_time),
+                "end": _format_mmss(segment.end_time),
+                "label": label,
+                "summary": text[:90],
+            }
+        )
+    return {
+        "total_duration": _format_mmss(script.total_duration),
+        "chapters": chapters,
+    }
 
 
 # Ordered pipeline steps with their prerequisites.
@@ -998,6 +1033,15 @@ class Orchestrator:
             "Step: Publish guide — generate human-facing publish checklist"
         )
         guide_path = Path(f"data/{date}/publish_guide.md")
+        title_path = Path(f"data/{date}/title.json")
+        title_payload = {}
+        if title_path.exists():
+            try:
+                loaded_title = json.loads(title_path.read_text(encoding="utf-8"))
+                if isinstance(loaded_title, dict):
+                    title_payload = loaded_title
+            except (OSError, json.JSONDecodeError):
+                title_payload = {}
         items_payload = [
             {
                 "title_cn": item.title_cn or item.title,
@@ -1011,10 +1055,19 @@ class Orchestrator:
             for item in content.items
         ]
         context = {
-            "script_title": script.title if script else "HN每日观察",
-            "script_description": script.description if script else "",
+            "script_title": title_payload.get("title")
+            or (script.title if script else "HN每日观察"),
+            "script_description": title_payload.get("description")
+            or (script.description if script else ""),
+            "script_runtime": json.dumps(
+                _script_chapter_payload(script), ensure_ascii=False, indent=2
+            ),
             "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
             "date": date,
+        }
+        manifest_context = {
+            **context,
+            "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
         }
         manifest_path = guide_path.with_suffix(guide_path.suffix + ".manifest.json")
         manifest = None
@@ -1026,7 +1079,7 @@ class Orchestrator:
         if (
             guide_path.exists()
             and isinstance(manifest, dict)
-            and manifest.get("input_hash") == stable_hash(context)
+            and manifest.get("input_hash") == stable_hash(manifest_context)
         ):
             self.logger.info(f"  Publish guide already exists at {guide_path}")
             return
@@ -1050,7 +1103,7 @@ class Orchestrator:
             guide_path,
             step="publish_guide",
             date=date,
-            inputs=context,
+            inputs=manifest_context,
             config=self.config,
         )
         self.logger.info(f"  Publish guide written to {guide_path}")

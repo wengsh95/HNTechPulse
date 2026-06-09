@@ -9,3 +9,5 @@ prefilter:
   min_newsworthiness: 3
   news_focus_weight: 2.0          # 复合分权重：新闻类程度
   newsworthiness_weight: 1.5      # 复合分权重：新闻价值
+  audience_interest_weight: 1.8   # 复合分权重：B站观众兴趣/视频钩子
+  discussion_heat_weight: 1.2     # 复合分权重：HN讨论热度/评论密度

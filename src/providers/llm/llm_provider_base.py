@@ -576,8 +576,15 @@ class LLMProviderBase(LLMProvider):
     ) -> list:
         stories_json = json.dumps(
             [
-                {"index": i, "title": t, "url": u, "comments": c}
-                for i, t, u, c in stories
+                {
+                    "index": story[0],
+                    "title": story[1],
+                    "url": story[2],
+                    "score": story[3] if len(story) > 4 else None,
+                    "comment_count": story[4] if len(story) > 4 else None,
+                    "comments": story[5] if len(story) > 5 else story[3],
+                }
+                for story in stories
             ],
             ensure_ascii=False,
             indent=2,

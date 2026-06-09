@@ -10,6 +10,7 @@ from src.pipeline.orchestrator import (
     Orchestrator,
     PIPELINE_STEPS,
     STANDALONE_STEPS,
+    _script_chapter_payload,
     _resolve_steps,
 )
 
@@ -113,6 +114,49 @@ class TestStepList:
             "cover_image",
             "cover_thumbnail",
         ]
+
+
+class TestPublishGuidePayload:
+    def test_script_chapter_payload_uses_real_timing(self):
+        script = Script(
+            title="T",
+            description="D",
+            tags=[],
+            total_duration=116.976,
+            segments=[
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="开场。",
+                    duration=8,
+                    start_time=0.0,
+                    end_time=12.456,
+                ),
+                ScriptSegment(
+                    segment_type="story_scan",
+                    audio_text="逐条速览。",
+                    duration=80,
+                    start_time=12.456,
+                    end_time=100.956,
+                ),
+                ScriptSegment(
+                    segment_type="closing",
+                    audio_text="收尾。",
+                    duration=12,
+                    start_time=100.956,
+                    end_time=116.976,
+                ),
+            ],
+        )
+
+        payload = _script_chapter_payload(script)
+
+        assert payload["total_duration"] == "01:57"
+        assert [c["start"] for c in payload["chapters"]] == [
+            "00:00",
+            "00:12",
+            "01:41",
+        ]
+        assert payload["chapters"][1]["label"] == "逐条速览"
 
 
 # ── Per-step behaviour ──────────────────────────────────────────────────
@@ -328,6 +372,34 @@ class TestStepPublishGuide:
 
         assert guide_path.read_text(encoding="utf-8") == "new guide"
         orch.llm_provider.complete_prompt.assert_called_once()
+
+    def test_uses_title_json_for_publish_metadata_context(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        base = tmp_path / "data" / date
+        base.mkdir(parents=True)
+        (base / "title.json").write_text(
+            json.dumps(
+                {
+                    "title": "Published Title",
+                    "description": "Published description",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        orch = _make_orchestrator(dry_run=False)
+        orch.llm_provider.complete_prompt = MagicMock(return_value="guide")
+        orch.llm_provider.fast_model = "test-fast"
+        orch.llm_provider.fast_temperature = 0.1
+
+        orch._step_publish_guide(_make_content(), _make_script(), date)
+
+        context = orch.llm_provider.complete_prompt.call_args.args[1]
+        assert context["script_title"] == "Published Title"
+        assert context["script_description"] == "Published description"
+        assert "prompt_hash" not in context
 
 
 class TestStepPrepareRender:

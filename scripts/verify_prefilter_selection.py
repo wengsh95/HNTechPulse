@@ -158,7 +158,7 @@ def main():
 
     config = {
         "logging": {"level": "WARNING"},
-        "pipeline": {"target_story_count": 5},  # base.yaml now defaults to 5
+        "pipeline": {"target_story_count": 3},  # base.yaml defaults to daily 3 stories
         "prefilter": {
             "enabled": True,
             "min_keep": 5,

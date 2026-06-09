@@ -1,6 +1,7 @@
 """Tests for src/core/prompts.py."""
 
 import pytest
+from pathlib import Path
 
 from src.core.prompts import render_prompt, _KNOWN_PLACEHOLDERS
 
@@ -75,3 +76,13 @@ class TestKnownPlaceholders:
             if k.startswith("PH_") and isinstance(vars(mod)[k], str)
         ]
         assert len(ph_names) == len(set(ph_names))
+
+
+class TestPublishGuidePrompt:
+    def test_publish_guide_is_bilibili_only(self):
+        text = Path("prompts/publish_guide.md").read_text(encoding="utf-8")
+
+        assert "B 站" in text
+        assert "YouTube" not in text
+        assert "youtube" not in text.lower()
+        assert "Tags" not in text

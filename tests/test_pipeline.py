@@ -242,7 +242,7 @@ class TestScriptWriter:
         assert props["summary_items"][0]["category"] == "AI"
         assert (
             props["summary_items"][0]["title"]
-            == "AI 正从产品功能，变成开发工作流的底层能力。"
+            == "AI正从产品功能，变成开发工作流的底层能力。"
         )
         assert props["totals"]["story_count"] == 2
 
@@ -319,7 +319,8 @@ class TestScriptTemplates:
 
         assert "风险开始外溢" in opening.audio_text
         assert "今天看" in opening.audio_text
-        assert "更担心" in closing.audio_text
+        assert "AI客服" in closing.audio_text
+        assert "平台、开发者还是用户承担" in closing.audio_text
         assert "点个关注" in closing.audio_text
 
     @pytest.mark.parametrize(
@@ -327,6 +328,7 @@ class TestScriptTemplates:
         [
             ("安全", "AI客服漏洞", "风险开始外溢"),
             ("硬件", "Nvidia新CPU", "硬件和平台控制权之争"),
+            ("基础设施", "Steam P2P中继", "控制权和兜底成本"),
             ("开源", "Python JIT暂停", "维护成本和信任边界"),
             ("资本", "Anthropic融资", "资本规则的反向拷问"),
         ],
@@ -356,6 +358,7 @@ class TestScriptTemplates:
         entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
         audio = _closing_audio(entries, weekday=2)
         assert not audio.startswith("今天的主线是")
+        assert "效率还是稳定性" not in audio
 
     def test_closing_audio_uses_weekend_tail_on_friday_saturday(self):
         from src.pipeline.script.templates import _closing_audio
@@ -364,6 +367,58 @@ class TestScriptTemplates:
         assert "周末我也会继续盯" in _closing_audio(entries, weekday=4)
         assert "周末我也会继续盯" in _closing_audio(entries, weekday=5)
         assert "想每天用几分钟" in _closing_audio(entries, weekday=2)
+
+    def test_closing_question_uses_daily_objects_for_mixed_topics(self):
+        from src.pipeline.script.templates import _closing_audio
+
+        entries = [
+            {
+                "category": "游戏产业",
+                "signal": "Steam更新砍掉P2P直连",
+                "editor_angle": "Steam Networking让中东玩家吃中继延迟",
+            },
+            {
+                "category": "数字消费",
+                "signal": "停服即作废",
+                "editor_angle": "Stop Killing Games追问数字所有权",
+            },
+        ]
+
+        audio = _closing_audio(entries, weekday=1)
+
+        assert "Steam" in audio
+        assert "停服即作废" in audio
+        assert "平台、开发者还是用户承担" in audio
+        assert "工具效率变快后的成本问题" not in audio
+
+    def test_infrastructure_thesis_wins_before_developer_tool_story(self):
+        from src.pipeline.script.templates import _opening_audio, _closing_audio
+
+        entries = [
+            {
+                "category": "基础设施",
+                "signal": "Steam更新砍掉P2P直连",
+                "editor_angle": "Steam Networking让中东玩家吃中继延迟",
+            },
+            {
+                "category": "其他",
+                "signal": "停服即作废",
+                "editor_angle": "Stop Killing Games追问数字所有权",
+                "keywords": ["数字所有权"],
+            },
+            {
+                "category": "开发者体验",
+                "signal": "Claude Desktop缺Linux官方版",
+                "editor_angle": "Anthropic被要求发布Linux构建",
+            },
+        ]
+
+        opening = _opening_audio(entries)
+        closing = _closing_audio(entries, weekday=0)
+
+        assert "控制权和兜底成本" in opening
+        assert "控制权和兜底成本" in closing
+        assert "开发者工具正在变快" not in opening
 
     def test_compact_copy_normalizes_then_compacts_without_ellipsis(self):
         from src.pipeline.script.templates import _compact_copy
