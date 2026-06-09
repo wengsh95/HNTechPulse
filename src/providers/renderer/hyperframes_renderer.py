@@ -32,7 +32,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.interfaces import Renderer
 from src.core.models import Script
@@ -48,6 +48,9 @@ from src.providers.renderer.hyperframes_props import (
     script_to_hyperframes_scenes,
 )
 from src.utils.logger import setup_logger
+
+
+_CHUNK_CACHE_SCHEMA_VERSION = 1
 
 
 class HyperFramesRenderer(Renderer):
@@ -77,6 +80,7 @@ class HyperFramesRenderer(Renderer):
         self.output_subdir = hf_config.get(
             "output_subdir", "hyperframes_project"
         )  # appended under data/{date}/
+        self.cache_subdir = hf_config.get("cache_subdir", "hyperframes_cache")
         self.default_quality = hf_config.get("default_quality", "standard")
         self.preview_port = int(hf_config.get("preview_port", 3002))
         self.fps_override = hf_config.get("fps", None)
@@ -230,10 +234,13 @@ class HyperFramesRenderer(Renderer):
             encoding="utf-8",
         )
         cli_path = out_root / "data" / "cli_props.json"
-        cli_path.write_text(
-            json.dumps(scenes_payload["cli_props"], ensure_ascii=False, indent=2),
-            encoding="utf-8",
+        cli_props_json = json.dumps(
+            scenes_payload["cli_props"], ensure_ascii=False, indent=2
         )
+        cli_path.write_text(cli_props_json, encoding="utf-8")
+        canonical_cli_path = Path("data") / date / "cli_props.json"
+        canonical_cli_path.parent.mkdir(parents=True, exist_ok=True)
+        canonical_cli_path.write_text(cli_props_json, encoding="utf-8")
 
         # Render the root index.html
         html = render_index_html(scenes_payload, title=script.title or "HN TechPulse")
@@ -357,11 +364,15 @@ class HyperFramesRenderer(Renderer):
           3. Render pending chunks in parallel via ThreadPoolExecutor.
           4. ffmpeg concat all chunk files (stream copy) into output_file.
         """
-        # Per-date chunk cache root: data/{date}/hyperframes_project/out/chunks
-        chunk_root = out_root / "out" / "chunks"
+        # Keep chunk outputs outside the runtime project. write_props() cleans
+        # out_root on every prepare/render cycle, so putting chunks there makes
+        # the resume cache self-delete before it can be reused.
+        chunk_root = self._chunk_cache_root(date)
         chunk_root.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Split rendering into {len(chunks)} segment chunks")
         self.logger.info(f"Chunk cache: {chunk_root}")
+
+        template_hash = self._template_fingerprint()
 
         # Build per-chunk projects. Returns the list of (idx, start, end,
         # label, chunk_subdir, chunk_file, partial_file) tuples.
@@ -370,7 +381,19 @@ class HyperFramesRenderer(Renderer):
             filtered = filter_scenes_to_chunk(full_scenes_payload, start_sec, end_sec)
             payload_json = json.dumps(filtered, ensure_ascii=False, sort_keys=True)
             payload_hash = sha256(payload_json.encode("utf-8")).hexdigest()[:12]
-            chunk_subdir = chunk_root / f"chunk_{idx:03d}_{label}_{payload_hash}"
+            cache_manifest = self._build_chunk_cache_manifest(
+                payload_hash=payload_hash,
+                template_hash=template_hash,
+                idx=idx,
+                label=label,
+                start_sec=start_sec,
+                end_sec=end_sec,
+            )
+            cache_key_json = json.dumps(
+                cache_manifest, ensure_ascii=False, sort_keys=True
+            )
+            cache_hash = sha256(cache_key_json.encode("utf-8")).hexdigest()[:12]
+            chunk_subdir = chunk_root / f"chunk_{idx:03d}_{label}_{cache_hash}"
             chunk_subdir.mkdir(parents=True, exist_ok=True)
             self._write_chunk_project(
                 chunk_subdir=chunk_subdir,
@@ -380,6 +403,7 @@ class HyperFramesRenderer(Renderer):
             )
             chunk_file = chunk_subdir / "chunk.mp4"
             partial_file = chunk_subdir / "chunk.partial.mp4"
+            manifest_file = chunk_subdir / "chunk.manifest.json"
             prepared.append(
                 {
                     "idx": idx,
@@ -389,6 +413,8 @@ class HyperFramesRenderer(Renderer):
                     "subdir": chunk_subdir,
                     "chunk_file": chunk_file,
                     "partial_file": partial_file,
+                    "manifest_file": manifest_file,
+                    "manifest": cache_manifest,
                 }
             )
 
@@ -399,7 +425,7 @@ class HyperFramesRenderer(Renderer):
             partial_file = entry["partial_file"]
             idx = entry["idx"]
             label = entry["label"]
-            if chunk_file.exists() and chunk_file.stat().st_size > 0:
+            if self._is_chunk_cache_hit(entry):
                 self.logger.info(
                     f"Chunk {idx + 1}/{len(prepared)} cache hit, skipping ({label})"
                 )
@@ -452,6 +478,18 @@ class HyperFramesRenderer(Renderer):
                 # handle). CLAUDE.md flags this same pitfall for the Remotion
                 # renderer's .partial.mp4 dance.
                 os.replace(partial_file, chunk_file)
+                entry["manifest_file"].write_text(
+                    json.dumps(
+                        {
+                            **entry["manifest"],
+                            "output_size": chunk_file.stat().st_size,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
                 return idx
 
             try:
@@ -726,10 +764,10 @@ class HyperFramesRenderer(Renderer):
         if not date:
             return []
         root = Path("data") / date / self.output_subdir
-        # Return both the project root and the chunk cache so `pipeline
-        # --force` wipes both. The project root is regenerated on the next
-        # write_props() call, so wiping it costs nothing.
-        return [root, root / "out" / "chunks"]
+        cache_root = Path("data") / date / self.cache_subdir
+        # write_props() rebuilds the runtime project, while the chunk cache
+        # survives ordinary prepare/render cycles. --force clears both.
+        return [root, cache_root]
 
     # ── Internals ───────────────────────────────────────────────────
 
@@ -744,6 +782,84 @@ class HyperFramesRenderer(Renderer):
                     child.unlink()
             except OSError as e:
                 self.logger.warning(f"Failed to clean {child}: {e}")
+
+    def _chunk_cache_root(self, date: str) -> Path:
+        if not date:
+            raise ValueError("HyperFramesRenderer requires a date for chunk cache")
+        return Path("data") / date / self.cache_subdir / "chunks"
+
+    def _build_chunk_cache_manifest(
+        self,
+        *,
+        payload_hash: str,
+        template_hash: str,
+        idx: int,
+        label: str,
+        start_sec: float,
+        end_sec: float,
+    ) -> Dict[str, Any]:
+        return {
+            "schema_version": _CHUNK_CACHE_SCHEMA_VERSION,
+            "payload_hash": payload_hash,
+            "template_hash": template_hash,
+            "idx": idx,
+            "label": label,
+            "start_sec": round(float(start_sec), 3),
+            "end_sec": round(float(end_sec), 3),
+            "duration": round(float(end_sec) - float(start_sec), 3),
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+            "fps_override": self.fps_override,
+            "quality": self.default_quality,
+            "workers": self.workers,
+            "browser_gpu": self.browser_gpu,
+            "gpu_encoding": self.gpu_encoding,
+        }
+
+    def _is_chunk_cache_hit(self, entry: Dict[str, Any]) -> bool:
+        chunk_file: Path = entry["chunk_file"]
+        manifest_file: Path = entry["manifest_file"]
+        if not chunk_file.exists() or chunk_file.stat().st_size <= 0:
+            return False
+        if not manifest_file.exists():
+            self.logger.warning(
+                f"Chunk {entry['idx'] + 1} has no manifest; re-rendering"
+            )
+            return False
+        try:
+            current = json.loads(manifest_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            self.logger.warning(
+                f"Chunk {entry['idx'] + 1} manifest is unreadable; re-rendering: {e}"
+            )
+            return False
+        expected = entry["manifest"]
+        return all(current.get(k) == v for k, v in expected.items())
+
+    def _template_fingerprint(self) -> str:
+        hasher = sha256()
+        paths: List[Path] = []
+        candidates = [
+            self.project_dir / "package.json",
+            self.project_dir / "index.html",
+            self.project_dir / "compositions",
+            self.project_dir / "shared",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                paths.append(candidate)
+            elif candidate.is_dir():
+                paths.extend(p for p in candidate.rglob("*") if p.is_file())
+        for path in sorted(paths, key=lambda p: str(p.relative_to(self.project_dir))):
+            rel = str(path.relative_to(self.project_dir)).replace("\\", "/")
+            hasher.update(rel.encode("utf-8"))
+            hasher.update(b"\0")
+            try:
+                hasher.update(path.read_bytes())
+            except OSError as e:
+                self.logger.warning(f"Could not fingerprint template file {path}: {e}")
+        return hasher.hexdigest()[:12]
 
     def _copy_audio_assets(self, script: Script, audio_dir: str, out_root: Path) -> int:
         """Copy each segment's audio file into <out>/public/audio/."""

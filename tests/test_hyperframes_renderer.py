@@ -30,6 +30,7 @@ def _make_config():
             "hyperframes": {
                 "project_dir": "src/providers/renderer/hyperframes",
                 "output_subdir": "hyperframes_project",
+                "cache_subdir": "hyperframes_cache",
                 "default_quality": "standard",
                 "preview_port": 3002,
                 "render_workers": 2,
@@ -54,6 +55,7 @@ def _make_renderer(**overrides):
     hf = renderer.config["renderer"]["hyperframes"]
     renderer.project_dir = Path(hf["project_dir"])
     renderer.output_subdir = hf["output_subdir"]
+    renderer.cache_subdir = hf["cache_subdir"]
     renderer.default_quality = hf["default_quality"]
     renderer.preview_port = hf["preview_port"]
     renderer.fps_override = None
@@ -245,11 +247,52 @@ class TestCachePaths:
         r = _make_renderer()
         paths = r.cache_paths("2026-06-07")
         assert Path("data/2026-06-07/hyperframes_project") in paths
-        assert Path("data/2026-06-07/hyperframes_project/out/chunks") in paths
+        assert Path("data/2026-06-07/hyperframes_cache") in paths
 
     def test_empty_when_no_date(self):
         r = _make_renderer()
         assert r.cache_paths("") == []
+
+    def test_chunk_cache_root_is_outside_runtime_project(self):
+        r = _make_renderer()
+        cache_root = r._chunk_cache_root("2026-06-07")
+        assert cache_root == Path("data/2026-06-07/hyperframes_cache/chunks")
+        assert Path("hyperframes_project") not in cache_root.parents
+
+    def test_manifest_required_for_cache_hit(self, tmp_path):
+        r = _make_renderer()
+        chunk_dir = tmp_path / "chunk"
+        chunk_dir.mkdir()
+        chunk_file = chunk_dir / "chunk.mp4"
+        chunk_file.write_bytes(b"video")
+        entry = {
+            "idx": 0,
+            "chunk_file": chunk_file,
+            "manifest_file": chunk_dir / "chunk.manifest.json",
+            "manifest": {"schema_version": 1},
+        }
+        assert r._is_chunk_cache_hit(entry) is False
+
+    def test_matching_manifest_is_cache_hit(self, tmp_path):
+        r = _make_renderer()
+        chunk_dir = tmp_path / "chunk"
+        chunk_dir.mkdir()
+        chunk_file = chunk_dir / "chunk.mp4"
+        manifest_file = chunk_dir / "chunk.manifest.json"
+        expected = {
+            "schema_version": 1,
+            "payload_hash": "abc",
+            "template_hash": "def",
+        }
+        chunk_file.write_bytes(b"video")
+        manifest_file.write_text(json.dumps({**expected, "output_size": 5}))
+        entry = {
+            "idx": 0,
+            "chunk_file": chunk_file,
+            "manifest_file": manifest_file,
+            "manifest": expected,
+        }
+        assert r._is_chunk_cache_hit(entry) is True
 
 
 # ── Base cmd ────────────────────────────────────────────────────────
@@ -504,6 +547,52 @@ class TestWriteChunkProject:
         assert "id=\"host-0\"" in html  # at least one scene card host
         assert "story_0.mp3" in html
         assert "story_1.mp3" not in html
+
+
+class TestWriteProps:
+    def test_writes_canonical_cli_props(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        r = _make_renderer()
+        r.project_dir = tmp_path / "template"
+        (r.project_dir / "compositions").mkdir(parents=True)
+        (r.project_dir / "compositions" / "event.html").write_text("<event/>")
+        (r.project_dir / "package.json").write_text("{}", encoding="utf-8")
+
+        from src.core.models import Script, ScriptSegment
+
+        script = Script(
+            title="Test",
+            description="",
+            tags=[],
+            segments=[
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="",
+                    duration=1.0,
+                    start_time=0.0,
+                    end_time=1.0,
+                    scene_elements=[],
+                )
+            ],
+            total_duration=1.0,
+        )
+
+        index_path, _, payload = r.write_props(
+            script,
+            str(tmp_path / "audio"),
+            content=None,
+            date="2026-06-09",
+            scenes_payload=_make_scenes_payload(),
+        )
+
+        project_cli = index_path.parent / "data" / "cli_props.json"
+        canonical_cli = tmp_path / "data" / "2026-06-09" / "cli_props.json"
+        assert project_cli.exists()
+        assert canonical_cli.exists()
+        assert project_cli.read_text(encoding="utf-8") == canonical_cli.read_text(
+            encoding="utf-8"
+        )
+        assert payload["cli_props"] == {"segments": []}
 
 
 class TestAudioTracks:

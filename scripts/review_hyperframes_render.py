@@ -21,12 +21,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract key frames from HyperFrames render")
     parser.add_argument("--date", required=True, help="Pipeline date (YYYY-MM-DD)")
-    parser.add_argument("--video", help="Path to video file (default: data/{date}/hyperframes_output.mp4)")
+    parser.add_argument("--video", help="Path to video file (default: data/{date}/output.mp4)")
     parser.add_argument("--out-dir", help="Output directory (default: tmp/hyperframes_review/{date})")
     args = parser.parse_args()
 
     date = args.date
-    video_path = Path(args.video) if args.video else PROJECT_ROOT / "data" / date / "hyperframes_output.mp4"
+    video_path = Path(args.video) if args.video else PROJECT_ROOT / "data" / date / "output.mp4"
     if not video_path.exists():
         print(f"ERROR: Video not found: {video_path}", file=sys.stderr)
         sys.exit(1)

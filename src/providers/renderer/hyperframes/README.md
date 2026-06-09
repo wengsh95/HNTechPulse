@@ -20,7 +20,7 @@ hyperframes/
 
 ## CLI workflow
 
-The Python driver (`uv run python main.py --renderer hyperframes --steps render`)
+The Python driver (`uv run python main.py --steps render`)
 handles the full pipeline. To drive `npx hyperframes` directly inside a
 generated project:
 

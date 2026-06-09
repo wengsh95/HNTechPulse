@@ -36,6 +36,16 @@ def _read_json(path: Path) -> Any:
         return None
 
 
+def _prepare_render_renderer(base: Path) -> str:
+    manifest = _read_json(base / "cli_props.json.manifest.json")
+    if not isinstance(manifest, dict):
+        return ""
+    inputs = manifest.get("inputs") or {}
+    if not isinstance(inputs, dict):
+        return ""
+    return str(inputs.get("renderer") or "")
+
+
 def _artifact(path: Path) -> dict[str, Any]:
     exists = path.exists()
     return {
@@ -183,6 +193,7 @@ def build_status(date: str) -> dict[str, Any]:
     script = base / "script.json"
     cli_props = base / "cli_props.json"
     public_props = base / "remotion" / "public" / "props.json"
+    hyperframes_index = base / "hyperframes_project" / "index.html"
     output = base / "output.mp4"
     title = base / "title.json"
     cover = base / "cover.png"
@@ -217,11 +228,19 @@ def build_status(date: str) -> dict[str, Any]:
                 "reason": "cli_props.json is newer than output.mp4",
             }
         )
-    if cli_props.exists() and not public_props.exists():
+    renderer_name = _prepare_render_renderer(base)
+    if cli_props.exists() and renderer_name == "RemotionRenderer" and not public_props.exists():
         stale.append(
             {
                 "artifact": str(public_props).replace("\\", "/"),
                 "reason": "public Remotion props mirror is missing",
+            }
+        )
+    if cli_props.exists() and renderer_name == "HyperFramesRenderer" and not hyperframes_index.exists():
+        stale.append(
+            {
+                "artifact": str(hyperframes_index).replace("\\", "/"),
+                "reason": "HyperFrames project index is missing",
             }
         )
     if _has_stale_publish_guide(date, content, script, publish_guide):
@@ -286,6 +305,7 @@ def build_status(date: str) -> dict[str, Any]:
             "script": _artifact(script),
             "cli_props": _artifact(cli_props),
             "public_props": _artifact(public_props),
+            "hyperframes_index": _artifact(hyperframes_index),
             "output": _artifact(output),
             "title": _artifact(title),
             "cover": _artifact(cover),

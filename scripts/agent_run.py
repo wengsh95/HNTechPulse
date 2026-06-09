@@ -95,6 +95,7 @@ def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     if (
         "cli_props.json is newer than output.mp4" in reasons
         or "public Remotion props mirror is missing" in reasons
+        or "HyperFrames project index is missing" in reasons
     ):
         return DOWNSTREAM_FROM["prepare_render"]
     return None
