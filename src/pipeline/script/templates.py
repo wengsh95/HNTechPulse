@@ -70,18 +70,6 @@ OPENING_HOOK_MAX_LEN = 10
 # - closing: 收尾独立句 (不再带 "今天的主线是" 这种开场框架词)
 THESIS_RULES: list[dict] = [
     {
-        "keywords": ("安全", "隐私", "漏洞", "攻击面", "权限"),
-        "prefix": "今天的主线不是",
-        "body": "AI又变强了，而是AI进入真实系统后，风险开始外溢。",
-        "closing": "重点不是AI又变强了，而是AI进入真实系统后，风险开始外溢。",
-    },
-    {
-        "keywords": ("硬件", "芯片", "CPU", "GPU", "Windows PC", "Nvidia"),
-        "prefix": "今天的主线是",
-        "body": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
-        "closing": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
-    },
-    {
         "keywords": (
             "基础设施",
             "中继",
@@ -93,6 +81,18 @@ THESIS_RULES: list[dict] = [
         "prefix": "今天的主线是",
         "body": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
         "closing": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
+    },
+    {
+        "keywords": ("安全", "隐私", "漏洞", "攻击面", "权限"),
+        "prefix": "今天的主线不是",
+        "body": "AI又变强了，而是AI进入真实系统后，风险开始外溢。",
+        "closing": "重点不是AI又变强了，而是AI进入真实系统后，风险开始外溢。",
+    },
+    {
+        "keywords": ("硬件", "芯片", "CPU", "GPU", "Windows PC", "Nvidia"),
+        "prefix": "今天的主线是",
+        "body": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
+        "closing": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
     },
     {
         "keywords": ("开源", "开发", "工具", "Python", "CPython"),
@@ -245,6 +245,13 @@ def _match_thesis(entries: list[dict]) -> dict:
     haystack = " ".join(
         [str(e.get("category") or "") for e in entries[:3]]
         + [str(e.get("editor_angle") or "") for e in entries[:3]]
+        + [str(e.get("signal") or "") for e in entries[:3]]
+        + [str(e.get("why_it_matters") or "") for e in entries[:3]]
+        + [
+            str(keyword or "")
+            for e in entries[:3]
+            for keyword in (e.get("keywords") or [])
+        ]
     )
     for rule in THESIS_RULES:
         if any(kw in haystack for kw in rule["keywords"]):

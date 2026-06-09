@@ -4,7 +4,7 @@
     data-width="1920"
     data-height="1080"
     data-composition-variables='[
-      {"id":"headline","type":"string","label":"Headline","default":"HN 每日观察"},
+      {"id":"headline","type":"string","label":"Headline","default":"每日HN观察"},
       {"id":"date_label","type":"string","label":"Date Label","default":""},
       {"id":"subtitle","type":"string","label":"Subtitle","default":"快讯 / 洞察 / 趋势"},
       {"id":"lineup_json","type":"string","label":"Lineup JSON","default":"[]"}
@@ -235,7 +235,7 @@
         try { lineup = JSON.parse(vars.lineup_json || "[]"); } catch (e) { lineup = []; }
 
         root.querySelector(".brand-strip__date").textContent = vars.date_label || "";
-        root.querySelector(".card-title").textContent = vars.headline || "HN 每日观察";
+        root.querySelector(".card-title").textContent = vars.headline || "每日HN观察";
         root.querySelector(".card-deck").textContent = vars.subtitle || "";
 
         const list = root.querySelector(".opening__list");

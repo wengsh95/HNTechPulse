@@ -8,7 +8,7 @@
 # 写错位置 → 看似改了实际没生效(踩过一次)。
 
 renderer:
-  provider: "hyperframes"   # "remotion" | "hyperframes"
+  provider: "remotion"      # "remotion" | "hyperframes"
 
   # Remotion 段(在 config/remotion.yaml 里继续维护;这里只是占位注释)
   # remotion:
@@ -22,8 +22,12 @@ renderer:
     output_subdir: "hyperframes_project"
     # 渲染质量:draft(快) | standard(默认) | high(慢)
     default_quality: "standard"
-    # 不指定则取 config.video.fps
+    # 不指定则取 config.video.fps，并显式传给 HyperFrames CLI，避免 CLI 默认 30fps。
     # fps: 24
+    # 最终 MP4 的 AAC 音频码率。视频流保持 HyperFrames 输出不重编码。
+    audio_bitrate: "320k"
+    audio_channels: 2
+    audio_sample_rate: 48000
     # 预览端口
     preview_port: 3002
     # 并行段数(Python 线程池大小,外层并发)。HyperFrames render 内部会自启 localhost 服务,

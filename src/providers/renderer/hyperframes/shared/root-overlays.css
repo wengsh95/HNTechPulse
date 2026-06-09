@@ -48,18 +48,25 @@
   position: absolute;
   left: 69px;
   right: 69px;
-  bottom: 28px;
-  height: 6px;
+  bottom: 24px;
+  height: 28px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(32, 25, 20, 0.08);
+  background: transparent;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
 }
 
 .hf-progress__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
   width: 0%;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #ff6600, rgba(255, 102, 0, 0.34));
+  height: 2px;
+  border-radius: 999px;
+  background: #b64a12;
+  opacity: 0.9;
 }
 
 .hf-progress__marker {
@@ -75,19 +82,22 @@
 
 .hf-waveform {
   position: absolute;
-  right: 76px;
-  bottom: 102px;
+  left: 69px;
+  right: 69px;
+  bottom: 24px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 5px;
-  height: 34px;
-  opacity: 0.58;
+  height: 28px;
+  opacity: 0.72;
 }
 
 .hf-waveform span {
-  width: 4px;
+  flex: 1 1 0;
+  min-width: 3px;
+  max-width: 8px;
   height: 12px;
   border-radius: 999px;
-  background: #b64a12;
+  background: rgba(255, 102, 0, 0.82);
   transform-origin: center bottom;
 }

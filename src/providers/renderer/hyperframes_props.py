@@ -49,6 +49,17 @@ def _controversy_label(score: float) -> str:
     return "讨论平稳"
 
 
+def _story_position(props: Dict[str, Any]) -> Dict[str, int]:
+    display_index = int(props.get("display_index") or 0)
+    story_count = int(props.get("story_count") or 0)
+    return {
+        "display_index": display_index,
+        "story_count": story_count,
+        "slide_current": display_index + 1 if story_count else 0,
+        "slide_total": story_count,
+    }
+
+
 def _json_attr(value: Any) -> str:
     """Encode a Python value as a JSON string safe for an HTML attribute.
 
@@ -301,9 +312,9 @@ def _extract_variables(
     if element_type == "cover_card":
         lineup = props.get("lineup_entries") or props.get("highlight_entries") or []
         return {
-            "headline": "HN 每日观察",
+            "headline": props.get("headline") or "每日HN观察",
             "date_label": props.get("date_label") or date_label,
-            "subtitle": "快讯 / 洞察 / 趋势",
+            "subtitle": props.get("subtitle") or "快讯 / 洞察 / 趋势",
             "lineup_json": json.dumps(lineup[:3], ensure_ascii=False),
         }
     if element_type == "event_card":
@@ -332,6 +343,7 @@ def _extract_variables(
                 break
 
         return {
+            **_story_position(props),
             "title": title_zh,
             "sub_title": sub_title,
             "source_domain": props.get("source_domain", ""),
@@ -346,8 +358,11 @@ def _extract_variables(
     if element_type == "atmosphere_card":
         score = float(props.get("controversy_score") or 0)
         return {
-            "title": props.get("title") or f"争议指数 {score:.1f} {_controversy_label(score)}",
-            "subtitle": props.get("subtitle", ""),
+            **_story_position(props),
+            "title": props.get("title") or "争议指数",
+            "controversy_score": score,
+            "controversy_label": _controversy_label(score),
+            "discussion_summary": props.get("discussion_summary") or props.get("subtitle", ""),
             "date_label": props.get("date_label") or date_label,
             "stance_json": json.dumps(
                 props.get("stance_distribution") or {"support": 0, "neutral": 0, "skeptical": 0},
@@ -369,9 +384,22 @@ def _extract_variables(
                     "signal": item.get("signal") or item.get("category") or "",
                     "rank": item.get("rank") or idx + 1,
                 })
+        raw_summary = (props.get("signal") or props.get("question") or "").strip()
+        summary = "" if raw_summary == "今日信号" else raw_summary
+        takeaways = [
+            str(item).strip()
+            for item in (props.get("takeaways") or [])
+            if str(item).strip()
+        ][:3]
+        totals = props.get("totals") or {}
+        story_count = int(totals.get("story_count") or len(stories) or 0)
+        subtitle = " / ".join(takeaways)
+        if not subtitle and story_count > 0:
+            subtitle = f"{story_count} 个关键故事，一条共同的结构变化"
         return {
-            "title": "今日 HN 观察 / 回顾",
-            "subtitle": props.get("subtitle", ""),
+            "title": "今日回顾",
+            "summary": summary,
+            "subtitle": subtitle,
             "date_label": props.get("date_label") or date_label,
             "stories_json": json.dumps(stories, ensure_ascii=False),
         }
@@ -449,6 +477,9 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
             {
                 "host_id": f"host-{i}",
                 "comp_id": s.get("comp_id", ""),
+                "element_type": s.get("element_type", ""),
+                "start": s.get("start", 0),
+                "duration": s.get("duration", 0),
                 "variables": s.get("variables") or {},
             }
             for i, s in enumerate(scenes)

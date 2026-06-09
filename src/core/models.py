@@ -132,6 +132,8 @@ class Script:
     segments: List[ScriptSegment]
     total_duration: Optional[float] = None
     cover_subtitle: str = ""  # 封面副文（破折号短语，每段长度详见 prompts/title.md），独立于视频 description
+    cover_title: str = ""  # 封面缩略图主标题，独立于发布标题
+    cover_tags: List[str] = field(default_factory=list)  # 封面短标签，最多 2-3 个
 
 
 @dataclass

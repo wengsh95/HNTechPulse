@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""Check regenerated text artifacts for common publish-copy failures."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+BLOCKED_UNRELATED_TERMS = (
+    "ChatDev",
+    "六成Token",
+    "六成 Token",
+    "代码审查",
+    "审查先吃",
+    "Agent写代码",
+)
+
+ENGAGEMENT_CLICHES = (
+    "三连",
+    "点赞",
+    "投币",
+    "收藏",
+    "欢迎订阅",
+    "欢迎关注",
+)
+
+OVERCLAIM_TERMS = (
+    "断网",
+    "掉线",
+    "违法",
+    "法律已生效",
+    "彻底",
+    "确认结果",
+    "没有技术障碍",
+    "无技术障碍",
+    "几乎没有新增成本",
+)
+
+TITLE_OVERCLAIM_TERMS = (
+    "断网",
+    "掉线",
+    "砍掉P2P",
+    "砍掉 P2P",
+    "一刀砍",
+)
+
+LEGAL_ASSERTION_PATTERNS = (
+    "法案过了",
+    "已对.*提起诉讼",
+)
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _flatten_title_payload(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in ("title", "description", "cover_title", "cover_subtitle"):
+        value = payload.get(key)
+        if value:
+            parts.append(str(value))
+    for key in ("title_candidates", "cover_tags", "tags"):
+        values = payload.get(key) or []
+        if isinstance(values, list):
+            parts.extend(str(v) for v in values if v)
+    return "\n".join(parts)
+
+
+def _guide_public_sections(text: str) -> str:
+    if not text:
+        return ""
+    stop_markers = ("\n## 3. 完整发布 Checklist", "\n## 4. 注意事项")
+    end = len(text)
+    for marker in stop_markers:
+        idx = text.find(marker)
+        if idx >= 0:
+            end = min(end, idx)
+    return text[:end]
+
+
+def _transcript_public_text(text: str) -> str:
+    if not text:
+        return ""
+    lines = []
+    skip_prefixes = ("▲ ", "🖼", "**社区观点**", "**争议焦点**")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("---"):
+            continue
+        if stripped.startswith(skip_prefixes):
+            continue
+        if stripped.startswith(">"):
+            lines.append(stripped.lstrip("> "))
+        elif not stripped.startswith("["):
+            lines.append(stripped)
+    return "\n".join(lines)
+
+
+def _add_contains_issues(
+    issues: list[dict[str, str]],
+    *,
+    text: str,
+    terms: tuple[str, ...],
+    code: str,
+    path: str,
+) -> None:
+    for term in terms:
+        if term in text:
+            issues.append({"code": code, "path": path, "detail": term})
+
+
+def check_date(date: str) -> dict[str, Any]:
+    base = ROOT / "data" / date
+    title_path = base / "title.json"
+    transcript_path = base / "transcript.md"
+    guide_path = base / "publish_guide.md"
+    title = _read_json(title_path)
+    title_text = _flatten_title_payload(title)
+    transcript = _read_text(transcript_path)
+    guide = _read_text(guide_path)
+    public_guide = _guide_public_sections(guide)
+    public_transcript = _transcript_public_text(transcript)
+    combined = "\n".join([title_text, public_transcript, public_guide])
+
+    issues: list[dict[str, str]] = []
+    if not title_path.exists():
+        issues.append({"code": "missing_title", "path": str(title_path), "detail": ""})
+    if not transcript_path.exists():
+        issues.append(
+            {"code": "missing_transcript", "path": str(transcript_path), "detail": ""}
+        )
+    if not guide_path.exists():
+        issues.append(
+            {"code": "missing_publish_guide", "path": str(guide_path), "detail": ""}
+        )
+
+    _add_contains_issues(
+        issues,
+        text=combined,
+        terms=BLOCKED_UNRELATED_TERMS,
+        code="unrelated_or_stale_topic",
+        path="text_artifacts",
+    )
+    _add_contains_issues(
+        issues,
+        text=title_text,
+        terms=TITLE_OVERCLAIM_TERMS,
+        code="title_overclaim",
+        path=str(title_path),
+    )
+    _add_contains_issues(
+        issues,
+        text=combined,
+        terms=OVERCLAIM_TERMS,
+        code="overclaim",
+        path="text_artifacts",
+    )
+    _add_contains_issues(
+        issues,
+        text=guide,
+        terms=ENGAGEMENT_CLICHES,
+        code="engagement_cliche",
+        path=str(guide_path),
+    )
+
+    if re.search(r"Linux.{0,8}(占|近|约)?三成", combined):
+        issues.append(
+            {
+                "code": "linux_percentage_overgeneralized",
+                "path": "text_artifacts",
+                "detail": "Linux/三成",
+            }
+        )
+    if re.search(r"Linux.{0,8}27\.?7%", combined):
+        issues.append(
+            {
+                "code": "linux_percentage_overgeneralized",
+                "path": "text_artifacts",
+                "detail": "Linux/27.7%",
+            }
+        )
+    for pattern in LEGAL_ASSERTION_PATTERNS:
+        if re.search(pattern, combined):
+            issues.append(
+                {
+                    "code": "legal_assertion_needs_attribution",
+                    "path": "text_artifacts",
+                    "detail": pattern,
+                }
+            )
+
+    if guide:
+        chapter_lines = [
+            line.strip()
+            for line in guide.splitlines()
+            if re.match(r"^- \d\d:\d\d ", line.strip())
+        ]
+        if len(chapter_lines) >= 2:
+            starts = [line.split(" ", 2)[1] for line in chapter_lines]
+            if len(set(starts)) == 1:
+                issues.append(
+                    {
+                        "code": "chapter_timestamps_identical",
+                        "path": str(guide_path),
+                        "detail": ", ".join(starts),
+                    }
+                )
+
+    return {
+        "date": date,
+        "status": "ok" if not issues else "issues",
+        "issue_count": len(issues),
+        "issues": issues,
+        "title": title.get("title", ""),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("dates", nargs="+")
+    args = parser.parse_args()
+    results = [check_date(date) for date in args.dates]
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    return 1 if any(r["issues"] for r in results) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

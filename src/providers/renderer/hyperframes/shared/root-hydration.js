@@ -45,7 +45,7 @@ const subtitleEl = rootEl.querySelector('.hf-subtitle');
 const progressBar = rootEl.querySelector('.hf-progress__bar');
 const progressTrack = rootEl.querySelector('.hf-progress');
 const waveEl = rootEl.querySelector('.hf-waveform');
-const waveBars = Array.from({ length: 28 }, () => {
+const waveBars = Array.from({ length: 180 }, () => {
   const s = document.createElement('span');
   waveEl.appendChild(s);
   return s;
@@ -89,7 +89,7 @@ function hydrateCover(host, vars) {
   const root = host.querySelector('.hf-comp-cover');
   if (!root) return false;
   setText(root, '.brand-strip__date', vars.date_label || '');
-  setText(root, '.card-title', vars.headline || 'HN 每日观察');
+  setText(root, '.card-title', vars.headline || '每日HN观察');
   setText(root, '.card-deck', vars.subtitle || '快讯 / 洞察 / 趋势');
   const lineup = parseJson(vars.lineup_json, []);
   fillList(root, '.opening__list', lineup.slice(0, 3), (it, index) => {
@@ -117,6 +117,11 @@ function hydrateEvent(host, vars) {
   const root = host.querySelector('.hf-comp-event');
   if (!root) return false;
   setText(root, '.brand-strip__date', vars.date_label || '');
+  const slide = root.querySelector('.slide-indicator');
+  if (slide) {
+    if (Number(vars.slide_total || 0) > 0) slide.textContent = (vars.slide_current || 1) + ' / ' + vars.slide_total;
+    else slide.remove();
+  }
   setText(root, '.card-title', vars.title || '');
   // sub_title (English source title) + source_domain share .card-deck; mirror
   // event.html's inline script — drop the whole deck when both are empty.
@@ -197,10 +202,17 @@ function hydrateAtmosphere(host, vars) {
   const root = host.querySelector('.hf-comp-atmo');
   if (!root) return false;
   setText(root, '.brand-strip__date', vars.date_label || '');
-  setText(root, '.card-title', vars.title || '');
+  const slide = root.querySelector('.slide-indicator');
+  if (slide) {
+    if (Number(vars.slide_total || 0) > 0) slide.textContent = (vars.slide_current || 1) + ' / ' + vars.slide_total;
+    else slide.remove();
+  }
+  setText(root, '.stat-title__prefix', vars.title || '争议指数');
+  setText(root, '.stat-title__score', Number(vars.controversy_score || 0).toFixed(1));
+  setText(root, '.stat-title__label', vars.controversy_label || '存在分歧');
   const deck = root.querySelector('.card-deck');
   if (deck) {
-    if (vars.subtitle) deck.textContent = vars.subtitle;
+    if (vars.discussion_summary) deck.textContent = vars.discussion_summary;
     else deck.remove();
   }
   // Stance: render three rows in fixed 支持 / 中立 / 质疑 order, normalizing
@@ -251,7 +263,12 @@ function hydrateClosing(host, vars) {
   const root = host.querySelector('.hf-comp-closing');
   if (!root) return false;
   setText(root, '.brand-strip__date', vars.date_label || '');
-  setText(root, '.card-title', vars.title || '今日 HN 观察 / 回顾');
+  setText(root, '.card-title', vars.title || '今日回顾');
+  const summary = root.querySelector('.closing-summary');
+  if (summary) {
+    if (vars.summary) summary.textContent = vars.summary;
+    else summary.remove();
+  }
   setText(root, '.card-deck', vars.subtitle || '');
   const stories = parseJson(vars.stories_json, []);
   fillList(root, '.story-list', stories, (item, index) => {
@@ -268,6 +285,31 @@ function hydrateClosing(host, vars) {
     return row;
   });
   return true;
+}
+
+function applyActiveSceneText(time) {
+  __hfSceneRuntime.forEach((scene) => {
+    const start = Number(scene.start || 0);
+    const end = start + Number(scene.duration || 0);
+    if (time < start || time >= end) return;
+    const host = document.getElementById(scene.host_id);
+    if (!host) return;
+    const vars = scene.variables || {};
+    if (scene.comp_id === 'event-card' || scene.comp_id === 'atmosphere-card') {
+      const slide = host.querySelector('.slide-indicator');
+      if (slide && Number(vars.slide_total || 0) > 0) {
+        slide.textContent = (vars.slide_current || 1) + ' / ' + vars.slide_total;
+      }
+    }
+    if (scene.comp_id === 'atmosphere-card') {
+      setText(host, '.stat-title__prefix', vars.title || '争议指数');
+      setText(host, '.stat-title__score', Number(vars.controversy_score || 0).toFixed(1));
+      setText(host, '.stat-title__label', vars.controversy_label || '存在分歧');
+    }
+    if (scene.comp_id === 'closing-card') {
+      setText(host, '.card-title', vars.title || '今日回顾');
+    }
+  });
 }
 
 /* ── hydration loop ── */
@@ -309,6 +351,42 @@ const cueAt = (time) => __hfSubtitleCues.find(
   (cue) => time >= Number(cue.start || 0) && time < Number(cue.end || 0)
 );
 
+function addSceneEntrance(tl, scene) {
+  const host = document.getElementById(scene.host_id);
+  if (!host) return;
+  const start = Number(scene.start || 0);
+  const root = host.querySelector('.hf-comp-cover, .hf-comp-event, .hf-comp-atmo, .hf-comp-closing');
+  if (!root) return;
+
+  const add = (selector, vars, offset) => {
+    const targets = Array.from(root.querySelectorAll(selector));
+    if (!targets.length) return;
+    tl.from(targets, { immediateRender: false, ...vars }, start + offset);
+  };
+
+  add('.brand-strip', { y: 22, opacity: 0, duration: 0.42, ease: 'power2.out' }, 0.08);
+  if (scene.comp_id === 'atmosphere-card') {
+    add('.stat-title', { y: 32, opacity: 0, duration: 0.58, ease: 'power3.out' }, 0.16);
+  } else {
+    add('.card-title', { y: 32, opacity: 0, duration: 0.58, ease: 'power3.out' }, 0.16);
+  }
+  add('.card-deck, .closing-summary', { y: 18, opacity: 0, duration: 0.42, ease: 'power2.out' }, 0.30);
+
+  if (scene.comp_id === 'cover-card') {
+    Array.from(root.querySelectorAll('.news-item')).forEach((el, i) => {
+      tl.from(el, { immediateRender: false, x: -30, opacity: 0, duration: 0.48, ease: 'power3.out' }, start + 0.48 + i * 0.12);
+    });
+  } else if (scene.comp_id === 'event-card') {
+    add('.metrics, .tags, .section, .event-image', { y: 18, opacity: 0, duration: 0.48, ease: 'power3.out', stagger: 0.08 }, 0.42);
+  } else if (scene.comp_id === 'atmosphere-card') {
+    add('.stance-card, .debate-card, .quote-card, .focus-item, .stance__row', { y: 18, opacity: 0, duration: 0.48, ease: 'power3.out', stagger: 0.07 }, 0.42);
+  } else if (scene.comp_id === 'closing-card') {
+    Array.from(root.querySelectorAll('.story')).forEach((el, i) => {
+      tl.from(el, { immediateRender: false, y: 28, opacity: 0, duration: 0.45, ease: 'power3.out' }, start + 0.46 + i * 0.12);
+    });
+  }
+}
+
 const rootTl = gsap.timeline({
   paused: true,
   onUpdate: function () {
@@ -328,11 +406,14 @@ const rootTl = gsap.timeline({
     const base = Math.max(0, Math.floor(time * rate));
     waveBars.forEach((bar, i) => {
       const amp = Number(values[(base + i) % Math.max(1, values.length)] || 0.2);
-      bar.style.transform = 'scaleY(' + (0.35 + amp * 1.55).toFixed(3) + ')';
-      bar.style.opacity = String(0.34 + amp * 0.56);
+      const passed = __hfTotalDuration > 0 && (i / Math.max(1, waveBars.length - 1)) <= (time / __hfTotalDuration);
+      bar.style.transform = 'scaleY(' + (0.3 + amp * 1.45).toFixed(3) + ')';
+      bar.style.opacity = String(passed ? 0.86 : 0.28);
     });
+    applyActiveSceneText(time);
   },
 });
 
+__hfSceneRuntime.forEach((scene) => addSceneEntrance(rootTl, scene));
 rootTl.to({}, { duration: __hfTotalDuration || 0.001 });
 window.__timelines["hn-techpulse-root"] = rootTl;

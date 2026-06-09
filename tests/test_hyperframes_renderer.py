@@ -59,8 +59,12 @@ def _make_renderer(**overrides):
     renderer.default_quality = hf["default_quality"]
     renderer.preview_port = hf["preview_port"]
     renderer.fps_override = None
+    renderer.output_fps = 24
     renderer.browser_gpu = hf.get("browser_gpu", None)
     renderer.gpu_encoding = bool(hf.get("gpu_encoding", False))
+    renderer.audio_bitrate = "320k"
+    renderer.audio_channels = 2
+    renderer.audio_sample_rate = 48000
     renderer.render_workers = hf["render_workers"]
     renderer.resume_enabled = hf["resume_enabled"]
     renderer.workers = None
@@ -308,6 +312,7 @@ class TestBuildBaseCmd:
         # Windows mangles forward slashes in f-strings; match the resolved form.
         assert any(p.startswith("--output=") and p.endswith("out.mp4") for p in cmd)
         assert "--quality=standard" in cmd
+        assert "--fps=24" in cmd
         assert "--workers=1" in cmd
 
     def test_workers_omitted_when_none(self):
@@ -316,9 +321,38 @@ class TestBuildBaseCmd:
         assert not any(p.startswith("--workers=") for p in cmd)
 
     def test_includes_fps_override(self):
-        r = _make_renderer(fps_override=60)
+        r = _make_renderer(fps_override=60, output_fps=60)
         cmd = r._build_base_cmd(Path("/tmp/out.mp4"), workers=1)
         assert "--fps=60" in cmd
+
+
+class TestAudioNormalization:
+    def test_normalizes_audio_as_stereo_48k(self, tmp_path, monkeypatch):
+        r = _make_renderer()
+        video = tmp_path / "out.mp4"
+        video.write_bytes(b"mp4")
+        calls = []
+
+        class Result:
+            returncode = 0
+
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            tmp = tmp_path / "out.audio-normalized.mp4"
+            tmp.write_bytes(b"normalized")
+            return Result()
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        r._normalize_output_audio(video)
+
+        cmd = calls[0][0]
+        assert "-ac" in cmd
+        assert cmd[cmd.index("-ac") + 1] == "2"
+        assert "-ar" in cmd
+        assert cmd[cmd.index("-ar") + 1] == "48000"
+        assert "-b:a" in cmd
+        assert cmd[cmd.index("-b:a") + 1] == "320k"
+        assert video.read_bytes() == b"normalized"
 
 
 # ── Cache hit / miss logic (in-process simulation) ─────────────────

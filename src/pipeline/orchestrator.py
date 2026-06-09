@@ -739,6 +739,14 @@ class Orchestrator:
             script.cover_subtitle = normalize_cjk_mixed_spacing(
                 cached.get("cover_subtitle", script.cover_subtitle)
             )
+            script.cover_title = normalize_cjk_mixed_spacing(
+                cached.get("cover_title", script.cover_title)
+            )
+            script.cover_tags = [
+                normalize_cjk_mixed_spacing(str(tag))
+                for tag in (cached.get("cover_tags") or script.cover_tags or [])
+                if str(tag).strip()
+            ][:2]
             return script
 
         if self.dry_run:
@@ -816,6 +824,12 @@ class Orchestrator:
         script.cover_subtitle = normalize_cjk_mixed_spacing(
             result.get("cover_subtitle") or ""
         )
+        script.cover_title = normalize_cjk_mixed_spacing(result.get("cover_title") or "")
+        script.cover_tags = [
+            normalize_cjk_mixed_spacing(str(tag))
+            for tag in (result.get("cover_tags") or [])
+            if str(tag).strip()
+        ][:2]
 
         atomic_write_json(
             cache_path,
@@ -823,6 +837,8 @@ class Orchestrator:
                 "title": script.title,
                 "title_candidates": kept_candidates,
                 "description": script.description,
+                "cover_title": script.cover_title,
+                "cover_tags": script.cover_tags,
                 "cover_subtitle": script.cover_subtitle,
                 "tags": script.tags,
             },
@@ -907,7 +923,14 @@ class Orchestrator:
                 )
                 return
 
-        title = script.title if script else "HN每日观察"
+        title = (
+            script.cover_title
+            if script and script.cover_title
+            else script.title
+            if script
+            else "HN每日观察"
+        )
+        cover_tags = script.cover_tags[:2] if script and script.cover_tags else []
         # 封面副文：cover_subtitle 优先（格式/长度见 prompts/title.md cover_subtitle 段），fallback 到 description 截断
         if script is None:
             subtitle = date
@@ -927,6 +950,7 @@ class Orchestrator:
                 "backgroundImage": bg_path.name,
                 "title": title,
                 "subtitle": subtitle,
+                "tags": cover_tags,
                 "dateLabel": date_label,
             },
         )
@@ -938,6 +962,7 @@ class Orchestrator:
                 "background": str(bg_path).replace("\\", "/"),
                 "title": title,
                 "subtitle": subtitle,
+                "tags": cover_tags,
             },
             config=self.config,
         )

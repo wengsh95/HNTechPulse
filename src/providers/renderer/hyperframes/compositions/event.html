@@ -8,6 +8,8 @@
       {"id":"sub_title","type":"string","label":"Subtitle","default":""},
       {"id":"source_domain","type":"string","label":"Source Domain","default":""},
       {"id":"date_label","type":"string","label":"Date","default":""},
+      {"id":"slide_current","type":"number","label":"Slide Current","default":0},
+      {"id":"slide_total","type":"number","label":"Slide Total","default":0},
       {"id":"score","type":"number","label":"Score","default":0},
       {"id":"comment_count","type":"number","label":"Comments","default":0},
       {"id":"why_it_matters","type":"string","label":"Why It Matters","default":""},
@@ -124,6 +126,20 @@
         color: var(--color-ink-muted);
         font-family: var(--font-mono);
         font-size: 24px;
+      }
+      .slide-indicator {
+        position: absolute;
+        top: var(--card-padding-y);
+        right: var(--card-padding-x);
+        z-index: 12;
+        padding: 6px 18px;
+        border-radius: 999px;
+        background: rgba(32,25,20,0.66);
+        color: #fff;
+        font-family: var(--font-mono);
+        font-size: 24px;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
       }
       .event-card__body {
         min-height: 0;
@@ -243,6 +259,7 @@
         <span class="brand-strip__brand">HN TechPulse</span>
         <span class="brand-strip__date"></span>
       </div>
+      <div class="slide-indicator"></div>
       <h1 class="card-title"></h1>
       <p class="card-deck"><span class="event-source-title"></span><span class="lead__src"></span></p>
       <div class="event-card__body">
@@ -279,6 +296,9 @@
         );
 
         root.querySelector(".brand-strip__date").textContent = vars.date_label || "";
+        const slide = root.querySelector(".slide-indicator");
+        if (Number(vars.slide_total || 0) > 0) slide.textContent = `${vars.slide_current || 1} / ${vars.slide_total}`;
+        else slide.remove();
         root.querySelector(".card-title").textContent = vars.title || "";
         const sourceTitle = vars.sub_title || "";
         const domain = vars.source_domain || "";

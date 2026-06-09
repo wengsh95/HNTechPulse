@@ -84,6 +84,7 @@ class HyperFramesRenderer(Renderer):
         self.default_quality = hf_config.get("default_quality", "standard")
         self.preview_port = int(hf_config.get("preview_port", 3002))
         self.fps_override = hf_config.get("fps", None)
+        self.output_fps = int(self.fps_override or self.fps)
         # Parallel render: number of `npx hyperframes render` subprocesses
         # running concurrently. HyperFrames currently allocates its internal
         # localhost port by itself; on Windows, parallel chunks can collide
@@ -106,6 +107,9 @@ class HyperFramesRenderer(Renderer):
         # of None leaves auto-probe behavior intact.
         self.browser_gpu = hf_config.get("browser_gpu", None)
         self.gpu_encoding = bool(hf_config.get("gpu_encoding", False))
+        self.audio_bitrate = hf_config.get("audio_bitrate", "320k")
+        self.audio_channels = int(hf_config.get("audio_channels", 2))
+        self.audio_sample_rate = int(hf_config.get("audio_sample_rate", 48000))
         # Always persist npx stdout+stderr to <cwd>/render.log so we can
         # postmortem timing/phase output even on successful runs. Without
         # this, hyperframes' per-stage timestamps live and die inside the
@@ -344,6 +348,7 @@ class HyperFramesRenderer(Renderer):
             raise FileNotFoundError(
                 f"HyperFrames did not produce output at {output_file}"
             )
+        self._normalize_output_audio(output_file)
         size_mb = output_file.stat().st_size / (1024 * 1024)
         self.logger.info(f"Video complete: {output_file} ({size_mb:.1f} MB)")
 
@@ -545,6 +550,7 @@ class HyperFramesRenderer(Renderer):
             )
             raise RuntimeError("ffmpeg concat failed")
 
+        self._normalize_output_audio(output_file)
         size_mb = output_file.stat().st_size / (1024 * 1024)
         self.logger.info(f"Video complete: {output_file} ({size_mb:.1f} MB)")
 
@@ -581,8 +587,7 @@ class HyperFramesRenderer(Renderer):
             f"--output={output_arg}",
             f"--quality={self.default_quality}",
         ]
-        if self.fps_override:
-            cmd.append(f"--fps={self.fps_override}")
+        cmd.append(f"--fps={self.output_fps}")
         if workers is not None:
             cmd.append(f"--workers={workers}")
         # GPU flags. browser_gpu: True → force-on, False → force-off (SwiftShader),
@@ -595,6 +600,43 @@ class HyperFramesRenderer(Renderer):
         if self.gpu_encoding:
             cmd.append("--gpu")
         return cmd
+
+    def _normalize_output_audio(self, output_file: Path) -> None:
+        """Match Remotion's expected AAC bitrate while preserving video frames."""
+        if not self.audio_bitrate:
+            return
+        if not self._ffmpeg_path or not output_file.exists():
+            return
+        tmp = output_file.with_name(f"{output_file.stem}.audio-normalized{output_file.suffix}")
+        cmd = [
+            str(self._ffmpeg_path),
+            "-y",
+            "-i",
+            str(output_file),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-ac",
+            str(self.audio_channels),
+            "-ar",
+            str(self.audio_sample_rate),
+            "-b:a",
+            str(self.audio_bitrate),
+            "-movflags",
+            "+faststart",
+            str(tmp),
+        ]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            os.replace(tmp, output_file)
+        except subprocess.CalledProcessError as e:
+            if tmp.exists():
+                tmp.unlink()
+            self.logger.warning(
+                "Could not normalize HyperFrames audio bitrate: "
+                f"{e.stderr.decode('utf-8', errors='ignore')}"
+            )
 
     def _run_render_cmd(self, cmd: list, cwd: Path, label: str = "") -> None:
         """Run one npx hyperframes render subprocess. Raises on non-zero exit.
@@ -810,11 +852,14 @@ class HyperFramesRenderer(Renderer):
             "width": self.width,
             "height": self.height,
             "fps": self.fps,
-            "fps_override": self.fps_override,
+            "output_fps": self.output_fps,
             "quality": self.default_quality,
             "workers": self.workers,
             "browser_gpu": self.browser_gpu,
             "gpu_encoding": self.gpu_encoding,
+            "audio_bitrate": self.audio_bitrate,
+            "audio_channels": self.audio_channels,
+            "audio_sample_rate": self.audio_sample_rate,
         }
 
     def _is_chunk_cache_hit(self, entry: Dict[str, Any]) -> bool:

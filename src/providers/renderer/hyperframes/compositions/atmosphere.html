@@ -5,8 +5,12 @@
     data-height="1080"
     data-composition-variables='[
       {"id":"title","type":"string","label":"Title","default":"争议指数 0.0 存在分歧"},
-      {"id":"subtitle","type":"string","label":"Subtitle","default":""},
+      {"id":"controversy_score","type":"number","label":"Controversy Score","default":0},
+      {"id":"controversy_label","type":"string","label":"Controversy Label","default":"存在分歧"},
+      {"id":"discussion_summary","type":"string","label":"Discussion Summary","default":""},
       {"id":"date_label","type":"string","label":"Date","default":""},
+      {"id":"slide_current","type":"number","label":"Slide Current","default":0},
+      {"id":"slide_total","type":"number","label":"Slide Total","default":0},
       {"id":"stance_json","type":"string","label":"Stance JSON","default":"{}"},
       {"id":"debate_focus_json","type":"string","label":"Debate Focus JSON","default":"[]"},
       {"id":"quotes_json","type":"string","label":"Quotes JSON","default":"[]"}
@@ -97,6 +101,44 @@
         content: "/";
         margin: 0 18px 0 0;
         color: var(--color-ink-faint);
+      }
+      .slide-indicator {
+        position: absolute;
+        top: var(--card-padding-y);
+        right: var(--card-padding-x);
+        z-index: 12;
+        padding: 6px 18px;
+        border-radius: 999px;
+        background: rgba(32,25,20,0.66);
+        color: #fff;
+        font-family: var(--font-mono);
+        font-size: 24px;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat-title {
+        margin: 0;
+        max-width: 1470px;
+        display: flex;
+        align-items: baseline;
+        gap: 24px;
+        flex-wrap: wrap;
+        color: var(--color-brand-deep);
+        font-family: var(--font-display);
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+      .stat-title__prefix {
+        font-size: 51px;
+      }
+      .stat-title__score {
+        font-size: 96px;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat-title__label {
+        color: var(--color-ink-soft);
+        font-size: 42px;
       }
       .card-title {
         margin: 0;
@@ -214,7 +256,12 @@
         <span class="brand-strip__brand">HN TechPulse</span>
         <span class="brand-strip__date"></span>
       </div>
-      <h1 class="card-title"></h1>
+      <div class="slide-indicator"></div>
+      <h1 class="stat-title">
+        <span class="stat-title__prefix">争议指数</span>
+        <span class="stat-title__score">0.0</span>
+        <span class="stat-title__label">存在分歧</span>
+      </h1>
       <p class="card-deck"></p>
       <div class="atmo-card__layout">
         <section class="panel">
@@ -245,9 +292,14 @@
         );
 
         root.querySelector(".brand-strip__date").textContent = vars.date_label || "";
-        root.querySelector(".card-title").textContent = vars.title || "";
+        const slide = root.querySelector(".slide-indicator");
+        if (Number(vars.slide_total || 0) > 0) slide.textContent = `${vars.slide_current || 1} / ${vars.slide_total}`;
+        else slide.remove();
+        root.querySelector(".stat-title__prefix").textContent = vars.title || "争议指数";
+        root.querySelector(".stat-title__score").textContent = Number(vars.controversy_score || 0).toFixed(1);
+        root.querySelector(".stat-title__label").textContent = vars.controversy_label || "存在分歧";
         const deck = root.querySelector(".card-deck");
-        if (vars.subtitle) deck.textContent = vars.subtitle;
+        if (vars.discussion_summary) deck.textContent = vars.discussion_summary;
         else deck.remove();
 
         const labels = {
@@ -309,7 +361,7 @@
 
         const tl = window.gsap ? gsap.timeline({ paused: true }) : { from(){ return this; } };
         tl.from(root.querySelector(".brand-strip"), { y: 22, opacity: 0, duration: 0.42, ease: "power2.out" }, 0.08);
-        tl.from(root.querySelector(".card-title"), { y: 32, opacity: 0, duration: 0.58, ease: "power3.out" }, 0.16);
+        tl.from(root.querySelector(".stat-title"), { y: 32, opacity: 0, duration: 0.58, ease: "power3.out" }, 0.16);
         const deckNow = root.querySelector(".card-deck");
         if (deckNow) tl.from(deckNow, { y: 18, opacity: 0, duration: 0.42, ease: "power2.out" }, 0.3);
         tl.from(root.querySelectorAll(".panel"), { y: 26, opacity: 0, duration: 0.48, ease: "power3.out", stagger: 0.12 }, 0.42);
