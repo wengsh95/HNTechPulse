@@ -1,5 +1,6 @@
 """Script templates: opening, closing, and highlight entry generation."""
 
+from datetime import date as Date
 from datetime import datetime
 from typing import Optional
 
@@ -271,45 +272,73 @@ def _daily_thesis(entries: list[dict]) -> dict:
     return _match_thesis(entries)
 
 
+def _opening_thesis_fragment(thesis: str) -> str:
+    thesis = _normalize(thesis).rstrip("。！？?! ")
+    if not thesis:
+        return ""
+    if "控制权和兜底成本" in thesis:
+        return "控制权和兜底成本被摆到台前"
+    if "风险开始外溢" in thesis:
+        return "真实系统里的风险开始外溢"
+    if "硬件和平台控制权" in thesis:
+        return "硬件和平台控制权开始变重"
+    if "维护成本和信任边界" in thesis:
+        return "维护成本和信任边界被重新摊开"
+    if "资本规则" in thesis:
+        return "资本规则开始反向拷问AI热潮"
+    if "代价由谁承担" in thesis:
+        return "现实代价被摊到台前"
+    return ""
+
+
 def _opening_audio(entries: list[dict]) -> str:
     if not entries:
-        return "早上好，这里是HN每日观察。今天看三个值得停一下的技术变化。"
+        return "昨天，HN社区有三个技术变化值得停一下。早上好，这里是HN每日观察，我们展开看。"
     rule = _daily_thesis(entries)
     hooks = "、".join(_entry_spoken_hook(e, max_len=16) for e in entries[:3])
-    thesis = _normalize(str(rule.get("closing") or rule.get("body") or "")).rstrip(
-        "。！？?! "
+    fragment = _opening_thesis_fragment(
+        str(rule.get("closing") or rule.get("body") or "")
     )
-    if thesis:
-        return f"早上好，这里是HN每日观察。今天看{hooks}，真正要问的是{thesis}。"
-    return f"早上好，这里是HN每日观察。今天看{hooks}。"
+    if fragment:
+        return f"昨天，HN社区在讨论{hooks}，{fragment}。早上好，这里是HN每日观察，我们展开看。"
+    return f"昨天，HN社区在讨论{hooks}。早上好，这里是HN每日观察，我们展开看。"
 
 
-def _closing_audio(entries: list[dict], weekday: int | None) -> str:
-    if not entries:
-        return "今天的HN速览就到这里。想每天跟上HN技术风向，可以点个关注，我们下期继续。"
-    rule = _daily_thesis(entries)
-    question = _closing_question(entries)
+HOLIDAY_CLOSING_GREETINGS = {
+    (1, 1): "新年第一天也祝你顺利，我们下期继续。",
+    (2, 14): "也祝你今天过得松弛一点，我们下期继续。",
+    (3, 8): "也祝今天的你顺利自在，我们下期继续。",
+    (5, 1): "劳动节也祝你休息顺利，我们下期继续。",
+    (6, 1): "也祝你今天保留一点好奇心，我们下期继续。",
+    (10, 1): "国庆假期也祝你休息顺利，我们下期继续。",
+    (12, 24): "平安夜也祝你今晚安稳，我们下期继续。",
+    (12, 25): "圣诞也祝你今天顺利，我们下期继续。",
+}
+
+
+def _closing_greeting(day: Date | None, weekday: int | None) -> str:
+    if day:
+        holiday = HOLIDAY_CLOSING_GREETINGS.get((day.month, day.day))
+        if holiday:
+            return holiday
+        if day.month == 12 and day.day >= 29:
+            return "年底也祝你收尾顺利，我们下期继续。"
+        if day.day >= 28:
+            return "月末也祝你收尾顺利，我们下期继续。"
     if weekday in {4, 5}:
-        tail = "周末我也会继续盯那些真正影响开发者的问题。"
-    else:
-        tail = "想每天用几分钟跟上HN技术风向，可以点个关注。"
+        return "周末也祝你休息顺利，我们下期继续。"
+    return "祝你今天顺利，我们下期继续。"
+
+
+def _closing_audio(
+    entries: list[dict], weekday: int | None, day: Date | None = None
+) -> str:
+    if not entries:
+        return f"今天的HN速览就到这里。{_closing_greeting(day, weekday)}"
+    rule = _daily_thesis(entries)
+    tail = _closing_greeting(day, weekday)
     closing = _closing_reframe(entries, str(rule.get("closing") or "").strip())
-    return f"放在一起看，{closing}{question}{tail}"
-
-
-def _closing_question(entries: list[dict]) -> str:
-    categories = {
-        str(entry.get("category") or "").strip()
-        for entry in entries[:3]
-        if entry.get("category")
-    }
-    primary = _entry_spoken_hook(entries[0], max_len=12) if entries else "这类变化"
-    if len(categories) >= 2:
-        return "这类代价应该由平台、开发者还是用户承担？"
-    if categories:
-        category = next(iter(categories))
-        return f"这类{category}变化落到真实使用里，你最先担心哪一步失控？"
-    return f"{primary}这条线，你最想继续追哪个后续？"
+    return f"放在一起看，{closing}今天就到这里，{tail}"
 
 
 def _closing_reframe(entries: list[dict], thesis: str) -> str:
@@ -519,8 +548,10 @@ def closing_totals(highlight_entries: Optional[list[dict]] = None) -> dict:
 def closing_takeaways(highlight_entries: Optional[list[dict]] = None) -> list[str]:
     takeaways: list[str] = []
     for entry in (highlight_entries or [])[:3]:
-        text = entry.get("why_it_matters") or entry.get("signal") or entry.get(
-            "editor_angle"
+        text = (
+            entry.get("why_it_matters")
+            or entry.get("signal")
+            or entry.get("editor_angle")
         )
         assert text, "Story missing why_it_matters"
         text = str(text).strip()
@@ -538,9 +569,12 @@ def generate_fixed_closing(
         date_obj = datetime.strptime(date, "%Y-%m-%d")
         weekday = date_obj.weekday()
     except (ValueError, TypeError):
+        date_obj = None
         weekday = None
 
-    audio_text = _closing_audio(highlight_entries or [], weekday)
+    audio_text = _closing_audio(
+        highlight_entries or [], weekday, date_obj.date() if date_obj else None
+    )
     duration = 12 if len(audio_text) > 55 else 9
     takeaways = closing_takeaways(highlight_entries)
     kw = closing_keywords(highlight_entries)

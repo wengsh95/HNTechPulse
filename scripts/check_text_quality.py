@@ -53,10 +53,36 @@ TITLE_OVERCLAIM_TERMS = (
     "一刀砍",
 )
 
+BAD_ACCOUNT_INCIDENT_VERBS = (
+    "交出两万账号",
+    "交出超2万账号",
+    "交出账号",
+    "放走两万账号",
+    "放走超2万账号",
+    "放走账号",
+    "送走两万账号",
+    "送走超2万账号",
+    "送走账号",
+)
+
 LEGAL_ASSERTION_PATTERNS = (
     "法案过了",
     "已对.*提起诉讼",
 )
+
+
+GENERIC_STORY_TERMS = {
+    "AI",
+    "API",
+    "Linux",
+    "GitHub",
+    "Windows",
+    "macOS",
+    "开源",
+    "开发者",
+    "用户",
+    "玩家",
+}
 
 
 def _read_text(path: Path) -> str:
@@ -86,6 +112,49 @@ def _flatten_title_payload(payload: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _public_cover_payload(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in ("title", "cover_title", "cover_subtitle"):
+        value = payload.get(key)
+        if value:
+            parts.append(str(value))
+    cover_tags = payload.get("cover_tags") or []
+    if isinstance(cover_tags, list):
+        parts.extend(str(v) for v in cover_tags if v)
+    return "\n".join(parts)
+
+
+def _story_terms(item: dict[str, Any]) -> set[str]:
+    terms: set[str] = set()
+    fields = (
+        item.get("title"),
+        item.get("title_cn"),
+        item.get("editor_angle"),
+    )
+    for value in fields:
+        if not value:
+            continue
+        for token in re.findall(
+            r"[A-Za-z][A-Za-z0-9.+#-]{2,}|[\u4e00-\u9fff]{2,}", str(value)
+        ):
+            if token not in GENERIC_STORY_TERMS:
+                terms.add(token)
+    for keyword in item.get("keywords") or []:
+        keyword = str(keyword).strip()
+        if keyword and keyword not in GENERIC_STORY_TERMS:
+            terms.add(keyword)
+    return terms
+
+
+def _matched_story_indexes(text: str, items: list[dict[str, Any]]) -> list[int]:
+    matched: list[int] = []
+    for idx, item in enumerate(items):
+        terms = _story_terms(item)
+        if any(term and term in text for term in terms):
+            matched.append(idx)
+    return matched
+
+
 def _guide_public_sections(text: str) -> str:
     if not text:
         return ""
@@ -96,6 +165,42 @@ def _guide_public_sections(text: str) -> str:
         if idx >= 0:
             end = min(end, idx)
     return text[:end]
+
+
+def _guide_publish_copy(text: str) -> str:
+    if not text:
+        return ""
+    start_marker = "\n## 二、B 站发布优化"
+    start = text.find(start_marker)
+    if start < 0:
+        start_marker = "\n## 2. B 站发布优化"
+        start = text.find(start_marker)
+    if start >= 0:
+        text = text[start:]
+    stop_markers = (
+        "\n## 三、完整发布 Checklist",
+        "\n## 3. 完整发布 Checklist",
+        "\n## 四、注意事项",
+        "\n## 4. 注意事项",
+    )
+    end = len(text)
+    for marker in stop_markers:
+        idx = text.find(marker)
+        if idx >= 0:
+            end = min(end, idx)
+    text = text[:end]
+    lines: list[str] = []
+    skip = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("### 运营复盘点"):
+            skip = True
+            continue
+        if stripped.startswith("---") or stripped.startswith("### "):
+            skip = False
+        if not skip:
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def _transcript_public_text(text: str) -> str:
@@ -136,11 +241,14 @@ def check_date(date: str) -> dict[str, Any]:
     guide_path = base / "publish_guide.md"
     title = _read_json(title_path)
     title_text = _flatten_title_payload(title)
+    cover_text = _public_cover_payload(title)
+    content = _read_json(base / "content.json")
+    items = content.get("items") if isinstance(content.get("items"), list) else []
     transcript = _read_text(transcript_path)
     guide = _read_text(guide_path)
-    public_guide = _guide_public_sections(guide)
+    publish_copy = _guide_publish_copy(guide)
     public_transcript = _transcript_public_text(transcript)
-    combined = "\n".join([title_text, public_transcript, public_guide])
+    combined = "\n".join([title_text, public_transcript, publish_copy])
 
     issues: list[dict[str, str]] = []
     if not title_path.exists():
@@ -170,6 +278,13 @@ def check_date(date: str) -> dict[str, Any]:
     )
     _add_contains_issues(
         issues,
+        text=title_text,
+        terms=BAD_ACCOUNT_INCIDENT_VERBS,
+        code="bad_account_incident_verb",
+        path=str(title_path),
+    )
+    _add_contains_issues(
+        issues,
         text=combined,
         terms=OVERCLAIM_TERMS,
         code="overclaim",
@@ -177,7 +292,7 @@ def check_date(date: str) -> dict[str, Any]:
     )
     _add_contains_issues(
         issues,
-        text=guide,
+        text=publish_copy,
         terms=ENGAGEMENT_CLICHES,
         code="engagement_cliche",
         path=str(guide_path),
@@ -206,6 +321,17 @@ def check_date(date: str) -> dict[str, Any]:
                     "code": "legal_assertion_needs_attribution",
                     "path": "text_artifacts",
                     "detail": pattern,
+                }
+            )
+
+    if len(items) >= 2 and cover_text:
+        matched = _matched_story_indexes(cover_text, items)
+        if len(matched) > 1:
+            issues.append(
+                {
+                    "code": "title_cover_multiple_stories",
+                    "path": str(title_path),
+                    "detail": ", ".join(str(i + 1) for i in matched),
                 }
             )
 

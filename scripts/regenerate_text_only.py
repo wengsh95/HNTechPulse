@@ -31,6 +31,11 @@ def main() -> int:
     )
     parser.add_argument("--date", required=True)
     parser.add_argument("--config", default="config/")
+    parser.add_argument(
+        "--refresh-title",
+        action="store_true",
+        help="Delete data/{date}/title.json before regenerating title metadata.",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -73,6 +78,11 @@ def main() -> int:
     content = content_preparer.load_content(args.date)
     script_writer = ScriptWriter(config, llm_provider, content_preparer)
     script = script_writer.load_script(args.date)
+    if args.refresh_title:
+        title_path = ROOT / "data" / args.date / "title.json"
+        if title_path.exists():
+            title_path.unlink()
+    orchestrator._timing.compute_timeline(script)
     script = orchestrator._step_title(content, script, args.date)
     orchestrator.script_writer.save_script(script, args.date)
     orchestrator._step_publish_guide(content, script, args.date)

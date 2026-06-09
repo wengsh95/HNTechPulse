@@ -76,6 +76,28 @@ def _clean_publish_description(text: str, max_len: int = 130) -> str:
     return text[:max_len].rstrip("，。！？；：,.!?;: ")
 
 
+def _downgrade_unsupported_publish_claims(text: str) -> str:
+    """Tone down recurring high-conflict copy that overstates source facts."""
+    text = normalize_cjk_mixed_spacing(str(text or ""))
+    replacements = {
+        "先掉链子": "先多等100毫秒",
+        "先掉线": "延迟先升高",
+        "掉线": "延迟升高",
+        "断网": "延迟升高",
+        "砍掉P2P": "改了P2P路径",
+        "砍掉 P2P": "改了 P2P 路径",
+        "一刀砍": "改动",
+        "20225个Instagram账号": "超2万个Instagram账号",
+        "20225个账号": "超2万个账号",
+        "20225 个账号": "超2万个账号",
+        "20225个": "超2万个",
+        "先遭殃": "延迟升高",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    return text
+
+
 def _format_mmss(seconds: float | int | None) -> str:
     total = max(0, int(round(float(seconds or 0))))
     return f"{total // 60:02d}:{total % 60:02d}"
@@ -779,11 +801,11 @@ class Orchestrator:
         # The prompt asks for ≤30 visual chars; we allow up to 35 len()
         # to accommodate English product names that are wider than CJK.
         title_candidates = [
-            normalize_cjk_mixed_spacing(str(c))
+            _downgrade_unsupported_publish_claims(str(c))
             for c in (result.get("title_candidates") or [])
             if c
         ]
-        chosen = normalize_cjk_mixed_spacing(result.get("title") or "")
+        chosen = _downgrade_unsupported_publish_claims(result.get("title") or "")
 
         TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 34
 
@@ -817,14 +839,18 @@ class Orchestrator:
 
         script.title = chosen or "HN每日观察"
         script.description = (
-            _clean_publish_description(result.get("description") or "")
+            _clean_publish_description(
+                _downgrade_unsupported_publish_claims(result.get("description") or "")
+            )
             or f"每日快讯 - {date}"
         )
         script.tags = list(result.get("tags") or [])
         script.cover_subtitle = normalize_cjk_mixed_spacing(
-            result.get("cover_subtitle") or ""
+            _downgrade_unsupported_publish_claims(result.get("cover_subtitle") or "")
         )
-        script.cover_title = normalize_cjk_mixed_spacing(result.get("cover_title") or "")
+        script.cover_title = _downgrade_unsupported_publish_claims(
+            result.get("cover_title") or ""
+        )
         script.cover_tags = [
             normalize_cjk_mixed_spacing(str(tag))
             for tag in (result.get("cover_tags") or [])

@@ -317,11 +317,12 @@ class TestScriptTemplates:
         opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
         closing = generate_fixed_closing("2026-06-07", entries)
 
-        assert "风险开始外溢" in opening.audio_text
-        assert "今天看" in opening.audio_text
+        assert opening.audio_text.startswith("昨天，")
+        assert "HN社区在讨论" in opening.audio_text
+        assert "早上好" in opening.audio_text
         assert "AI客服" in closing.audio_text
-        assert "平台、开发者还是用户承担" in closing.audio_text
-        assert "点个关注" in closing.audio_text
+        assert "祝你今天顺利" in closing.audio_text
+        assert "？" not in closing.audio_text
 
     @pytest.mark.parametrize(
         "category, editor_angle, expected_fragment",
@@ -364,11 +365,28 @@ class TestScriptTemplates:
         from src.pipeline.script.templates import _closing_audio
 
         entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
-        assert "周末我也会继续盯" in _closing_audio(entries, weekday=4)
-        assert "周末我也会继续盯" in _closing_audio(entries, weekday=5)
-        assert "想每天用几分钟" in _closing_audio(entries, weekday=2)
+        assert "周末也祝你休息顺利" in _closing_audio(entries, weekday=4)
+        assert "周末也祝你休息顺利" in _closing_audio(entries, weekday=5)
+        assert "祝你今天顺利" in _closing_audio(entries, weekday=2)
 
-    def test_closing_question_uses_daily_objects_for_mixed_topics(self):
+    def test_closing_audio_uses_date_aware_greeting(self):
+        from datetime import date
+
+        from src.pipeline.script.templates import _closing_audio
+
+        entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
+
+        assert "国庆假期也祝你休息顺利" in _closing_audio(
+            entries, weekday=3, day=date(2026, 10, 1)
+        )
+        assert "年底也祝你收尾顺利" in _closing_audio(
+            entries, weekday=1, day=date(2026, 12, 29)
+        )
+        assert "月末也祝你收尾顺利" in _closing_audio(
+            entries, weekday=1, day=date(2026, 6, 30)
+        )
+
+    def test_closing_greeting_keeps_daily_objects_for_mixed_topics(self):
         from src.pipeline.script.templates import _closing_audio
 
         entries = [
@@ -388,7 +406,8 @@ class TestScriptTemplates:
 
         assert "Steam" in audio
         assert "停服即作废" in audio
-        assert "平台、开发者还是用户承担" in audio
+        assert "今天就到这里" in audio
+        assert "？" not in audio
         assert "工具效率变快后的成本问题" not in audio
 
     def test_infrastructure_thesis_wins_before_developer_tool_story(self):
@@ -441,9 +460,15 @@ class TestScriptTemplates:
         # signal wins; with no clause separator, noise stripping keeps the tail
         assert _entry_hook({"signal": "评论区正在变成新的攻击面"}) == "新的攻击面"
         # editor_angle with a clause separator: split first, then strip
-        assert _entry_hook({"editor_angle": "Nvidia本地CPU：Windows PC新方案"}) == "Nvidia本地CPU"
+        assert (
+            _entry_hook({"editor_angle": "Nvidia本地CPU：Windows PC新方案"})
+            == "Nvidia本地CPU"
+        )
         # then title_translation (no separator, no noise)
-        assert _entry_hook({"title_translation": "Anthropic融资递表"}) == "Anthropic融资递表"
+        assert (
+            _entry_hook({"title_translation": "Anthropic融资递表"})
+            == "Anthropic融资递表"
+        )
         # then original_title; long enough to trigger compaction
         assert _entry_hook({"original_title": "Some English Title"}) == "Some English"
         # finally the placeholder when nothing is provided
@@ -482,7 +507,8 @@ class TestScriptTemplates:
         audio = _opening_audio(entries)
 
         assert "…" not in audio
-        assert "今天看" in audio
+        assert audio.startswith("昨天，")
+        assert "早上好" in audio
         assert "可复制的提" not in audio
         assert "立法机" not in audio
         assert "Claude Code" in audio
