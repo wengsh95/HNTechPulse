@@ -37,7 +37,7 @@ const COVER_FS = {
   title: 132,
   titleSmall: 112,
   kicker: 70,
-  dateLabel: 26,
+  dateLabel: 82,
   tag: 42,
   brand: 30,
   logo: 64,
@@ -47,18 +47,18 @@ const COVER_FS = {
   // 2026-06-06: 底部留白 20% (216px @ 1080p) 给 B 站 overlay (播放/时长/弹幕角标)
   // 之前 80px 太贴底, 模板里写 300px 太保守, 改 216
   contentBottom: 216,
-  contentLeft: 80,
-  contentRight: 80,
+  contentLeft: 280,
+  contentRight: 280,
   contentGap: 20,
   tagGap: 24,
   tagPaddingX: 16,
   tagPaddingY: 9,
-  brandGap: 18,
+  brandGap: 28,
   brandMarginTop: 12,
 } as const;
 
 /** 品牌条文案 */
-const BRAND_TEXT = "HN TechPulse";
+const BRAND_TEXT = "HNTechPulse";
 
 export interface CoverThumbnailProps {
   /** 背景插画路径（相对于 public/） */
@@ -190,7 +190,7 @@ const textBoxStyle = (
   if (template === "right-hero") {
     return {
       ...base,
-      right: d.scaled(80),
+      right: d.scaled(COVER_FS.contentRight),
       left: d.scaled(790),
       bottom: d.scaled(170),
       alignItems: "flex-start",
@@ -199,8 +199,8 @@ const textBoxStyle = (
   if (template === "bottom-banner") {
     return {
       ...base,
-      left: d.scaled(96),
-      right: d.scaled(96),
+      left: d.scaled(COVER_FS.contentLeft),
+      right: d.scaled(COVER_FS.contentRight),
       bottom: d.scaled(74),
       alignItems: "flex-start",
     };
@@ -208,7 +208,7 @@ const textBoxStyle = (
   if (template === "poster-panel") {
     return {
       ...base,
-      left: d.scaled(94),
+      left: d.scaled(COVER_FS.contentLeft),
       top: d.scaled(205),
       width: d.scaled(1000),
       minHeight: d.scaled(660),
@@ -256,8 +256,8 @@ const topBarStyle = (
   if (template === "poster-panel") {
     return {
       ...base,
-      left: d.scaled(94),
-      right: d.scaled(94),
+      left: d.scaled(COVER_FS.contentLeft),
+      right: d.scaled(COVER_FS.contentRight),
     };
   }
   return base;
@@ -268,7 +268,7 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
   title,
   subtitle: _subtitle,
   tags,
-  brandLogo,
+  brandLogo: _brandLogo,
   coverTemplate = "left-hero",
   dateLabel,
 }) => {
@@ -277,7 +277,6 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
   const { kicker, impact } = splitTitle(title);
   const { lead, rest } = splitImpactParts(impact);
   const compactTitle = titleLength(impact) > 16;
-  const brandMark = brandLogo ? BRAND_MARKS[brandLogo] : undefined;
   const template = coverTemplate;
   const isBottomBanner = template === "bottom-banner";
   const isPosterPanel = template === "poster-panel";
@@ -315,65 +314,22 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
 
       {/* 顶部识别条 */}
       <div style={topBarStyle(template, d)}>
-        {brandMark && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: d.scaled(16),
-              padding: `${d.scaled(8)}px ${d.scaled(16)}px`,
-              borderRadius: d.scaled(8),
-              background: "rgba(0,0,0,0.32)",
-              boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
-            }}
-          >
-            <div
-              style={{
-                width: d.scaled(COVER_FS.logo),
-                height: d.scaled(COVER_FS.logo),
-                borderRadius: d.scaled(10),
-                background: brandMark.bg,
-                color: brandMark.markFg ?? brandMark.fg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: FONTS.sans,
-                fontWeight: FW.heavy,
-                fontSize: d.scaled(COVER_FS.logoText),
-                lineHeight: 1,
-              }}
-            >
-              {brandMark.mark}
-            </div>
-            <div
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: d.scaled(34),
-                fontWeight: FW.heavy,
-                color: "#ffffff",
-                textShadow: "0 2px 12px rgba(0,0,0,0.55)",
-              }}
-            >
-              {brandMark.label}
-            </div>
-          </div>
-        )}
         <div
           style={{
             marginLeft: "auto",
             display: "flex",
             alignItems: "center",
-            gap: d.scaled(12),
+            gap: d.scaled(COVER_FS.brandGap),
             fontFamily: FONTS.mono,
             fontSize: d.scaled(COVER_FS.dateLabel),
-            fontWeight: FW.bold,
+            fontWeight: FW.heavy,
             color: "rgba(255,255,255,0.86)",
             letterSpacing: "0.03em",
             textShadow: "0 2px 12px rgba(0,0,0,0.55)",
           }}
         >
           <span>{BRAND_TEXT}</span>
-          {dateLabel && <span style={{ opacity: 0.7 }}>{dateLabel}</span>}
+          {dateLabel && <span style={{ opacity: 0.88 }}>{dateLabel}</span>}
         </div>
       </div>
 

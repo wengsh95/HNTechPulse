@@ -320,46 +320,26 @@ class TestScriptTemplates:
         assert opening.audio_text.startswith("昨天，")
         assert "HN社区在讨论" in opening.audio_text
         assert "早上好" in opening.audio_text
-        assert "AI客服" in closing.audio_text
         assert "祝你今天顺利" in closing.audio_text
         assert "？" not in closing.audio_text
 
-    @pytest.mark.parametrize(
-        "category, editor_angle, expected_fragment",
-        [
-            ("安全", "AI客服漏洞", "风险开始外溢"),
-            ("硬件", "Nvidia新CPU", "硬件和平台控制权之争"),
-            ("基础设施", "Steam P2P中继", "控制权和兜底成本"),
-            ("开源", "Python JIT暂停", "维护成本和信任边界"),
-            ("资本", "Anthropic融资", "资本规则的反向拷问"),
-        ],
-    )
-    def test_daily_thesis_matches_each_category_bucket(
-        self, category, editor_angle, expected_fragment
-    ):
-        from src.pipeline.script.templates import _daily_thesis
+    def test_opening_and_closing_do_not_inject_thesis_templates(self):
+        from src.pipeline.script.templates import _closing_audio, _opening_audio
 
-        entries = [{"category": category, "editor_angle": editor_angle}]
-        rule = _daily_thesis(entries)
-        full = f"{rule['prefix']}{rule['body']}"
-        assert expected_fragment in full
+        entries = [
+            {"category": "安全", "editor_angle": "AI客服漏洞", "signal": "AI客服漏洞"},
+            {"category": "硬件", "editor_angle": "Nvidia新CPU", "signal": "Nvidia新CPU"},
+            {"category": "资本", "editor_angle": "Anthropic融资", "signal": "Anthropic融资"},
+        ]
 
-    def test_daily_thesis_falls_back_when_no_keywords_match(self):
-        from src.pipeline.script.templates import _daily_thesis, DEFAULT_THESIS
+        audio = _opening_audio(entries) + _closing_audio(entries, weekday=2)
 
-        entries = [{"category": "杂谈", "editor_angle": "今天天气不错"}]
-        rule = _daily_thesis(entries)
-        assert rule is DEFAULT_THESIS
-        assert "技术热度落到现实里" in rule["body"]
-
-    def test_closing_audio_does_not_reuse_opening_framing(self):
-        """Closing should not start with '今天的主线是' (that's an opener)."""
-        from src.pipeline.script.templates import _closing_audio
-
-        entries = [{"category": "硬件", "editor_angle": "Nvidia本地CPU"}]
-        audio = _closing_audio(entries, weekday=2)
-        assert not audio.startswith("今天的主线是")
-        assert "效率还是稳定性" not in audio
+        assert "今天的主线" not in audio
+        assert "风险开始外溢" not in audio
+        assert "控制权和兜底成本" not in audio
+        assert "代价由谁承担" not in audio
+        assert "HN社区在讨论AI客服漏洞、Nvidia新CPU、Anthropic融资" in audio
+        assert "今天的HN速览就到这里" in audio
 
     def test_closing_audio_uses_weekend_tail_on_friday_saturday(self):
         from src.pipeline.script.templates import _closing_audio
@@ -410,7 +390,7 @@ class TestScriptTemplates:
         assert "？" not in audio
         assert "工具效率变快后的成本问题" not in audio
 
-    def test_infrastructure_thesis_wins_before_developer_tool_story(self):
+    def test_opening_keeps_story_hooks_without_thesis_injection(self):
         from src.pipeline.script.templates import _opening_audio, _closing_audio
 
         entries = [
@@ -435,8 +415,11 @@ class TestScriptTemplates:
         opening = _opening_audio(entries)
         closing = _closing_audio(entries, weekday=0)
 
-        assert "控制权和兜底成本" in opening
-        assert "控制权和兜底成本" in closing
+        assert "Steam更新砍掉P2P直连" in opening
+        assert "停服即作废" in opening
+        assert "Claude Desktop" in opening
+        assert "控制权和兜底成本" not in opening
+        assert "控制权和兜底成本" not in closing
         assert "开发者工具正在变快" not in opening
 
     def test_compact_copy_normalizes_then_compacts_without_ellipsis(self):

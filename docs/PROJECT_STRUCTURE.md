@@ -328,6 +328,25 @@ The Remotion props manifest lives beside the canonical render props file:
 data/YYYY-MM-DD/cli_props.json.manifest.json
 ```
 
+For human review or handoff, mirror the useful deliverables into a tidy
+date-scoped folder without moving the canonical pipeline files:
+
+```bash
+uv run python scripts/organize_outputs.py --date YYYY-MM-DD --refresh
+```
+
+This creates:
+
+```text
+data/{date}/outputs/
+|-- final/     # output.mp4 and selected cover
+|-- publish/   # publish guide, transcript, title metadata
+|-- script/    # promoted script and agent decisions
+|-- render/    # render props and render manifest
+|-- sources/   # compact source/context JSON
+|-- cover/     # cover background, variants, and props
+```
+
 ## Agent Blocking Model
 
 Agent mode should continue autonomously when it can repair the problem with

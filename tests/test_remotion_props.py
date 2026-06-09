@@ -544,13 +544,19 @@ class TestExpandElementProps:
 
 
 class TestBuildCues:
-    def test_auto_split_fallback(self):
+    def test_whole_segment_fallback_does_not_split(self):
         seg = _make_script_segment(audio_text="Hello world. Goodbye.", duration=5.0)
         logger = MagicMock()
         cues = build_cues(seg, 5.0, logger)
-        assert len(cues) >= 1
+        assert cues == [
+            {
+                "text": "Hello world. Goodbye.",
+                "start_time": 0.0,
+                "end_time": 5.0,
+            }
+        ]
 
-    def test_existing_long_cue_is_split_for_display(self):
+    def test_existing_long_cue_is_preserved(self):
         seg = _make_script_segment(audio_text="", duration=12.0)
         seg.cues = [
             Cue(
@@ -563,11 +569,9 @@ class TestBuildCues:
 
         cues = build_cues(seg, 12.0, logger)
 
-        assert len(cues) > 1
+        assert len(cues) == 1
         assert cues[0]["start_time"] == 0.0
-        assert cues[-1]["end_time"] == 12.0
-        for left, right in zip(cues, cues[1:]):
-            assert right["start_time"] == pytest.approx(left["end_time"])
+        assert cues[0]["end_time"] == 12.0
 
 
 # ── _split_into_cues ───────────────────────────────────────────────────
@@ -588,17 +592,16 @@ class TestSplitIntoCues:
 
     def test_multiple_sentences(self):
         cues = _split_into_cues("First sentence. Second sentence.", 6.0)
-        assert len(cues) == 2
+        assert len(cues) == 1
 
     def test_short_sentence_merge(self):
         cues = _split_into_cues("Hi. This is a longer sentence here.", 5.0)
-        assert len(cues) >= 1
+        assert len(cues) == 1
 
     def test_char_ratio_time_distribution(self):
         text = "Short. This is a much longer sentence with more characters."
         cues = _split_into_cues(text, 10.0)
-        if len(cues) >= 2:
-            assert cues[1]["start_time"] == pytest.approx(cues[0]["end_time"])
+        assert len(cues) == 1
 
     def test_last_cue_snaps_to_duration(self):
         cues = _split_into_cues("First. Second. Third.", 9.0)

@@ -88,6 +88,44 @@ class TestTTSProcessor:
         # One TTS call per segment
         assert mock_provider.synthesize.call_count == 2
 
+    def test_simple_segment_alignment_uses_whole_segment_ref(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        mock_provider = _make_provider()
+
+        with patch("src.pipeline.tts_processor.setup_logger"):
+            processor = TTSProcessor(mock_provider, _make_config())
+
+        script = _make_script(
+            [
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text="First sentence. Second sentence.",
+                    duration=6.0,
+                    start_time=0.0,
+                    end_time=6.0,
+                ),
+            ]
+        )
+
+        with (
+            patch("src.pipeline.tts_processor.align_audio") as mock_align,
+            patch("src.pipeline.tts_processor.get_audio_duration", return_value=6.0),
+        ):
+            mock_align.return_value = [
+                MagicMock(
+                    text="First sentence. Second sentence.",
+                    start_time=0.0,
+                    end_time=6.0,
+                ),
+            ]
+
+            processor.process_audio(script, "2026-04-26")
+
+        assert mock_align.call_args.args[1] == ["First sentence. Second sentence."]
+        assert [cue.text for cue in script.segments[0].cues] == [
+            "First sentence. Second sentence.",
+        ]
+
     def test_skips_synthesis_when_cache_valid(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         mock_provider = _make_provider()
@@ -121,6 +159,63 @@ class TestTTSProcessor:
             processor.process_audio(script, "2026-04-26")
 
         mock_provider.synthesize.assert_not_called()
+
+    def test_realigns_cached_audio_when_ref_contract_changes(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        mock_provider = _make_provider()
+
+        with patch("src.pipeline.tts_processor.setup_logger"):
+            processor = TTSProcessor(mock_provider, _make_config())
+
+        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        seg_path = audio_dir / "segment_00.mp3"
+        audio_text = "First sentence. Second sentence."
+        seg_path.write_bytes(b"\x00" * 100)
+        (audio_dir / "segment_00.mp3.json").write_text(
+            json.dumps(
+                {
+                    "text_hash": processor._text_hash(audio_text),
+                    "segments": [
+                        {"text": audio_text, "start_time": 0.0, "end_time": 6.0},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        script = _make_script(
+            [
+                ScriptSegment(
+                    segment_type="opening",
+                    audio_text=audio_text,
+                    duration=6.0,
+                    start_time=0.0,
+                    end_time=6.0,
+                ),
+            ]
+        )
+
+        with (
+            patch("src.pipeline.tts_processor.align_audio") as mock_align,
+            patch("src.pipeline.tts_processor.get_audio_duration", return_value=6.0),
+        ):
+            mock_align.return_value = [
+                MagicMock(
+                    text="First sentence. Second sentence.",
+                    start_time=0.0,
+                    end_time=6.0,
+                ),
+            ]
+
+            processor.process_audio(script, "2026-04-26")
+
+        mock_provider.synthesize.assert_not_called()
+        mock_align.assert_not_called()
+        assert [cue.text for cue in script.segments[0].cues] == [
+            "First sentence. Second sentence.",
+        ]
+        manifest = json.loads((audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8"))
+        assert manifest["segments"][0]["text"] == "First sentence. Second sentence."
 
     def test_resynthesizes_when_manifest_missing(self, tmp_path, monkeypatch):
         """Audio file exists but no manifest → re-synthesize."""

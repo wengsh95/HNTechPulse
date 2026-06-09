@@ -154,9 +154,25 @@ class TTSProcessor:
                     continue
                 seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
                 text_hash = self._text_hash(audio_text)
-                cached = self._load_segment_alignment(seg_audio_path, text_hash)
+                ref_texts = [audio_text]
+                ref_texts_hash = self._text_hash("\n".join(ref_texts))
+                cached = self._load_segment_alignment(
+                    seg_audio_path,
+                    text_hash,
+                    ref_texts_hash=ref_texts_hash,
+                    ref_texts=ref_texts,
+                )
                 if cached is not None:
                     self._apply_simple_segment(segment, seg_audio_path, cached)
+                elif self._manifest_text_hash_matches(seg_audio_path, text_hash):
+                    simple_segs.append(
+                        {
+                            "seg_idx": seg_idx,
+                            "audio_path": seg_audio_path,
+                            "text_hash": text_hash,
+                            "ref_texts": ref_texts,
+                        }
+                    )
                 else:
                     tts_jobs.append(
                         {
@@ -165,6 +181,7 @@ class TTSProcessor:
                             "text": audio_text,
                             "audio_path": seg_audio_path,
                             "emotion": segment.emotion,
+                            "ref_texts": ref_texts,
                         }
                     )
                     simple_segs.append(
@@ -172,7 +189,7 @@ class TTSProcessor:
                             "seg_idx": seg_idx,
                             "audio_path": seg_audio_path,
                             "text_hash": text_hash,
-                            "ref_texts": [audio_text],
+                            "ref_texts": ref_texts,
                         }
                     )
 
@@ -184,7 +201,7 @@ class TTSProcessor:
         # Whisper model is now cached so reloading is free).
         for job in tts_jobs:
             if job["elem_idx"] is None:
-                ref_texts = [job["text"]]
+                ref_texts = job.get("ref_texts") or [job["text"]]
             else:
                 seg = script.segments[job["seg_idx"]]
                 elem = seg.scene_elements[job["elem_idx"]]
@@ -198,7 +215,12 @@ class TTSProcessor:
                 debug=self.debug,
             )
             text_hash = self._text_hash(job["text"])
-            self._write_segment_manifest(job["audio_path"], text_hash, aligned)
+            self._write_segment_manifest(
+                job["audio_path"],
+                text_hash,
+                aligned,
+                ref_texts_hash=self._text_hash("\n".join(ref_texts)),
+            )
             duration = get_audio_duration(job["audio_path"])
             if job["elem_idx"] is not None:
                 # Fill the per-element entry that finalize will consume.
@@ -210,11 +232,8 @@ class TTSProcessor:
                 elem = script.segments[job["seg_idx"]].scene_elements[job["elem_idx"]]
                 elem.props["audio_duration"] = duration
             else:
-                simple_info = next(
-                    s for s in simple_segs if s["seg_idx"] == job["seg_idx"]
-                )
+                simple_info = next(s for s in simple_segs if s["seg_idx"] == job["seg_idx"])
                 simple_info["aligned"] = aligned
-                simple_info["duration"] = duration
 
         # Phase 4: finalize segments.
         for seg_idx, elem_entries in story_scan_elems.items():
@@ -222,6 +241,21 @@ class TTSProcessor:
                 script.segments[seg_idx], seg_idx, audio_dir, elem_entries
             )
         for simple_info in simple_segs:
+            if "aligned" not in simple_info:
+                aligned = align_audio(
+                    simple_info["audio_path"],
+                    simple_info["ref_texts"],
+                    model_size=self.whisper_model,
+                    model_path=self.whisper_model_path,
+                    debug=self.debug,
+                )
+                self._write_segment_manifest(
+                    simple_info["audio_path"],
+                    simple_info["text_hash"],
+                    aligned,
+                    ref_texts_hash=self._text_hash("\n".join(simple_info["ref_texts"])),
+                )
+                simple_info["aligned"] = aligned
             self._apply_simple_segment(
                 script.segments[simple_info["seg_idx"]],
                 simple_info["audio_path"],
@@ -445,19 +479,24 @@ class TTSProcessor:
             segment.cues[-1].end_time = round(segment.actual_duration, 3)
 
     def _load_segment_alignment(
-        self, audio_path: str, text_hash: str
+        self,
+        audio_path: str,
+        text_hash: str,
+        *,
+        ref_texts_hash: str | None = None,
+        ref_texts: list[str] | None = None,
     ) -> list[AlignmentSegment] | None:
         """Return cached alignment segments, or None if re-synthesis needed."""
-        if not Path(audio_path).exists():
-            return None
-        manifest_path = self._manifest_path(audio_path)
-        if not manifest_path.exists():
-            return None
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        manifest = self._load_manifest(audio_path)
+        if manifest is None:
             return None
         if manifest.get("text_hash") != text_hash:
+            return None
+        if (
+            ref_texts_hash is not None
+            and manifest.get("ref_texts_hash") != ref_texts_hash
+            and not self._manifest_segments_match_ref_texts(manifest, ref_texts)
+        ):
             return None
         segments_data = manifest.get("segments")
         if not segments_data:
@@ -471,15 +510,43 @@ class TTSProcessor:
             for s in segments_data
         ]
 
+    def _manifest_text_hash_matches(self, audio_path: str, text_hash: str) -> bool:
+        manifest = self._load_manifest(audio_path)
+        return manifest is not None and manifest.get("text_hash") == text_hash
+
+    def _load_manifest(self, audio_path: str) -> dict | None:
+        if not Path(audio_path).exists():
+            return None
+        manifest_path = self._manifest_path(audio_path)
+        if not manifest_path.exists():
+            return None
+        try:
+            return json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _manifest_segments_match_ref_texts(
+        manifest: dict, ref_texts: list[str] | None
+    ) -> bool:
+        if ref_texts is None:
+            return False
+        segments_data = manifest.get("segments") or []
+        segment_texts = [str(s.get("text") or "").strip() for s in segments_data]
+        return segment_texts == [t.strip() for t in ref_texts]
+
     def _write_segment_manifest(
         self,
         audio_path: str,
         text_hash: str,
         aligned: list[AlignmentSegment],
+        *,
+        ref_texts_hash: str | None = None,
     ) -> None:
         manifest_path = self._manifest_path(audio_path)
         manifest = {
             "text_hash": text_hash,
+            "ref_texts_hash": ref_texts_hash,
             "segments": [
                 {
                     "text": seg.text,

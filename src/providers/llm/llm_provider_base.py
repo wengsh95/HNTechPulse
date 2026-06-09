@@ -1,4 +1,4 @@
-"""Shared LLM provider base for OpenAI-compatible and Anthropic transports.
+﻿"""Shared LLM provider base for OpenAI-compatible and Anthropic transports.
 
 Subclasses only need to declare which ``LLMClient`` class to instantiate. All
 script generation, translation, comment judging, and prefilter logic lives
@@ -31,62 +31,14 @@ from src.providers.llm.llm_client import (
 )
 
 _TEMPLATE_CACHE: Dict[str, tuple[float, str]] = {}
-MAX_SUBTITLE_TEXT_CHARS = 48
-_AUTOSPLIT_SEPARATORS = ("。", "！", "？", ".", "?", "!", "；", ";", "，", ",", "、")
-_SUBTITLE_PUNCTUATION = "。！？.!?"
+_SUBTITLE_PUNCTUATION = "\u3002\uff01\uff1f.!?"
 
 
 def _with_sentence_punctuation(text: str) -> str:
     text = text.strip()
     if text and text[-1] not in _SUBTITLE_PUNCTUATION:
-        return text + "。"
+        return text + "\u3002"
     return text
-
-
-def _split_subtitle_once(text: str) -> tuple[str, str] | None:
-    midpoint = len(text) // 2
-    candidates = [
-        idx
-        for idx, ch in enumerate(text)
-        if ch in _AUTOSPLIT_SEPARATORS and 0 < idx < len(text) - 1
-    ]
-    if candidates:
-        split_at = min(candidates, key=lambda idx: abs(idx - midpoint)) + 1
-    else:
-        split_at = midpoint
-
-    left = text[:split_at].strip()
-    right = text[split_at:].strip()
-    if not left or not right:
-        return None
-    return left, right
-
-
-def _autosplit_subtitle(text: str) -> List[str]:
-    """Normalize one LLM subtitle into display-safe subtitle cues.
-
-    The prompt asks the model to split each cue, but real runs sometimes miss by
-    one or two Chinese characters. Fixing that deterministically is cheaper and
-    more reliable than burning retry attempts.
-    """
-
-    queue = [text.strip()]
-    result: List[str] = []
-    while queue:
-        current = queue.pop(0).strip()
-        if not current:
-            continue
-        if len(current) <= MAX_SUBTITLE_TEXT_CHARS:
-            result.append(_with_sentence_punctuation(current))
-            continue
-
-        split = _split_subtitle_once(current)
-        if split is None:
-            result.append(_with_sentence_punctuation(current))
-            continue
-        queue.insert(0, split[1])
-        queue.insert(0, split[0])
-    return result
 
 
 def _normalize_card_narration_subtitles(cards: list) -> None:
@@ -98,7 +50,9 @@ def _normalize_card_narration_subtitles(cards: list) -> None:
         if isinstance(texts, list):
             for text in texts:
                 if isinstance(text, str):
-                    normalized_texts.extend(_autosplit_subtitle(text))
+                    stripped = text.strip()
+                    if stripped:
+                        normalized_texts.append(_with_sentence_punctuation(stripped))
         card["subtitle_texts"] = normalized_texts
 
 
@@ -139,7 +93,7 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
     def _validate(parsed: dict) -> None:
         cards = parsed.get("card_narrations") or []
         if not cards:
-            # Accept empty — _process_story_narrations has a fallback path.
+            # Accept empty: _process_story_narrations has a fallback path.
             logger.warning(
                 "LLM returned empty card_narrations (expected %s); "
                 "downstream will fall back to audio_text",
@@ -169,12 +123,7 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
                         f"card_narrations[{i}].subtitle_texts[{j}] must be a string"
                     )
                 stripped = text.strip()
-                if len(stripped) > MAX_SUBTITLE_TEXT_CHARS:
-                    raise ValueError(
-                        f"card_narrations[{i}].subtitle_texts[{j}] is too long "
-                        f"({len(stripped)} chars > {MAX_SUBTITLE_TEXT_CHARS}); split it"
-                    )
-                if stripped and stripped[-1] not in "。！？.!?":
+                if stripped and stripped[-1] not in _SUBTITLE_PUNCTUATION:
                     raise ValueError(
                         f"card_narrations[{i}].subtitle_texts[{j}] must end with punctuation"
                     )
@@ -243,7 +192,7 @@ class LLMProviderBase(LLMProvider):
         """Public accessor for the underlying transport client."""
         return self._client
 
-    # ── Delegate LLM core calls ────────────────────────────────
+    # Delegate LLM core calls
 
     def _call_llm_with_json_retry(self, *args, **kwargs):
         return self._client.call_llm_with_json_retry(*args, **kwargs)
@@ -269,7 +218,7 @@ class LLMProviderBase(LLMProvider):
 
         Returns the parsed dict when expect_json=True (via
         :meth:`_call_llm_with_json_retry`); returns raw text otherwise
-        (single-shot, no JSON retry loop — caller controls the output shape).
+        (single-shot, no JSON retry loop; caller controls the output shape).
 
         ``model`` and ``temperature`` default to the main transport config;
         pass ``self.fast_model`` for simple JSON/markdown one-shots to avoid
@@ -302,7 +251,7 @@ class LLMProviderBase(LLMProvider):
     def _spinner(self, label: str):
         return self._client._spinner(label)
 
-    # ── Segment Generation ─────────────────────────────────────
+    # Segment Generation
 
     def generate_single_story_segment(
         self,
@@ -409,7 +358,7 @@ class LLMProviderBase(LLMProvider):
         self.logger.info(f"    [{segment_type}_{story_index}] Done")
         return segment
 
-    # ── Translation ────────────────────────────────────────────
+    # Translation
 
     def translate_titles(
         self, content: ContentPackage, prompt_template: str, date: str = ""
@@ -528,7 +477,7 @@ class LLMProviderBase(LLMProvider):
                 out[key] = value
         return out
 
-    # ── Comment Judging ────────────────────────────────────────
+    # Comment Judging
 
     def judge_story_comments(
         self,
@@ -567,7 +516,7 @@ class LLMProviderBase(LLMProvider):
             return None
         return {"thinking": {"type": str(thinking)}}
 
-    # ── Prefilter ──────────────────────────────────────────────
+    # Prefilter
 
     def prefilter_stories(
         self,
@@ -620,7 +569,7 @@ class LLMProviderBase(LLMProvider):
             return decisions[0]
         return {"keep": True, "reason": "no LLM response"}
 
-    # ── Story Serialization ────────────────────────────────────
+    # Story Serialization
 
     def _single_story_to_json(
         self, item, index: int, comments_data: Optional[Dict] = None
@@ -747,3 +696,4 @@ class LLMProviderBase(LLMProvider):
             f"Story[{index}] serialized: {len(result)} chars ({story_dict['truncated_to']} comments)"
         )
         return result
+

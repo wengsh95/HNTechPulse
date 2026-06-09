@@ -224,10 +224,9 @@ def _clean_subtitle_text(text: str) -> str:
 def extract_subtitle_texts(card: dict) -> list[str]:
     raw_texts = card.get("subtitle_texts", []) or []
     cleaned = [
-        _ensure_punctuation(piece)
+        _ensure_punctuation(t.strip())
         for t in raw_texts
         if t and t.strip()
-        for piece in split_long_subtitle(t.strip())
     ]
     return _merge_dangling_context_sentences(cleaned)
 

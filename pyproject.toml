@@ -30,6 +30,7 @@ dependencies = [
     "starlette>=1.0.1",
     "urllib3>=2.7.0",
     "soundfile>=0.13.1",
+    "websockets>=16.0",
 ]
 
 [project.scripts]

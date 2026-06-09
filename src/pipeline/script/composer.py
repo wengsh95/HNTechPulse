@@ -24,7 +24,6 @@ from src.pipeline.script.cards import (
     extract_subtitle_texts,
     normalize_atmosphere_card,
     normalize_story_cards,
-    split_long_subtitle,
 )
 from src.pipeline.script.io import (
     load_script as _load_script,
@@ -508,7 +507,6 @@ class ScriptWriter:
     _normalize_story_cards = staticmethod(normalize_story_cards)
     _coerce_card_narrations_for_mode = staticmethod(coerce_card_narrations_for_mode)
     _extract_subtitle_texts = staticmethod(extract_subtitle_texts)
-    _split_long_subtitle = staticmethod(split_long_subtitle)
 
     # Backward-compat method aliases (extracted to script/templates.py)
     _generate_fixed_opening = staticmethod(generate_fixed_opening)

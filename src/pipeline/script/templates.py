@@ -64,57 +64,6 @@ DEFAULT_HOOK_MAX_LEN = 14
 # 开场钩子的目标字符数 (≤10 让 3 个钩子 + 2 个 "、" 在 35 字以内, 配音 ~5s)
 OPENING_HOOK_MAX_LEN = 10
 
-# 收尾/开场 thesis 规则 (顺序敏感, 命中第一个匹配)
-# - keywords: 命中 category 或 editor_angle 任一即可
-# - prefix: 开场前缀 ("今天的主线是" / "今天的主线不是")
-# - body: 接 prefix 后构成完整开场金句
-# - closing: 收尾独立句 (不再带 "今天的主线是" 这种开场框架词)
-THESIS_RULES: list[dict] = [
-    {
-        "keywords": (
-            "基础设施",
-            "中继",
-            "P2P",
-            "停服",
-            "数字所有权",
-            "平台",
-        ),
-        "prefix": "今天的主线是",
-        "body": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
-        "closing": "平台默认路径越来越方便，但控制权和兜底成本也越来越难躲开。",
-    },
-    {
-        "keywords": ("安全", "隐私", "漏洞", "攻击面", "权限"),
-        "prefix": "今天的主线不是",
-        "body": "AI又变强了，而是AI进入真实系统后，风险开始外溢。",
-        "closing": "重点不是AI又变强了，而是AI进入真实系统后，风险开始外溢。",
-    },
-    {
-        "keywords": ("硬件", "芯片", "CPU", "GPU", "Windows PC", "Nvidia"),
-        "prefix": "今天的主线是",
-        "body": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
-        "closing": "本地AI正在从软件话题，变成硬件和平台控制权之争。",
-    },
-    {
-        "keywords": ("开源", "开发", "工具", "Python", "CPython"),
-        "prefix": "今天的主线是",
-        "body": "开发者工具正在变快，但维护成本和信任边界也被重新摊开。",
-        "closing": "开发者工具正在变快，但维护成本和信任边界也被重新摊开。",
-    },
-    {
-        "keywords": ("资本", "融资", "IPO", "估值", "上市", "递表"),
-        "prefix": "今天的主线是",
-        "body": "AI热潮开始接受资本规则的反向拷问。",
-        "closing": "AI热潮开始接受资本规则的反向拷问。",
-    },
-]
-
-DEFAULT_THESIS = {
-    "prefix": "今天的三条HN讨论",
-    "body": "都在指向同一个问题：技术热度落到现实里，代价由谁承担。",
-    "closing": "今天的三条HN讨论，都在指向同一个问题：技术热度落到现实里，代价由谁承担。",
-}
-
 _NOISE_TOKENS = (
     "真正的",
     "今天的",
@@ -240,67 +189,10 @@ def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
     return "技术信号"
 
 
-def _match_thesis(entries: list[dict]) -> dict:
-    """Return the first THESIS_RULES entry whose keywords appear in the
-    first 3 stories' category or editor_angle. Falls back to DEFAULT_THESIS."""
-    haystack = " ".join(
-        [str(e.get("category") or "") for e in entries[:3]]
-        + [str(e.get("editor_angle") or "") for e in entries[:3]]
-        + [str(e.get("signal") or "") for e in entries[:3]]
-        + [str(e.get("why_it_matters") or "") for e in entries[:3]]
-        + [
-            str(keyword or "")
-            for e in entries[:3]
-            for keyword in (e.get("keywords") or [])
-        ]
-    )
-    for rule in THESIS_RULES:
-        if any(kw in haystack for kw in rule["keywords"]):
-            return rule
-    return DEFAULT_THESIS
-
-
-def _daily_thesis(entries: list[dict]) -> dict:
-    """Return a structured thesis for the day's opening/closing.
-
-    Shape: ``{"prefix": str, "body": str, "closing": str}``
-
-    - ``prefix + body`` is the full opening line (e.g. "今天的主线是…")
-    - ``closing`` is the closing-friendly rewrite as a self-contained
-      sentence (no opening framing like "今天的主线是…")
-    """
-    return _match_thesis(entries)
-
-
-def _opening_thesis_fragment(thesis: str) -> str:
-    thesis = _normalize(thesis).rstrip("。！？?! ")
-    if not thesis:
-        return ""
-    if "控制权和兜底成本" in thesis:
-        return "控制权和兜底成本被摆到台前"
-    if "风险开始外溢" in thesis:
-        return "真实系统里的风险开始外溢"
-    if "硬件和平台控制权" in thesis:
-        return "硬件和平台控制权开始变重"
-    if "维护成本和信任边界" in thesis:
-        return "维护成本和信任边界被重新摊开"
-    if "资本规则" in thesis:
-        return "资本规则开始反向拷问AI热潮"
-    if "代价由谁承担" in thesis:
-        return "现实代价被摊到台前"
-    return ""
-
-
 def _opening_audio(entries: list[dict]) -> str:
     if not entries:
         return "昨天，HN社区有三个技术变化值得停一下。早上好，这里是HN每日观察，我们展开看。"
-    rule = _daily_thesis(entries)
     hooks = "、".join(_entry_spoken_hook(e, max_len=16) for e in entries[:3])
-    fragment = _opening_thesis_fragment(
-        str(rule.get("closing") or rule.get("body") or "")
-    )
-    if fragment:
-        return f"昨天，HN社区在讨论{hooks}，{fragment}。早上好，这里是HN每日观察，我们展开看。"
     return f"昨天，HN社区在讨论{hooks}。早上好，这里是HN每日观察，我们展开看。"
 
 
@@ -335,23 +227,8 @@ def _closing_audio(
 ) -> str:
     if not entries:
         return f"今天的HN速览就到这里。{_closing_greeting(day, weekday)}"
-    rule = _daily_thesis(entries)
     tail = _closing_greeting(day, weekday)
-    closing = _closing_reframe(entries, str(rule.get("closing") or "").strip())
-    return f"放在一起看，{closing}今天就到这里，{tail}"
-
-
-def _closing_reframe(entries: list[dict], thesis: str) -> str:
-    thesis = _normalize(thesis).rstrip("。！？?! ")
-    if not thesis:
-        return "这些变化都在把技术选择背后的代价摊到台前。"
-    if len(entries) < 2:
-        return f"{thesis}。"
-    first = _entry_spoken_hook(entries[0], max_len=12)
-    second = _entry_spoken_hook(entries[1], max_len=12)
-    if first and second and first != second:
-        return f"从{first}到{second}，{thesis}。"
-    return f"{thesis}。"
+    return f"今天的HN速览就到这里，{tail}"
 
 
 def generate_fixed_opening(
