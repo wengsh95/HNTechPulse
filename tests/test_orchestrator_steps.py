@@ -310,6 +310,25 @@ class TestStepPublishGuide:
         result = orch._step_publish_guide(_make_content(), _make_script(), "2026-04-26")
         assert result is None
 
+    def test_regenerates_when_manifest_input_hash_is_missing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        base = tmp_path / "data" / date
+        base.mkdir(parents=True)
+        guide_path = base / "publish_guide.md"
+        guide_path.write_text("old", encoding="utf-8")
+
+        orch = _make_orchestrator(dry_run=False)
+        orch.llm_provider.complete_prompt = MagicMock()
+        orch.llm_provider.complete_prompt.return_value = "new guide"
+        orch.llm_provider.fast_model = "test-fast"
+        orch.llm_provider.fast_temperature = 0.1
+
+        orch._step_publish_guide(_make_content(), _make_script(), date)
+
+        assert guide_path.read_text(encoding="utf-8") == "new guide"
+        orch.llm_provider.complete_prompt.assert_called_once()
+
 
 class TestStepPrepareRender:
     def test_dry_run_does_not_call_renderer(self):

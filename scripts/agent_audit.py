@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import file_sha256, load_pipeline_state  # noqa: E402
+from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
 
 
 def _default_date() -> str:
@@ -115,6 +115,34 @@ def _issue(
     return payload
 
 
+def _publish_guide_context(date: str, content_path: Path, script_path: Path) -> dict[str, Any] | None:
+    content_data = _read_json(content_path)
+    script_data = _read_json(script_path)
+    if not isinstance(content_data, dict) or not isinstance(script_data, dict):
+        return None
+    items_payload = []
+    for item in content_data.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        items_payload.append(
+            {
+                "title_cn": item.get("title_cn") or item.get("title"),
+                "title": item.get("title"),
+                "editor_angle": item.get("editor_angle") or item.get("dek") or "",
+                "category": item.get("category") or "",
+                "keywords": item.get("keywords") or [],
+                "score": item.get("score"),
+                "comment_count": item.get("comment_count"),
+            }
+        )
+    return {
+        "script_title": script_data.get("title") or "HN每日观察",
+        "script_description": script_data.get("description") or "",
+        "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
+        "date": date,
+    }
+
+
 def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     required = {
@@ -159,6 +187,37 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                         f"{name} is an opt-in publish step (not part of the default "
                         f"12-step chain). Run it explicitly with --steps if you want "
                         f"to publish this date; otherwise it's expected to be absent."
+                    ),
+                    fixable_by_agent=True,
+                )
+            )
+    publish_guide = optional_publish["publish_guide"]
+    if publish_guide.exists():
+        context = _publish_guide_context(
+            date,
+            required["content"],
+            required["script"],
+        )
+        manifest = _read_json(
+            publish_guide.with_suffix(publish_guide.suffix + ".manifest.json")
+        )
+        if context is not None and (
+            not isinstance(manifest, dict)
+            or manifest.get("input_hash") != stable_hash(context)
+        ):
+            issues.append(
+                _issue(
+                    "warning",
+                    "publish_guide_fresh",
+                    f"Publish guide inputs changed: {publish_guide}",
+                    path=publish_guide,
+                    recommendation=(
+                        f"uv run python scripts/agent_run.py --date {date} "
+                        "--steps title,publish_guide"
+                    ),
+                    why=(
+                        "Publish copy depends on the selected content and script. "
+                        "Regenerate it after upstream artifacts change."
                     ),
                     fixable_by_agent=True,
                 )

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import load_pipeline_state  # noqa: E402
+from src.pipeline.agent_io import load_pipeline_state, stable_hash  # noqa: E402
 
 
 def _default_date() -> str:
@@ -51,15 +51,23 @@ def _is_newer(a: Path, b: Path) -> bool:
 
 def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
     reasons = [item.get("reason", "") for item in stale]
-    if any(reason.startswith("content.json is newer") for reason in reasons):
+    artifacts = [item.get("artifact", "") for item in stale]
+    if any("script.json" in artifact for artifact in artifacts):
         return {
             "command": f"uv run python scripts/agent_run.py --date {date} --steps write_script,translate_comments,synthesize_audio,title,prepare_render,cover_image,cover_thumbnail,publish_guide,render",
             "why": "Content changed after script generation; regenerate script and all downstream artifacts.",
         }
-    if any("script.json is newer" in reason for reason in reasons):
+    if any("cli_props.json" in artifact for artifact in artifacts) or any(
+        "output.mp4" in artifact for artifact in artifacts
+    ):
         return {
             "command": f"uv run python scripts/agent_run.py --date {date} --steps prepare_render,render",
             "why": "Script changed after render props; regenerate props and render.",
+        }
+    if any("publish_guide.md" in artifact for artifact in artifacts):
+        return {
+            "command": f"uv run python scripts/agent_run.py --date {date} --steps title,publish_guide",
+            "why": "Publish metadata changed after the guide; regenerate the guide.",
         }
     return {
         "command": f"uv run python scripts/agent_run.py --date {date} --steps prepare_render,render",
@@ -84,6 +92,44 @@ def _pending_tasks(base: Path) -> dict[str, Any]:
         "pending_count": len(pending),
         "pending": pending,
     }
+
+
+def _publish_guide_context(date: str, content_path: Path, script_path: Path) -> dict[str, Any] | None:
+    content_data = _read_json(content_path)
+    script_data = _read_json(script_path)
+    if not isinstance(content_data, dict) or not isinstance(script_data, dict):
+        return None
+    items_payload = []
+    for item in content_data.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        items_payload.append(
+            {
+                "title_cn": item.get("title_cn") or item.get("title"),
+                "title": item.get("title"),
+                "editor_angle": item.get("editor_angle") or item.get("dek") or "",
+                "category": item.get("category") or "",
+                "keywords": item.get("keywords") or [],
+                "score": item.get("score"),
+                "comment_count": item.get("comment_count"),
+            }
+        )
+    return {
+        "script_title": script_data.get("title") or "HN每日观察",
+        "script_description": script_data.get("description") or "",
+        "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
+        "date": date,
+    }
+
+
+def _has_stale_publish_guide(date: str, content_path: Path, script_path: Path, guide_path: Path) -> bool:
+    if not guide_path.exists():
+        return False
+    context = _publish_guide_context(date, content_path, script_path)
+    if context is None:
+        return False
+    manifest = _read_json(guide_path.with_suffix(guide_path.suffix + ".manifest.json"))
+    return not isinstance(manifest, dict) or manifest.get("input_hash") != stable_hash(context)
 
 
 def build_status(date: str) -> dict[str, Any]:
@@ -132,6 +178,13 @@ def build_status(date: str) -> dict[str, Any]:
             {
                 "artifact": str(public_props).replace("\\", "/"),
                 "reason": "public Remotion props mirror is missing",
+            }
+        )
+    if _has_stale_publish_guide(date, content, script, publish_guide):
+        stale.append(
+            {
+                "artifact": str(publish_guide).replace("\\", "/"),
+                "reason": "publish_guide.md input hash does not match content/script",
             }
         )
 

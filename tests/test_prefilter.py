@@ -47,6 +47,7 @@ def _make_prefilter(comment_preview_count: int = 5):
         "prefilter": {
             "enabled": True,
             "min_keep": 1,
+            "min_news_focus": 4,
             "min_newsworthiness": 1,
             "temperature": 0.1,
             "comment_preview_enabled": True,
@@ -146,6 +147,7 @@ def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypa
             "prefilter": {
                 "enabled": True,
                 "min_keep": 1,
+                "min_news_focus": 1,
                 "min_newsworthiness": 3,
                 "temperature": 0.1,
                 "comment_preview_enabled": False,
@@ -160,3 +162,139 @@ def test_prefilter_prefers_bilibili_video_score_over_hn_score(tmp_path, monkeypa
 
     assert [item.source_id for item in filtered.items] == ["2", "1"]
     assert filtered.items[0].category == "ai_company"
+
+
+def test_prefilter_requires_news_focus_even_when_hn_score_is_high(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id="opinion",
+                title="A personal essay about software engineering careers",
+                url="https://example.com/opinion",
+                score=999,
+                comment_count=500,
+            ),
+            ContentItem(
+                source="hackernews",
+                source_id="news",
+                title="Vendor changes API behavior after outage",
+                url="https://example.com/news",
+                score=50,
+                comment_count=10,
+            ),
+        ],
+    )
+    llm = MagicMock()
+    llm.prefilter_stories.return_value = [
+        {
+            "index": 0,
+            "keep": True,
+            "reason": "popular but mostly opinion",
+            "category": "developer_tools",
+            "news_focus": 2,
+            "newsworthiness": 5,
+        },
+        {
+            "index": 1,
+            "keep": True,
+            "reason": "specific API behavior change",
+            "category": "infra",
+            "news_focus": 4,
+            "newsworthiness": 3,
+        },
+    ]
+    prefilter = Prefilter(
+        llm,
+        {
+            "logging": {"level": "WARNING"},
+            "pipeline": {"target_story_count": 2},
+            "prefilter": {
+                "enabled": True,
+                "min_keep": 1,
+                "min_news_focus": 4,
+                "min_newsworthiness": 3,
+                "temperature": 0.1,
+                "comment_preview_enabled": False,
+                "comment_preview_count": 0,
+            },
+            "llm": {"provider": "test", "model": "test-model"},
+        },
+        debug=True,
+    )
+
+    filtered = prefilter.filter(content, "2026-04-26")
+
+    assert [item.source_id for item in filtered.items] == ["news"]
+
+
+def test_prefilter_does_not_backfill_non_news_to_reach_target_count(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id="news",
+                title="Project releases a security fix",
+                url="https://example.com/news",
+                score=50,
+                comment_count=10,
+            ),
+            ContentItem(
+                source="hackernews",
+                source_id="tutorial",
+                title="A detailed technical tutorial",
+                url="https://example.com/tutorial",
+                score=500,
+                comment_count=100,
+            ),
+        ],
+    )
+    llm = MagicMock()
+    llm.prefilter_stories.return_value = [
+        {
+            "index": 0,
+            "keep": True,
+            "reason": "security fix release",
+            "category": "security",
+            "news_focus": 4,
+            "newsworthiness": 3,
+        },
+        {
+            "index": 1,
+            "keep": True,
+            "reason": "good tutorial but not news",
+            "category": "developer_tools",
+            "news_focus": 2,
+            "newsworthiness": 4,
+        },
+    ]
+    prefilter = Prefilter(
+        llm,
+        {
+            "logging": {"level": "WARNING"},
+            "pipeline": {"target_story_count": 2},
+            "prefilter": {
+                "enabled": True,
+                "min_keep": 1,
+                "min_news_focus": 4,
+                "min_newsworthiness": 3,
+                "temperature": 0.1,
+                "comment_preview_enabled": False,
+                "comment_preview_count": 0,
+            },
+            "llm": {"provider": "test", "model": "test-model"},
+        },
+        debug=True,
+    )
+
+    filtered = prefilter.filter(content, "2026-04-26")
+
+    assert [item.source_id for item in filtered.items] == ["news"]

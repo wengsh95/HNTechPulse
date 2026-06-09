@@ -112,3 +112,28 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
     assert result["publishable"] is False
     assert result["status"] == "blocked"
     assert any(i["check"] == "selected_variant_promoted" for i in result["issues"])
+
+
+def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    base = tmp_path / "data" / date
+    base.mkdir(parents=True)
+
+    atomic_write_json(
+        base / "pipeline_state.json",
+        {"schema_version": 1, "date": date, "status": "complete"},
+    )
+    atomic_write_json(
+        base / "agent_decision.json",
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(base / "content.json", {"items": []})
+    atomic_write_json(base / "script.json", {"title": "Script", "segments": []})
+    guide = base / "publish_guide.md"
+    guide.write_text("old guide", encoding="utf-8")
+
+    result = audit(date)
+
+    assert result["publishable"] is True
+    assert any(i["check"] == "publish_guide_fresh" for i in result["issues"])

@@ -15,7 +15,7 @@ from src.core.interfaces import (
 )
 from src.core.models import ContentPackage, Script
 from src.pipeline.agent_decision import AgentDecisionEngine
-from src.pipeline.agent_io import append_agent_event, write_artifact_manifest
+from src.pipeline.agent_io import append_agent_event, stable_hash, write_artifact_manifest
 from src.pipeline.agent_variants import (
     promote_variant_script,
     write_variants_index,
@@ -998,15 +998,6 @@ class Orchestrator:
             "Step: Publish guide — generate human-facing publish checklist"
         )
         guide_path = Path(f"data/{date}/publish_guide.md")
-
-        if guide_path.exists():
-            self.logger.info(f"  Publish guide already exists at {guide_path}")
-            return
-
-        if self.dry_run:
-            self.logger.info("Dry run: skipping publish guide generation")
-            return
-
         items_payload = [
             {
                 "title_cn": item.title_cn or item.title,
@@ -1025,6 +1016,25 @@ class Orchestrator:
             "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
             "date": date,
         }
+        manifest_path = guide_path.with_suffix(guide_path.suffix + ".manifest.json")
+        manifest = None
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                manifest = None
+        if (
+            guide_path.exists()
+            and isinstance(manifest, dict)
+            and manifest.get("input_hash") == stable_hash(context)
+        ):
+            self.logger.info(f"  Publish guide already exists at {guide_path}")
+            return
+
+        if self.dry_run:
+            self.logger.info("Dry run: skipping publish guide generation")
+            return
+
         text = self.llm_provider.complete_prompt(
             "prompts/publish_guide.md",
             context,
@@ -1040,10 +1050,7 @@ class Orchestrator:
             guide_path,
             step="publish_guide",
             date=date,
-            inputs={
-                "content_item_count": len(content.items),
-                "script_title": script.title if script else "",
-            },
+            inputs=context,
             config=self.config,
         )
         self.logger.info(f"  Publish guide written to {guide_path}")

@@ -5,7 +5,7 @@ from typing import Any
 from src.core.models import ContentPackage
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 8
+_CACHE_SCHEMA_VERSION = 9
 
 
 def _prompt_hash() -> str:
@@ -69,21 +69,24 @@ class Prefilter:
             f"Prefilter result: kept {len(content.items)}, removed {filtered_count}"
         )
 
-        # Filter by minimum newsworthiness (话题度门槛)
+        # Filter by strict news-topic gates. HN discussion depth alone is not
+        # enough for the daily news brief; every selected item must look like a
+        # concrete news event.
         prefilter_cfg = self.config.get("prefilter", {})
         min_nw = prefilter_cfg.get("min_newsworthiness", 3)
+        min_nf = prefilter_cfg.get("min_news_focus", 4)
         target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
         before_nw = len(content.items)
         content.items = [
             item
             for item in content.items
-            if (decisions.get(str(item.source_id), {}).get("newsworthiness") or 0)
-            >= min_nw
+            if self._passes_news_gate(decisions.get(str(item.source_id), {}), min_nf, min_nw)
         ]
         nw_filtered = before_nw - len(content.items)
         if nw_filtered:
             self.logger.info(
-                f"Newsworthiness filter (min={min_nw}): removed {nw_filtered}, "
+                f"News-only filter (news_focus>={min_nf}, newsworthiness>={min_nw}): "
+                f"removed {nw_filtered}, "
                 f"remaining {len(content.items)}"
             )
 
@@ -116,6 +119,15 @@ class Prefilter:
             + nw * weights.get("newsworthiness", 1.5)
         )
 
+    @staticmethod
+    def _passes_news_gate(decision: dict, min_news_focus: int, min_newsworthiness: int) -> bool:
+        if not decision.get("keep"):
+            return False
+        return (
+            (decision.get("news_focus") or 0) >= min_news_focus
+            and (decision.get("newsworthiness") or 0) >= min_newsworthiness
+        )
+
     def _apply_editorial_signals(self, items, decisions: dict) -> None:
         weights = self._score_weights()
         for item in items:
@@ -146,9 +158,11 @@ class Prefilter:
             if item.source_id in existing_ids:
                 continue
             decision = decisions.get(str(item.source_id), {})
-            if not decision.get("keep"):
-                continue
-            if (decision.get("news_focus") or 0) >= 3:
+            if self._passes_news_gate(
+                decision,
+                self.config.get("prefilter", {}).get("min_news_focus", 4),
+                self.config.get("prefilter", {}).get("min_newsworthiness", 3),
+            ):
                 candidates.append(item)
 
         candidates = sorted(
@@ -213,23 +227,22 @@ class Prefilter:
         return comments
 
     def _resolve_keep_set(self, items, decisions):
+        cfg = self.config.get("prefilter", {})
+        min_nf = cfg.get("min_news_focus", 4)
+        min_nw = cfg.get("min_newsworthiness", 3)
         keep_ids = set()
         for item in items:
             sid = str(item.source_id)
             d = decisions.get(sid)
-            if d and d.get("keep"):
+            if d and self._passes_news_gate(d, min_nf, min_nw):
                 keep_ids.add(item.source_id)
 
-        # Safety valve: ensure min_keep
+        # Safety valve: ensure min_keep, but never backfill non-news stories.
         if len(keep_ids) < self.min_keep:
             self.logger.warning(
-                f"Only {len(keep_ids)} stories passed filter, "
-                f"applying min_keep={self.min_keep}"
+                f"Only {len(keep_ids)} stories passed strict news filter; "
+                f"min_keep={self.min_keep} will not backfill non-news stories"
             )
-            # Keep top-N by score
-            sorted_items = sorted(items, key=lambda x: x.score or 0, reverse=True)
-            for item in sorted_items[: self.min_keep]:
-                keep_ids.add(item.source_id)
 
         return keep_ids
 
@@ -252,10 +265,11 @@ class Prefilter:
             "temperature": prefilter_cfg.get("temperature", 0.1),
             "min_keep": prefilter_cfg.get("min_keep", self.min_keep),
             "min_newsworthiness": prefilter_cfg.get("min_newsworthiness", 3),
+            "min_news_focus": prefilter_cfg.get("min_news_focus", 4),
             "news_focus_weight": prefilter_cfg.get("news_focus_weight", 2.0),
             "newsworthiness_weight": prefilter_cfg.get("newsworthiness_weight", 1.5),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
-            "scoring_strategy": "news_focus_v1",
+            "scoring_strategy": "strict_news_only_v1",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

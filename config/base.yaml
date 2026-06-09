@@ -10,6 +10,7 @@ pipeline:
 prefilter:
   enabled: true
   max_workers: 5               # 每条 story 独立评分的并发数
+  min_news_focus: 4            # 新闻类门槛（1-5），低于此分数视为观点/教程/资源帖，直接过滤
   min_newsworthiness: 3        # 话题度门槛（1-5），低于此分数的故事直接过滤
 
 hn:
