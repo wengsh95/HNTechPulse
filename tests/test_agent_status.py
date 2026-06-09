@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scripts.agent_status import build_status
+from scripts.agent_status import _stale_command, build_status
 
 
 def _write_manifest(base: Path, renderer: str) -> None:
@@ -58,3 +58,23 @@ class TestRendererSpecificStaleness:
             item["reason"] == "public Remotion props mirror is missing"
             for item in status["stale_artifacts"]
         )
+
+
+class TestStaleCommand:
+    def test_script_stale_recovery_matches_pipeline_order(self):
+        command = _stale_command(
+            "2026-06-09",
+            [
+                {
+                    "artifact": "data/2026-06-09/script.json",
+                    "reason": "content.json is newer than script.json",
+                }
+            ],
+        )["command"]
+
+        expected = (
+            "uv run python scripts/agent_run.py --date 2026-06-09 "
+            "--steps write_script,translate_comments,synthesize_audio,title,"
+            "cover_image,cover_thumbnail,publish_guide,prepare_render,render"
+        )
+        assert command == expected

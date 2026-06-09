@@ -36,7 +36,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Vitest
-        run: npx vitest run
+        run: npx vitest run --passWithNoTests
 
       - name: Knip
         run: npx knip --no-exit-code

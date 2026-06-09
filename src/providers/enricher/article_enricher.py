@@ -1,7 +1,9 @@
 import asyncio
+import base64
 import json
 import logging
 import os
+import mimetypes
 from pathlib import Path
 from typing import Dict, Optional, Any, cast
 from urllib.parse import urlparse
@@ -118,6 +120,7 @@ class ArticleEnricher:
         self.baidu_search = BaiduSearchProvider(config)
 
         self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
+        self._image_select_prompt = self._load_prompt("prompts/image_select.md")
 
     @staticmethod
     def _load_prompt(path: str) -> str:
@@ -515,8 +518,9 @@ class ArticleEnricher:
                     )
 
                     image_candidates = list(pdf_image_candidates)
-                    selected_candidate = self.image_handler.choose_auto_image_candidate(
-                        image_candidates
+                    setattr(item, "_content_date", date)
+                    selected_candidate = self._select_image_candidate(
+                        item, image_candidates, article_summary=article_summary
                     )
                     selected_path = (
                         selected_candidate.get("path") if selected_candidate else None
@@ -669,8 +673,9 @@ class ArticleEnricher:
                         }
                     )
 
-                selected_candidate = self.image_handler.choose_auto_image_candidate(
-                    image_candidates
+                setattr(item, "_content_date", date)
+                selected_candidate = self._select_image_candidate(
+                    item, image_candidates, article_summary=article_summary
                 )
                 selected_path = (
                     selected_candidate.get("path") if selected_candidate else None
@@ -932,6 +937,221 @@ class ArticleEnricher:
 
     # ── Image Selection ────────────────────────────────────────
 
+    def _image_selection_context(
+        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+    ) -> str:
+        rows: list[dict[str, Any]] = []
+        story_domain = (urlparse(item.url or "").hostname or "").lower().lstrip("www.")
+        for idx, candidate in enumerate(candidates):
+            path = candidate.get("path")
+            if not path:
+                continue
+            origin_domain = (
+                urlparse(str(candidate.get("origin_url") or "")).hostname or ""
+            ).lower().lstrip("www.")
+            rows.append(
+                {
+                    "index": idx,
+                    "path": path,
+                    "source": candidate.get("source", ""),
+                    "label": candidate.get("label", ""),
+                    "width": candidate.get("width"),
+                    "height": candidate.get("height"),
+                    "origin_url": candidate.get("origin_url", ""),
+                    "query": candidate.get("query", ""),
+                    "rank": candidate.get("rank"),
+                    "auto_selected": candidate.get("auto_selected", False),
+                    "previous_selection_reason": candidate.get("selection_reason", ""),
+                    "origin_domain": origin_domain,
+                    "same_domain_as_story": bool(
+                        story_domain
+                        and origin_domain
+                        and (
+                            origin_domain == story_domain
+                            or origin_domain.endswith("." + story_domain)
+                        )
+                    ),
+                    "suitable_size": self.image_handler.candidate_has_suitable_size(
+                        candidate
+                    ),
+                }
+            )
+        return json.dumps(
+            {
+                "title": item.title,
+                "title_cn": item.title_cn or "",
+                "editor_angle": item.editor_angle or "",
+                "article_summary": article_summary or item.article_summary or "",
+                "keywords": item.keywords or [],
+                "url": item.url or "",
+                "story_domain": story_domain,
+                "candidates": rows,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    @staticmethod
+    def _candidate_image_path(date: Optional[str], candidate_path: str) -> Optional[Path]:
+        path = Path(candidate_path)
+        if path.is_absolute():
+            return path if path.exists() else None
+        candidates = []
+        if date:
+            candidates.append(Path("data") / date / candidate_path)
+        candidates.append(path)
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        return None
+
+    def _image_content_block(self, path: Path) -> Optional[Dict[str, Any]]:
+        try:
+            raw = path.read_bytes()
+        except OSError as e:
+            self.logger.info(f"Failed to read image for LLM selection: {path}: {e}")
+            return None
+        if not raw:
+            return None
+        media_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
+        if media_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+            media_type = "image/jpeg"
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64.b64encode(raw).decode("ascii"),
+            },
+        }
+
+    def _image_selection_user_content(
+        self,
+        item,
+        candidates: list[Dict[str, Any]],
+        prompt_user_text: str,
+    ) -> str | list[Dict[str, Any]]:
+        date = getattr(item, "_content_date", None)
+        blocks: list[Dict[str, Any]] = [{"type": "text", "text": prompt_user_text}]
+        attached = 0
+        for idx, candidate in enumerate(candidates):
+            path_value = candidate.get("path") if isinstance(candidate, dict) else None
+            if not path_value:
+                continue
+            local_path = self._candidate_image_path(date, str(path_value))
+            if local_path is None:
+                continue
+            block = self._image_content_block(local_path)
+            if block is None:
+                continue
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": (
+                        f"候选图片 {idx}: path={path_value}, "
+                        f"source={candidate.get('source', '')}"
+                    ),
+                }
+            )
+            blocks.append(block)
+            attached += 1
+        if attached == 0:
+            return prompt_user_text
+        return blocks
+
+    def _select_image_candidate_with_llm(
+        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        valid_paths = {
+            str(candidate.get("path"))
+            for candidate in candidates
+            if isinstance(candidate, dict) and candidate.get("path")
+        }
+        if not valid_paths or not self._image_select_prompt:
+            return None
+
+        candidates_json = self._image_selection_context(
+            item, candidates, article_summary=article_summary
+        )
+        prompt = render_prompt(
+            self._image_select_prompt,
+            title=item.title or "",
+            title_cn=item.title_cn or "",
+            editor_angle=item.editor_angle or "",
+            article_summary=article_summary or item.article_summary or "",
+            keywords=", ".join(item.keywords or []),
+            url=item.url or "",
+            candidates_json=candidates_json,
+        )
+
+        if "<!-- SYSTEM_CUT -->" in prompt:
+            system_msg, user_msg = prompt.split("<!-- SYSTEM_CUT -->", 1)
+            messages = [
+                {"role": "system", "content": system_msg.strip()},
+                {
+                    "role": "user",
+                    "content": self._image_selection_user_content(
+                        item, candidates, user_msg.strip()
+                    ),
+                },
+            ]
+        else:
+            messages = [
+                {
+                    "role": "user",
+                    "content": self._image_selection_user_content(
+                        item, candidates, prompt
+                    ),
+                }
+            ]
+
+        def _validate(parsed: Any) -> None:
+            if not isinstance(parsed, dict):
+                raise ValueError("image selection result is not a JSON object")
+            selected_path = parsed.get("selected_path")
+            if selected_path not in valid_paths:
+                raise ValueError(
+                    f"selected_path must be one of candidate paths: {sorted(valid_paths)}"
+                )
+
+        try:
+            response_text = self.llm_client.call_llm_with_json_retry(
+                messages=messages,
+                label=f"image_select_{str(item.source_id)[:30]}",
+                max_tokens=512,
+                model=self.llm_client.fast_model,
+                temperature=self.llm_client.fast_temperature,
+                validator=_validate,
+            )
+            result = self.llm_client.extract_json(response_text)
+        except Exception as e:
+            self.logger.info(
+                f"LLM image selection failed for '{item.title[:50]}': {e}; "
+                "falling back to local image selector"
+            )
+            return None
+
+        selected_path = result.get("selected_path")
+        for candidate in candidates:
+            if candidate.get("path") == selected_path:
+                candidate["selection_reason"] = result.get("reason") or "llm_selected"
+                candidate["selection_source"] = "llm"
+                return candidate
+        return None
+
+    def _select_image_candidate(
+        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        selected = self._select_image_candidate_with_llm(
+            item, candidates, article_summary=article_summary
+        )
+        if selected is not None:
+            return selected
+        selected = self.image_handler.choose_auto_image_candidate(candidates)
+        if selected is not None:
+            selected["selection_source"] = "heuristic"
+        return selected
+
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
         sel_path = Path(f"data/{date}/image_selection.json")
         if not sel_path.exists():
@@ -974,6 +1194,7 @@ class ArticleEnricher:
         for item in content.items:
             if not item.image_candidates:
                 continue
+            setattr(item, "_content_date", date)
             key = str(item.source_id)
             existing_entry = data["items"].get(key, {})  # type: ignore[union-attr]
             candidates = self.image_handler.merge_image_candidates(
@@ -981,20 +1202,31 @@ class ArticleEnricher:
                 item.image_candidates,
             )
             selected = existing_entry.get("selected_image")
+            selected_candidate = None
             if not selected:
-                selected_candidate = self.image_handler.choose_auto_image_candidate(
-                    candidates
-                )
+                selected_candidate = self._select_image_candidate(item, candidates)
                 selected = (
                     selected_candidate.get("path") if selected_candidate else None
                 )
-                if selected:
-                    for candidate in candidates:
-                        candidate["auto_selected"] = candidate.get("path") == selected
-                    if selected_candidate is not None:
-                        selected_candidate["selection_reason"] = (
-                            self.image_handler.selection_reason(selected_candidate)
-                        )
+            else:
+                selected_candidate = next(
+                    (
+                        candidate
+                        for candidate in candidates
+                        if candidate.get("path") == selected
+                    ),
+                    None,
+                )
+            if selected:
+                for candidate in candidates:
+                    candidate["auto_selected"] = candidate.get("path") == selected
+                if selected_candidate is not None:
+                    selected_candidate.setdefault(
+                        "selection_reason",
+                        self.image_handler.selection_reason(selected_candidate),
+                    )
+                existing = [p for p in item.article_images if p != selected]
+                item.article_images = [selected] + existing
             new_entry = {
                 "title": item.title,
                 "url": item.url,

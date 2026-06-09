@@ -19,7 +19,13 @@ PH_SELECTION_JSON = "selection_json"
 PH_COMMENTS_JSON = "comments_json"
 PH_ITEMS_JSON = "items_json"
 PH_TITLE = "title"
+PH_TITLE_CN = "title_cn"
 PH_ARTICLE_TEXT = "article_text"
+PH_ARTICLE_SUMMARY = "article_summary"
+PH_EDITOR_ANGLE = "editor_angle"
+PH_KEYWORDS = "keywords"
+PH_URL = "url"
+PH_CANDIDATES_JSON = "candidates_json"
 PH_SEARCH_CONTEXT = "search_context"
 PH_STORY_INDEX = "story_index"
 PH_STORIES_JSON = "stories_json"
@@ -38,7 +44,13 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_COMMENTS_JSON,
         PH_ITEMS_JSON,
         PH_TITLE,
+        PH_TITLE_CN,
         PH_ARTICLE_TEXT,
+        PH_ARTICLE_SUMMARY,
+        PH_EDITOR_ANGLE,
+        PH_KEYWORDS,
+        PH_URL,
+        PH_CANDIDATES_JSON,
         PH_SEARCH_CONTEXT,
         PH_STORY_INDEX,
         PH_STORIES_JSON,

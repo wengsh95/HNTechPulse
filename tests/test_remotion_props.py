@@ -175,6 +175,38 @@ class TestExpandEventCard:
         assert result["image_src"] == "images/img1.png"
         assert result["image_type"] == "article"
 
+    def test_image_injection_prefers_auto_selected_candidate(self):
+        content = _make_content_package()
+        item = content.items[0]
+        item.article_images = ["images/page.jpg"]
+        item.image_candidates = [
+            {"path": "images/page.jpg", "source": "page", "auto_selected": False},
+            {
+                "path": "images/shot.jpg",
+                "source": "screenshot",
+                "auto_selected": True,
+            },
+        ]
+
+        result = _expand_event_card({"story_index": 0}, content)
+
+        assert result["image_src"] == "images/shot.jpg"
+        assert result["image_type"] == "screenshot"
+
+    def test_image_injection_prefers_selected_article_images_over_candidate_order(self):
+        content = _make_content_package()
+        item = content.items[0]
+        item.article_images = ["images/selected.jpg", "images/page.jpg"]
+        item.image_candidates = [
+            {"path": "images/page.jpg", "source": "page"},
+            {"path": "images/selected.jpg", "source": "bing"},
+        ]
+
+        result = _expand_event_card({"story_index": 0}, content)
+
+        assert result["image_src"] == "images/selected.jpg"
+        assert result["image_type"] == "article"
+
     def test_no_image(self):
         content = _make_content_package()
         result = _expand_event_card({"story_index": 1}, content)
@@ -363,6 +395,58 @@ class TestExpandAtmosphereCard:
         assert result["quotes"][0]["display_text"] == (
             "This selected comment is intentionally much longer"
         )
+
+    def test_invalid_lane_claim_does_not_drop_card_expansion(self, monkeypatch):
+        content = _make_content_package()
+        content.date = "2026-04-26"
+        content.items[0].source_id = "story0"
+        content.items[0].comments[0].source_id = "c0"
+        content.items[0].comments[0].content = (
+            "This selected comment should still render when another lane claim "
+            "is invalid."
+        )
+        content.items[0].comments[0].quality_score = 0.8
+
+        monkeypatch.setattr(
+            "src.providers.renderer.remotion_props.load_comment_judgements",
+            lambda _date: {
+                "story0": {
+                    "comment_lanes": {
+                        "representative": [
+                            {
+                                "comment_id": "bad",
+                                "claim": "x" * 80,
+                                "quote_score": 0.9,
+                            },
+                            {
+                                "comment_id": "c0",
+                                "claim": "good claim",
+                                "quote_score": 0.9,
+                            },
+                        ]
+                    },
+                    "quote_candidates": [
+                        {
+                            "comment_id": "c0",
+                            "quote_score": 0.9,
+                            "has_viewpoint": True,
+                        }
+                    ],
+                    "debate_focus": ["deployment boundary"],
+                    "stance_distribution": {"neutral": 1.0},
+                }
+            },
+        )
+
+        result = _expand_atmosphere_card(
+            {"story_index": 0, "selected_comment_ids": ["c0"]},
+            content,
+        )
+
+        assert result["controversy_score"] >= 0
+        assert result["quotes"][0]["display_text"] == "good claim"
+        assert result["debate_focus"] == ["deployment boundary"]
+        assert result["stance_distribution"] == {"neutral": 1.0}
 
 
 # ── expand_element_props ───────────────────────────────────────────────

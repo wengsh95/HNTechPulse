@@ -95,7 +95,7 @@ def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
     artifacts = [item.get("artifact", "") for item in stale]
     if any("script.json" in artifact for artifact in artifacts):
         return {
-            "command": f"uv run python scripts/agent_run.py --date {date} --steps write_script,translate_comments,synthesize_audio,title,prepare_render,cover_image,cover_thumbnail,publish_guide,render",
+            "command": f"uv run python scripts/agent_run.py --date {date} --steps write_script,translate_comments,synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,prepare_render,render",
             "why": "Content changed after script generation; regenerate script and all downstream artifacts.",
         }
     if any("cli_props.json" in artifact for artifact in artifacts) or any(

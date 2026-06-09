@@ -78,6 +78,57 @@ def _safe_get_comment(item, idx):
     return None
 
 
+def _image_type_from_candidate(candidate: Dict[str, Any] | None, path: str) -> str:
+    if candidate:
+        source = str(candidate.get("source") or "").lower()
+        if source in {"screenshot", "logo", "document"}:
+            return source
+    lowered = path.lower()
+    if "screenshot" in lowered or "_screenshot" in lowered:
+        return "screenshot"
+    if "logo" in lowered:
+        return "logo"
+    return "article"
+
+
+def _choose_event_image(item, image_index: Any = 0) -> tuple[str, str]:
+    local_candidates = [
+        c
+        for c in item.image_candidates
+        if isinstance(c, dict) and c.get("path") and not _is_remote_url(c["path"])
+    ]
+
+    for candidate in local_candidates:
+        if candidate.get("auto_selected"):
+            path = str(candidate["path"])
+            return path, _image_type_from_candidate(candidate, path)
+
+    article_paths = [p for p in item.article_images if p and not _is_remote_url(p)]
+    if article_paths:
+        selected_path = article_paths[0]
+        candidate = next(
+            (c for c in local_candidates if c.get("path") == selected_path),
+            None,
+        )
+        return selected_path, _image_type_from_candidate(candidate, selected_path)
+
+    if local_candidates:
+        idx = (
+            max(0, min(image_index, len(local_candidates) - 1))
+            if isinstance(image_index, int)
+            else 0
+        )
+        candidate = local_candidates[idx]
+        path = str(candidate["path"])
+        return path, _image_type_from_candidate(candidate, path)
+
+    if item.screenshot_image and not _is_remote_url(item.screenshot_image):
+        return item.screenshot_image, "screenshot"
+    if item.logo_image and not _is_remote_url(item.logo_image):
+        return item.logo_image, "logo"
+    return "", "article"
+
+
 # ── Element props expanders ──────────────────────────────────────────
 
 
@@ -165,34 +216,9 @@ def _expand_event_card(props, content, score_ranks=None):
     if "category" not in result or not result["category"]:
         result["category"] = item.category or ""
 
-    # Image: resolve image_index against image_candidates, then article_images.
-    image_index = props.get("image_index", 0)
-    # Build ordered candidate path list from image_candidates
-    candidate_paths = [
-        c["path"]
-        for c in item.image_candidates
-        if isinstance(c, dict) and c.get("path") and not _is_remote_url(c["path"])
-    ]
-    if not candidate_paths:
-        candidate_paths = [p for p in item.article_images if not _is_remote_url(p)]
-
-    if candidate_paths:
-        idx = (
-            max(0, min(image_index, len(candidate_paths) - 1))
-            if isinstance(image_index, int)
-            else 0
-        )
-        result["image_src"] = f"images/{_to_filename(candidate_paths[idx])}"
-        result["image_type"] = "article"
-    elif item.screenshot_image and not _is_remote_url(item.screenshot_image):
-        result["image_src"] = f"images/{_to_filename(item.screenshot_image)}"
-        result["image_type"] = "screenshot"
-    elif item.logo_image and not _is_remote_url(item.logo_image):
-        result["image_src"] = f"images/{_to_filename(item.logo_image)}"
-        result["image_type"] = "logo"
-    else:
-        result["image_src"] = ""
-        result["image_type"] = "article"
+    image_path, image_type = _choose_event_image(item, props.get("image_index", 0))
+    result["image_src"] = f"images/{_to_filename(image_path)}" if image_path else ""
+    result["image_type"] = image_type
 
     # Keywords already set above via ContentItem fallback
 
@@ -249,7 +275,16 @@ def _expand_atmosphere_card(props, content, logger=None):
             if not isinstance(entry, dict):
                 continue
             comment_id = entry.get("comment_id")
-            claim = _validate_quote_claim(entry.get("claim") or "")
+            try:
+                claim = _validate_quote_claim(entry.get("claim") or "")
+            except ValueError as exc:
+                logger.warning(
+                    "atmosphere_card: skipping invalid comment_lanes claim "
+                    "for comment %s: %s",
+                    comment_id or "<missing>",
+                    exc,
+                )
+                continue
             if (
                 comment_id is not None
                 and claim

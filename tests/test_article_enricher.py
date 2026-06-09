@@ -373,6 +373,143 @@ class TestImageSelection:
         selected = [c for c in entry["candidates"] if c.get("auto_selected")]
         assert selected[0]["path"] == "images/shot.jpg"
 
+    def test_generate_selection_uses_llm_choice(self, tmp_path, monkeypatch):
+        provider = _make_llm_provider()
+        provider.llm_client.extract_json.return_value = {
+            "selected_path": "images/bing.jpg",
+            "reason": "Bing result visually matches the product announcement",
+        }
+        enricher = ArticleEnricher(provider, _make_config())
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="Story",
+            url="https://x.com/story",
+            article_summary="A product launch with a visual interface.",
+            image_candidates=[
+                {
+                    "path": "images/page.jpg",
+                    "source": "page",
+                    "width": 900,
+                    "height": 500,
+                },
+                {
+                    "path": "images/bing.jpg",
+                    "source": "bing",
+                    "width": 900,
+                    "height": 500,
+                },
+            ],
+        )
+
+        enricher._generate_image_selection(
+            ContentPackage(date=date, items=[item]), date
+        )
+
+        data = json.loads(
+            (Path("data") / date / "image_selection.json").read_text(encoding="utf-8")
+        )
+        entry = data["items"]["42"]
+        assert entry["selected_image"] == "images/bing.jpg"
+        assert item.article_images[0] == "images/bing.jpg"
+        selected = [c for c in entry["candidates"] if c.get("auto_selected")]
+        assert selected[0]["selection_source"] == "llm"
+        assert selected[0]["selection_reason"] == (
+            "Bing result visually matches the product announcement"
+        )
+        provider.llm_client.call_llm_with_json_retry.assert_called_once()
+
+    def test_generate_selection_sends_image_blocks_to_llm(self, tmp_path, monkeypatch):
+        provider = _make_llm_provider()
+        provider.llm_client.extract_json.return_value = {
+            "selected_path": "images/page.jpg",
+            "reason": "The actual image matches the story",
+        }
+        enricher = ArticleEnricher(provider, _make_config())
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        image_dir = Path("data") / date / "images"
+        image_dir.mkdir(parents=True)
+        (image_dir / "page.jpg").write_bytes(b"\xff\xd8fake-jpeg\xff\xd9")
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="Product launch",
+            url="https://example.com/story",
+            article_text="Story text",
+            image_candidates=[
+                {
+                    "path": "images/page.jpg",
+                    "source": "page",
+                    "width": 1200,
+                    "height": 630,
+                }
+            ],
+        )
+
+        enricher._generate_image_selection(
+            ContentPackage(date=date, items=[item]), date
+        )
+
+        call_kwargs = provider.llm_client.call_llm_with_json_retry.call_args.kwargs
+        user_content = call_kwargs["messages"][1]["content"]
+        assert isinstance(user_content, list)
+        assert user_content[0]["type"] == "text"
+        assert user_content[1] == {
+            "type": "text",
+            "text": "候选图片 0: path=images/page.jpg, source=page",
+        }
+        assert user_content[2]["type"] == "image"
+        assert user_content[2]["source"]["type"] == "base64"
+        assert user_content[2]["source"]["media_type"] == "image/jpeg"
+        assert user_content[2]["source"]["data"] == "/9hmYWtlLWpwZWf/2Q=="
+
+    def test_generate_selection_falls_back_when_llm_picks_unknown_path(
+        self, tmp_path, monkeypatch
+    ):
+        provider = _make_llm_provider()
+        provider.llm_client.extract_json.return_value = {
+            "selected_path": "images/missing.jpg",
+            "reason": "invalid",
+        }
+        enricher = ArticleEnricher(provider, _make_config())
+        monkeypatch.chdir(tmp_path)
+        date = "2026-05-11"
+        item = ContentItem(
+            source="hackernews",
+            source_id="42",
+            title="Story",
+            url="https://x.com/story",
+            image_candidates=[
+                {
+                    "path": "images/page.jpg",
+                    "source": "page",
+                    "width": 900,
+                    "height": 500,
+                },
+                {
+                    "path": "images/bing.jpg",
+                    "source": "bing",
+                    "width": 900,
+                    "height": 500,
+                },
+            ],
+        )
+
+        enricher._generate_image_selection(
+            ContentPackage(date=date, items=[item]), date
+        )
+
+        data = json.loads(
+            (Path("data") / date / "image_selection.json").read_text(encoding="utf-8")
+        )
+        entry = data["items"]["42"]
+        assert entry["selected_image"] == "images/page.jpg"
+        selected = [c for c in entry["candidates"] if c.get("auto_selected")]
+        assert selected[0]["selection_source"] == "heuristic"
+
     def test_phase2_reuses_cached_image_candidates(self, tmp_path, monkeypatch):
         enricher = _make_enricher()
         monkeypatch.chdir(tmp_path)
