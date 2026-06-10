@@ -49,6 +49,14 @@ articles/
 # Remotion render output (legacy; new renders go to data/{date}/remotion/)
 **/remotion/out/
 
+# Source-tree Remotion public/ stays empty by design — runtime assets flow
+# through data/{date}/remotion/public/ (see _remotion_data_dir in
+# remotion_renderer.py). The only writer into the source public/ is the
+# no-date fallback path (render-time assets, public_props.json mirror,
+# cover_bg.png, article images, etc.). Ignore the whole tree defensively
+# so a stray render can never be committed again.
+**/remotion/public/
+
 # Claude Code
 .claude/
 skills-lock.json
