@@ -215,7 +215,6 @@ class Prefilter:
                 "newsworthiness": d.get("newsworthiness"),
                 "audience_interest": d.get("audience_interest"),
                 "discussion_heat": d.get("discussion_heat"),
-                "video_hook": d.get("video_hook"),
             }
         return decisions
 

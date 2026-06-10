@@ -256,14 +256,6 @@ class TestSingleStoryToJson:
         parsed = json.loads(result)
         assert len(parsed["article_excerpt"]) == 500
 
-    def test_has_images_flag(self):
-        provider = _make_provider()
-        item = _make_content_item(0)
-        item.article_images = ["img.png"]
-        result = provider._single_story_to_json(item, 0)
-        parsed = json.loads(result)
-        assert parsed["has_images"] is True
-
     def test_eventcard_fields_included(self):
         provider = _make_provider()
         item = _make_content_item(0)

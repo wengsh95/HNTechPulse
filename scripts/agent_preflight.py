@@ -164,7 +164,6 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
         try:
             t = json.loads(title_path.read_text(encoding="utf-8"))
             summary["video_title"] = t.get("title") or summary.get("video_title")
-            summary["title_candidates_count"] = len(t.get("title_candidates") or [])
         except (OSError, json.JSONDecodeError):
             pass
     # Variant decision: tells the agent which strategy won.

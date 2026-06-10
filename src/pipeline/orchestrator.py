@@ -888,47 +888,20 @@ class Orchestrator:
             self.logger.error(f"  Title LLM call failed: {e}")
             raise
 
-        # Enforce a reasonable length cap on title candidates.
-        # The prompt asks for ≤30 visual chars; we allow up to 35 len()
+        # Enforce a reasonable length cap on the title.
+        # The prompt asks for ≤30 visual chars; we allow up to TITLE_HARD_MAX
         # to accommodate English product names that are wider than CJK.
-        title_candidates = [
-            _downgrade_unsupported_publish_claims(str(c))
-            for c in (result.get("title_candidates") or [])
-            if c
-        ]
         chosen = _downgrade_unsupported_publish_claims(result.get("title") or "")
 
         TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 40
 
-        def _fits(c: str) -> bool:
-            return TITLE_IDEAL_MIN <= len(c) <= TITLE_HARD_MAX
-
-        original_chosen_len = len(chosen)
-        valid_candidates = [c for c in title_candidates if _fits(c)]
-        if not _fits(chosen):
-            if valid_candidates:
-                chosen = min(valid_candidates, key=len)
-                self.logger.info(
-                    f"  LLM's `title` field was {original_chosen_len} chars; "
-                    f"picked shortest valid candidate: {chosen!r}"
-                )
-            else:
-                if title_candidates:
-                    self.logger.warning(
-                        f"  All {len(title_candidates)} title candidates out of range "
-                        f"(lengths: {[len(c) for c in title_candidates]}). "
-                        f"Truncating shortest to {TITLE_HARD_MAX} chars."
-                    )
-                    shortest = min(title_candidates, key=len)
-                    chosen = shortest[:TITLE_HARD_MAX]
-                else:
-                    self.logger.warning(
-                        "  LLM returned no title_candidates. "
-                        f"Using fallback title ({len(chosen)} chars)."
-                    )
-        kept_candidates = [chosen] + [
-            c for c in title_candidates if c != chosen and _fits(c)
-        ]
+        if chosen and not (TITLE_IDEAL_MIN <= len(chosen) <= TITLE_HARD_MAX):
+            original_len = len(chosen)
+            chosen = chosen[:TITLE_HARD_MAX]
+            self.logger.info(
+                f"  LLM's `title` field was {original_len} chars; "
+                f"truncated to {TITLE_HARD_MAX}: {chosen!r}"
+            )
 
         script.title = chosen or "HN每日观察"
         script.description = (
@@ -954,7 +927,6 @@ class Orchestrator:
             cache_path,
             {
                 "title": script.title,
-                "title_candidates": kept_candidates,
                 "description": script.description,
                 "cover_title": script.cover_title,
                 "cover_tags": script.cover_tags,
@@ -1191,9 +1163,6 @@ class Orchestrator:
                 "title": item.title,
                 "editor_angle": item.editor_angle or item.dek or "",
                 "category": item.category or "",
-                "keywords": item.keywords or [],
-                "score": item.score,
-                "comment_count": item.comment_count,
             }
             for item in content.items
         ]

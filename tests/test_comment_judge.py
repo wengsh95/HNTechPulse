@@ -85,7 +85,6 @@ class TestJudge:
             "quote_candidates": [
                 {"comment_id": "c1", "quote_score": 0.9, "has_viewpoint": True}
             ],
-            "rejected": [],
             "debate_focus": [],
             "stance_distribution": {},
         }

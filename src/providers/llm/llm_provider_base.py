@@ -674,8 +674,6 @@ class LLMProviderBase(LLMProvider):
             story_dict["article_summary"] = item.article_summary
         if item.article_text:
             story_dict["article_excerpt"] = item.article_text[:500]
-        if item.article_images:
-            story_dict["has_images"] = True
         if item.editor_angle:
             story_dict["editor_angle"] = item.editor_angle
         if item.dek:

@@ -41,10 +41,9 @@
 - `newsworthiness`：1-5，越高越有时效、影响范围和行业信号。
 - `audience_interest`：1-5，站在 B 站中文科技观众角度，越高越有观看欲。优先考虑反常识、冲突感、痛点、跟开发者/玩家/AI 用户直接相关、标题能讲出悬念。
 - `discussion_heat`：1-5，综合 HN score、comment_count、评论预览的争议/信息密度。评论少、讨论浅，分数要低；评论多但只是闲聊也不要高。
-- `video_hook`：一句中文视频钩子，最多 28 个汉字，必须具体、有看点，不能空泛。
 - `category`：`ai_company | ai_product | developer_tools | open_source | security | infra | hardware | business | research | policy | culture | other`
 
-drop 的 story：`category/news_focus/newsworthiness/audience_interest/discussion_heat/video_hook` 均为 `null`。
+drop 的 story：`category/news_focus/newsworthiness/audience_interest/discussion_heat` 均为 `null`。
 
 硬规则：
 - `keep=true` 时 `news_focus` 必须 >= 4 且 `newsworthiness` 必须 >= 3。
@@ -65,8 +64,7 @@ drop 的 story：`category/news_focus/newsworthiness/audience_interest/discussio
       "news_focus": 5,
       "newsworthiness": 4,
       "audience_interest": 5,
-      "discussion_heat": 4,
-      "video_hook": "Steam改了P2P，中东玩家先掉线"
+      "discussion_heat": 4
     }
   ]
 }

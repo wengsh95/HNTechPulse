@@ -449,9 +449,8 @@ class CommentJudge:
         )
         normalized = normalize_story_judgement(result, item)
         candidate_count = len(normalized.get("quote_candidates", []) or [])
-        rejected_count = len(normalized.get("rejected", []) or [])
         self.logger.info(
-            f"  {label}: done, candidates={candidate_count}, rejected={rejected_count}"
+            f"  {label}: done, candidates={candidate_count}"
         )
         return comment_judgement_key(item), normalized
 
@@ -670,15 +669,6 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         candidates.append(candidate)
 
     candidates.sort(key=lambda c: c.get("quote_score", 0.0), reverse=True)
-    rejected = []
-    for entry in raw.get("rejected", []) or []:
-        if isinstance(entry, dict):
-            normalized = _normalize_candidate(
-                {**entry, "reject_for_quote": True},
-                valid_ids,
-            )
-            if normalized is not None:
-                rejected.append(normalized)
 
     debate_focus = []
     for entry in raw.get("debate_focus", []) or []:
@@ -717,7 +707,6 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         "discussion_summary": discussion_summary,
         "comment_lanes": comment_lanes,
         "quote_candidates": candidates,
-        "rejected": rejected,
         "debate_focus": debate_focus,
         "stance_distribution": stance_distribution,
         "stance_concerns": stance_concerns,
