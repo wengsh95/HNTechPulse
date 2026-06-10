@@ -741,6 +741,96 @@ class Orchestrator:
         self.script_writer.save_script(script, date)
         return script
 
+    def _build_focus_story_input(
+        self, script: Script, content: ContentPackage, date: str
+    ) -> tuple[dict, dict]:
+        """Build single-story input for the title prompt: focus story metadata
+        and analysed comment lanes from ``comment_judgement.json``.
+
+        Returns ``(focus_story, comment_analysis)``.
+        """
+        highlight_entries = self._extract_highlight_entries(script, content)
+        if highlight_entries:
+            story_idx = highlight_entries[0].get("story_index", 0)
+            if isinstance(story_idx, int) and 0 <= story_idx < len(content.items):
+                focus = content.items[story_idx]
+            else:
+                focus = content.items[0]
+        elif content.items:
+            focus = content.items[0]
+        else:
+            return {}, {}
+
+        focus_story = {
+            "source_id": focus.source_id or "",
+            "title": focus.title,
+            "title_cn": focus.title_cn or "",
+            "url": focus.url or "",
+            "editor_angle": focus.editor_angle or "",
+            "why_it_matters": focus.why_it_matters or "",
+            "category": focus.category or "",
+            "score": focus.score or 0,
+            "comment_count": focus.comment_count or 0,
+            "article_summary": focus.article_summary or "",
+            "key_points": focus.key_points or [],
+        }
+
+        # Load analysed comment data from comment_judgement.json.
+        from src.pipeline.comment.judge import judgement_cache_path
+
+        jp = judgement_cache_path(date)
+        comment_analysis: dict = {}
+        if jp.exists():
+            try:
+                jdata = json.loads(jp.read_text(encoding="utf-8"))
+                sid = str(focus.source_id or "")
+                story = (jdata.get("stories") or {}).get(sid)
+                if story is None:
+                    # Fallback: match by story_id field.
+                    for _, s in (jdata.get("stories") or {}).items():
+                        if str(s.get("story_id", "")) == sid:
+                            story = s
+                            break
+                if story:
+                    lanes = {}
+                    for lane_name in (
+                        "representative",
+                        "detail",
+                        "color",
+                        "counterpoint",
+                    ):
+                        entries = [
+                            {
+                                "stance": e.get("stance", ""),
+                                "claim": e.get("claim", ""),
+                                "role": e.get("role", ""),
+                                "quote_score": e.get("quote_score", 0),
+                            }
+                            for e in (story.get("comment_lanes") or {}).get(
+                                lane_name, []
+                            )
+                            or []
+                        ]
+                        if entries:
+                            lanes[lane_name] = entries
+                    comment_analysis = {
+                        "discussion_mode": story.get("discussion_mode", ""),
+                        "discussion_summary": story.get("discussion_summary", ""),
+                        "lanes": lanes,
+                        "quote_candidates": [
+                            {
+                                "stance": e.get("stance", ""),
+                                "claim": e.get("claim", ""),
+                                "quote_score": e.get("quote_score", 0),
+                            }
+                            for e in (story.get("quote_candidates") or [])[:10]
+                        ],
+                    }
+            except (json.JSONDecodeError, OSError, ImportError):
+                pass
+
+        return focus_story, comment_analysis
+
     def _step_title(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> Optional[Script]:
@@ -775,12 +865,13 @@ class Orchestrator:
             self.logger.info("Dry run: skipping title generation")
             return script
 
-        highlight_entries = self._extract_highlight_entries(script, content)
+        focus_story, comment_analysis = self._build_focus_story_input(
+            script, content, date
+        )
 
         context = {
-            "highlight_entries": json.dumps(
-                highlight_entries, ensure_ascii=False, indent=2
-            ),
+            "focus_story_json": json.dumps(focus_story, ensure_ascii=False, indent=2),
+            "comments_json": json.dumps(comment_analysis, ensure_ascii=False, indent=2),
             "date": date,
         }
         try:
@@ -807,7 +898,7 @@ class Orchestrator:
         ]
         chosen = _downgrade_unsupported_publish_claims(result.get("title") or "")
 
-        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 34
+        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 40
 
         def _fits(c: str) -> bool:
             return TITLE_IDEAL_MIN <= len(c) <= TITLE_HARD_MAX
@@ -826,8 +917,10 @@ class Orchestrator:
                     self.logger.warning(
                         f"  All {len(title_candidates)} title candidates out of range "
                         f"(lengths: {[len(c) for c in title_candidates]}). "
-                        f"Falling back to LLM's chosen ({len(chosen)} chars)."
+                        f"Truncating shortest to {TITLE_HARD_MAX} chars."
                     )
+                    shortest = min(title_candidates, key=len)
+                    chosen = shortest[:TITLE_HARD_MAX]
                 else:
                     self.logger.warning(
                         "  LLM returned no title_candidates. "
@@ -1026,7 +1119,6 @@ class Orchestrator:
                 "  cover_thumbnail requires cover_bg.png and cover_props.json; "
                 "run --steps cover_image first"
             )
-            return
 
         if self.dry_run:
             self.logger.info("Dry run: skipping cover thumbnail render")
