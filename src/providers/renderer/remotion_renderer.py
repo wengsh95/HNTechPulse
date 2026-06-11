@@ -24,6 +24,7 @@ from typing import Dict
 
 from src.core.models import Script
 from src.core.interfaces import Renderer
+from src.pipeline.paths import date_root, render_path, render_remotion_dir
 from src.providers.renderer.remotion_props import script_to_props
 from src.providers.renderer.binary_finder import (
     find_node,
@@ -95,9 +96,7 @@ class RemotionRenderer(Renderer):
             image_target_dir = self.remotion_dir / "public" / "images"
         self._prepare_audio_assets(script, audio_dir, target_dir=audio_target_dir)
         if content and date:
-            self._prepare_image_assets(
-                content, date, target_dir=image_target_dir
-            )
+            self._prepare_image_assets(content, date, target_dir=image_target_dir)
 
         props_data = script_to_props(
             script,
@@ -277,7 +276,8 @@ class RemotionRenderer(Renderer):
             # data/{date}/remotion/ (not the Remotion source dir) so the
             # source tree stays clean.
             remotion_output = (
-                self._remotion_data_dir(date) / "single.mp4" if date
+                self._remotion_data_dir(date) / "single.mp4"
+                if date
                 else self.remotion_dir / "out" / "output.mp4"
             )
             cmd = base_cmd + [f"--output={remotion_output.resolve()}"]
@@ -528,7 +528,7 @@ class RemotionRenderer(Renderer):
     def _prepare_audio_assets(
         self, script: "Script", audio_dir: str, target_dir: Path | None = None
     ):
-        audio_subdir = (target_dir or self.remotion_dir / "public" / "audio")
+        audio_subdir = target_dir or self.remotion_dir / "public" / "audio"
         audio_subdir.mkdir(parents=True, exist_ok=True)
 
         audio_path_obj = Path(audio_dir).resolve()
@@ -553,9 +553,7 @@ class RemotionRenderer(Renderer):
                 return f"audio/{src.name}"
             shutil.copy2(src, audio_subdir / src.name)
             copied_files.add(str(src))
-            self.logger.debug(
-                f"Copied audio: {src.name} -> {audio_subdir}"
-            )
+            self.logger.debug(f"Copied audio: {src.name} -> {audio_subdir}")
             return f"audio/{src.name}"
 
         for segment in script.segments:
@@ -577,9 +575,7 @@ class RemotionRenderer(Renderer):
     def _is_remote_url(path: str) -> bool:
         return path.startswith(("http://", "https://"))
 
-    def _prepare_image_assets(
-        self, content, date: str, target_dir: Path | None = None
-    ):
+    def _prepare_image_assets(self, content, date: str, target_dir: Path | None = None):
         """Copy enriched images to the Remotion public/images/ for serving.
 
         ``target_dir`` defaults to ``remotion/public/images`` for backwards
@@ -596,7 +592,7 @@ class RemotionRenderer(Renderer):
                 return None
             src = Path(path)
             if not src.is_absolute():
-                src = Path(f"data/{date}") / path
+                src = date_root(date) / path
             return src if src.exists() else None
 
         def _copy(src: Path) -> bool:
@@ -689,7 +685,7 @@ class RemotionRenderer(Renderer):
         Remotion CLI. The file is persisted under data/{date}/ for debugging.
         """
         if date:
-            props_path = Path("data") / date / "cli_props.json"
+            props_path = render_path(date, "cli_props.json")
         else:
             props_path = Path("data") / "cli_props.json"
         props_path.parent.mkdir(parents=True, exist_ok=True)
@@ -720,7 +716,7 @@ class RemotionRenderer(Renderer):
             raise ValueError(
                 "RemotionRenderer requires a non-empty date for runtime dirs"
             )
-        d = Path("data") / date / "remotion"
+        d = render_remotion_dir(date)
         d.mkdir(parents=True, exist_ok=True)
         return d
 

@@ -3,7 +3,6 @@
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import Optional
 
 from src.core.interfaces import LLMProvider
@@ -19,6 +18,7 @@ from src.pipeline.comment import (
     load_comment_judgements,
 )
 from src.pipeline.content_io import ContentPreparer
+from src.pipeline.paths import pipeline_path
 from src.pipeline.script.cards import (
     coerce_card_narrations_for_mode,
     extract_subtitle_texts,
@@ -467,7 +467,7 @@ class ScriptWriter:
     def write(self, content: ContentPackage) -> Script:
         t_total = time.monotonic()
 
-        script_path = Path(f"data/{content.date}/script.json")
+        script_path = pipeline_path(content.date, "script.json")
         if script_path.exists():
             self.logger.info(f"Found existing {script_path}, loading...")
             script = self.load_script(content.date)

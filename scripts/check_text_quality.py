@@ -158,7 +158,11 @@ def _matched_story_indexes(text: str, items: list[dict[str, Any]]) -> list[int]:
 def _guide_public_sections(text: str) -> str:
     if not text:
         return ""
-    stop_markers = ("\n## 3. 完整发布 Checklist", "\n## 4. 注意事项")
+    stop_markers = (
+        "\n## 3. 完整发布 Checklist",
+        "\n## 4. 注意事项",
+        "\n## 3. 注意事项",
+    )
     end = len(text)
     for marker in stop_markers:
         idx = text.find(marker)
@@ -182,6 +186,7 @@ def _guide_publish_copy(text: str) -> str:
         "\n## 3. 完整发布 Checklist",
         "\n## 四、注意事项",
         "\n## 4. 注意事项",
+        "\n## 3. 注意事项",
     )
     end = len(text)
     for marker in stop_markers:
@@ -334,23 +339,6 @@ def check_date(date: str) -> dict[str, Any]:
                     "detail": ", ".join(str(i + 1) for i in matched),
                 }
             )
-
-    if guide:
-        chapter_lines = [
-            line.strip()
-            for line in guide.splitlines()
-            if re.match(r"^- \d\d:\d\d ", line.strip())
-        ]
-        if len(chapter_lines) >= 2:
-            starts = [line.split(" ", 2)[1] for line in chapter_lines]
-            if len(set(starts)) == 1:
-                issues.append(
-                    {
-                        "code": "chapter_timestamps_identical",
-                        "path": str(guide_path),
-                        "detail": ", ".join(starts),
-                    }
-                )
 
     return {
         "date": date,

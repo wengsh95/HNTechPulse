@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
+from src.pipeline.paths import date_root, render_path, render_remotion_dir
 from src.pipeline.comment import (
     clean_comment_text,
     classify_comment_stance,
@@ -617,8 +618,8 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
 
-    # Copy image assets to data/{date}/remotion/public/images/
-    data_remotion = Path(f"data/{date}/remotion")
+    # Copy image assets to data/{date}/render/remotion/public/images/
+    data_remotion = render_remotion_dir(date)
     data_remotion.mkdir(parents=True, exist_ok=True)
     image_subdir = data_remotion / "public" / "images"
     image_subdir.mkdir(parents=True, exist_ok=True)
@@ -631,7 +632,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
             return None
         src = Path(p)
         if not src.is_absolute():
-            src = Path(f"data/{date}") / p
+            src = date_root(date) / p
         return src if src.exists() else None
 
     copied = 0
@@ -674,7 +675,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     fps = video_config.get("fps", 24)
     bg_color = video_config.get("bg_color", "#fefcf8")
 
-    audio_dir = f"data/{date}/audio"
+    audio_dir = str(date_root(date) / "pipeline" / "audio")
     props_data = script_to_props(
         script, audio_dir, width, height, fps, bg_color, content=content, logger=logger
     )
@@ -689,7 +690,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
 
     # Also write to data/{date}/ for CLI use
-    cli_path = Path(f"data/{date}/cli_props.json")
+    cli_path = render_path(date, "cli_props.json")
     atomic_write_text(cli_path, props_json)
     logger.info(f"Props written to {cli_path}")
 

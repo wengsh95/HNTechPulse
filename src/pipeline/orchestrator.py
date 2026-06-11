@@ -28,6 +28,16 @@ from src.pipeline.agent_variants import (
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.content_io import ContentPreparer
+from src.pipeline.paths import (
+    agent_path,
+    date_root,
+    media_path,
+    pipeline_audio_dir,
+    pipeline_path,
+    publish_path,
+    raw_downloaded_pages_dir,
+    render_remotion_dir,
+)
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
 from src.providers.renderer.binary_finder import find_npx
@@ -101,31 +111,6 @@ def _downgrade_unsupported_publish_claims(text: str) -> str:
 def _format_mmss(seconds: float | int | None) -> str:
     total = max(0, int(round(float(seconds or 0))))
     return f"{total // 60:02d}:{total % 60:02d}"
-
-
-def _script_chapter_payload(script: Optional[Script]) -> dict:
-    if script is None:
-        return {"total_duration": "00:00", "chapters": []}
-    chapters = []
-    for segment in script.segments:
-        label = {
-            "opening": "开场",
-            "story_scan": "逐条速览",
-            "closing": "收尾",
-        }.get(segment.segment_type, segment.segment_type)
-        text = normalize_cjk_mixed_spacing(segment.audio_text or "")
-        chapters.append(
-            {
-                "start": _format_mmss(segment.start_time),
-                "end": _format_mmss(segment.end_time),
-                "label": label,
-                "summary": text[:90],
-            }
-        )
-    return {
-        "total_duration": _format_mmss(script.total_duration),
-        "chapters": chapters,
-    }
 
 
 # Ordered pipeline steps with their prerequisites.
@@ -545,7 +530,7 @@ class Orchestrator:
         ]
 
         if failed_items:
-            download_dir = Path(f"data/{date}/downloaded_pages")
+            download_dir = raw_downloaded_pages_dir(date)
             download_dir.mkdir(parents=True, exist_ok=True)
             self.logger.warning(
                 f"{len(failed_items)} items could not be fetched automatically."
@@ -595,7 +580,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping comment analysis")
             return content
 
-        analysis_path = Path(f"data/{date}/comment_analysis.json")
+        analysis_path = pipeline_path(date, "comment_analysis.json")
         if analysis_path.exists():
             # Cache hit: skip re-scoring, but still run analyze() so that
             # _load_from_cache() merges quality_score / sentiment back into
@@ -621,7 +606,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping comment judging")
             return content
 
-        judgement_path = Path(f"data/{date}/comment_judgement.json")
+        judgement_path = pipeline_path(date, "comment_judgement.json")
         if judgement_path.exists():
             self.logger.info(f"  Comment judgement already done at {judgement_path}")
             return content
@@ -839,7 +824,7 @@ class Orchestrator:
             self.logger.warning("Script not loaded; skipping title generation")
             return script
 
-        cache_path = Path(f"data/{date}/title.json")
+        cache_path = publish_path(date, "title.json")
         if cache_path.exists():
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             self.logger.info(f"  Loaded cached title from {cache_path}")
@@ -951,8 +936,8 @@ class Orchestrator:
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info("Step: Cover image — generate AI image for cover")
-        bg_path = Path(f"data/{date}/cover_bg.png")
-        props_path = Path(f"data/{date}/cover_props.json")
+        bg_path = media_path(date, "cover_bg.png")
+        props_path = media_path(date, "cover_props.json")
         # CoverThumbnail composition in Remotion is 1920x1080 (16:9); the
         # generated image must match, otherwise objectFit:cover crops the
         # editorial illustration. The provider's config default may differ,
@@ -1061,7 +1046,7 @@ class Orchestrator:
         # Mirror the cover background into the per-date Remotion runtime dir
         # so the source tree stays clean. The renderer also points
         # --public-dir here when rendering.
-        public_bg = Path(f"data/{date}/remotion/public") / bg_path.name
+        public_bg = render_remotion_dir(date) / "public" / bg_path.name
         public_bg.parent.mkdir(parents=True, exist_ok=True)
         try:
             same_file = public_bg.samefile(bg_path)
@@ -1078,9 +1063,9 @@ class Orchestrator:
         self.logger.info(
             "Step: Cover thumbnail — render Remotion still with title overlay"
         )
-        cover_path = Path(f"data/{date}/cover.png")
-        bg_path = Path(f"data/{date}/cover_bg.png")
-        props_path = Path(f"data/{date}/cover_props.json")
+        cover_path = media_path(date, "cover.png")
+        bg_path = media_path(date, "cover_bg.png")
+        props_path = media_path(date, "cover_props.json")
 
         if cover_path.exists():
             self.logger.info(f"  Cover thumbnail already exists at {cover_path}")
@@ -1112,7 +1097,7 @@ class Orchestrator:
             f"--props={props_path.resolve()}",
             "--frame=0",
             f"--output={output_abs}",
-            f"--public-dir={Path(f'data/{date}/remotion/public').resolve()}",
+            f"--public-dir={(render_remotion_dir(date) / 'public').resolve()}",
         ]
         try:
             result = subprocess.run(
@@ -1147,8 +1132,8 @@ class Orchestrator:
         self.logger.info(
             "Step: Publish guide — generate human-facing publish checklist"
         )
-        guide_path = Path(f"data/{date}/publish_guide.md")
-        title_path = Path(f"data/{date}/title.json")
+        guide_path = publish_path(date, "publish_guide.md")
+        title_path = publish_path(date, "title.json")
         title_payload = {}
         if title_path.exists():
             try:
@@ -1171,9 +1156,6 @@ class Orchestrator:
             or (script.title if script else "HN每日观察"),
             "script_description": title_payload.get("description")
             or (script.description if script else ""),
-            "script_runtime": json.dumps(
-                _script_chapter_payload(script), ensure_ascii=False, indent=2
-            ),
             "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
             "date": date,
         }
@@ -1230,7 +1212,7 @@ class Orchestrator:
             self.logger.info("Dry run: skipping prepare_render")
             return
 
-        audio_dir = f"data/{date}/audio"
+        audio_dir = str(pipeline_audio_dir(date))
         try:
             props_path, _, _ = self.renderer.write_props(
                 script, audio_dir, content, date=date
@@ -1286,8 +1268,8 @@ class Orchestrator:
         if force:
             self._clear_render_cache(date)
 
-        output_path = f"data/{date}/output.mp4"
-        audio_dir = f"data/{date}/audio"
+        output_path = str(publish_path(date, "output.mp4"))
+        audio_dir = str(pipeline_audio_dir(date))
         self.renderer.render(script, audio_dir, output_path, content, date=date)
         rendered = Path(output_path)
         if not rendered.exists() or rendered.stat().st_size <= 0:
@@ -1321,7 +1303,7 @@ class Orchestrator:
                     "Content not found for preview, scene elements may be incomplete"
                 )
 
-        audio_dir = f"data/{date}/audio"
+        audio_dir = str(pipeline_audio_dir(date))
         self.logger.info("Opening Remotion Studio at http://localhost:3000")
         self.logger.info(
             "Check the preview, then press Ctrl+C to stop and proceed to render."
@@ -1347,7 +1329,7 @@ class Orchestrator:
         # doesn't opt in.
         remotion_dir = Path("src/providers/renderer/remotion")
         # Match the new per-date runtime layout: data/{date}/remotion/chunks.
-        chunk_dir = Path(f"data/{date}/remotion/chunks")
+        chunk_dir = render_remotion_dir(date) / "chunks"
         if chunk_dir.exists() and not any(
             str(p).startswith(str(remotion_dir))
             for p in self.renderer.cache_paths(date)
@@ -1357,34 +1339,35 @@ class Orchestrator:
             shutil.rmtree(chunk_dir)
             self.logger.info(f"Cleared all chunk caches: {chunk_dir}")
 
-        output_path = Path(f"data/{date}/output.mp4")
+        output_path = publish_path(date, "output.mp4")
         if output_path.exists():
             output_path.unlink()
             self.logger.info(f"Deleted output: {output_path}")
 
     def _refresh_variant_outputs(self, date: str) -> None:
-        base = Path(f"data/{date}")
+        base = date_root(date)
         if not base.exists():
             return
         deleted: list[str] = []
+        script_path = pipeline_path(date, "script.json")
         paths = [
-            base / "script.json",
-            base / "script.json.manifest.json",
-            base / "agent_decision.json",
-            base / "agent_variant_decision.json",
-            base / "selected_variant.json",
+            script_path,
+            script_path.with_name(script_path.name + ".manifest.json"),
+            agent_path(date, "agent_decision.json"),
+            agent_path(date, "agent_variant_decision.json"),
+            agent_path(date, "selected_variant.json"),
         ]
         for path in paths:
             if path.exists() and path.is_file():
                 path.unlink()
                 deleted.append(str(path).replace("\\", "/"))
 
-        variants_dir = base / "variants"
+        variants_dir = base / "pipeline" / "variants"
         if variants_dir.exists() and variants_dir.is_dir():
             shutil.rmtree(variants_dir)
             deleted.append(str(variants_dir).replace("\\", "/"))
 
-        segments_dir = base / "segments"
+        segments_dir = base / "pipeline" / "segments"
         if segments_dir.exists() and segments_dir.is_dir():
             for pattern in (
                 "story_scan_item*.json",
@@ -1412,7 +1395,9 @@ class Orchestrator:
         self.logger.info("")
         self.logger.info("=" * 60)
         self.logger.info(f"  {len(failed_items)} item(s) need manual download.")
-        self.logger.info(f"  Save each page as HTML to: data/{date}/downloaded_pages/")
+        self.logger.info(
+            f"  Save each page as HTML to: {raw_downloaded_pages_dir(date)}/"
+        )
         self.logger.info("  Then re-run:")
         self.logger.info(
             f"    uv run python main.py --date {date} --steps {','.join(steps)}"

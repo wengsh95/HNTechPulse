@@ -6,7 +6,7 @@ from src.pipeline.script.io import load_script, save_script_to_path
 
 def test_script_io_preserves_cover_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    path = Path("data/2026-06-08/script.json")
+    path = Path("data/2026-06-08/pipeline/script.json")
     script = Script(
         title="发布标题",
         description="简介",

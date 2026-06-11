@@ -262,9 +262,12 @@ class TestChunkCacheDir:
         may_13 = renderer._chunk_cache_dir("2026-05-13", '{"title": "May 13"}')
 
         assert may_11 != may_13
-        # Chunk caches now live under data/{date}/remotion/chunks/ (per-date
+        # Chunk caches now live under data/{date}/render/remotion/chunks/ (per-date
         # runtime dir), not under the Remotion source tree.
-        assert may_11.parent == Path("data") / "2026-05-11" / "remotion" / "chunks"
+        assert (
+            may_11.parent
+            == Path("data") / "2026-05-11" / "render" / "remotion" / "chunks"
+        )
         assert may_11.name.startswith("2026-05-11_")
         assert may_13.name.startswith("2026-05-13_")
 

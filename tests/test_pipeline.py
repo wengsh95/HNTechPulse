@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 
 from src.core.models import (
@@ -328,8 +327,16 @@ class TestScriptTemplates:
 
         entries = [
             {"category": "安全", "editor_angle": "AI客服漏洞", "signal": "AI客服漏洞"},
-            {"category": "硬件", "editor_angle": "Nvidia新CPU", "signal": "Nvidia新CPU"},
-            {"category": "资本", "editor_angle": "Anthropic融资", "signal": "Anthropic融资"},
+            {
+                "category": "硬件",
+                "editor_angle": "Nvidia新CPU",
+                "signal": "Nvidia新CPU",
+            },
+            {
+                "category": "资本",
+                "editor_angle": "Anthropic融资",
+                "signal": "Anthropic融资",
+            },
         ]
 
         audio = _opening_audio(entries) + _closing_audio(entries, weekday=2)
@@ -366,7 +373,7 @@ class TestScriptTemplates:
             entries, weekday=1, day=date(2026, 6, 30)
         )
 
-    def test_closing_greeting_keeps_daily_objects_for_mixed_topics(self):
+    def test_closing_audio_omits_story_details_from_audio_text(self):
         from src.pipeline.script.templates import _closing_audio
 
         entries = [
@@ -384,9 +391,10 @@ class TestScriptTemplates:
 
         audio = _closing_audio(entries, weekday=1)
 
-        assert "Steam" in audio
-        assert "停服即作废" in audio
-        assert "今天就到这里" in audio
+        # Story-specific details belong in the visual ClosingCard, not the audio.
+        assert "Steam" not in audio
+        assert "停服即作废" not in audio
+        assert "就到这里" in audio
         assert "？" not in audio
         assert "工具效率变快后的成本问题" not in audio
 

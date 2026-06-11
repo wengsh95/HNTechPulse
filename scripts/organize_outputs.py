@@ -13,45 +13,63 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.pipeline.paths import (  # noqa: E402
+    agent_path,
+    date_root,
+    media_path,
+    pipeline_path,
+    publish_path,
+    render_path,
+)
 
 
-OUTPUT_GROUPS: dict[str, list[str]] = {
+# Each entry resolves a typed path (via the paths module) into a list of
+# (output_filename, source_path) tuples. Keeping the source-resolution logic
+# here means the script stays correct as the lifecycle buckets evolve.
+OUTPUT_GROUPS: dict[str, list[tuple[str, Path]]] = {
     "final": [
-        "output.mp4",
-        "cover.png",
+        ("output.mp4", publish_path("__DATE__", "output.mp4")),
+        ("cover.png", media_path("__DATE__", "cover.png")),
     ],
     "publish": [
-        "publish_guide.md",
-        "transcript.md",
-        "title.json",
+        ("publish_guide.md", publish_path("__DATE__", "publish_guide.md")),
+        ("transcript.md", publish_path("__DATE__", "transcript.md")),
+        ("title.json", publish_path("__DATE__", "title.json")),
     ],
     "script": [
-        "script.json",
-        "selected_variant.json",
-        "agent_decision.json",
-        "agent_variant_decision.json",
+        ("script.json", pipeline_path("__DATE__", "script.json")),
+        ("selected_variant.json", agent_path("__DATE__", "selected_variant.json")),
+        ("agent_decision.json", agent_path("__DATE__", "agent_decision.json")),
+        (
+            "agent_variant_decision.json",
+            agent_path("__DATE__", "agent_variant_decision.json"),
+        ),
     ],
     "render": [
-        "cli_props.json",
-        "cli_props.json.manifest.json",
+        ("cli_props.json", render_path("__DATE__", "cli_props.json")),
     ],
     "sources": [
-        "content.json",
-        "enrichment.json",
-        "comment_analysis.json",
-        "comment_judgement.json",
-        "translations.json",
-        "prefilter.json",
+        ("content.json", pipeline_path("__DATE__", "content.json")),
+        ("enrichment.json", pipeline_path("__DATE__", "enrichment.json")),
+        ("comment_analysis.json", pipeline_path("__DATE__", "comment_analysis.json")),
+        ("comment_judgement.json", pipeline_path("__DATE__", "comment_judgement.json")),
+        ("translations.json", pipeline_path("__DATE__", "translations.json")),
+        ("prefilter.json", pipeline_path("__DATE__", "prefilter.json")),
     ],
 }
 
 
+# Cover-related files are matched by pattern (variants come and go). We sweep
+# `data/{date}/media/` for the matches instead of listing each variant.
 COVER_PATTERNS = [
     "cover_*.png",
     "cover_props*.json",
@@ -83,7 +101,7 @@ def _copy_file(src: Path, dest: Path) -> dict[str, Any]:
 
 
 def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
-    base = ROOT / "data" / date
+    base = date_root(date)
     if not base.exists():
         raise FileNotFoundError(f"Date directory does not exist: {base}")
 
@@ -95,18 +113,19 @@ def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
     copied: list[dict[str, Any]] = []
     missing: list[str] = []
 
-    for group, names in OUTPUT_GROUPS.items():
-        for name in names:
-            src = base / name
+    for group, entries in OUTPUT_GROUPS.items():
+        for out_name, src_template in entries:
+            src = Path(str(src_template).replace("__DATE__", date))
             if not src.exists():
                 missing.append(str(src.relative_to(ROOT)).replace("\\", "/"))
                 continue
-            copied.append(_copy_file(src, output_root / group / src.name))
+            copied.append(_copy_file(src, output_root / group / out_name))
 
     cover_dest = output_root / "cover"
+    cover_media = date_root(date) / "media"
     seen_cover_sources: set[Path] = set()
     for pattern in COVER_PATTERNS:
-        for src in sorted(base.glob(pattern)):
+        for src in sorted(cover_media.glob(pattern)):
             if not src.is_file() or src in seen_cover_sources:
                 continue
             seen_cover_sources.add(src)
@@ -118,7 +137,7 @@ def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
             [
                 f"# Outputs for {date}",
                 "",
-                "Canonical pipeline files remain one level up in `data/{date}/`.",
+                "Canonical pipeline files live under `data/{date}/{raw,pipeline,media,render,publish,agent}/`.",
                 "This folder is a tidy mirror for review, publishing, and handoff.",
                 "",
                 "## Folders",

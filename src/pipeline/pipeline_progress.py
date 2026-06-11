@@ -3,8 +3,8 @@
 import json
 import time
 from contextlib import contextmanager
-from pathlib import Path
 
+from src.pipeline.paths import pipeline_path
 from src.utils.logger import setup_logger
 
 
@@ -50,11 +50,10 @@ class PipelineProgress:
 
     def _check_cache(self) -> list[tuple[str, str, str]]:
         date = self.date
-        base = Path(f"data/{date}")
         entries: list[tuple[str, str, str]] = []
 
         content_data: dict | None = None
-        content_path = base / "content.json"
+        content_path = pipeline_path(date, "content.json")
         if content_path.exists():
             try:
                 content_data = json.loads(content_path.read_text(encoding="utf-8"))
@@ -72,7 +71,7 @@ class PipelineProgress:
         if content_data is not None:
             items = content_data.get("items", [])
 
-            if (base / "prefilter.json").exists():
+            if pipeline_path(date, "prefilter.json").exists():
                 entries.append(("prefilter", "✓", "prefilter cached"))
             else:
                 entries.append(("prefilter", "-", "will prefilter"))
@@ -114,50 +113,57 @@ class PipelineProgress:
             ("judge_comments", "comment_judgement.json", "comment judgement"),
             ("write_script", "script.json", "script"),
         ]:
-            if (base / filename).exists():
+            if pipeline_path(date, filename).exists():
                 entries.append((step, "✓", f"{label} cached"))
             else:
                 entries.append((step, "-", f"will generate {label}"))
 
         # 9. translate_comments
-        if (base / "translations.json").exists():
+        if pipeline_path(date, "translations.json").exists():
             entries.append(("translate_comments", "✓", "translations cached"))
         else:
             entries.append(("translate_comments", "-", "will translate"))
 
         # 10. synthesize_audio
-        audio_dir = base / "audio"
+        from src.pipeline.paths import (
+            media_path,
+            pipeline_audio_dir,
+            publish_path,
+            render_path,
+        )
+
+        audio_dir = pipeline_audio_dir(date)
         if audio_dir.exists() and any(audio_dir.iterdir()):
             entries.append(("synthesize_audio", "✓", "audio cached"))
         else:
             entries.append(("synthesize_audio", "-", "will synthesize"))
 
         # 11. title
-        if (base / "title.json").exists():
+        if publish_path(date, "title.json").exists():
             entries.append(("title", "✓", "title cached"))
         else:
             entries.append(("title", "-", "will generate title"))
 
         # 12. cover_image
-        if (base / "cover_bg.png").exists():
+        if media_path(date, "cover_bg.png").exists():
             entries.append(("cover_image", "✓", "cover image cached"))
         else:
             entries.append(("cover_image", "-", "will generate cover image"))
 
         # 13. cover_thumbnail
-        if (base / "cover.png").exists():
+        if media_path(date, "cover.png").exists():
             entries.append(("cover_thumbnail", "✓", "cover thumbnail cached"))
         else:
             entries.append(("cover_thumbnail", "-", "will render cover thumbnail"))
 
         # 14. publish_guide
-        if (base / "publish_guide.md").exists():
+        if publish_path(date, "publish_guide.md").exists():
             entries.append(("publish_guide", "✓", "publish guide cached"))
         else:
             entries.append(("publish_guide", "-", "will generate guide"))
 
         # 15. prepare_render
-        props_file = base / "cli_props.json"
+        props_file = render_path(date, "cli_props.json")
         if props_file.exists():
             entries.append(("prepare_render", "✓", "props.json cached"))
         else:

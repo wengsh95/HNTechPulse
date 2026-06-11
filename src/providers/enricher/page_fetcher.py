@@ -17,6 +17,8 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from src.pipeline.paths import media_images_dir
+
 # Rotating User-Agent pool — real Chrome/Firefox on Windows/macOS
 _USER_AGENTS = [
     # Chrome 131 on Windows
@@ -418,7 +420,7 @@ class PageFetcher:
 
         strategy_name = "headless" if headless else "headed"
         failed = []
-        image_dir = Path(f"data/{date}/images")
+        image_dir = media_images_dir(date)
         image_dir.mkdir(parents=True, exist_ok=True)
 
         try:

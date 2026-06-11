@@ -11,7 +11,14 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.pipeline.paths import publish_path  # noqa: E402
 
 
 def _default_spec(date: str) -> Path:
@@ -19,7 +26,7 @@ def _default_spec(date: str) -> Path:
 
 
 def _default_video(date: str) -> Path:
-    return Path("data") / date / "output.mp4"
+    return publish_path(date, "output.mp4")
 
 
 def _safe_label(value: str) -> str:
@@ -33,7 +40,9 @@ def main() -> int:
     )
     parser.add_argument("--date", required=True, help="Pipeline date or compare date")
     parser.add_argument("--video", default=None, help="Rendered MP4 path")
-    parser.add_argument("--scene-spec", default=None, help="HyperFrames scene_spec.json")
+    parser.add_argument(
+        "--scene-spec", default=None, help="HyperFrames scene_spec.json"
+    )
     parser.add_argument(
         "--offsets",
         default="0,0.2,0.5,1.0",
@@ -48,7 +57,11 @@ def main() -> int:
 
     video = Path(args.video) if args.video else _default_video(args.date)
     spec_path = Path(args.scene_spec) if args.scene_spec else _default_spec(args.date)
-    out_dir = Path(args.out_dir) if args.out_dir else Path("tmp") / "scene_start_review" / args.date
+    out_dir = (
+        Path(args.out_dir)
+        if args.out_dir
+        else Path("tmp") / "scene_start_review" / args.date
+    )
     offsets = [float(part.strip()) for part in args.offsets.split(",") if part.strip()]
 
     if not video.exists():
@@ -64,7 +77,9 @@ def main() -> int:
     for idx, scene in enumerate(scenes):
         start = float(scene.get("start") or 0)
         duration = float(scene.get("duration") or 0)
-        label = _safe_label(str(scene.get("element_type") or scene.get("comp_id") or idx))
+        label = _safe_label(
+            str(scene.get("element_type") or scene.get("comp_id") or idx)
+        )
         for offset in offsets:
             if offset >= duration:
                 continue

@@ -19,20 +19,35 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract key frames from HyperFrames render")
+    parser = argparse.ArgumentParser(
+        description="Extract key frames from HyperFrames render"
+    )
     parser.add_argument("--date", required=True, help="Pipeline date (YYYY-MM-DD)")
-    parser.add_argument("--video", help="Path to video file (default: data/{date}/output.mp4)")
-    parser.add_argument("--out-dir", help="Output directory (default: tmp/hyperframes_review/{date})")
+    parser.add_argument(
+        "--video", help="Path to video file (default: data/{date}/publish/output.mp4)"
+    )
+    parser.add_argument(
+        "--out-dir", help="Output directory (default: tmp/hyperframes_review/{date})"
+    )
     args = parser.parse_args()
 
+    from src.pipeline.paths import publish_path
+
     date = args.date
-    video_path = Path(args.video) if args.video else PROJECT_ROOT / "data" / date / "output.mp4"
+    video_path = Path(args.video) if args.video else publish_path(date, "output.mp4")
     if not video_path.exists():
         print(f"ERROR: Video not found: {video_path}", file=sys.stderr)
         sys.exit(1)
 
     # Read scene_spec.json
-    spec_path = PROJECT_ROOT / "data" / date / "hyperframes_project" / "data" / "scene_spec.json"
+    spec_path = (
+        PROJECT_ROOT
+        / "data"
+        / date
+        / "hyperframes_project"
+        / "data"
+        / "scene_spec.json"
+    )
     if not spec_path.exists():
         print(f"ERROR: scene_spec.json not found: {spec_path}", file=sys.stderr)
         sys.exit(1)
@@ -57,17 +72,23 @@ def main() -> None:
         label = element_type.replace("_card", "") or comp_id.replace("-card", "")
         # Add scene index for uniqueness
         idx = len(frames)
-        frames.append({
-            "time": mid,
-            "label": label,
-            "index": idx,
-            "comp_id": comp_id,
-            "start": start,
-            "duration": duration,
-        })
+        frames.append(
+            {
+                "time": mid,
+                "label": label,
+                "index": idx,
+                "comp_id": comp_id,
+                "start": start,
+                "duration": duration,
+            }
+        )
 
     # Output directory
-    out_dir = Path(args.out_dir) if args.out_dir else PROJECT_ROOT / "tmp" / "hyperframes_review" / date
+    out_dir = (
+        Path(args.out_dir)
+        if args.out_dir
+        else PROJECT_ROOT / "tmp" / "hyperframes_review" / date
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Video: {video_path}")
@@ -83,11 +104,16 @@ def main() -> None:
         out_file = out_dir / f"{idx:02d}_{label}.png"
 
         cmd = [
-            "ffmpeg", "-y",
-            "-ss", f"{t:.3f}",
-            "-i", str(video_path),
-            "-vframes", "1",
-            "-q:v", "2",
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{t:.3f}",
+            "-i",
+            str(video_path),
+            "-vframes",
+            "1",
+            "-q:v",
+            "2",
             str(out_file),
         ]
 
@@ -95,7 +121,10 @@ def main() -> None:
         if result.returncode == 0:
             print(f"  [{idx:02d}] {label:12s} @ {t:7.2f}s → {out_file.name}")
         else:
-            print(f"  [{idx:02d}] {label:12s} @ {t:7.2f}s → FAILED: {result.stderr[:200]}", file=sys.stderr)
+            print(
+                f"  [{idx:02d}] {label:12s} @ {t:7.2f}s → FAILED: {result.stderr[:200]}",
+                file=sys.stderr,
+            )
 
     print(f"\nDone. {len(frames)} frames extracted to {out_dir}")
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from src.pipeline.agent_io import append_agent_event, utc_now
+from src.pipeline.paths import agent_path, raw_downloaded_pages_dir
 from src.utils.atomic_io import atomic_write_json
 
 BLOCK_MANUAL_DOWNLOAD = "manual_download_required"
@@ -21,8 +21,8 @@ class AgentState:
         self.date = date
         self.steps = list(steps)
         self.config = config
-        self.path = Path(f"data/{date}/pipeline_state.json")
-        self.task_path = Path(f"data/{date}/agent_tasks.json")
+        self.path = agent_path(date, "pipeline_state.json")
+        self.task_path = agent_path(date, "agent_tasks.json")
         self.completed_steps: list[str] = []
         self.current_step: str | None = None
         self.failed_step: str | None = None
@@ -130,11 +130,11 @@ class AgentState:
                 "url": getattr(item, "url", "") or "",
                 "synthesis_from": synthesis_from,
                 "expected_html": (
-                    f"data/{self.date}/downloaded_pages/"
+                    f"{raw_downloaded_pages_dir(self.date).as_posix()}/"
                     f"{getattr(item, 'source_id', '')}.html"
                 ),
                 "expected_pdf": (
-                    f"data/{self.date}/downloaded_pages/"
+                    f"{raw_downloaded_pages_dir(self.date).as_posix()}/"
                     f"{getattr(item, 'source_id', '')}.pdf"
                 ),
             }
@@ -197,7 +197,7 @@ class AgentState:
         if self.status == "blocked" and self.blocked_reason == BLOCK_MANUAL_DOWNLOAD:
             return (
                 "Fetch the missing article pages with browser/MCP, save them to "
-                f"data/{self.date}/downloaded_pages/, then run: "
+                f"{raw_downloaded_pages_dir(self.date)}/, then run: "
                 f"uv run python scripts/agent_run.py --date {self.date} --resume"
             )
         if (
@@ -215,14 +215,14 @@ class AgentState:
             return "Resolve the blocked environment issue, then rerun the command."
         next_step = self.failed_step or self.current_step or self._next_step()
         if next_step:
-            return (
-                f"uv run python scripts/agent_run.py --date {self.date} --steps {next_step}"
-            )
+            return f"uv run python scripts/agent_run.py --date {self.date} --steps {next_step}"
         return None
 
     def _write_task_list(self) -> None:
         tasks = []
-        resume_command = f"uv run python scripts/agent_run.py --date {self.date} --resume"
+        resume_command = (
+            f"uv run python scripts/agent_run.py --date {self.date} --resume"
+        )
         for item in self.missing_manual_files:
             # `synthesis_from` declares which source categories the agent may use
             # as fallbacks when the original URL is unreachable. The default `any`
@@ -331,16 +331,23 @@ class AgentState:
         )
 
     def _artifacts(self) -> dict[str, str | None]:
-        base = Path(f"data/{self.date}")
+        from src.pipeline.paths import (
+            media_path,
+            pipeline_audio_dir,
+            pipeline_path,
+            publish_path,
+            render_path,
+        )
+
         artifacts = {
-            "content": base / "content.json",
-            "script": base / "script.json",
-            "audio_dir": base / "audio",
-            "title": base / "title.json",
-            "cover": base / "cover.png",
-            "publish_guide": base / "publish_guide.md",
-            "render_props": base / "cli_props.json",
-            "output": base / "output.mp4",
+            "content": pipeline_path(self.date, "content.json"),
+            "script": pipeline_path(self.date, "script.json"),
+            "audio_dir": pipeline_audio_dir(self.date),
+            "title": publish_path(self.date, "title.json"),
+            "cover": media_path(self.date, "cover.png"),
+            "publish_guide": publish_path(self.date, "publish_guide.md"),
+            "render_props": render_path(self.date, "cli_props.json"),
+            "output": publish_path(self.date, "output.mp4"),
         }
         return {
             name: str(path).replace("\\", "/") if path.exists() else None

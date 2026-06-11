@@ -14,6 +14,7 @@ from src.pipeline.agent_variants import (
 )
 from src.pipeline.agent_io import append_agent_event
 from src.pipeline.agent_state import BLOCK_INSUFFICIENT_CONTEXT
+from src.pipeline.paths import agent_path
 from src.utils.atomic_io import atomic_write_json
 
 BLOCK_LOW_DECISION_CONFIDENCE = "low_decision_confidence"
@@ -314,9 +315,8 @@ class AgentDecisionEngine:
         return decision
 
     def write_decision(self, date: str, result: DecisionResult) -> Path:
-        base = Path(f"data/{date}")
-        base.mkdir(parents=True, exist_ok=True)
-        path = base / "agent_decision.json"
+        path = agent_path(date, "agent_decision.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "schema_version": 1,
             "date": date,
@@ -347,9 +347,8 @@ class AgentDecisionEngine:
         return path
 
     def _write_variant_decision(self, date: str, decision: dict[str, Any]) -> Path:
-        base = Path(f"data/{date}")
-        base.mkdir(parents=True, exist_ok=True)
-        path = base / "agent_variant_decision.json"
+        path = agent_path(date, "agent_variant_decision.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_json(path, decision)
         append_agent_event(
             date,

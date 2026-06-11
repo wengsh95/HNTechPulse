@@ -91,24 +91,44 @@ HN API → [fetch] ContentPackage
 
 **Key principle**: CommentAnalyzer scores → CommentJudge selects `quote_candidates` → ScriptWriter consumes directly. No independent re-selection downstream.
 
+### Data Layout
+
+Artifacts under `data/{date}/` are grouped by lifecycle into subdirectories. All
+path literals go through [src/pipeline/paths.py](src/pipeline/paths.py) — never
+build `f"data/{date}/foo.json"` strings directly.
+
+```
+data/{date}/
+├── raw/         raw_stories.json, downloaded_pages/
+├── pipeline/    prefilter, enrichment, content, comment_*, script,
+│                segments/, variants/, audio/
+├── media/       images/, cover_bg.png, cover.png, cover_props.json
+├── render/      remotion/{chunks,public}/, cli_props.json
+├── publish/     output.mp4, title.json, transcript.md, publish_guide.md
+├── agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
+│                agent_events.jsonl, selected_variant.json, report.md
+└── outputs/     (organize_outputs.py mirror — unchanged)
+```
+
 ### Cache Files
 
-All under `data/{date}/`:
+Resolved via `src/pipeline/paths.py` helpers — paths in the table below are
+relative to `data/{date}/`.
 
 | File | Step | Contents |
 |------|------|----------|
-| `prefilter.json` | prefilter | LLM tech relevance |
-| `content.json` | fetch…translate_titles | Canonical ContentPackage |
-| `comment_analysis.json` | analyze_comments | VADER + quality scores |
-| `comment_judgement.json` | judge_comments | quote_candidates, debate_focus, stance |
-| `script.json` | write_script | Final Script with cards |
-| `translations.json` | translate_comments | Translated comment text |
-| `audio/` | synthesize_audio | TTS chunks + alignment |
-| `title.json` | title | Video title/description/tags |
-| `cover_bg.png`, `cover_props.json` | cover_image | Raw image + props |
-| `cover.png` | cover_thumbnail | Final cover with title overlay |
-| `publish_guide.md` | publish_guide | Publish checklist |
-| `cli_props.json` | prepare_render | Remotion props |
+| `pipeline/prefilter.json` | prefilter | LLM tech relevance |
+| `pipeline/content.json` | fetch…translate_titles | Canonical ContentPackage |
+| `pipeline/comment_analysis.json` | analyze_comments | VADER + quality scores |
+| `pipeline/comment_judgement.json` | judge_comments | quote_candidates, debate_focus, stance |
+| `pipeline/script.json` | write_script | Final Script with cards |
+| `pipeline/translations.json` | translate_comments | Translated comment text |
+| `pipeline/audio/` | synthesize_audio | TTS chunks + alignment |
+| `publish/title.json` | title | Video title/description/tags |
+| `media/cover_bg.png`, `media/cover_props.json` | cover_image | Raw image + props |
+| `media/cover.png` | cover_thumbnail | Final cover with title overlay |
+| `publish/publish_guide.md` | publish_guide | Publish checklist |
+| `render/cli_props.json` | prepare_render | Remotion props |
 | `report.md` | always | Enrichment stats + issues |
 
 **Manifest sidecars**: `*.manifest.json` captures path, hash, input hash, step, date, model. Use to detect stale artifacts — never delete casually.

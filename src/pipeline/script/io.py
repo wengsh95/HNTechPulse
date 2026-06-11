@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.core.models import Script, ScriptSegment, SceneElement, Cue
 from src.pipeline.agent_io import write_artifact_manifest
+from src.pipeline.paths import pipeline_path
 from src.utils.atomic_io import atomic_write_json
 
 
@@ -34,14 +35,14 @@ def save_script_to_path(
 
 
 def save_script(script: Script, date: str, logger=None) -> None:
-    path = Path(f"data/{date}/script.json")
+    path = pipeline_path(date, "script.json")
     save_script_to_path(script, path, date=date)
     if logger:
         logger.info(f"Saved script to {path}")
 
 
 def load_script(date: str) -> Script:
-    path = Path(f"data/{date}/script.json")
+    path = pipeline_path(date, "script.json")
     if not path.exists():
         raise FileNotFoundError(f"Script not found: {path}")
 

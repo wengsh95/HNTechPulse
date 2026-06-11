@@ -49,7 +49,7 @@ def test_source_context_continues_with_article_text(tmp_path, monkeypatch):
 
     assert result.status == "continue"
     assert result.scores["factual_grounding"] == 1.0
-    decision_path = tmp_path / "data" / content.date / "agent_decision.json"
+    decision_path = tmp_path / "data" / content.date / "agent" / "agent_decision.json"
     decision = json.loads(decision_path.read_text(encoding="utf-8"))
     assert decision["gate"] == "source_context"
 
@@ -172,15 +172,28 @@ def test_select_script_variant_writes_decision_and_selection(tmp_path, monkeypat
 
     assert decision["status"] == "continue"
     assert decision["selected_variant"] == "v02_strong"
-    selected_path = tmp_path / "data" / content.date / "selected_variant.json"
+    selected_path = tmp_path / "data" / content.date / "agent" / "selected_variant.json"
     selected = json.loads(selected_path.read_text(encoding="utf-8"))
     assert selected["selected_variant"] == "v02_strong"
-    brief_path = tmp_path / "data" / content.date / "variants" / "selection_brief.md"
+    brief_path = (
+        tmp_path
+        / "data"
+        / content.date
+        / "pipeline"
+        / "variants"
+        / "selection_brief.md"
+    )
     brief = brief_path.read_text(encoding="utf-8")
     assert "v02_strong" in brief
     assert "Agent Variant Selection" in brief
     scorecard_path = (
-        tmp_path / "data" / content.date / "variants" / "v02_strong" / "scorecard.json"
+        tmp_path
+        / "data"
+        / content.date
+        / "pipeline"
+        / "variants"
+        / "v02_strong"
+        / "scorecard.json"
     )
     assert (
         json.loads(scorecard_path.read_text(encoding="utf-8"))["status"] == "continue"

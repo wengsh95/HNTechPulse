@@ -12,7 +12,6 @@ from src.pipeline.orchestrator import (
     Orchestrator,
     PIPELINE_STEPS,
     STANDALONE_STEPS,
-    _script_chapter_payload,
     _resolve_steps,
 )
 
@@ -118,49 +117,6 @@ class TestStepList:
         ]
 
 
-class TestPublishGuidePayload:
-    def test_script_chapter_payload_uses_real_timing(self):
-        script = Script(
-            title="T",
-            description="D",
-            tags=[],
-            total_duration=116.976,
-            segments=[
-                ScriptSegment(
-                    segment_type="opening",
-                    audio_text="开场。",
-                    duration=8,
-                    start_time=0.0,
-                    end_time=12.456,
-                ),
-                ScriptSegment(
-                    segment_type="story_scan",
-                    audio_text="逐条速览。",
-                    duration=80,
-                    start_time=12.456,
-                    end_time=100.956,
-                ),
-                ScriptSegment(
-                    segment_type="closing",
-                    audio_text="收尾。",
-                    duration=12,
-                    start_time=100.956,
-                    end_time=116.976,
-                ),
-            ],
-        )
-
-        payload = _script_chapter_payload(script)
-
-        assert payload["total_duration"] == "01:57"
-        assert [c["start"] for c in payload["chapters"]] == [
-            "00:00",
-            "00:12",
-            "01:41",
-        ]
-        assert payload["chapters"][1]["label"] == "逐条速览"
-
-
 # ── Per-step behaviour ──────────────────────────────────────────────────
 
 
@@ -181,9 +137,13 @@ class TestStepPrefilter:
 
     def test_prefilter_cache_is_validated_by_prefilter(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "data" / "2026-04-26").mkdir(parents=True)
-        (tmp_path / "data" / "2026-04-26" / "content.json").write_text('{"items":[]}')
-        (tmp_path / "data" / "2026-04-26" / "prefilter.json").write_text("{}")
+        (tmp_path / "data" / "2026-04-26" / "pipeline").mkdir(parents=True)
+        (tmp_path / "data" / "2026-04-26" / "pipeline" / "content.json").write_text(
+            '{"items":[]}'
+        )
+        (tmp_path / "data" / "2026-04-26" / "pipeline" / "prefilter.json").write_text(
+            "{}"
+        )
 
         orch = _make_orchestrator(dry_run=False)
         orch.config["prefilter"] = {"comment_preview_enabled": False}
@@ -364,7 +324,7 @@ class TestStepPublishGuide:
     ):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
-        base = tmp_path / "data" / date
+        base = tmp_path / "data" / date / "publish"
         base.mkdir(parents=True)
         guide_path = base / "publish_guide.md"
         guide_path.write_text("old", encoding="utf-8")
@@ -383,7 +343,7 @@ class TestStepPublishGuide:
     def test_uses_title_json_for_publish_metadata_context(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
-        base = tmp_path / "data" / date
+        base = tmp_path / "data" / date / "publish"
         base.mkdir(parents=True)
         (base / "title.json").write_text(
             json.dumps(
@@ -523,7 +483,7 @@ class TestRunDispatch:
 
         orch.run("2026-04-26", steps=["fetch"], force=False)
 
-        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "complete"
         assert state["completed_steps"] == ["fetch"]
@@ -548,12 +508,12 @@ class TestRunDispatch:
 
         orch._step_translate_titles.assert_not_called()
         orch._step_write_script.assert_not_called()
-        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
         assert state["blocked_reason"] == "manual_download_required"
         assert state["missing_manual_files"][0]["story_id"] == "123"
-        task_path = tmp_path / "data" / "2026-04-26" / "agent_tasks.json"
+        task_path = tmp_path / "data" / "2026-04-26" / "agent" / "agent_tasks.json"
         tasks = json.loads(task_path.read_text(encoding="utf-8"))
         assert tasks["schema_version"] == 2
         assert tasks["repair_contract"]["owner"] == "agent"
@@ -569,7 +529,7 @@ class TestRunDispatch:
             "scripts/agent_run.py --date 2026-04-26 --resume"
         )
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
-        events_path = tmp_path / "data" / "2026-04-26" / "agent_events.jsonl"
+        events_path = tmp_path / "data" / "2026-04-26" / "agent" / "agent_events.jsonl"
         assert "run_blocked" in events_path.read_text(encoding="utf-8")
         assert "downloaded_pages" in state["next_recommended_command"]
 
@@ -593,7 +553,7 @@ class TestRunDispatch:
 
         orch._step_translate_titles.assert_called_once()
         orch._step_write_script.assert_called_once()
-        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "degraded"
         assert state["degraded_items"][0]["story_id"] == "123"
@@ -602,13 +562,16 @@ class TestRunDispatch:
     def test_refresh_variants_clears_script_outputs_only(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         base = tmp_path / "data" / "2026-04-26"
-        segments = base / "segments"
-        variants = base / "variants"
+        segments = base / "pipeline" / "segments"
+        variants = base / "pipeline" / "variants"
         segments.mkdir(parents=True)
         variants.mkdir(parents=True)
-        (base / "content.json").write_text("{}", encoding="utf-8")
-        (base / "script.json").write_text("{}", encoding="utf-8")
-        (base / "selected_variant.json").write_text("{}", encoding="utf-8")
+        (base / "pipeline" / "content.json").write_text("{}", encoding="utf-8")
+        (base / "pipeline" / "script.json").write_text("{}", encoding="utf-8")
+        (base / "agent" / "selected_variant.json").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (base / "agent" / "selected_variant.json").write_text("{}", encoding="utf-8")
         (variants / "index.json").write_text("{}", encoding="utf-8")
         (segments / "story_scan_item_0.json").write_text("{}", encoding="utf-8")
         (segments / "translation_titles.json").write_text("{}", encoding="utf-8")
@@ -616,9 +579,9 @@ class TestRunDispatch:
 
         orch._refresh_variant_outputs("2026-04-26")
 
-        assert (base / "content.json").exists()
-        assert not (base / "script.json").exists()
-        assert not (base / "selected_variant.json").exists()
+        assert (base / "pipeline" / "content.json").exists()
+        assert not (base / "pipeline" / "script.json").exists()
+        assert not (base / "agent" / "selected_variant.json").exists()
         assert not variants.exists()
         assert not (segments / "story_scan_item_0.json").exists()
         assert (segments / "translation_titles.json").exists()
@@ -637,7 +600,7 @@ class TestRunDispatch:
         orch.run("2026-04-26", steps=["translate_titles"], force=False)
 
         orch._step_translate_titles.assert_not_called()
-        state_path = tmp_path / "data" / "2026-04-26" / "pipeline_state.json"
+        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
         assert state["blocked_reason"] == "insufficient_story_context"

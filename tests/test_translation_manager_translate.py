@@ -90,7 +90,7 @@ class TestTranslate:
         script = _make_script()
 
         # Cached translations keyed by source_id (the unified scheme).
-        trans_path = Path("data/2026-04-26/translations.json")
+        trans_path = Path("data/2026-04-26/pipeline/translations.json")
         trans_path.parent.mkdir(parents=True, exist_ok=True)
         trans_path.write_text(json.dumps({"title_100": "测试标题"}), encoding="utf-8")
 

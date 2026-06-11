@@ -18,7 +18,12 @@ from src.providers.enricher.page_fetcher import (
     _parse_github_url,
 )
 from src.providers.enricher.image_handler import ImageHandler
-from src.providers.enricher.baidu_search import BaiduSearchProvider
+from src.pipeline.paths import (
+    date_root,
+    media_images_dir,
+    pipeline_path,
+    raw_downloaded_pages_dir,
+)
 from src.utils.async_helper import run_async
 
 
@@ -117,8 +122,6 @@ class ArticleEnricher:
             request_timeout=self.request_timeout,
         )
 
-        self.baidu_search = BaiduSearchProvider(config)
-
         self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
         self._image_select_prompt = self._load_prompt("prompts/image_select.md")
 
@@ -130,7 +133,7 @@ class ArticleEnricher:
         return ""
 
     def _pages_dir(self, date: str) -> Path:
-        return Path(f"data/{date}/downloaded_pages")
+        return raw_downloaded_pages_dir(date)
 
     def enrich(self, content: ContentPackage, date: str) -> ContentPackage:
         if not self.enabled:
@@ -141,7 +144,7 @@ class ArticleEnricher:
 
         self._load_image_selection(content, date)
 
-        cache_path = Path(f"data/{date}/enrichment.json")
+        cache_path = pipeline_path(date, "enrichment.json")
         if cache_path.exists():
             self._load_from_cache(content, cache_path)
 
@@ -412,13 +415,7 @@ class ArticleEnricher:
             return
 
         try:
-            search_context = ""
-            if self.baidu_search.enabled:
-                results = await self.baidu_search.search(item.title or "")
-                search_context = BaiduSearchProvider.format_results(results)
-            enrich_result = self._enrich_content(
-                article_text, item.title, search_context
-            )
+            enrich_result = self._enrich_content(article_text, item.title)
         except Exception as e:
             self.logger.warning(
                 f"[self_post] LLM extraction failed: {item.title[:50]}: {e}"
@@ -445,9 +442,7 @@ class ArticleEnricher:
                 ],
             )
         item.enrichment_source = "self_post"
-        self.logger.info(
-            f"[self_post] {item.title[:50]} — {len(article_text)} chars"
-        )
+        self.logger.info(f"[self_post] {item.title[:50]} — {len(article_text)} chars")
 
     async def _phase2_extract_all(self, items: list, date: str):
         self.logger.info(f"Phase 2: starting extraction for {len(items)} items")
@@ -465,11 +460,7 @@ class ArticleEnricher:
         async with semaphore:
             try:
                 # ── Self-post path: HN body text (no HTML/PDF on disk) ──
-                if (
-                    item.self_post_text
-                    and not item.url
-                    and not item.article_text
-                ):
+                if item.self_post_text and not item.url and not item.article_text:
                     await self._enrich_self_post(item)
                     return
 
@@ -483,7 +474,7 @@ class ArticleEnricher:
 
                 # ── PDF path ──
                 if pdf_path.exists() and not html_path.exists():
-                    image_dir = Path(f"data/{date}/images")
+                    image_dir = media_images_dir(date)
                     image_dir.mkdir(parents=True, exist_ok=True)
 
                     article_text = self._extract_pdf_text(pdf_path)
@@ -505,14 +496,7 @@ class ArticleEnricher:
                         pdf_path, image_dir, str(item.source_id)
                     )
 
-                    search_context = ""
-                    if self.baidu_search.enabled:
-                        results = await self.baidu_search.search(item.title or "")
-                        search_context = BaiduSearchProvider.format_results(results)
-
-                    enrich_result = self._enrich_content(
-                        article_text, item.title, search_context
-                    )
+                    enrich_result = self._enrich_content(article_text, item.title)
                     article_summary = (
                         enrich_result.get("article_summary") if enrich_result else None
                     )
@@ -569,7 +553,7 @@ class ArticleEnricher:
                 # ── HTML path ──
 
                 html = html_path.read_text(encoding="utf-8", errors="replace")
-                image_dir = Path(f"data/{date}/images")
+                image_dir = media_images_dir(date)
                 image_dir.mkdir(parents=True, exist_ok=True)
                 cached_image_candidates = self.image_handler.cached_image_candidates(
                     item, image_dir
@@ -640,14 +624,7 @@ class ArticleEnricher:
                         )
                     item.screenshot_image = screenshot_image
 
-                search_context = ""
-                if self.baidu_search.enabled:
-                    results = await self.baidu_search.search(item.title or "")
-                    search_context = BaiduSearchProvider.format_results(results)
-
-                enrich_result = self._enrich_content(
-                    article_text, item.title, search_context
-                )
+                enrich_result = self._enrich_content(article_text, item.title)
                 article_summary = (
                     enrich_result.get("article_summary") if enrich_result else None
                 )
@@ -813,7 +790,7 @@ class ArticleEnricher:
         return candidates
 
     def _enrich_content(
-        self, article_text: str, title: str, search_context: str = ""
+        self, article_text: str, title: str
     ) -> Optional[Dict[str, Any]]:
         if not self._enrich_prompt:
             self.logger.info("Enrich prompt not loaded, skipping LLM enrichment")
@@ -823,7 +800,6 @@ class ArticleEnricher:
             self._enrich_prompt,
             title=title,
             article_text=article_text[: self.max_text_length],
-            search_context=search_context,
         )
 
         if "<!-- SYSTEM_CUT -->" in prompt:
@@ -850,9 +826,7 @@ class ArticleEnricher:
             # None and crashing downstream.
             if not parsed.get("editor_angle") or not parsed.get("key_points"):
                 missing = [
-                    f
-                    for f in ("editor_angle", "key_points")
-                    if not parsed.get(f)
+                    f for f in ("editor_angle", "key_points") if not parsed.get(f)
                 ]
                 raise ValueError(
                     f"enrichment result missing required fields: {missing}"
@@ -938,7 +912,10 @@ class ArticleEnricher:
     # ── Image Selection ────────────────────────────────────────
 
     def _image_selection_context(
-        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+        self,
+        item,
+        candidates: list[Dict[str, Any]],
+        article_summary: Optional[str] = None,
     ) -> str:
         rows: list[dict[str, Any]] = []
         story_domain = (urlparse(item.url or "").hostname or "").lower().lstrip("www.")
@@ -947,8 +924,10 @@ class ArticleEnricher:
             if not path:
                 continue
             origin_domain = (
-                urlparse(str(candidate.get("origin_url") or "")).hostname or ""
-            ).lower().lstrip("www.")
+                (urlparse(str(candidate.get("origin_url") or "")).hostname or "")
+                .lower()
+                .lstrip("www.")
+            )
             rows.append(
                 {
                     "index": idx,
@@ -992,13 +971,15 @@ class ArticleEnricher:
         )
 
     @staticmethod
-    def _candidate_image_path(date: Optional[str], candidate_path: str) -> Optional[Path]:
+    def _candidate_image_path(
+        date: Optional[str], candidate_path: str
+    ) -> Optional[Path]:
         path = Path(candidate_path)
         if path.is_absolute():
             return path if path.exists() else None
         candidates = []
         if date:
-            candidates.append(Path("data") / date / candidate_path)
+            candidates.append(date_root(date) / candidate_path)
         candidates.append(path)
         for candidate in candidates:
             if candidate.exists() and candidate.is_file():
@@ -1060,7 +1041,10 @@ class ArticleEnricher:
         return blocks
 
     def _select_image_candidate_with_llm(
-        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+        self,
+        item,
+        candidates: list[Dict[str, Any]],
+        article_summary: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         valid_paths = {
             str(candidate.get("path"))
@@ -1140,7 +1124,10 @@ class ArticleEnricher:
         return None
 
     def _select_image_candidate(
-        self, item, candidates: list[Dict[str, Any]], article_summary: Optional[str] = None
+        self,
+        item,
+        candidates: list[Dict[str, Any]],
+        article_summary: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         selected = self._select_image_candidate_with_llm(
             item, candidates, article_summary=article_summary
@@ -1153,7 +1140,7 @@ class ArticleEnricher:
         return selected
 
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
-        sel_path = Path(f"data/{date}/image_selection.json")
+        sel_path = pipeline_path(date, "image_selection.json")
         if not sel_path.exists():
             return set()
         try:
@@ -1176,7 +1163,7 @@ class ArticleEnricher:
             return set()
 
     def _generate_image_selection(self, content: ContentPackage, date: str):
-        sel_path = Path(f"data/{date}/image_selection.json")
+        sel_path = pipeline_path(date, "image_selection.json")
         existed = sel_path.exists()
         data: Dict[str, Any] = {"date": date, "items": {}}
         if existed:

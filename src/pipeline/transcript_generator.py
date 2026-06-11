@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.core.models import Script, ContentPackage, ContentItem
+from src.pipeline.paths import publish_path
 
 
 def generate_brief_transcript(
@@ -226,7 +227,7 @@ def save_transcript(
     content: Optional[ContentPackage] = None,
     logger=None,
 ) -> Path:
-    path = Path(f"data/{date}/transcript.md")
+    path = publish_path(date, "transcript.md")
     path.parent.mkdir(parents=True, exist_ok=True)
     md_content = generate_brief_transcript(script, date, content)
     path.write_text(md_content, encoding="utf-8")

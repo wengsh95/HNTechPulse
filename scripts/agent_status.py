@@ -20,7 +20,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
-from src.utils.text import normalize_cjk_mixed_spacing  # noqa: E402
+from src.pipeline.paths import (  # noqa: E402
+    agent_path,
+    date_root,
+    media_path,
+    pipeline_path,
+    publish_path,
+    render_path,
+    render_remotion_dir,
+)
 
 
 def _default_date() -> str:
@@ -36,8 +44,11 @@ def _read_json(path: Path) -> Any:
         return None
 
 
-def _prepare_render_renderer(base: Path) -> str:
-    manifest = _read_json(base / "cli_props.json.manifest.json")
+def _prepare_render_renderer(date: str) -> str:
+    manifest_path = render_path(date, "cli_props.json").with_suffix(
+        render_path(date, "cli_props.json").suffix + ".manifest.json"
+    )
+    manifest = _read_json(manifest_path)
     if not isinstance(manifest, dict):
         return ""
     inputs = manifest.get("inputs") or {}
@@ -65,32 +76,6 @@ def _format_mmss(seconds: float | int | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def _script_runtime_payload(script_data: dict[str, Any]) -> dict[str, Any]:
-    chapters = []
-    for segment in script_data.get("segments") or []:
-        if not isinstance(segment, dict):
-            continue
-        label = {
-            "opening": "开场",
-            "story_scan": "逐条速览",
-            "closing": "收尾",
-        }.get(segment.get("segment_type"), segment.get("segment_type"))
-        chapters.append(
-            {
-                "start": _format_mmss(segment.get("start_time")),
-                "end": _format_mmss(segment.get("end_time")),
-                "label": label,
-                "summary": normalize_cjk_mixed_spacing(
-                    segment.get("audio_text") or ""
-                )[:90],
-            }
-        )
-    return {
-        "total_duration": _format_mmss(script_data.get("total_duration")),
-        "chapters": chapters,
-    }
-
-
 def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
     artifacts = [item.get("artifact", "") for item in stale]
     if any("script.json" in artifact for artifact in artifacts):
@@ -116,8 +101,8 @@ def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
     }
 
 
-def _pending_tasks(base: Path) -> dict[str, Any]:
-    tasks_path = base / "agent_tasks.json"
+def _pending_tasks(date: str) -> dict[str, Any]:
+    tasks_path = agent_path(date, "agent_tasks.json")
     data = _read_json(tasks_path)
     pending: list[dict[str, Any]] = []
     if isinstance(data, dict):
@@ -142,7 +127,7 @@ def _publish_guide_context(
     script_data = _read_json(script_path)
     if not isinstance(content_data, dict) or not isinstance(script_data, dict):
         return None
-    title_data = _read_json(content_path.parent / "title.json")
+    title_data = _read_json(publish_path(date, "title.json"))
     if not isinstance(title_data, dict):
         title_data = {}
     items_payload = []
@@ -167,37 +152,38 @@ def _publish_guide_context(
         "script_description": title_data.get("description")
         or script_data.get("description")
         or "",
-        "script_runtime": json.dumps(
-            _script_runtime_payload(script_data), ensure_ascii=False, indent=2
-        ),
         "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
         "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
         "date": date,
     }
 
 
-def _has_stale_publish_guide(date: str, content_path: Path, script_path: Path, guide_path: Path) -> bool:
+def _has_stale_publish_guide(
+    date: str, content_path: Path, script_path: Path, guide_path: Path
+) -> bool:
     if not guide_path.exists():
         return False
     context = _publish_guide_context(date, content_path, script_path)
     if context is None:
         return False
     manifest = _read_json(guide_path.with_suffix(guide_path.suffix + ".manifest.json"))
-    return not isinstance(manifest, dict) or manifest.get("input_hash") != stable_hash(context)
+    return not isinstance(manifest, dict) or manifest.get("input_hash") != stable_hash(
+        context
+    )
 
 
 def build_status(date: str) -> dict[str, Any]:
-    base = Path("data") / date
+    base = date_root(date)
     state = load_pipeline_state(date)
-    content = base / "content.json"
-    script = base / "script.json"
-    cli_props = base / "cli_props.json"
-    public_props = base / "remotion" / "public" / "props.json"
+    content = pipeline_path(date, "content.json")
+    script = pipeline_path(date, "script.json")
+    cli_props = render_path(date, "cli_props.json")
+    public_props = render_remotion_dir(date) / "public" / "props.json"
     hyperframes_index = base / "hyperframes_project" / "index.html"
-    output = base / "output.mp4"
-    title = base / "title.json"
-    cover = base / "cover.png"
-    publish_guide = base / "publish_guide.md"
+    output = publish_path(date, "output.mp4")
+    title = publish_path(date, "title.json")
+    cover = media_path(date, "cover.png")
+    publish_guide = publish_path(date, "publish_guide.md")
 
     stale: list[dict[str, str]] = []
     if _is_newer(content, script):
@@ -228,15 +214,23 @@ def build_status(date: str) -> dict[str, Any]:
                 "reason": "cli_props.json is newer than output.mp4",
             }
         )
-    renderer_name = _prepare_render_renderer(base)
-    if cli_props.exists() and renderer_name == "RemotionRenderer" and not public_props.exists():
+    renderer_name = _prepare_render_renderer(date)
+    if (
+        cli_props.exists()
+        and renderer_name == "RemotionRenderer"
+        and not public_props.exists()
+    ):
         stale.append(
             {
                 "artifact": str(public_props).replace("\\", "/"),
                 "reason": "public Remotion props mirror is missing",
             }
         )
-    if cli_props.exists() and renderer_name == "HyperFramesRenderer" and not hyperframes_index.exists():
+    if (
+        cli_props.exists()
+        and renderer_name == "HyperFramesRenderer"
+        and not hyperframes_index.exists()
+    ):
         stale.append(
             {
                 "artifact": str(hyperframes_index).replace("\\", "/"),
@@ -261,7 +255,9 @@ def build_status(date: str) -> dict[str, Any]:
             }
         )
     elif status in {"blocked", "failed", "running"}:
-        next_step = (state or {}).get("failed_step") or (state or {}).get("current_step")
+        next_step = (state or {}).get("failed_step") or (state or {}).get(
+            "current_step"
+        )
         command = (
             f"uv run python scripts/agent_run.py --date {date} --steps {next_step}"
             if next_step
@@ -301,7 +297,7 @@ def build_status(date: str) -> dict[str, Any]:
         "completed_steps": (state or {}).get("completed_steps") or [],
         "next_recommended_command": (state or {}).get("next_recommended_command"),
         "artifacts": {
-            "content": _artifact(base / "content.json"),
+            "content": _artifact(content),
             "script": _artifact(script),
             "cli_props": _artifact(cli_props),
             "public_props": _artifact(public_props),
@@ -312,7 +308,7 @@ def build_status(date: str) -> dict[str, Any]:
             "publish_guide": _artifact(publish_guide),
         },
         "stale_artifacts": stale,
-        "agent_tasks": _pending_tasks(base),
+        "agent_tasks": _pending_tasks(date),
         "safe_next_commands": safe_next_commands,
     }
 

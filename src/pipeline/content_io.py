@@ -2,10 +2,10 @@
 
 import json
 from dataclasses import asdict
-from pathlib import Path
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.agent_io import write_artifact_manifest
+from src.pipeline.paths import pipeline_path
 from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
@@ -21,7 +21,7 @@ class ContentPreparer:
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
     def save_content(self, content: ContentPackage, date: str) -> None:
-        content_path = Path(f"data/{date}/content.json")
+        content_path = pipeline_path(date, "content.json")
         content_path.parent.mkdir(parents=True, exist_ok=True)
 
         content_dict = asdict(content)
@@ -41,7 +41,7 @@ class ContentPreparer:
         self.logger.info(f"Saved content to {content_path}")
 
     def load_content(self, date: str) -> ContentPackage:
-        content_path = Path(f"data/{date}/content.json")
+        content_path = pipeline_path(date, "content.json")
         if not content_path.exists():
             raise FileNotFoundError(f"Content file not found: {content_path}")
 

@@ -34,6 +34,7 @@ from src.pipeline.comment.stance_classifier import (
     write_distribution_report,
 )
 from src.pipeline.content_io import ContentPreparer
+from src.pipeline.paths import date_root
 from src.providers.factory import create_llm_provider
 from src.utils.config import load_config
 
@@ -225,7 +226,7 @@ def main() -> None:
             output = (
                 Path(args.output)
                 if args.output
-                else Path(f"data/{content.date}/stance_distribution.local.json")
+                else date_root(content.date) / "stance_distribution.local.json"
             )
             payload = write_distribution_report(content, model, output)
             print(f"Wrote {output}")

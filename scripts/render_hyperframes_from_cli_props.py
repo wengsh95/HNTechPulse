@@ -17,12 +17,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.models import SceneElement, Script, ScriptSegment
+from src.pipeline.paths import pipeline_audio_dir, publish_path, render_path
 from src.providers.renderer.hyperframes_renderer import HyperFramesRenderer
 from src.utils.config import load_config
 
 
 def _load_script_from_cli_props(date: str) -> Script:
-    props_path = Path("data") / date / "cli_props.json"
+    props_path = render_path(date, "cli_props.json")
     if not props_path.exists():
         raise FileNotFoundError(f"Missing cli props: {props_path}")
 
@@ -64,7 +65,7 @@ def _load_script_from_cli_props(date: str) -> Script:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Render HyperFrames from data/{date}/cli_props.json"
+        description="Render HyperFrames from data/{date}/render/cli_props.json"
     )
     parser.add_argument("--date", required=True, help="Date to render, YYYY-MM-DD")
     parser.add_argument(
@@ -75,7 +76,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         default=None,
-        help="Output MP4 path. Defaults to data/{date}/output.mp4",
+        help="Output MP4 path. Defaults to data/{date}/publish/output.mp4",
     )
     parser.add_argument(
         "--prepare-only",
@@ -87,7 +88,7 @@ def main() -> int:
     script = _load_script_from_cli_props(args.date)
     config = load_config(args.config)
     renderer = HyperFramesRenderer(config)
-    audio_dir = str(Path("data") / args.date / "audio")
+    audio_dir = str(pipeline_audio_dir(args.date))
 
     if args.prepare_only:
         index_path, _, payload = renderer.write_props(
@@ -104,7 +105,7 @@ def main() -> int:
         )
         return 0
 
-    output = args.output or str(Path("data") / args.date / "output.mp4")
+    output = args.output or str(publish_path(args.date, "output.mp4"))
     renderer.render(script, audio_dir, output, content=None, date=args.date)
     print(Path(output).resolve())
     return 0

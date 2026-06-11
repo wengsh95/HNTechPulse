@@ -64,7 +64,7 @@ class TestTTSProcessor:
 
             processor.process_audio(script, "2026-04-26")
 
-        assert Path("data/2026-04-26/audio").exists()
+        assert Path("data/2026-04-26/pipeline/audio").exists()
 
     def test_calls_synthesize_once_per_segment(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -88,7 +88,9 @@ class TestTTSProcessor:
         # One TTS call per segment
         assert mock_provider.synthesize.call_count == 2
 
-    def test_simple_segment_alignment_uses_whole_segment_ref(self, tmp_path, monkeypatch):
+    def test_simple_segment_alignment_uses_whole_segment_ref(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         mock_provider = _make_provider()
 
@@ -133,7 +135,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir = Path("data/2026-04-26/pipeline/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
 
         # Pre-create per-segment audio + manifest with alignment data
@@ -160,14 +162,16 @@ class TestTTSProcessor:
 
         mock_provider.synthesize.assert_not_called()
 
-    def test_realigns_cached_audio_when_ref_contract_changes(self, tmp_path, monkeypatch):
+    def test_realigns_cached_audio_when_ref_contract_changes(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
         mock_provider = _make_provider()
 
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir = Path("data/2026-04-26/pipeline/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
         seg_path = audio_dir / "segment_00.mp3"
         audio_text = "First sentence. Second sentence."
@@ -214,7 +218,9 @@ class TestTTSProcessor:
         assert [cue.text for cue in script.segments[0].cues] == [
             "First sentence. Second sentence.",
         ]
-        manifest = json.loads((audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (audio_dir / "segment_00.mp3.json").read_text(encoding="utf-8")
+        )
         assert manifest["segments"][0]["text"] == "First sentence. Second sentence."
 
     def test_resynthesizes_when_manifest_missing(self, tmp_path, monkeypatch):
@@ -225,7 +231,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir = Path("data/2026-04-26/pipeline/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_01.mp3").write_bytes(b"\x00" * 100)
@@ -251,7 +257,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir = Path("data/2026-04-26/pipeline/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_00.mp3.json").write_text(
@@ -383,7 +389,7 @@ class TestTTSProcessor:
 
             processor.process_audio(script, "2026-04-26")
 
-        audio_dir = Path("data/2026-04-26/audio")
+        audio_dir = Path("data/2026-04-26/pipeline/audio")
         manifest_path = audio_dir / "segment_00.mp3.json"
         assert manifest_path.exists()
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

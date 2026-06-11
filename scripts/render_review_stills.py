@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.pipeline.paths import date_root, render_path, render_remotion_dir  # noqa: E402
 from src.providers.renderer.binary_finder import find_node  # noqa: E402
 
 
@@ -32,7 +33,7 @@ def _default_date() -> str:
 
 
 def _load_props(date: str) -> dict[str, Any]:
-    props_path = Path("data") / date / "cli_props.json"
+    props_path = render_path(date, "cli_props.json")
     if not props_path.exists():
         return {}
     return json.loads(props_path.read_text(encoding="utf-8"))
@@ -65,7 +66,8 @@ def _review_points(props: dict[str, Any], fps: int) -> list[dict[str, Any]]:
         typed = [
             elem
             for elem in elems
-            if elem.get("element_type") in {"cover_card", "event_card", "atmosphere_card", "closing_card"}
+            if elem.get("element_type")
+            in {"cover_card", "event_card", "atmosphere_card", "closing_card"}
         ]
         if typed:
             for elem_index, elem in enumerate(typed):
@@ -111,7 +113,9 @@ def _render_still(
     node_path = find_node()
     if not node_path:
         raise RuntimeError("Node.js not found")
-    remotion_cli = REMOTION_DIR / "node_modules" / "@remotion" / "cli" / "remotion-cli.js"
+    remotion_cli = (
+        REMOTION_DIR / "node_modules" / "@remotion" / "cli" / "remotion-cli.js"
+    )
     if not remotion_cli.exists():
         raise RuntimeError(f"Remotion CLI not found: {remotion_cli}")
     cmd = [
@@ -142,12 +146,14 @@ def main() -> int:
     parser.add_argument("--date", default=_default_date())
     parser.add_argument("--fps", type=int, default=24)
     parser.add_argument("--scale", type=float, default=None)
-    parser.add_argument("--limit", type=int, default=0, help="Render only first N stills")
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Render only first N stills"
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     props = _load_props(args.date)
-    props_path = Path("data") / args.date / "cli_props.json"
+    props_path = render_path(args.date, "cli_props.json")
     if not props:
         print(
             json.dumps(
@@ -163,8 +169,8 @@ def main() -> int:
         )
         return 2
 
-    public_dir = Path("data") / args.date / "remotion" / "public"
-    out_dir = Path("data") / args.date / "review_stills" / "remotion"
+    public_dir = render_remotion_dir(args.date) / "public"
+    out_dir = date_root(args.date) / "review_stills" / "remotion"
     out_dir.mkdir(parents=True, exist_ok=True)
     points = _review_points(props, args.fps)
     if args.limit > 0:
@@ -193,7 +199,9 @@ def main() -> int:
         "stills": manifest_items,
     }
     manifest_path = out_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 

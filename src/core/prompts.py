@@ -26,14 +26,12 @@ PH_EDITOR_ANGLE = "editor_angle"
 PH_KEYWORDS = "keywords"
 PH_URL = "url"
 PH_CANDIDATES_JSON = "candidates_json"
-PH_SEARCH_CONTEXT = "search_context"
 PH_STORY_INDEX = "story_index"
 PH_STORIES_JSON = "stories_json"
 PH_HIGHLIGHT_ENTRIES = "highlight_entries"
 PH_FOCUS_STORY_JSON = "focus_story_json"
 PH_SCRIPT_TITLE = "script_title"
 PH_SCRIPT_DESCRIPTION = "script_description"
-PH_SCRIPT_RUNTIME = "script_runtime"
 
 _KNOWN_PLACEHOLDERS = frozenset(
     {
@@ -52,14 +50,12 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_KEYWORDS,
         PH_URL,
         PH_CANDIDATES_JSON,
-        PH_SEARCH_CONTEXT,
         PH_STORY_INDEX,
         PH_STORIES_JSON,
         PH_HIGHLIGHT_ENTRIES,
         PH_FOCUS_STORY_JSON,
         PH_SCRIPT_TITLE,
         PH_SCRIPT_DESCRIPTION,
-        PH_SCRIPT_RUNTIME,
     }
 )
 

@@ -39,7 +39,7 @@ def state(tmp_path, monkeypatch) -> AgentState:
 
 
 def _read_events(tmp_path: Path, date: str = "2026-06-08") -> list[dict]:
-    p = tmp_path / "data" / date / "agent_events.jsonl"
+    p = tmp_path / "data" / date / "agent" / "agent_events.jsonl"
     if not p.exists():
         return []
     return [
@@ -218,7 +218,7 @@ class TestBlockForManualFiles:
         ]
         state.block_for_manual_files("enrich_articles", items, synthesis_from="any")
 
-        task_path = tmp_path / "data" / "2026-06-08" / "agent_tasks.json"
+        task_path = tmp_path / "data" / "2026-06-08" / "agent" / "agent_tasks.json"
         assert task_path.exists()
         payload = json.loads(task_path.read_text(encoding="utf-8"))
 
@@ -241,7 +241,7 @@ class TestBlockForManualFiles:
         )
 
         payload = json.loads(
-            (tmp_path / "data" / "2026-06-08" / "agent_tasks.json").read_text(
+            (tmp_path / "data" / "2026-06-08" / "agent" / "agent_tasks.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -281,7 +281,7 @@ class TestBlockForManualFiles:
         state2._write_task_list()
 
         payload = json.loads(
-            Path("data/2026-06-09/agent_tasks.json").read_text(encoding="utf-8")
+            Path("data/2026-06-09/agent/agent_tasks.json").read_text(encoding="utf-8")
         )
         # Aggregate: not all "original" (so not "original"), and no "any"
         # in the set, so falls through to "per_task".
@@ -316,7 +316,7 @@ class TestBlockForManualFiles:
         state2._write_task_list()
 
         payload = json.loads(
-            Path("data/2026-06-10/agent_tasks.json").read_text(encoding="utf-8")
+            Path("data/2026-06-10/agent/agent_tasks.json").read_text(encoding="utf-8")
         )
         assert payload["repair_contract"]["synthesis_policy"] == "any"
 

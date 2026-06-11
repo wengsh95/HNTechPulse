@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.models import ContentPackage
+from src.pipeline.paths import pipeline_path
 from src.utils.logger import setup_logger
 
 _CACHE_SCHEMA_VERSION = 11
@@ -80,7 +81,9 @@ class Prefilter:
         content.items = [
             item
             for item in content.items
-            if self._passes_news_gate(decisions.get(str(item.source_id), {}), min_nf, min_nw)
+            if self._passes_news_gate(
+                decisions.get(str(item.source_id), {}), min_nf, min_nw
+            )
         ]
         nw_filtered = before_nw - len(content.items)
         if nw_filtered:
@@ -92,7 +95,10 @@ class Prefilter:
 
         if len(content.items) < target_count:
             self._backfill_after_newsworthiness(
-                content, decisions, original_items=original_items, target_count=target_count
+                content,
+                decisions,
+                original_items=original_items,
+                target_count=target_count,
             )
 
         # Sort by news-first editorial score; tiebreaker: HN score.
@@ -124,13 +130,14 @@ class Prefilter:
         )
 
     @staticmethod
-    def _passes_news_gate(decision: dict, min_news_focus: int, min_newsworthiness: int) -> bool:
+    def _passes_news_gate(
+        decision: dict, min_news_focus: int, min_newsworthiness: int
+    ) -> bool:
         if not decision.get("keep"):
             return False
-        return (
-            (decision.get("news_focus") or 0) >= min_news_focus
-            and (decision.get("newsworthiness") or 0) >= min_newsworthiness
-        )
+        return (decision.get("news_focus") or 0) >= min_news_focus and (
+            decision.get("newsworthiness") or 0
+        ) >= min_newsworthiness
 
     def _apply_editorial_signals(self, items, decisions: dict) -> None:
         weights = self._score_weights()
@@ -322,7 +329,7 @@ class Prefilter:
         return hashlib.sha256(encoded).hexdigest()[:16]
 
     def _load_cache(self, date: str, expected_meta: dict[str, Any]):
-        cache_path = Path(f"data/{date}/prefilter.json")
+        cache_path = pipeline_path(date, "prefilter.json")
         if not cache_path.exists():
             return None
         try:
@@ -345,7 +352,7 @@ class Prefilter:
             return None
 
     def _save_cache(self, date: str, decisions: dict, meta: dict[str, Any]):
-        cache_path = Path(f"data/{date}/prefilter.json")
+        cache_path = pipeline_path(date, "prefilter.json")
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         kept = sum(1 for d in decisions.values() if d.get("keep"))
         data = {

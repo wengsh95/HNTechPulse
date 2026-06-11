@@ -20,7 +20,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
-from src.utils.text import normalize_cjk_mixed_spacing  # noqa: E402
+from src.pipeline.paths import (  # noqa: E402
+    agent_path,
+    date_root,
+    media_path,
+    pipeline_path,
+    publish_path,
+    raw_downloaded_pages_dir,
+)
 
 
 def _default_date() -> str:
@@ -40,32 +47,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 def _format_mmss(seconds: float | int | None) -> str:
     total = max(0, int(round(float(seconds or 0))))
     return f"{total // 60:02d}:{total % 60:02d}"
-
-
-def _script_runtime_payload(script_data: dict[str, Any]) -> dict[str, Any]:
-    chapters = []
-    for segment in script_data.get("segments") or []:
-        if not isinstance(segment, dict):
-            continue
-        label = {
-            "opening": "开场",
-            "story_scan": "逐条速览",
-            "closing": "收尾",
-        }.get(segment.get("segment_type"), segment.get("segment_type"))
-        chapters.append(
-            {
-                "start": _format_mmss(segment.get("start_time")),
-                "end": _format_mmss(segment.get("end_time")),
-                "label": label,
-                "summary": normalize_cjk_mixed_spacing(
-                    segment.get("audio_text") or ""
-                )[:90],
-            }
-        )
-    return {
-        "total_duration": _format_mmss(script_data.get("total_duration")),
-        "chapters": chapters,
-    }
 
 
 def _scripts_semantically_equal(variant_path: Path, promoted_path: Path) -> bool:
@@ -88,9 +69,7 @@ def _scripts_semantically_equal(variant_path: Path, promoted_path: Path) -> bool
         """Recursively drop timing keys from dicts; pass lists/tuples through."""
         if isinstance(obj, dict):
             return {
-                k: _strip_timing(v)
-                for k, v in obj.items()
-                if k not in _TIMING_KEYS
+                k: _strip_timing(v) for k, v in obj.items() if k not in _TIMING_KEYS
             }
         if isinstance(obj, list):
             return [_strip_timing(v) for v in obj]
@@ -154,7 +133,7 @@ def _publish_guide_context(
     script_data = _read_json(script_path)
     if not isinstance(content_data, dict) or not isinstance(script_data, dict):
         return None
-    title_data = _read_json(content_path.parent / "title.json")
+    title_data = _read_json(publish_path(date, "title.json"))
     if not isinstance(title_data, dict):
         title_data = {}
     items_payload = []
@@ -179,9 +158,6 @@ def _publish_guide_context(
         "script_description": title_data.get("description")
         or script_data.get("description")
         or "",
-        "script_runtime": json.dumps(
-            _script_runtime_payload(script_data), ensure_ascii=False, indent=2
-        ),
         "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
         "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
         "date": date,
@@ -191,13 +167,13 @@ def _publish_guide_context(
 def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     required = {
-        "content": base / "content.json",
-        "script": base / "script.json",
+        "content": pipeline_path(date, "content.json"),
+        "script": pipeline_path(date, "script.json"),
     }
     optional_publish = {
-        "title": base / "title.json",
-        "cover_props": base / "cover_props.json",
-        "publish_guide": base / "publish_guide.md",
+        "title": publish_path(date, "title.json"),
+        "cover_props": media_path(date, "cover_props.json"),
+        "publish_guide": publish_path(date, "publish_guide.md"),
     }
 
     for name, path in required.items():
@@ -310,7 +286,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "warning",
                 "pipeline_state_exists",
                 "pipeline_state.json is missing or unreadable.",
-                path=Path(f"data/{date}/pipeline_state.json"),
+                path=agent_path(date, "pipeline_state.json"),
                 recommendation=f"uv run python scripts/agent_run.py --date {date}",
             )
         ]
@@ -320,10 +296,10 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
         blocked_reason = state.get("blocked_reason")
         why_msg = {
             "manual_download_required": (
-                "Pipeline is waiting on article source files in data/{date}/downloaded_pages/. "
+                f"Pipeline is waiting on article source files in {raw_downloaded_pages_dir(date)}/. "
                 "The save_as.html path for each pending task is in agent_tasks.json — "
                 "fetch and save there, then resume."
-            ).format(date=date),
+            ),
             "missing_credentials": (
                 "An env var required by the LLM / TTS / image generator provider is unset. "
                 "Check the .env file or shell environment."
@@ -338,7 +314,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
             ),
             "low_decision_confidence": (
                 "Source-context or script-quality confidence was below the configured threshold. "
-                "Inspect data/{date}/agent_decision.json scores and repair the weak input."
+                f"Inspect {agent_path(date, 'agent_decision.json')} scores and repair the weak input."
             ),
             "human_review_required": (
                 "Decision layer requires human review before continuing. "
@@ -359,7 +335,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "error",
                 "pipeline_state_status",
                 f"Pipeline state is {status} ({blocked_reason or 'no reason'}).",
-                path=Path(f"data/{date}/pipeline_state.json"),
+                path=agent_path(date, "pipeline_state.json"),
                 recommendation=state.get("next_recommended_command"),
                 why=why_msg,
                 fixable_by_agent=is_fixable,
@@ -371,12 +347,12 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "warning",
                 "pipeline_state_status",
                 "Pipeline completed with degraded items.",
-                path=Path(f"data/{date}/pipeline_state.json"),
+                path=agent_path(date, "pipeline_state.json"),
                 why=(
                     "Some items were enriched with degraded source context "
                     "(incomplete article body or missing images). Script was "
-                    "still produced; review data/{date}/degraded_items before publish."
-                ).format(date=date),
+                    f"still produced; review data/{date}/degraded_items before publish."
+                ),
             )
         ]
     if status != "complete":
@@ -385,14 +361,15 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "warning",
                 "pipeline_state_status",
                 f"Pipeline state is {status or 'unknown'}.",
-                path=Path(f"data/{date}/pipeline_state.json"),
+                path=agent_path(date, "pipeline_state.json"),
             )
         ]
     return state, []
 
 
-def _decision_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    decision = _read_json(base / "agent_decision.json")
+def _decision_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    decision_path = agent_path(date, "agent_decision.json")
+    decision = _read_json(decision_path)
     issues: list[dict[str, Any]] = []
     if not decision:
         issues.append(
@@ -400,7 +377,7 @@ def _decision_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, A
                 "warning",
                 "agent_decision_exists",
                 "agent_decision.json is missing or unreadable.",
-                path=base / "agent_decision.json",
+                path=decision_path,
             )
         )
         return None, issues
@@ -410,15 +387,18 @@ def _decision_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, A
                 "error",
                 "agent_decision_status",
                 f"Agent decision status is {decision.get('status')}.",
-                path=base / "agent_decision.json",
+                path=decision_path,
                 recommendation=decision.get("blocked_reason"),
             )
         )
     return decision, issues
 
 
-def _variant_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    decision = _read_json(base / "agent_variant_decision.json")
+def _variant_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    from src.pipeline.paths import pipeline_path, pipeline_variants_root
+
+    decision_path = agent_path(date, "agent_variant_decision.json")
+    decision = _read_json(decision_path)
     issues: list[dict[str, Any]] = []
     if not decision:
         issues.append(
@@ -426,21 +406,21 @@ def _variant_check(base: Path) -> tuple[dict[str, Any] | None, list[dict[str, An
                 "warning",
                 "variant_decision_exists",
                 "agent_variant_decision.json is missing or unreadable.",
-                path=base / "agent_variant_decision.json",
+                path=decision_path,
             )
         )
         return None, issues
 
     selected = decision.get("selected_variant")
-    selected_script = base / "variants" / str(selected) / "script.json"
-    promoted_script = base / "script.json"
+    selected_script = pipeline_variants_root(date) / str(selected) / "script.json"
+    promoted_script = pipeline_path(date, "script.json")
     if decision.get("status") != "continue":
         issues.append(
             _issue(
                 "error",
                 "variant_decision_status",
                 f"Variant decision status is {decision.get('status')}.",
-                path=base / "agent_variant_decision.json",
+                path=decision_path,
                 recommendation=decision.get("blocked_reason"),
             )
         )
@@ -503,7 +483,10 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
     # Optional-publish step ordering: title depends on the script; cover depends
     # on title; publish_guide depends on title. Run them in this order.
     publish_step_for_check = {
-        "title_exists": ("title", "Title.json is missing — generate it from script.json."),
+        "title_exists": (
+            "title",
+            "Title.json is missing — generate it from script.json.",
+        ),
         "cover_props_exists": (
             "cover_image",
             "Cover image not yet generated — needs the title to drive cover_prompt.",
@@ -539,17 +522,13 @@ def _summarize_blocks(issues: list[dict[str, Any]]) -> dict[str, Any]:
 
     Saves the agent from reading every issue when the answer is a single number.
     """
-    agent_fixable = [
-        i for i in issues
-        if i.get("fixable_by_agent") is True
-    ]
-    needs_human = [
-        i for i in issues
-        if i.get("fixable_by_agent") is False
-    ]
+    agent_fixable = [i for i in issues if i.get("fixable_by_agent") is True]
+    needs_human = [i for i in issues if i.get("fixable_by_agent") is False]
     unknown = [
-        i for i in issues
-        if i.get("fixable_by_agent") is None and i.get("severity") in {"error", "warning"}
+        i
+        for i in issues
+        if i.get("fixable_by_agent") is None
+        and i.get("severity") in {"error", "warning"}
     ]
 
     def _short(item: dict[str, Any]) -> str:
@@ -565,24 +544,24 @@ def _summarize_blocks(issues: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def audit(date: str) -> dict[str, Any]:
-    base = Path(f"data/{date}")
+    base = date_root(date)
     issues: list[dict[str, Any]] = []
 
     state, state_issues = _state_check(date)
     issues.extend(state_issues)
-    decision, decision_issues = _decision_check(base)
+    decision, decision_issues = _decision_check(date)
     issues.extend(decision_issues)
-    variant_decision, variant_issues = _variant_check(base)
+    variant_decision, variant_issues = _variant_check(date)
     issues.extend(variant_issues)
     issues.extend(_artifact_check(date, base))
     issues.extend(
         _manifest_check(
             [
-                base / "content.json",
-                base / "script.json",
-                base / "title.json",
-                base / "cover_props.json",
-                base / "publish_guide.md",
+                pipeline_path(date, "content.json"),
+                pipeline_path(date, "script.json"),
+                publish_path(date, "title.json"),
+                media_path(date, "cover_props.json"),
+                publish_path(date, "publish_guide.md"),
             ]
         )
     )

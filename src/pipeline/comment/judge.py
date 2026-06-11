@@ -15,8 +15,8 @@ from src.pipeline.comment.text import clean_comment_text
 from src.pipeline.comment.scoring import compute_comment_quality
 from src.pipeline.comment.selection import (
     select_discussion_profile_comments,
-    select_judge_candidate_comments,
 )
+from src.pipeline.paths import pipeline_path
 from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 
@@ -238,7 +238,7 @@ class CommentAnalyzer:
             self.logger.info("Analyze step disabled, skipping")
             return content
 
-        cache_path = Path(f"data/{date}/comment_analysis.json")
+        cache_path = pipeline_path(date, "comment_analysis.json")
         if cache_path.exists():
             self.logger.info(f"Loading analysis from cache: {cache_path}")
             self._load_from_cache(content, cache_path)
@@ -416,7 +416,7 @@ class CommentJudge:
         ]
         if not missing:
             self.logger.info(
-                f"Loading comment judgements from cache: data/{date}/comment_judgement.json"
+                f"Loading comment judgements from cache: {pipeline_path(date, 'comment_judgement.json')}"
             )
             return stories
 
@@ -471,9 +471,7 @@ class CommentJudge:
         )
         normalized = normalize_story_judgement(result, item)
         candidate_count = len(normalized.get("quote_candidates", []) or [])
-        self.logger.info(
-            f"  {label}: done, candidates={candidate_count}"
-        )
+        self.logger.info(f"  {label}: done, candidates={candidate_count}")
         return comment_judgement_key(item), normalized
 
     def _judge_serial(self, content, date, missing, stories) -> None:
@@ -579,7 +577,7 @@ class CommentJudge:
 
 
 def judgement_cache_path(date: str) -> Path:
-    return Path(f"data/{date}/comment_judgement.json")
+    return pipeline_path(date, "comment_judgement.json")
 
 
 def comment_judgement_key(item: ContentItem) -> str:

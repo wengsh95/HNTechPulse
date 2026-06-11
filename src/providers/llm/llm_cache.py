@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.models import ScriptSegment, SceneElement
+from src.pipeline.paths import pipeline_segments_dir
 from src.utils.atomic_io import atomic_write_json
 
 
@@ -17,7 +18,7 @@ class LLMCache:
     def get_segment_cache_path(
         self, date: str, segment_type: str, story_index: int
     ) -> Path:
-        cache_dir = Path(f"data/{date}/segments")
+        cache_dir = pipeline_segments_dir(date)
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{segment_type}_{story_index}.json"
 
@@ -127,7 +128,7 @@ class LLMCache:
     # ── Generic dict cache (used by translation steps) ────────────
 
     def _dict_cache_path(self, date: str, kind: str) -> Path:
-        cache_dir = Path(f"data/{date}/segments")
+        cache_dir = pipeline_segments_dir(date)
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"translation_{kind}.json"
 

@@ -36,6 +36,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.interfaces import Renderer
 from src.core.models import Script
+from src.pipeline.paths import (
+    date_root,
+    media_images_dir,
+    render_path,
+    render_remotion_dir,
+)
 from src.providers.renderer.binary_finder import (
     find_ffmpeg,
     find_node,
@@ -174,7 +180,7 @@ class HyperFramesRenderer(Renderer):
         # scene_elements with start_time=0.0 end_time=0.0 which we'd filter out.
         self._ensure_scene_element_times(script)
 
-        out_root = Path("data") / date / self.output_subdir
+        out_root = date_root(date) / self.output_subdir
         self._clean(out_root)
         (out_root / "compositions").mkdir(parents=True, exist_ok=True)
         (out_root / "public" / "audio").mkdir(parents=True, exist_ok=True)
@@ -242,7 +248,7 @@ class HyperFramesRenderer(Renderer):
             scenes_payload["cli_props"], ensure_ascii=False, indent=2
         )
         cli_path.write_text(cli_props_json, encoding="utf-8")
-        canonical_cli_path = Path("data") / date / "cli_props.json"
+        canonical_cli_path = render_path(date, "cli_props.json")
         canonical_cli_path.parent.mkdir(parents=True, exist_ok=True)
         canonical_cli_path.write_text(cli_props_json, encoding="utf-8")
 
@@ -279,7 +285,7 @@ class HyperFramesRenderer(Renderer):
         if not date:
             raise ValueError("HyperFramesRenderer.render requires a date string")
 
-        out_root = Path("data") / date / self.output_subdir
+        out_root = date_root(date) / self.output_subdir
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
         if output_file.exists():
@@ -607,7 +613,9 @@ class HyperFramesRenderer(Renderer):
             return
         if not self._ffmpeg_path or not output_file.exists():
             return
-        tmp = output_file.with_name(f"{output_file.stem}.audio-normalized{output_file.suffix}")
+        tmp = output_file.with_name(
+            f"{output_file.stem}.audio-normalized{output_file.suffix}"
+        )
         cmd = [
             str(self._ffmpeg_path),
             "-y",
@@ -766,7 +774,7 @@ class HyperFramesRenderer(Renderer):
         if not date:
             raise ValueError("HyperFramesRenderer.preview requires a date string")
 
-        out_root = Path("data") / date / self.output_subdir
+        out_root = date_root(date) / self.output_subdir
         self.write_props(script, audio_dir, content, date=date)
         self.logger.info(f"Starting HyperFrames preview on port {self.preview_port}...")
         self.logger.info("Press Ctrl+C to stop.")
@@ -805,8 +813,8 @@ class HyperFramesRenderer(Renderer):
     def cache_paths(self, date: str) -> List[Path]:
         if not date:
             return []
-        root = Path("data") / date / self.output_subdir
-        cache_root = Path("data") / date / self.cache_subdir
+        root = date_root(date) / self.output_subdir
+        cache_root = date_root(date) / self.cache_subdir
         # write_props() rebuilds the runtime project, while the chunk cache
         # survives ordinary prepare/render cycles. --force clears both.
         return [root, cache_root]
@@ -828,7 +836,7 @@ class HyperFramesRenderer(Renderer):
     def _chunk_cache_root(self, date: str) -> Path:
         if not date:
             raise ValueError("HyperFramesRenderer requires a date for chunk cache")
-        return Path("data") / date / self.cache_subdir / "chunks"
+        return date_root(date) / self.cache_subdir / "chunks"
 
     def _build_chunk_cache_manifest(
         self,
@@ -953,7 +961,7 @@ class HyperFramesRenderer(Renderer):
                 return None
             src = Path(p)
             if not src.is_absolute():
-                src = Path(f"data/{date}") / p
+                src = date_root(date) / p
             return src if src.exists() else None
 
         for item in getattr(content, "items", []) or []:
@@ -996,13 +1004,13 @@ class HyperFramesRenderer(Renderer):
             if date:
                 paths.extend(
                     [
-                        Path("data") / date / src,
-                        Path("data") / date / "images" / name,
+                        date_root(date) / src,
+                        media_images_dir(date) / name,
                     ]
                 )
             paths.append(self.project_dir / "public" / "images" / name)
             # Per-date Remotion runtime dir is where audio/images now live.
-            paths.append(Path("data") / date / "remotion" / "public" / "images" / name)
+            paths.append(render_remotion_dir(date) / "public" / "images" / name)
             return paths
 
         for scene in scenes_payload.get("scenes", []):

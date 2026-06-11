@@ -88,27 +88,75 @@ def _make_scenes_payload():
         "totalDuration": 30.0,
         "scenes": [
             # 0-5s: opening
-            {"comp_id": "cover-card", "comp_src": "compositions/cover.html",
-             "start": 0.0, "duration": 5.0, "track_index": 0, "element_type": "cover_card",
-             "variables": {"headline": "hi"}, "raw_props": {}},
+            {
+                "comp_id": "cover-card",
+                "comp_src": "compositions/cover.html",
+                "start": 0.0,
+                "duration": 5.0,
+                "track_index": 0,
+                "element_type": "cover_card",
+                "variables": {"headline": "hi"},
+                "raw_props": {},
+            },
             # 5-15s: story 0
-            {"comp_id": "event-card", "comp_src": "compositions/event.html",
-             "start": 5.0, "duration": 10.0, "track_index": 1, "element_type": "event_card",
-             "variables": {"title": "A"}, "raw_props": {}},
+            {
+                "comp_id": "event-card",
+                "comp_src": "compositions/event.html",
+                "start": 5.0,
+                "duration": 10.0,
+                "track_index": 1,
+                "element_type": "event_card",
+                "variables": {"title": "A"},
+                "raw_props": {},
+            },
             # 15-25s: story 1
-            {"comp_id": "event-card", "comp_src": "compositions/event.html",
-             "start": 15.0, "duration": 10.0, "track_index": 2, "element_type": "event_card",
-             "variables": {"title": "B"}, "raw_props": {}},
+            {
+                "comp_id": "event-card",
+                "comp_src": "compositions/event.html",
+                "start": 15.0,
+                "duration": 10.0,
+                "track_index": 2,
+                "element_type": "event_card",
+                "variables": {"title": "B"},
+                "raw_props": {},
+            },
             # 25-30s: closing
-            {"comp_id": "closing-card", "comp_src": "compositions/closing.html",
-             "start": 25.0, "duration": 5.0, "track_index": 3, "element_type": "closing_card",
-             "variables": {}, "raw_props": {}},
+            {
+                "comp_id": "closing-card",
+                "comp_src": "compositions/closing.html",
+                "start": 25.0,
+                "duration": 5.0,
+                "track_index": 3,
+                "element_type": "closing_card",
+                "variables": {},
+                "raw_props": {},
+            },
         ],
         "audio_tracks": [
-            {"src": "public/audio/opening.mp3", "start": 0.0, "duration": 5.0, "track_index": 1000},
-            {"src": "public/audio/story_0.mp3", "start": 5.0, "duration": 10.0, "track_index": 1001},
-            {"src": "public/audio/story_1.mp3", "start": 15.0, "duration": 10.0, "track_index": 1002},
-            {"src": "public/audio/closing.mp3", "start": 25.0, "duration": 5.0, "track_index": 1003},
+            {
+                "src": "public/audio/opening.mp3",
+                "start": 0.0,
+                "duration": 5.0,
+                "track_index": 1000,
+            },
+            {
+                "src": "public/audio/story_0.mp3",
+                "start": 5.0,
+                "duration": 10.0,
+                "track_index": 1001,
+            },
+            {
+                "src": "public/audio/story_1.mp3",
+                "start": 15.0,
+                "duration": 10.0,
+                "track_index": 1002,
+            },
+            {
+                "src": "public/audio/closing.mp3",
+                "start": 25.0,
+                "duration": 5.0,
+                "track_index": 1003,
+            },
         ],
         "cli_props": {"segments": []},
     }
@@ -122,14 +170,34 @@ class TestComputeSegmentChunksSeconds:
         from src.core.models import Script, ScriptSegment
 
         segs = [
-            ScriptSegment(segment_type="opening", audio_text="", duration=5.0,
-                          start_time=0.0, end_time=5.0, scene_elements=[]),
-            ScriptSegment(segment_type="story_scan", audio_text="", duration=20.0,
-                          start_time=5.0, end_time=25.0, scene_elements=[]),
-            ScriptSegment(segment_type="closing", audio_text="", duration=5.0,
-                          start_time=25.0, end_time=30.0, scene_elements=[]),
+            ScriptSegment(
+                segment_type="opening",
+                audio_text="",
+                duration=5.0,
+                start_time=0.0,
+                end_time=5.0,
+                scene_elements=[],
+            ),
+            ScriptSegment(
+                segment_type="story_scan",
+                audio_text="",
+                duration=20.0,
+                start_time=5.0,
+                end_time=25.0,
+                scene_elements=[],
+            ),
+            ScriptSegment(
+                segment_type="closing",
+                audio_text="",
+                duration=5.0,
+                start_time=25.0,
+                end_time=30.0,
+                scene_elements=[],
+            ),
         ]
-        script = Script(title="", description="", tags=[], segments=segs, total_duration=30.0)
+        script = Script(
+            title="", description="", tags=[], segments=segs, total_duration=30.0
+        )
         chunks = compute_segment_chunks_seconds(script, 30.0)
         assert chunks == [
             (0.0, 5.0, "opening"),
@@ -141,14 +209,26 @@ class TestComputeSegmentChunksSeconds:
         from src.core.models import Script, ScriptSegment, SceneElement
 
         elements = [
-            SceneElement(element_type="event_card", start_time=0.0, end_time=4.0, props={}),
-            SceneElement(element_type="atmosphere_card", start_time=4.0, end_time=8.0, props={}),
+            SceneElement(
+                element_type="event_card", start_time=0.0, end_time=4.0, props={}
+            ),
+            SceneElement(
+                element_type="atmosphere_card", start_time=4.0, end_time=8.0, props={}
+            ),
         ]
         segs = [
-            ScriptSegment(segment_type="story_scan", audio_text="", duration=8.0,
-                          start_time=5.0, end_time=13.0, scene_elements=elements),
+            ScriptSegment(
+                segment_type="story_scan",
+                audio_text="",
+                duration=8.0,
+                start_time=5.0,
+                end_time=13.0,
+                scene_elements=elements,
+            ),
         ]
-        script = Script(title="", description="", tags=[], segments=segs, total_duration=13.0)
+        script = Script(
+            title="", description="", tags=[], segments=segs, total_duration=13.0
+        )
         chunks = compute_segment_chunks_seconds(script, 13.0)
         assert chunks == [
             (5.0, 9.0, "story_0"),
@@ -158,7 +238,9 @@ class TestComputeSegmentChunksSeconds:
     def test_empty_script(self):
         from src.core.models import Script
 
-        script = Script(title="", description="", tags=[], segments=[], total_duration=0.0)
+        script = Script(
+            title="", description="", tags=[], segments=[], total_duration=0.0
+        )
         chunks = compute_segment_chunks_seconds(script, 0.0)
         assert chunks == []
 
@@ -166,12 +248,26 @@ class TestComputeSegmentChunksSeconds:
         from src.core.models import Script, ScriptSegment
 
         segs = [
-            ScriptSegment(segment_type="opening", audio_text="", duration=5.0,
-                          start_time=0.0, end_time=5.0, scene_elements=[]),
-            ScriptSegment(segment_type="closing", audio_text="", duration=4.9,
-                          start_time=5.0, end_time=9.9, scene_elements=[]),
+            ScriptSegment(
+                segment_type="opening",
+                audio_text="",
+                duration=5.0,
+                start_time=0.0,
+                end_time=5.0,
+                scene_elements=[],
+            ),
+            ScriptSegment(
+                segment_type="closing",
+                audio_text="",
+                duration=4.9,
+                start_time=5.0,
+                end_time=9.9,
+                scene_elements=[],
+            ),
         ]
-        script = Script(title="", description="", tags=[], segments=segs, total_duration=10.0)
+        script = Script(
+            title="", description="", tags=[], segments=segs, total_duration=10.0
+        )
         chunks = compute_segment_chunks_seconds(script, 10.0)
         # Last chunk extends from 5.0 all the way to 10.0
         assert chunks[-1] == (5.0, 10.0, "closing")
@@ -387,15 +483,17 @@ class TestChunkCacheLogic:
         )
 
         # Build prepared list (the way _render_chunked does internally)
-        prepared = [{
-            "idx": 0,
-            "start_sec": 0.0,
-            "end_sec": 5.0,
-            "label": "opening",
-            "subdir": chunk_subdir,
-            "chunk_file": existing,
-            "partial_file": chunk_subdir / "chunk.partial.mp4",
-        }]
+        prepared = [
+            {
+                "idx": 0,
+                "start_sec": 0.0,
+                "end_sec": 5.0,
+                "label": "opening",
+                "subdir": chunk_subdir,
+                "chunk_file": existing,
+                "partial_file": chunk_subdir / "chunk.partial.mp4",
+            }
+        ]
 
         # Replicate the cache-check branch
         pending = []
@@ -482,7 +580,9 @@ class TestSingleShotFallback:
         monkeypatch.setattr(r, "_render_single", fake_single)
         monkeypatch.setattr(r, "_render_chunked", fake_chunked)
         # Bypass write_props to keep test isolated
-        monkeypatch.setattr(r, "write_props", lambda *a, **kw: (Path("/tmp/i.html"), ""))
+        monkeypatch.setattr(
+            r, "write_props", lambda *a, **kw: (Path("/tmp/i.html"), "")
+        )
         monkeypatch.setattr(
             "src.providers.renderer.hyperframes_renderer.script_to_hyperframes_scenes",
             lambda *a, **kw: _make_scenes_payload(),
@@ -491,12 +591,26 @@ class TestSingleShotFallback:
         from src.core.models import Script, ScriptSegment
 
         segs = [
-            ScriptSegment(segment_type="opening", audio_text="", duration=5.0,
-                          start_time=0.0, end_time=5.0, scene_elements=[]),
-            ScriptSegment(segment_type="closing", audio_text="", duration=5.0,
-                          start_time=5.0, end_time=10.0, scene_elements=[]),
+            ScriptSegment(
+                segment_type="opening",
+                audio_text="",
+                duration=5.0,
+                start_time=0.0,
+                end_time=5.0,
+                scene_elements=[],
+            ),
+            ScriptSegment(
+                segment_type="closing",
+                audio_text="",
+                duration=5.0,
+                start_time=5.0,
+                end_time=10.0,
+                scene_elements=[],
+            ),
         ]
-        script = Script(title="", description="", tags=[], segments=segs, total_duration=10.0)
+        script = Script(
+            title="", description="", tags=[], segments=segs, total_duration=10.0
+        )
 
         out = Path("/tmp/out.mp4")
         if out.exists():
@@ -510,9 +624,13 @@ class TestSingleShotFallback:
         r = _make_renderer(resume_enabled=True)
         calls = []
 
-        monkeypatch.setattr(r, "_render_single", lambda *a, **kw: calls.append("single"))
+        monkeypatch.setattr(
+            r, "_render_single", lambda *a, **kw: calls.append("single")
+        )
         monkeypatch.setattr(r, "_render_chunked", lambda **kw: calls.append("chunked"))
-        monkeypatch.setattr(r, "write_props", lambda *a, **kw: (Path("/tmp/i.html"), ""))
+        monkeypatch.setattr(
+            r, "write_props", lambda *a, **kw: (Path("/tmp/i.html"), "")
+        )
         monkeypatch.setattr(
             "src.providers.renderer.hyperframes_renderer.script_to_hyperframes_scenes",
             lambda *a, **kw: _make_scenes_payload(),
@@ -522,10 +640,18 @@ class TestSingleShotFallback:
 
         # Only one segment → one chunk → should fall back to single
         segs = [
-            ScriptSegment(segment_type="opening", audio_text="", duration=10.0,
-                          start_time=0.0, end_time=10.0, scene_elements=[]),
+            ScriptSegment(
+                segment_type="opening",
+                audio_text="",
+                duration=10.0,
+                start_time=0.0,
+                end_time=10.0,
+                scene_elements=[],
+            ),
         ]
-        script = Script(title="", description="", tags=[], segments=segs, total_duration=10.0)
+        script = Script(
+            title="", description="", tags=[], segments=segs, total_duration=10.0
+        )
 
         r.render(script, "audio", "/tmp/out.mp4", date="2026-06-07")
         assert calls == ["single"]
@@ -578,7 +704,7 @@ class TestWriteChunkProject:
 
         # index.html references only this chunk's scenes
         html = (chunk_subdir / "index.html").read_text(encoding="utf-8")
-        assert "id=\"host-0\"" in html  # at least one scene card host
+        assert 'id="host-0"' in html  # at least one scene card host
         assert "story_0.mp3" in html
         assert "story_1.mp3" not in html
 
@@ -620,7 +746,7 @@ class TestWriteProps:
         )
 
         project_cli = index_path.parent / "data" / "cli_props.json"
-        canonical_cli = tmp_path / "data" / "2026-06-09" / "cli_props.json"
+        canonical_cli = tmp_path / "data" / "2026-06-09" / "render" / "cli_props.json"
         assert project_cli.exists()
         assert canonical_cli.exists()
         assert project_cli.read_text(encoding="utf-8") == canonical_cli.read_text(

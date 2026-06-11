@@ -83,7 +83,7 @@ class TestAnalyze:
         content = _make_content_package([item])
 
         # Create cache
-        cache_path = Path("data/2026-04-26/comment_analysis.json")
+        cache_path = Path("data/2026-04-26/pipeline/comment_analysis.json")
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_data = {
             "schema_version": ANALYSIS_SCHEMA_VERSION,

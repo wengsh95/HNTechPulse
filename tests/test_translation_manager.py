@@ -120,7 +120,9 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
             )
         ],
     )
-    judgement_path = tmp_path / "data" / "2026-05-11" / "comment_judgement.json"
+    judgement_path = (
+        tmp_path / "data" / "2026-05-11" / "pipeline" / "comment_judgement.json"
+    )
     judgement_path.parent.mkdir(parents=True)
     judgement_path.write_text(
         """

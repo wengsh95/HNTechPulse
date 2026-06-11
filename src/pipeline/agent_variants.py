@@ -9,11 +9,12 @@ from typing import Any
 
 from src.core.models import Script
 from src.pipeline.agent_io import append_agent_event, utc_now
+from src.pipeline.paths import agent_path, pipeline_path, pipeline_variants_root
 from src.utils.atomic_io import atomic_write_json
 
 
 def variants_root(date: str) -> Path:
-    return Path(f"data/{date}/variants")
+    return pipeline_variants_root(date)
 
 
 def variant_dir(date: str, variant_id: str) -> Path:
@@ -123,7 +124,7 @@ def write_selected_variant(
     *,
     decision: dict[str, Any] | None = None,
 ) -> Path:
-    path = Path(f"data/{date}/selected_variant.json")
+    path = agent_path(date, "selected_variant.json")
     atomic_write_json(
         path,
         {
@@ -216,7 +217,7 @@ def promote_variant_script(date: str, variant_id: str) -> Script:
     src = variant_dir(date, variant_id) / "script.json"
     if not src.exists():
         raise FileNotFoundError(f"Variant script not found: {src}")
-    dest = Path(f"data/{date}/script.json")
+    dest = pipeline_path(date, "script.json")
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
     from src.pipeline.script.io import load_script as _load_script

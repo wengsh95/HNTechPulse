@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from src.core.interfaces import LLMProvider
 from src.pipeline.content_io import ContentPreparer
@@ -8,6 +7,7 @@ from src.pipeline.comment import (
     comment_key,
     select_quote_comments,
 )
+from src.pipeline.paths import pipeline_path
 from src.pipeline.comment import (
     comment_judgement_key,
     load_comment_judgements,
@@ -70,7 +70,7 @@ class TranslationManager:
         at render time (one per stance per story, deduplicated against the
         atmosphere card's selected_comment_ids).
         """
-        translations_path = Path(f"data/{date}/translations.json")
+        translations_path = pipeline_path(date, "translations.json")
         translations: dict = {}
         # Load judgements once and pass to all helpers — avoids 4× re-reads.
         judgements = load_comment_judgements(content.date)

@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.pipeline.paths import (
+    media_path,
+    publish_path,
+    render_remotion_dir,
+)
 from src.providers.renderer.binary_finder import find_npx
 from src.utils.atomic_io import atomic_write_json
 
@@ -74,13 +79,16 @@ def refresh_cover(
         raise ValueError(
             f"Unknown cover template {template!r}; choose from {COVER_TEMPLATES}"
         )
-    base = ROOT / "data" / date
-    title_path = base / "title.json"
-    bg_path = base / "cover_bg.png"
-    props_path = base / (
-        f"cover_props.{template}.json" if variant_output else "cover_props.json"
-    )
-    cover_path = base / (f"cover_{template}.png" if variant_output else "cover.png")
+    title_path = publish_path(date, "title.json")
+    bg_path = media_path(date, "cover_bg.png")
+    if variant_output:
+        from src.pipeline.paths import media_root
+
+        props_path = media_root(date) / f"cover_props.{template}.json"
+        cover_path = media_root(date) / f"cover_{template}.png"
+    else:
+        props_path = media_path(date, "cover_props.json")
+        cover_path = media_path(date, "cover.png")
 
     if not title_path.exists():
         raise FileNotFoundError(f"Missing title metadata: {title_path}")
@@ -102,7 +110,7 @@ def refresh_cover(
     }
     atomic_write_json(props_path, props)
 
-    public_bg = base / "remotion" / "public" / bg_path.name
+    public_bg = render_remotion_dir(date) / "public" / bg_path.name
     public_bg.parent.mkdir(parents=True, exist_ok=True)
     try:
         same_file = public_bg.samefile(bg_path)
@@ -126,7 +134,7 @@ def refresh_cover(
         f"--props={props_path.resolve()}",
         "--frame=0",
         f"--output={cover_path.resolve()}",
-        f"--public-dir={(base / 'remotion' / 'public').resolve()}",
+        f"--public-dir={(render_remotion_dir(date) / 'public').resolve()}",
     ]
     result = subprocess.run(
         cmd,

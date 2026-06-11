@@ -20,6 +20,7 @@ from main import (
 )
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.orchestrator import Orchestrator
+from src.pipeline.paths import publish_path
 from src.pipeline.script import ScriptWriter
 from src.providers.enricher.article_enricher import ArticleEnricher
 from src.utils.config import load_config
@@ -79,7 +80,7 @@ def main() -> int:
     script_writer = ScriptWriter(config, llm_provider, content_preparer)
     script = script_writer.load_script(args.date)
     if args.refresh_title:
-        title_path = ROOT / "data" / args.date / "title.json"
+        title_path = publish_path(args.date, "title.json")
         if title_path.exists():
             title_path.unlink()
     orchestrator._timing.compute_timeline(script)

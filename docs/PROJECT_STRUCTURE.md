@@ -151,8 +151,8 @@ strategies:
 - `discussion`
 - `source_grounded`
 
-Agent mode writes variants under `data/{date}/variants/`, selects one, and
-promotes the selected output to `data/{date}/script.json`.
+Agent mode writes variants under `data/{date}/pipeline/variants/`, selects one, and
+promotes the selected output to `data/{date}/pipeline/script.json`.
 
 ## Comment Pipeline
 
@@ -179,7 +179,8 @@ not independently reselect comments.
 `支持 / 质疑 / 中立` distributions over all fetched comments. Training labels
 are generated once with the configured LLM via
 `scripts/train_comment_stance.py`; local reports are written to
-`data/{date}/stance_distribution.local.json`. See
+`data/{date}/stance_distribution.local.json` (a user-side training artifact,
+not part of the new bucket layout). See
 [Comment Stance Classifier](comment_stance_classifier.md) for the current
 findings and training strategy.
 
@@ -275,57 +276,67 @@ uv run python scripts/quality_check.py
 
 ## Date-Scoped Artifacts
 
-Most runtime outputs live under:
+Most runtime outputs live under `data/{date}/`, grouped by lifecycle into
+buckets. All path literals go through [src/pipeline/paths.py](../src/pipeline/paths.py).
 
 ```text
 data/{date}/
+|-- raw/         raw_stories.json, downloaded_pages/
+|-- pipeline/    prefilter, enrichment, content, comment_*, script,
+|                segments/, variants/, audio/
+|-- media/       images/, cover_bg.png, cover.png, cover_props.json
+|-- render/      remotion/{chunks,public}/, cli_props.json
+|-- publish/     output.mp4, title.json, transcript.md, publish_guide.md
+|-- agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
+|                agent_events.jsonl, selected_variant.json, report.md
+`-- outputs/     (organize_outputs.py mirror — unchanged)
 ```
 
 Common pipeline artifacts:
 
 ```text
-content.json
-script.json
-title.json
-cover_props.json
-publish_guide.md
+pipeline/content.json
+pipeline/script.json
+publish/title.json
+media/cover_props.json
+publish/publish_guide.md
 ```
 
 Agent artifacts:
 
 ```text
-pipeline_state.json
-agent_events.jsonl
-agent_tasks.json
-agent_decision.json
-agent_variant_decision.json
-selected_variant.json
-variants/
+agent/pipeline_state.json
+agent/agent_events.jsonl
+agent/agent_tasks.json
+agent/agent_decision.json
+agent/agent_variant_decision.json
+agent/selected_variant.json
+pipeline/variants/
 ```
 
 Variant artifacts:
 
 ```text
-variants/index.json
-variants/selection_brief.md
-variants/{variant_id}/script.json
-variants/{variant_id}/scorecard.json
+pipeline/variants/index.json
+pipeline/variants/selection_brief.md
+pipeline/variants/{variant_id}/script.json
+pipeline/variants/{variant_id}/scorecard.json
 ```
 
 Artifact manifests are written next to key outputs:
 
 ```text
-content.json.manifest.json
-script.json.manifest.json
-title.json.manifest.json
-cover_props.json.manifest.json
-publish_guide.md.manifest.json
+pipeline/content.json.manifest.json
+pipeline/script.json.manifest.json
+publish/title.json.manifest.json
+media/cover_props.json.manifest.json
+publish/publish_guide.md.manifest.json
 ```
 
 The Remotion props manifest lives beside the canonical render props file:
 
 ```text
-data/YYYY-MM-DD/cli_props.json.manifest.json
+data/YYYY-MM-DD/render/cli_props.json.manifest.json
 ```
 
 For human review or handoff, mirror the useful deliverables into a tidy

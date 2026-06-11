@@ -20,13 +20,14 @@ if str(ROOT) not in sys.path:
 
 from src.core.models import ContentItem
 from src.pipeline.content_io import ContentPreparer
+from src.pipeline.paths import pipeline_path
 from src.providers.enricher.article_enricher import ArticleEnricher
 from src.providers.factory import create_llm_provider
 from src.utils.config import load_config
 
 
 def _load_enrichment(date: str) -> dict[str, Any]:
-    path = Path("data") / date / "enrichment.json"
+    path = pipeline_path(date, "enrichment.json")
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
@@ -96,10 +97,14 @@ def inspect_dates(
     }
 
     for date in dates:
-        content_path = Path("data") / date / "content.json"
+        content_path = pipeline_path(date, "content.json")
         if not content_path.exists():
             report["items"].append(
-                {"date": date, "status": "missing_content", "content_path": str(content_path)}
+                {
+                    "date": date,
+                    "status": "missing_content",
+                    "content_path": str(content_path),
+                }
             )
             continue
         content = preparer.load_content(date)
@@ -148,7 +153,9 @@ def inspect_dates(
                     "existing_auto": existing_auto,
                     "selected_path": selected_path,
                     "selection_source": selection_source,
-                    "selection_reason": selected.get("selection_reason") if selected else None,
+                    "selection_reason": selected.get("selection_reason")
+                    if selected
+                    else None,
                     "candidates": _candidate_summary(candidates),
                 }
             )
@@ -160,7 +167,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dates", nargs="+", required=True)
     parser.add_argument("--config", default="config/")
-    parser.add_argument("--limit", type=int, default=None, help="Max selectable items per date")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Max selectable items per date"
+    )
     parser.add_argument("--source-ids", nargs="*", default=None)
     parser.add_argument("--output", default=None, help="Optional report JSON path")
     args = parser.parse_args()

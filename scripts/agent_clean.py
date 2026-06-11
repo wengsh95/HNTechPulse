@@ -16,13 +16,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.pipeline.paths import (  # noqa: E402
+    agent_path,
+    date_root,
+    pipeline_audio_dir,
+    pipeline_path,
+    pipeline_variants_root,
+    publish_path,
+    render_path,
+    render_remotion_dir,
+)
+
 
 def _default_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
 def _date_base(date: str) -> Path:
-    return (Path("data") / date).resolve()
+    return date_root(date).resolve()
 
 
 def _inside_base(path: Path, base: Path) -> bool:
@@ -34,30 +49,33 @@ def _inside_base(path: Path, base: Path) -> bool:
 
 
 def _targets(date: str, scope: str) -> list[Path]:
-    base = Path("data") / date
+    base = date_root(date)
     if scope == "render":
         return [
-            base / "output.mp4",
-            base / "remotion" / "chunks",
-            base / "remotion" / "single.mp4",
+            publish_path(date, "output.mp4"),
+            render_remotion_dir(date) / "chunks",
+            render_remotion_dir(date) / "single.mp4",
             base / "review_stills",
         ]
     if scope == "props":
         return [
-            base / "cli_props.json",
-            base / "cli_props.json.manifest.json",
-            base / "remotion" / "public" / "props.json",
+            render_path(date, "cli_props.json"),
+            render_path(date, "cli_props.json").with_suffix(
+                render_path(date, "cli_props.json").suffix + ".manifest.json"
+            ),
+            render_remotion_dir(date) / "public" / "props.json",
         ]
     if scope == "script":
+        script_path = pipeline_path(date, "script.json")
         return [
-            base / "script.json",
-            base / "script.json.manifest.json",
-            base / "variants",
-            base / "selected_variant.json",
-            base / "agent_variant_decision.json",
+            script_path,
+            script_path.with_suffix(script_path.suffix + ".manifest.json"),
+            pipeline_variants_root(date),
+            agent_path(date, "selected_variant.json"),
+            agent_path(date, "agent_variant_decision.json"),
         ]
     if scope == "tts":
-        return [base / "audio"]
+        return [pipeline_audio_dir(date)]
     raise ValueError(f"Unknown scope: {scope}")
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.core.interfaces import TTSProvider
 from src.core.models import Cue, Script, ScriptSegment
+from src.pipeline.paths import pipeline_audio_dir
 from src.pipeline.timing_engine import TimingEngine
 from src.providers.renderer.binary_finder import find_ffmpeg
 from src.utils.async_helper import run_async
@@ -51,7 +52,7 @@ class TTSProcessor:
         story_scan segments: per-element TTS → concatenate → cues.
         Other segments: one TTS call → Whisper alignment → cues.
         """
-        audio_dir = Path(f"data/{date}/audio")
+        audio_dir = pipeline_audio_dir(date)
         audio_dir.mkdir(parents=True, exist_ok=True)
 
         self._synthesize_segments(script, audio_dir)
@@ -232,7 +233,9 @@ class TTSProcessor:
                 elem = script.segments[job["seg_idx"]].scene_elements[job["elem_idx"]]
                 elem.props["audio_duration"] = duration
             else:
-                simple_info = next(s for s in simple_segs if s["seg_idx"] == job["seg_idx"])
+                simple_info = next(
+                    s for s in simple_segs if s["seg_idx"] == job["seg_idx"]
+                )
                 simple_info["aligned"] = aligned
 
         # Phase 4: finalize segments.

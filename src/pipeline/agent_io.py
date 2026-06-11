@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from src.pipeline.paths import agent_path
 from src.utils.atomic_io import atomic_write_json
 
 
@@ -16,7 +17,7 @@ def utc_now() -> str:
 
 
 def agent_event_path(date: str) -> Path:
-    return Path(f"data/{date}/agent_events.jsonl")
+    return agent_path(date, "agent_events.jsonl")
 
 
 def append_agent_event(date: str, event: str, **payload: Any) -> None:
@@ -32,7 +33,7 @@ def append_agent_event(date: str, event: str, **payload: Any) -> None:
 
 
 def pipeline_state_path(date: str) -> Path:
-    return Path(f"data/{date}/pipeline_state.json")
+    return agent_path(date, "pipeline_state.json")
 
 
 def load_pipeline_state(date: str) -> dict[str, Any] | None:

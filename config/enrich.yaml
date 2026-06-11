@@ -21,11 +21,6 @@ enrich:
   save_fetched_html: true          # Phase 1 抓到的 HTML 是否落盘到 downloaded_pages/
   headless_batch: true             # 单 browser 实例复用来处理多条 headless 抓取
   summary_max_tokens: 8192         # LLM 摘要最大 token 数
-  baidu_search:
-    enabled: true                 # 启用百度 AI 搜索增强（需设置 BAIDU_API_KEY 环境变量）
-    top_k: 5                       # 搜索返回条数
-    request_timeout: 15            # 搜索请求超时（秒）
-    # search_recency_filter: "month"  # 可选：week/month/semiyear/year 时效过滤
 
   # ── PDF 处理 ──
   pdf_enabled: true                # 启用 PDF 下载和文本提取

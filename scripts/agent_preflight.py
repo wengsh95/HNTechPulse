@@ -26,6 +26,7 @@ from src.pipeline.agent_state import (  # noqa: E402
     BLOCK_MISSING_CREDENTIALS,
 )
 from src.pipeline.orchestrator import ALL_STEPS  # noqa: E402
+from src.pipeline.paths import agent_path  # noqa: E402
 from src.utils.config import load_config  # noqa: E402
 
 
@@ -128,7 +129,6 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
     state = load_pipeline_state(date)
     if not state or state.get("status") not in {"complete", "degraded"}:
         return None
-    base = Path(f"data/{date}")
     summary: dict[str, Any] = {
         "completed_at": state.get("updated_at"),
         "status": state.get("status"),
@@ -137,7 +137,7 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
         "degraded_items": state.get("degraded_items") or [],
     }
     # Pull a few more useful fields from the artifacts when present.
-    report = base / "report.md"
+    report = agent_path(date, "report.md")
     if report.exists():
         # Cheap parse: just grab total_duration, story_count, video title,
         # publishable from the markdown table.
@@ -159,7 +159,9 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
                             summary[label] = cells[-1]
                             break
     # Title file is the most direct "is this usable" signal.
-    title_path = base / "title.json"
+    from src.pipeline.paths import publish_path
+
+    title_path = publish_path(date, "title.json")
     if title_path.exists():
         try:
             t = json.loads(title_path.read_text(encoding="utf-8"))
@@ -167,7 +169,7 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
         except (OSError, json.JSONDecodeError):
             pass
     # Variant decision: tells the agent which strategy won.
-    var = base / "agent_variant_decision.json"
+    var = agent_path(date, "agent_variant_decision.json")
     if var.exists():
         try:
             v = json.loads(var.read_text(encoding="utf-8"))
@@ -183,7 +185,7 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
 
 
 def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
-    path = Path(f"data/{date}/agent_tasks.json")
+    path = agent_path(date, "agent_tasks.json")
     if not path.exists():
         return None, []
     try:
