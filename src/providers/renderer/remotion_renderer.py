@@ -32,6 +32,7 @@ from src.providers.renderer.binary_finder import (
     find_npx,
     find_chrome,
     find_ffmpeg,
+    find_ffprobe,
 )
 from src.providers.renderer.chunk_planner import compute_segment_chunks
 from src.utils.logger import setup_logger
@@ -71,6 +72,12 @@ class RemotionRenderer(Renderer):
         self._npm_path = find_npm(self._node_path)
         self._npx_path = find_npx(self._node_path)
         self._ffmpeg_path = find_ffmpeg()
+        self._ffprobe_path = find_ffprobe(self._ffmpeg_path)
+        if not self._ffprobe_path:
+            self.logger.warning(
+                "ffprobe not found; chunk/final video integrity checks will be "
+                "skipped. Install ffmpeg (which ships ffprobe) to enable them."
+            )
 
         self.chrome_path = remotion_config.get("browser_executable") or find_chrome()
         if self.chrome_path:
@@ -301,10 +308,23 @@ class RemotionRenderer(Renderer):
                 chunk_files.append(chunk_file)
 
                 if chunk_file.exists() and chunk_file.stat().st_size > 0:
-                    self.logger.info(
-                        f"Chunk {idx + 1}/{len(chunks)} already exists, skipping ({label})"
-                    )
-                    continue
+                    # File is on disk and non-empty — but Remotion/Chromium
+                    # can crash mid-render and still leave a "successful"
+                    # half-written MP4. Verify before trusting the cache, so
+                    # a corrupt chunk never silently slips into concat.
+                    try:
+                        self._verify_chunk(chunk_file, label)
+                    except RuntimeError as e:
+                        self.logger.warning(
+                            f"Chunk {idx + 1}/{len(chunks)} on disk failed "
+                            f"verification: {e}. Deleting and re-rendering."
+                        )
+                        chunk_file.unlink()
+                    else:
+                        self.logger.info(
+                            f"Chunk {idx + 1}/{len(chunks)} already exists, skipping ({label})"
+                        )
+                        continue
                 if chunk_file.exists():
                     # Empty final file left by a prior crashed run.
                     self.logger.warning(
@@ -346,6 +366,17 @@ class RemotionRenderer(Renderer):
                         f"--frames={start}-{end}",
                     ]
                     self._run_render_cmd(cmd, label=label)
+                    # Remotion's --overwrite can complete with exit 0 even when
+                    # Chromium crashed inside, leaving a partial MP4. Probe the
+                    # partial before promoting it; if it's corrupt, raise so
+                    # the outer except cleans up and the next run re-renders.
+                    duration = self._probe_duration(partial_file)
+                    if duration is None or duration <= 0.0:
+                        raise RuntimeError(
+                            f"Chunk {label} (frames {start}-{end}) produced a "
+                            "non-decodable MP4 (Chromium likely crashed "
+                            "mid-render)."
+                        )
                     partial_file.rename(chunk_file)
                     return idx
 
@@ -363,14 +394,27 @@ class RemotionRenderer(Renderer):
                                 f"Chunk {idx + 1}/{len(chunks)} done ({label})"
                             )
                 except Exception:
-                    # Clean up partial outputs so re-run can re-render them.
-                    for _, _, _, _, _, partial_file in pending:
+                    # Clean up partial outputs and any half-promoted chunks so
+                    # the next run re-renders them from scratch.
+                    for _, _, _, _, chunk_file, partial_file in pending:
                         if partial_file.exists():
                             partial_file.unlink()
+                        if chunk_file.exists():
+                            chunk_file.unlink()
                     raise
 
             # Concatenate chunks with ffmpeg
             self.logger.info(f"Concatenating {len(chunk_files)} chunks via ffmpeg...")
+            # Pre-concat safety net: even with the per-chunk verify in the
+            # render loop, a chunk that became corrupt after promotion (e.g.
+            # disk full, antivirus interference) would still poison the final
+            # output. Re-verify right before we hand the list to ffmpeg and
+            # bail out with a clear error if any chunk is no good.
+            for chunk_file in chunk_files:
+                # chunk_files are listed in (idx, label) order; pull label
+                # from the filename suffix for a readable error message.
+                label = chunk_file.stem.split("_", 2)[-1]
+                self._verify_chunk(chunk_file, label)
             concat_list = chunk_dir / "concat.txt"
             with open(concat_list, "w", encoding="utf-8") as f:
                 for chunk_file in chunk_files:
@@ -402,6 +446,19 @@ class RemotionRenderer(Renderer):
                     f"ffmpeg concat failed: {e.stderr.decode('utf-8', errors='ignore')}"
                 )
                 raise RuntimeError("ffmpeg concat failed")
+
+            # Post-concat safety net: ffmpeg's `-c copy` concat can produce a
+            # short, decodable-looking file when one chunk was actually
+            # corrupt. Require the final duration to be close to the planned
+            # total before we let downstream steps treat the render as good.
+            if self._ffprobe_path:
+                actual_duration = self._verify_final_output(
+                    output_file, script.total_duration or 0
+                )
+                self.logger.info(
+                    f"Final video duration: {actual_duration:.2f}s "
+                    f"(target {(script.total_duration or 0):.2f}s)"
+                )
 
         self.logger.info("Rendering complete")
 
@@ -509,6 +566,120 @@ class RemotionRenderer(Renderer):
             raise FileNotFoundError(
                 f"Remotion did not produce expected output at {remotion_output}"
             )
+
+    # ------------------------------------------------------------------
+    # Chunk / final video integrity checks
+    # ------------------------------------------------------------------
+    #
+    # Remotion can crash mid-render inside Chromium and still return exit 0,
+    # leaving a partially-written MP4 on disk (header intact, no decodable
+    # streams). The previous code trusted exit code alone and concatenated
+    # such files blindly, producing videos truncated to the first chunk
+    # (~10s of a 115s target). These helpers defend against that by probing
+    # the output with ffprobe before treating it as valid. ffprobe is
+    # optional — if missing, we log and skip the check (best-effort).
+
+    def _probe_duration(self, path: Path) -> float | None:
+        """Return the container duration in seconds, or None on any failure.
+
+        Uses ffprobe's CSV output and prefers format duration; falls back to
+        the longest stream duration if format duration is missing (Remotion's
+        concat'd MP4s sometimes have format.duration = N/A).
+        """
+        if not self._ffprobe_path or not path.exists():
+            return None
+        try:
+            r = subprocess.run(
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration:stream=duration",
+                    "-of",
+                    "csv=p=0",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            self.logger.warning(f"ffprobe timed out or failed for {path}: {e}")
+            return None
+        if r.returncode != 0:
+            return None
+        durations = []
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line or line.upper() == "N/A":
+                continue
+            try:
+                durations.append(float(line))
+            except ValueError:
+                continue
+        return max(durations) if durations else None
+
+    def _verify_chunk(self, chunk_file: Path, label: str) -> float:
+        """Verify a chunk MP4 is decodable and non-empty.
+
+        Returns the probed duration in seconds on success. Raises
+        ``RuntimeError`` if the file is missing, has no decodable streams, or
+        has zero/negative duration — these are the signatures of a Chromium
+        crash that left a half-written MP4 behind.
+        """
+        if not chunk_file.exists() or chunk_file.stat().st_size == 0:
+            raise RuntimeError(
+                f"Chunk {label}: file missing or empty at {chunk_file}"
+            )
+        duration = self._probe_duration(chunk_file)
+        if duration is None:
+            raise RuntimeError(
+                f"Chunk {label}: ffprobe could not read any streams from "
+                f"{chunk_file} (file size {chunk_file.stat().st_size} bytes). "
+                "Remotion likely crashed mid-render; the chunk must be "
+                "re-rendered."
+            )
+        if duration <= 0.0:
+            raise RuntimeError(
+                f"Chunk {label}: probed duration is {duration:.3f}s "
+                f"({chunk_file}). Re-render required."
+            )
+        return duration
+
+    def _verify_final_output(
+        self, output_file: Path, expected_duration: float, tolerance: float = 0.05
+    ) -> float:
+        """Verify the concatenated final video covers the expected duration.
+
+        Ffmpeg's ``-c copy`` concat can silently produce a short file when one
+        of the input chunks is corrupt — it just copies as much as it can
+        decode. We probe the final file and require its duration to be within
+        ``tolerance`` of the expected total (default 5%).
+
+        Returns the actual probed duration.
+        """
+        if not output_file.exists() or output_file.stat().st_size == 0:
+            raise RuntimeError(
+                f"Final video missing or empty at {output_file}"
+            )
+        actual = self._probe_duration(output_file)
+        if actual is None:
+            raise RuntimeError(
+                f"Final video {output_file} has no decodable streams. "
+                "ffmpeg concat likely consumed a corrupt chunk — check "
+                "individual chunks and re-render."
+            )
+        if expected_duration > 0:
+            min_acceptable = expected_duration * (1.0 - tolerance)
+            if actual < min_acceptable:
+                raise RuntimeError(
+                    f"Final video {output_file} is {actual:.2f}s, expected "
+                    f"~{expected_duration:.2f}s (tolerance {tolerance*100:.0f}%). "
+                    "ffmpeg concat truncated the output — one or more chunks "
+                    "are likely corrupt. Re-render the affected chunks."
+                )
+        return actual
 
     def _build_env(self) -> Dict[str, str]:
         import os

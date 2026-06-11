@@ -93,3 +93,32 @@ def find_ffmpeg() -> Optional[str]:
         if Path(p).exists():
             return p
     return None
+
+
+def find_ffprobe(ffmpeg_path: Optional[str] = None) -> Optional[str]:
+    """Locate the ffprobe binary.
+
+    Prefers the ffprobe sitting next to a known ffmpeg install (they ship as a
+    pair), then falls back to PATH. Returns None if neither is available;
+    callers should degrade gracefully rather than fail the whole render.
+    """
+    if ffmpeg_path:
+        sibling = Path(ffmpeg_path).with_name("ffprobe")
+        if sibling.exists():
+            return str(sibling)
+        # Windows: ffmpeg.exe / ffprobe.EXE share a directory.
+        for name in ("ffprobe.exe", "ffprobe.EXE", "ffprobe"):
+            candidate = Path(ffmpeg_path).parent / name
+            if candidate.exists():
+                return str(candidate)
+
+    probe = shutil.which("ffprobe")
+    if probe:
+        return probe
+    for p in [
+        r"C:\ProgramData\chocolatey\bin\ffprobe.exe",
+        r"C:\ffmpeg\bin\ffprobe.exe",
+    ]:
+        if Path(p).exists():
+            return p
+    return None
