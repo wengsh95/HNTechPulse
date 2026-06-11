@@ -22,7 +22,7 @@ def _make_config():
     }
 
 
-def _make_renderer():
+def _make_renderer(ffprobe_path: str | None = None):
     with patch.object(RemotionRenderer, "__init__", lambda self, *a, **kw: None):
         renderer = RemotionRenderer.__new__(RemotionRenderer)
         renderer.config = _make_config()
@@ -41,6 +41,8 @@ def _make_renderer():
         renderer._node_path = "/usr/bin/node"
         renderer._npm_path = "/usr/bin/npm"
         renderer._npx_path = "/usr/bin/npx"
+        renderer._ffmpeg_path = "/usr/bin/ffmpeg"
+        renderer._ffprobe_path = ffprobe_path
         renderer.chrome_path = None
         return renderer
 
@@ -435,3 +437,125 @@ class TestComputeSegmentChunks:
         chunks = compute_segment_chunks(script, fps=24, total_frames=total_frames)
         assert chunks[0][0] == 0
         assert chunks[-1][1] == total_frames - 1
+
+
+# ── chunk / final video integrity (regression for 2026-06-11 truncated
+#    render where Remotion/Chromium crashed mid-frame and produced a
+#    half-written MP4 that ffprobe couldn't read) ─────────────────────
+
+
+class TestProbeDuration:
+    """_probe_duration returns None when ffprobe can't read a file."""
+
+    def test_returns_none_when_ffprobe_missing(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path=None)
+        result = renderer._probe_duration(tmp_path / "nope.mp4")
+        assert result is None
+
+    def test_returns_none_when_probe_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        bogus = tmp_path / "garbage.mp4"
+        bogus.write_bytes(b"not a real mp4")
+        with patch("subprocess.run", side_effect=OSError("ffprobe crashed")):
+            result = renderer._probe_duration(bogus)
+        assert result is None
+
+    def test_returns_max_duration_from_probe(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "ok.mp4"
+        f.write_bytes(b"fake")
+        fake = MagicMock(return_value=MagicMock(returncode=0, stdout="5.0\nN/A\n3.0\n"))
+        with patch("subprocess.run", fake):
+            result = renderer._probe_duration(f)
+        assert result == 5.0
+
+
+class TestVerifyChunk:
+    """_verify_chunk must reject the signature of a Chromium crash file."""
+
+    def test_missing_file_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path=None)
+        with __import__("pytest").raises(RuntimeError, match="missing or empty"):
+            renderer._verify_chunk(tmp_path / "absent.mp4", "story_0")
+
+    def test_empty_file_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path=None)
+        f = tmp_path / "empty.mp4"
+        f.write_bytes(b"")
+        with __import__("pytest").raises(RuntimeError, match="missing or empty"):
+            renderer._verify_chunk(f, "story_0")
+
+    def test_non_decodable_raises(self, tmp_path):
+        """The 2026-06-11 case: real bytes on disk, ffprobe finds no streams."""
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "corrupt.mp4"
+        f.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 100)
+        with patch.object(
+            renderer, "_probe_duration", return_value=None
+        ) as probe, __import__("pytest").raises(
+            RuntimeError, match="could not read any streams"
+        ):
+            renderer._verify_chunk(f, "story_0")
+        probe.assert_called_once_with(f)
+
+    def test_zero_duration_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "zero.mp4"
+        f.write_bytes(b"\x00" * 1024)
+        with patch.object(
+            renderer, "_probe_duration", return_value=0.0
+        ), __import__("pytest").raises(RuntimeError, match="0.000s"):
+            renderer._verify_chunk(f, "story_0")
+
+    def test_healthy_chunk_returns_duration(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "good.mp4"
+        f.write_bytes(b"\x00" * 1024)
+        with patch.object(renderer, "_probe_duration", return_value=14.827):
+            duration = renderer._verify_chunk(f, "story_0")
+        assert duration == 14.827
+
+
+class TestVerifyFinalOutput:
+    """_verify_final_output catches the 'concat silently truncated' bug."""
+
+    def test_short_final_raises(self, tmp_path):
+        """The exact 2026-06-11 symptom: 10.79s of a ~115s target."""
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "output.mp4"
+        f.write_bytes(b"\x00" * 1222489)
+        with patch.object(renderer, "_probe_duration", return_value=10.79):
+            with __import__("pytest").raises(RuntimeError, match="is 10.79s"):
+                renderer._verify_final_output(f, expected_duration=115.0)
+
+    def test_within_tolerance_passes(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "output.mp4"
+        f.write_bytes(b"\x00" * 1024)
+        with patch.object(renderer, "_probe_duration", return_value=114.5):
+            actual = renderer._verify_final_output(f, expected_duration=115.0)
+        assert actual == 114.5
+
+    def test_no_expected_duration_skips_check(self, tmp_path):
+        """If we don't know what to expect, just probe and return."""
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "output.mp4"
+        f.write_bytes(b"\x00" * 1024)
+        with patch.object(renderer, "_probe_duration", return_value=10.0):
+            actual = renderer._verify_final_output(f, expected_duration=0)
+        assert actual == 10.0
+
+    def test_no_streams_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        f = tmp_path / "output.mp4"
+        f.write_bytes(b"\x00" * 1024)
+        with patch.object(renderer, "_probe_duration", return_value=None):
+            with __import__("pytest").raises(RuntimeError, match="no decodable"):
+                renderer._verify_final_output(f, expected_duration=115.0)
+
+    def test_missing_file_raises(self, tmp_path):
+        renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
+        with __import__("pytest").raises(RuntimeError, match="missing or empty"):
+            renderer._verify_final_output(
+                tmp_path / "absent.mp4", expected_duration=115.0
+            )
