@@ -223,7 +223,7 @@ const textBoxStyle = (
     ...base,
     bottom: d.scaled(154),
     left: d.scaled(COVER_FS.contentLeft),
-    right: d.scaled(650),
+    right: d.scaled(300),
   };
 };
 
@@ -366,7 +366,7 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
               ? d.scaled(1480)
               : isPosterPanel
                 ? d.scaled(850)
-                : d.scaled(1120),
+                : d.scaled(1500),
           }}
         >
           {lead ? (

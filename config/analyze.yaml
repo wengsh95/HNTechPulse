@@ -5,13 +5,18 @@ analyze:
   min_quality_score: 0.22           # 低于此分的评论不送入脚本 LLM（与 QuoteCard 上屏阈值保持一致）
   max_keywords_per_comment: 5       # 每条评论最多提取 TF-IDF 关键词数
   max_comments_for_llm: 10          # 每个 story 送入 LLM 的高质量评论数（按 quality_score 排序取 top-N）
+
+  # ── Embedding 语义筛选 ──
+  embedding_enabled: true           # 启用 sentence-transformer embedding 做评论去重和相关性打分
+  # embedding_model: null           # 默认使用 data/models/huggingface 下的 all-MiniLM-L6-v2
+
   comment_judge_enabled: true       # 使用独立 LLM 评审每条 story 的上屏评论候选
   comment_judge_max_workers: 2      # comment judge 并发数；调大可更快但会增加并发 LLM 调用
   comment_judge_prompt: "prompts/comment_analyze.md"
   max_comments_for_judge: 15        # 每条 story 最多送给 comment judge 的评论数
   judge_candidate_strategy: "balanced"   # comment judge 前置候选策略：balanced=本地分桶抽样，top_quality=旧版按质量取前N
   judge_candidate_min_quality: 0.05       # balanced 初筛阈值，低于上屏阈值以保留少数派/深层回复
-  judge_candidate_similarity_threshold: 0.62 # balanced 候选去重阈值，越低去重越强
+  judge_candidate_similarity_threshold: 0.82 # embedding cosine 去重阈值；近重复≈0.85-0.90，相关但独立≈0.80-0.85
   comment_judge_max_tokens: 4096    # thinking 会消耗大量 tokens，需要留足空间
   comment_judge_thinking: "disabled" # DeepSeek v4 默认 thinking=enabled，会吃完 completion 导致 content 为空
   judge_min_quality_score: 0.05     # judge 初筛阈值，允许短但有态度的评论进入候选池

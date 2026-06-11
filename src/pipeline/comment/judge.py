@@ -68,10 +68,20 @@ class CommentAnalyzer:
         self.judge_candidate_similarity_threshold = analyze_cfg.get(
             "judge_candidate_similarity_threshold", 0.62
         )
+        self.embedding_enabled = analyze_cfg.get("embedding_enabled", True)
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
         self._vader = SentimentIntensityAnalyzer()
         self._apply_custom_lexicon(analyze_cfg)
+
+        # Configure embedding module based on config
+        if self.embedding_enabled:
+            from src.pipeline.comment.embedding import configure_embeddings
+
+            configure_embeddings(
+                enabled=True,
+                model_name=analyze_cfg.get("embedding_model"),
+            )
 
     def _apply_custom_lexicon(self, analyze_cfg: dict) -> None:
         lexicon_path = analyze_cfg.get(
@@ -232,9 +242,21 @@ class CommentAnalyzer:
         if cache_path.exists():
             self.logger.info(f"Loading analysis from cache: {cache_path}")
             self._load_from_cache(content, cache_path)
+            # Still warm up embeddings for downstream dedup in judge step.
+            if self.embedding_enabled:
+                from src.pipeline.comment.embedding import warmup_embeddings
+
+                warmup_embeddings(content)
             return content
 
         self.logger.info(f"Analyzing comments for {len(content.items)} stories...")
+
+        # Pre-compute embeddings for semantic dedup and relevance scoring.
+        if self.embedding_enabled:
+            from src.pipeline.comment.embedding import warmup_embeddings
+
+            warmup_embeddings(content)
+
         total_comments = 0
         for item in content.items:
             self._analyze_item(item)

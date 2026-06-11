@@ -10,7 +10,15 @@ from src.pipeline.comment.scoring import (
 )
 
 
-_WORD_RE_RE = r"[A-Za-z][A-Za-z0-9_+#.-]+"
+def _similarity(a: str, b: str) -> float:
+    """Semantic similarity between two comment texts.
+
+    Delegates to the embedding module which uses cosine similarity when
+    embeddings are cached, and falls back to word-overlap Jaccard otherwise.
+    """
+    from src.pipeline.comment.embedding import text_similarity
+
+    return text_similarity(a, b)
 
 
 def classify_comment_stance(comment: ContentComment) -> str:
@@ -48,17 +56,6 @@ def is_quotable_comment(comment: ContentComment, min_quality: float = 0.22) -> b
     return True
 
 
-def _similarity(a: str, b: str) -> float:
-    import re
-
-    word_re = re.compile(_WORD_RE_RE)
-    words_a = {w.lower() for w in word_re.findall(a) if len(w) >= 4}
-    words_b = {w.lower() for w in word_re.findall(b) if len(w) >= 4}
-    if not words_a or not words_b:
-        return 0.0
-    return len(words_a & words_b) / len(words_a | words_b)
-
-
 def _ranked_comments(comments: Iterable[ContentComment]) -> List[ContentComment]:
     scored = [
         c
@@ -79,7 +76,7 @@ def select_judge_candidate_comments(
     item: ContentItem,
     max_n: int = 15,
     min_quality: float = 0.05,
-    similarity_threshold: float = 0.62,
+    similarity_threshold: float = 0.82,
 ) -> List[ContentComment]:
     """Pick a local, balanced candidate pool before the LLM comment judge."""
     from src.pipeline.comment.scoring import local_comment_type_hints
@@ -170,7 +167,7 @@ def select_discussion_profile_comments(
     item: ContentItem,
     max_n: int = 15,
     min_quality: float = 0.05,
-    similarity_threshold: float = 0.58,
+    similarity_threshold: float = 0.78,
 ) -> List[ContentComment]:
     """Pick a judge sample that represents the discussion, not only quote quality.
 
@@ -289,7 +286,7 @@ def select_representative_comments(
     comments: Iterable[ContentComment],
     max_n: int = 3,
     min_quality: float = 0.22,
-    similarity_threshold: float = 0.58,
+    similarity_threshold: float = 0.78,
 ) -> List[ContentComment]:
     """Pick high-quality, stance-diverse comments while avoiding near-duplicates."""
     ranked = [
@@ -375,7 +372,7 @@ def select_quote_comments(
     judgement: Optional[dict] = None,
     max_n: int = 3,
     min_quality: float = 0.22,
-    similarity_threshold: float = 0.58,
+    similarity_threshold: float = 0.78,
 ) -> List[ContentComment]:
     """Select quote comments: honor LLM ids, then fill with strong fallbacks."""
     comments_list = list(comments)

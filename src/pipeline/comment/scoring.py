@@ -104,6 +104,14 @@ def _depth_score(depth: Optional[int]) -> float:
 
 
 def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
+    # Try embedding-based semantic relevance first.
+    from src.pipeline.comment.embedding import embedding_relevance
+
+    emb_score = embedding_relevance(clean_text, item, max_score=0.2)
+    if emb_score is not None:
+        return emb_score
+
+    # Fallback: word-overlap scoring (original behaviour).
     if item is None:
         return 0.0
     context = " ".join(
@@ -126,7 +134,16 @@ def _relevance_score(clean_text: str, item: Optional[ContentItem]) -> float:
 def compute_comment_relevance(
     clean_text: str, item: Optional[ContentItem], max_score: float = 0.25
 ) -> float:
-    """Cheap local relevance signal based on overlap with story/enrichment context."""
+    """Semantic relevance signal — embedding cosine similarity when available,
+    word-overlap fallback otherwise."""
+    # Try embedding-based relevance first.
+    from src.pipeline.comment.embedding import embedding_relevance
+
+    emb_score = embedding_relevance(clean_text, item, max_score=max_score)
+    if emb_score is not None:
+        return emb_score
+
+    # Fallback: word-overlap relevance (original behaviour).
     if item is None:
         return 0.0
     key_points = item.key_points or []

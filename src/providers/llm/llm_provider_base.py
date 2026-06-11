@@ -452,29 +452,39 @@ class LLMProviderBase(LLMProvider):
             prompt_template = _read_template_cached(str(prompt_path))
         else:
             prompt_template = "translate.md"
-        items_json = json.dumps(items_to_translate, ensure_ascii=False, indent=2)
-        prompt = render_prompt(prompt_template, items_json=items_json)
+
+        # Split into batches to avoid API output truncation with long comments
+        batch_size = 3
+        all_keys = list(items_to_translate.keys())
+        batches = [
+            {k: items_to_translate[k] for k in all_keys[i : i + batch_size]}
+            for i in range(0, len(all_keys), batch_size)
+        ]
 
         self.logger.info(
             f"  Translating {len(items_to_translate)} referenced comments "
-            f"(model={self.fast_model})..."
+            f"in {len(batches)} batch(es) (model={self.fast_model})..."
         )
-
-        response_text = self._call_llm_with_json_retry(
-            messages=self._split_prompt(prompt),
-            label="translate_comments",
-            max_tokens=max(self.fast_max_tokens, 8192),
-            model=self.fast_model,
-            temperature=self.fast_temperature,
-        )
-
-        result = self._extract_json(response_text)
-        translations = result.get("translations", {})
 
         out = {}
-        for key, value in translations.items():
-            if key.startswith("comment_"):
-                out[key] = value
+        for batch_idx, batch in enumerate(batches):
+            items_json = json.dumps(batch, ensure_ascii=False, indent=2)
+            prompt = render_prompt(prompt_template, items_json=items_json)
+
+            response_text = self._call_llm_with_json_retry(
+                messages=self._split_prompt(prompt),
+                label=f"translate_comments_batch_{batch_idx + 1}",
+                max_tokens=max(self.fast_max_tokens, 8192),
+                model=self.fast_model,
+                temperature=self.fast_temperature,
+            )
+
+            result = self._extract_json(response_text)
+            translations = result.get("translations", {})
+            for key, value in translations.items():
+                if key.startswith("comment_"):
+                    out[key] = value
+
         return out
 
     # Comment Judging

@@ -1,6 +1,12 @@
 """Comment analysis pipeline: scoring, selection, judging."""
 
 from src.pipeline.comment.text import clean_comment_text, is_resource_pointer_comment
+from src.pipeline.comment.embedding import (
+    configure_embeddings,
+    text_similarity,
+    word_overlap_similarity,
+    warmup_embeddings,
+)
 from src.pipeline.comment.scoring import (
     compute_comment_quality,
     compute_comment_relevance,
@@ -35,6 +41,10 @@ from src.pipeline.comment.refiner import CommentRefiner
 __all__ = [
     "clean_comment_text",
     "is_resource_pointer_comment",
+    "configure_embeddings",
+    "text_similarity",
+    "word_overlap_similarity",
+    "warmup_embeddings",
     "compute_comment_quality",
     "compute_comment_relevance",
     "compute_judge_candidate_score",
