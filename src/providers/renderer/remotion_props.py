@@ -69,6 +69,53 @@ def _safe_get_item(content, idx):
     return None
 
 
+def _resolve_item(content, props):
+    """Find the ContentItem for a script element.
+
+    The script's ``story_index`` is the position within the *script's* ranked
+    list (0..N-1), not the index in ``content.items``. When ``write_script``
+    drops a story from content but the script still references it, the naive
+    index lookup returns the wrong item and downstream quote/keyword resolution
+    silently fails (e.g. ``quotes: []`` on the atmosphere card).
+
+    Fallback: match the props' ``source_title`` (LLM-supplied, always present
+    for story-related cards) against ``content.items[i].title``. The titles
+    are stable across reorders, so this finds the right item even when indices
+    diverge.
+    """
+    if content is None or not getattr(content, "items", None):
+        return None
+    props = props or {}
+    idx = props.get("story_index")
+    item = _safe_get_item(content, idx)
+    if item is not None:
+        target_title = (props.get("source_title") or "").strip()
+        if not target_title:
+            return item
+        # If story_index pointed to a real item AND its title matches props,
+        # trust the index.
+        if item.title and item.title.strip() == target_title:
+            return item
+        # Otherwise, try to find a content item whose title matches props.
+        for candidate in content.items:
+            if (
+                candidate.title
+                and candidate.title.strip() == target_title
+                and target_title
+            ):
+                return candidate
+        # No title match — fall back to the index lookup, but only if the
+        # props don't carry a different title.
+        return item
+    # story_index was None or out of range: try title-based lookup.
+    target_title = (props.get("source_title") or "").strip()
+    if target_title:
+        for candidate in content.items:
+            if candidate.title and candidate.title.strip() == target_title:
+                return candidate
+    return None
+
+
 def _safe_get_comment(item, idx):
     """Return item.comments[idx] if idx is a valid in-range int, else None."""
     if idx is None or not isinstance(idx, int):
@@ -186,7 +233,7 @@ def _heat_level_from_rank(rank: int, total: int) -> str:
 def _expand_event_card(props, content, score_ranks=None):
     """Expand event_card element: inject story metadata, image, and keywords."""
 
-    item = _safe_get_item(content, props.get("story_index"))
+    item = _resolve_item(content, props)
     if item is None:
         return props
     result = dict(props)
@@ -232,7 +279,7 @@ def _expand_atmosphere_card(props, content, logger=None):
     if logger is None:
         logger = setup_logger("remotion_props")
 
-    item = _safe_get_item(content, props.get("story_index"))
+    item = _resolve_item(content, props)
     if item is None:
         return props
     result = dict(props)
