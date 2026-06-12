@@ -764,6 +764,9 @@ class RemotionRenderer(Renderer):
             src = Path(path)
             if not src.is_absolute():
                 src = date_root(date) / path
+                if not src.exists():
+                    alt = date_root(date) / 'media' / path
+                    src = alt if alt.exists() else src
             return src if src.exists() else None
 
         def _copy(src: Path) -> bool:
