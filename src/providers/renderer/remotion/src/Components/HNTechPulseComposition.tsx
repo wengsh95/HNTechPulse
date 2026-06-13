@@ -3,21 +3,24 @@
  *
  * 遍历所有 segments，按时间线排列，每个 segment 内部渲染其 scene_elements。
  * Remotion 的优势：浏览器原生渲染文字（GPU 加速），并行帧渲染。
+ *
+ * 卡片切换: 在 composition 层用绝对帧计算每段 opacity，segments 在时间线上
+ * 重叠 fadeFrames 帧实现交叉淡入淡出。
  */
 import React, { useMemo } from "react";
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from "remotion";
 
 import { ScriptProps, SegmentData } from "../types";
 import { Subtitle } from "./Elements";
 import { ProgressBar } from "./ProgressBar";
 import { BackgroundAtmosphere } from "./BackgroundAtmosphere";
 import { COLORS, ChapterName, ChapterProvider, COMPOSITION_LAYOUT, S } from "./design";
+import { segmentTransitionOpacity } from "./timing";
 import {
   cardChapterForElementType,
   getCardRegistryEntry,
   isStoryMarkerElement,
 } from "./cardRegistry";
-import { segmentTransitionOpacity } from "./timing";
 
 type StoryChapter = {
   startTime: number;
@@ -75,29 +78,6 @@ const collectStoryEvents = (segments: SegmentData[]): StoryEvent[] => {
   return events.sort((a, b) => a.startTime - b.startTime);
 };
 
-/** 卡片元素淡入淡出包装 */
-const ElementFadeWrap: React.FC<{
-  needsFade: boolean;
-  durationFrames: number;
-  children: React.ReactNode;
-}> = ({ needsFade, durationFrames, children }) => {
-  const frame = useCurrentFrame();
-  const FADE_FRAMES = COMPOSITION_LAYOUT.fadeFrames;
-  // 元素太短时跳过淡入淡出，避免 inputRange 非单调（[0, F, mid, dur] 中 mid < F 时崩溃）
-  const opacity =
-    needsFade && durationFrames > 2 * FADE_FRAMES
-      ? interpolate(
-          frame,
-          [0, FADE_FRAMES, durationFrames - FADE_FRAMES, durationFrames],
-          [0, 1, 1, 0],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-        )
-      : 1;
-  return (
-    <div style={{ position: "absolute", inset: 0, opacity, pointerEvents: "none" }}>{children}</div>
-  );
-};
-
 /** 渲染单个元素
  *
  * 注意：Sequence.from 期望帧数，不是秒数！
@@ -127,54 +107,39 @@ const SceneElementRenderer: React.FC<{
   const mergedProps = extraProps
     ? { ...(elem.props as Record<string, unknown>), ...extraProps }
     : (elem.props as Record<string, unknown>);
-  const needsFade = true;
 
   return (
     <Sequence from={startFrame} durationInFrames={durationFrames} layout="none">
       <ChapterProvider chapter={chapter}>
-        <ElementFadeWrap needsFade={needsFade} durationFrames={durationFrames}>
-          <RendererComponent
-            elementProps={mergedProps}
-            duration={duration}
-            width={width}
-            height={height}
-          />
-        </ElementFadeWrap>
+        <RendererComponent
+          elementProps={mergedProps}
+          duration={duration}
+          width={width}
+          height={height}
+        />
       </ChapterProvider>
     </Sequence>
   );
 };
 
-/** 渲染单个 Segment */
+/** 渲染单个 Segment
+ *
+ * opacity 由 composition 层用绝对帧计算后传入.
+ * 纯 CSS opacity, 不叠加 translate / scale.
+ */
 const SegmentRenderer: React.FC<{
   segment: SegmentData;
   index: number;
   width: number;
   height: number;
   fps: number;
-  isLastSegment: boolean;
   dateLabel?: string;
-}> = ({ segment, index, width, height, fps, isLastSegment, dateLabel }) => {
-  const frame = useCurrentFrame();
+  opacity: number;
+}> = ({ segment, index, width, height, fps, dateLabel, opacity }) => {
   const startFrame = Math.floor(segment.start_time * fps);
   const durationFrames = Math.max(1, Math.ceil(segment.duration * fps));
   const segmentDuration = segment.duration;
-  const hasTitleLikeCard = segment.scene_elements.some(
-    (elem) => elem.element_type === "cover_card" || elem.element_type === "closing_card",
-  );
-  const subtitleMode =
-    hasTitleLikeCard || segment.segment_type === "opening" || segment.segment_type === "closing"
-      ? "standard"
-      : "standard";
-
-  const TRANSITION_FRAMES = COMPOSITION_LAYOUT.transitionFrames;
-  const segOpacity = segmentTransitionOpacity({
-    absoluteFrame: frame,
-    startFrame,
-    durationFrames,
-    transitionFrames: TRANSITION_FRAMES,
-    isLastSegment,
-  });
+  const subtitleMode = "standard";
 
   // 章节上下文 (居中 masthead 标签) — 按 segment_type 派生
   const chapterLabel = (() => {
@@ -208,9 +173,7 @@ const SegmentRenderer: React.FC<{
       from={startFrame}
       durationInFrames={durationFrames}
       name={`segment-${index}-${segment.segment_type}`}
-      premountFor={Math.min(TRANSITION_FRAMES, durationFrames)}
     >
-      {/* Scene wrapper with transition opacity */}
       <div
         style={{
           ...S,
@@ -218,8 +181,8 @@ const SegmentRenderer: React.FC<{
           top: 0,
           width: "100%",
           height: "100%",
-          opacity: segOpacity,
           pointerEvents: "none",
+          opacity,
         }}
       >
         {/* 场景元素 */}
@@ -300,6 +263,21 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
     return currentTime >= chapter.startTime && currentTime < chapter.endTime;
   });
 
+  // ── 卡片淡入淡出: 复用 timing.ts 的 segmentTransitionOpacity ──
+  const segmentOpacities = useMemo(
+    () =>
+      segments.map((seg, i) =>
+        segmentTransitionOpacity({
+          absoluteFrame: frame,
+          startFrame: Math.floor(seg.start_time * fps),
+          durationFrames: Math.max(1, Math.ceil(seg.duration * fps)),
+          transitionFrames: COMPOSITION_LAYOUT.transitionFrames,
+          isLastSegment: i === segments.length - 1,
+        }),
+      ),
+    [segments, frame, fps],
+  );
+
   return (
     <AbsoluteFill style={{ background: bgColor || COLORS.bg }}>
       {/* Background atmosphere: glow spots + micro grid */}
@@ -314,8 +292,8 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
           width={width}
           height={height}
           fps={fps}
-          isLastSegment={index === segments.length - 1}
           dateLabel={dateLabel}
+          opacity={segmentOpacities[index]}
         />
       ))}
 

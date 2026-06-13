@@ -386,6 +386,7 @@ class ScriptWriter:
                 content,
                 story_scan_segs,
                 highlight_entries=highlight_entries,
+                llm_provider=self.llm_provider,
             )
         )
 

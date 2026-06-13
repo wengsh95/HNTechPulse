@@ -15,13 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.paths import (
-    media_path,
+from src.pipeline.paths import (  # noqa: E402
     publish_path,
+    publish_root,
     render_remotion_dir,
 )
-from src.providers.renderer.binary_finder import find_npx
-from src.utils.atomic_io import atomic_write_json
+from src.providers.renderer.binary_finder import find_npx  # noqa: E402
+from src.utils.atomic_io import atomic_write_json  # noqa: E402
 
 
 BRAND_HINTS = (
@@ -80,15 +80,13 @@ def refresh_cover(
             f"Unknown cover template {template!r}; choose from {COVER_TEMPLATES}"
         )
     title_path = publish_path(date, "title.json")
-    bg_path = media_path(date, "cover_bg.png")
+    bg_path = publish_path(date, "cover_bg.png")
     if variant_output:
-        from src.pipeline.paths import media_root
-
-        props_path = media_root(date) / f"cover_props.{template}.json"
-        cover_path = media_root(date) / f"cover_{template}.png"
+        props_path = publish_root(date) / f"cover_props.{template}.json"
+        cover_path = publish_root(date) / f"cover_{template}.png"
     else:
-        props_path = media_path(date, "cover_props.json")
-        cover_path = media_path(date, "cover.png")
+        props_path = publish_path(date, "cover_props.json")
+        cover_path = publish_path(date, "cover.png")
 
     if not title_path.exists():
         raise FileNotFoundError(f"Missing title metadata: {title_path}")

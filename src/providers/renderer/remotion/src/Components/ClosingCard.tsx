@@ -1,5 +1,5 @@
 import React from "react";
-import { interpolate, useCurrentFrame } from "remotion";
+import { useCurrentFrame } from "remotion";
 
 import { CardShell, Fill } from "./CardShell";
 import { NumberDisc, Panel } from "./CardPrimitives";
@@ -9,17 +9,17 @@ import {
   CLOSING_LAYOUT,
   COLORS,
   COMMON_LAYOUT,
-  EASE_CARD,
   FONTS,
   FW,
   useDesign,
 } from "./design";
 import { extractClosingProps } from "./propsExtractors";
+import { ANIM_PRESETS, fadeUp } from "./timing";
 import type { ElementProps } from "./utils";
 
 export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
-  const frame = useCurrentFrame();
   const d = useDesign();
+  const frame = useCurrentFrame();
   const props = extractClosingProps(elementProps);
   const { summary, completedStories } = props;
 
@@ -30,19 +30,6 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
         ? `${props.stats.storyCount} 个关键故事，一条共同的结构变化`
         : "";
 
-  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const titleY = interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0]);
-  const bodyY = interpolate(bodyProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0]);
   const justify = completedStories.length >= CLOSING_LAYOUT.centerThreshold ? "start" : "center";
 
   return (
@@ -63,8 +50,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
             display: "flex",
             flexDirection: "column",
             gap: d.scaled(18),
-            opacity: titleProgress,
-            transform: `translateY(${titleY}px)`,
+            ...fadeUp(frame, ANIM_PRESETS.title),
           }}
         >
           <h1
@@ -117,8 +103,6 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
               flexDirection: "column",
               gap: d.scaled(CLOSING_LAYOUT.listGap),
               width: "100%",
-              opacity: bodyProgress,
-              transform: `translateY(${bodyY}px)`,
             }}
           >
             {completedStories.map((story, i) => (
@@ -129,6 +113,7 @@ export const ClosingCard: React.FC<ElementProps> = ({ elementProps }) => {
                   gridTemplateColumns: `${d.scaled(COMMON_LAYOUT.numDiscSize)}px minmax(0, 1fr)`,
                   gap: d.scaled(CLOSING_LAYOUT.rowGap),
                   alignItems: "center",
+                  ...fadeUp(frame, ANIM_PRESETS.body, i * ANIM.rowStagger),
                 }}
               >
                 <NumberDisc>{i + 1}</NumberDisc>

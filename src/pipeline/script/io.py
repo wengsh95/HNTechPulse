@@ -61,6 +61,7 @@ def load_script(date: str) -> Script:
             cover_subtitle=script_dict.get("cover_subtitle", ""),
             cover_title=script_dict.get("cover_title", ""),
             cover_tags=list(script_dict.get("cover_tags") or []),
+            cover_highlights=list(script_dict.get("cover_highlights") or []),
             segments=[
                 ScriptSegment(
                     segment_type=s["segment_type"],

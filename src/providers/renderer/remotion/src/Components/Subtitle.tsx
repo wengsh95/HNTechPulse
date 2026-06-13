@@ -34,7 +34,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
         if (timeSinceEnd < fadeOutDuration) {
           displayText = lastCue.text;
           opacity = 1 - timeSinceEnd / fadeOutDuration;
-          slideY = interpolate(opacity, [0, 1], [SUBTITLE_LAYOUT.exitSlideY, 0]);
+          slideY = Math.round(interpolate(opacity, [0, 1], [SUBTITLE_LAYOUT.exitSlideY, 0]));
         } else {
           displayText = "";
           opacity = 0;
@@ -55,7 +55,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
         extrapolateRight: "clamp",
       });
       opacity = cueFadeIn;
-      slideY = interpolate(cueFadeIn, [0, 1], [SUBTITLE_LAYOUT.enterSlideY, 0]);
+      slideY = Math.round(interpolate(cueFadeIn, [0, 1], [SUBTITLE_LAYOUT.enterSlideY, 0]));
     }
   }
 

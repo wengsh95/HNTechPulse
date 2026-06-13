@@ -11,9 +11,10 @@ Layout::
     ├── raw/         raw_stories.json, downloaded_pages/
     ├── pipeline/    prefilter, enrichment, content, comment_*, script,
     │                segments/, variants/, audio/
-    ├── media/       images/, cover_bg.png, cover.png, cover_props.json
+    ├── media/       images/
     ├── render/      remotion/{chunks,public}/, cli_props.json
-    ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md
+    ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
+    │                cover_bg.png, cover.png, cover_props.json
     ├── agent/       pipeline_state.json, agent_decision.json,
     │                agent_events.jsonl, selected_variant.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
@@ -117,17 +118,16 @@ _PIPELINE_FILES: dict[str, str] = {
     "selected_variant.json": "script.json",  # legacy alias — see agent_variants.promote_variant_script
 }
 
-_MEDIA_FILES: dict[str, str] = {
-    "cover_bg.png": "cover_bg.png",
-    "cover.png": "cover.png",
-    "cover_props.json": "cover_props.json",
-}
+_MEDIA_FILES: dict[str, str] = {}
 
 _PUBLISH_FILES: dict[str, str] = {
     "output.mp4": "output.mp4",
     "title.json": "title.json",
     "transcript.md": "transcript.md",
     "publish_guide.md": "publish_guide.md",
+    "cover_bg.png": "cover_bg.png",
+    "cover.png": "cover.png",
+    "cover_props.json": "cover_props.json",
 }
 
 _AGENT_FILES: dict[str, str] = {

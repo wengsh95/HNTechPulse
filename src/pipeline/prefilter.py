@@ -6,7 +6,7 @@ from src.core.models import ContentPackage
 from src.pipeline.paths import pipeline_path
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 12
+_CACHE_SCHEMA_VERSION = 13
 
 
 def _prompt_hash() -> str:
@@ -303,24 +303,21 @@ class Prefilter:
     def _input_fingerprint(self, content: ContentPackage) -> str:
         """Stable identity of the prefilter input set.
 
-        Only hashes story-level identity (source_id, title, url, score, comment_count)
-        and the *set* of preview comment ids. The actual preview comment *content*
-        is intentionally excluded: preview comments are re-fetched on every run
-        and their text/order can shift between runs, which previously invalidated
-        the cache and caused the LLM to re-pick a different top-3 on every resume,
-        breaking manual rescue workflows (synthesis HTML written for one story
-        would not apply to the next prefilter pick).
-
-        The comment id set is still hashed so the fingerprint does change if
-        genuinely different previews are fetched.
+        Hashes only story-level identity (source_id, title, url, score,
+        comment_count). Preview comment text *and* the set of preview
+        comment ids are intentionally excluded: HN re-orders top-level
+        comments by hotness on every fetch, so a non-deterministic preview
+        slice would invalidate the cache and trigger a fresh LLM call on
+        every resume. With LLM `temperature=0.1`, even small score wobbles
+        flip the editorial-score top-3, which then poisons every downstream
+        artifact (script focus, title, cover, publish_guide). Pinning the
+        fingerprint to the story set itself keeps the prefilter decision
+        stable across the resume loop.
         """
         import hashlib
 
         payload = []
         for item in content.items:
-            preview_comment_ids = sorted(
-                str(c.source_id) for c in item.comments[:_PREFILTER_COMMENT_COUNT]
-            )
             payload.append(
                 {
                     "source_id": item.source_id,
@@ -329,7 +326,6 @@ class Prefilter:
                     "score": item.score,
                     "comment_count": item.comment_count,
                     "comments_partial": item.comments_partial,
-                    "preview_comment_ids": preview_comment_ids,
                 }
             )
         encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()

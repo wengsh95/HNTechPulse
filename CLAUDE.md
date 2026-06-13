@@ -102,9 +102,10 @@ data/{date}/
 ├── raw/         raw_stories.json, downloaded_pages/
 ├── pipeline/    prefilter, enrichment, content, comment_*, script,
 │                segments/, variants/, audio/
-├── media/       images/, cover_bg.png, cover.png, cover_props.json
+├── media/       images/
 ├── render/      remotion/{chunks,public}/, cli_props.json
-├── publish/     output.mp4, title.json, transcript.md, publish_guide.md
+├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
+│                cover_bg.png, cover.png, cover_props.json
 ├── agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
 │                agent_events.jsonl, selected_variant.json, report.md
 └── outputs/     (organize_outputs.py mirror — unchanged)
@@ -125,8 +126,8 @@ relative to `data/{date}/`.
 | `pipeline/translations.json` | translate_comments | Translated comment text |
 | `pipeline/audio/` | synthesize_audio | TTS chunks + alignment |
 | `publish/title.json` | title | Video title/description/tags |
-| `media/cover_bg.png`, `media/cover_props.json` | cover_image | Raw image + props |
-| `media/cover.png` | cover_thumbnail | Final cover with title overlay |
+| `publish/cover_bg.png`, `publish/cover_props.json` | cover_image | Raw image + props |
+| `publish/cover.png` | cover_thumbnail | Final cover with title overlay |
 | `publish/publish_guide.md` | publish_guide | Publish checklist |
 | `render/cli_props.json` | prepare_render | Remotion props |
 | `report.md` | always | Enrichment stats + issues |

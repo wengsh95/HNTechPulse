@@ -332,7 +332,6 @@ class AgentState:
 
     def _artifacts(self) -> dict[str, str | None]:
         from src.pipeline.paths import (
-            media_path,
             pipeline_audio_dir,
             pipeline_path,
             publish_path,
@@ -344,7 +343,7 @@ class AgentState:
             "script": pipeline_path(self.date, "script.json"),
             "audio_dir": pipeline_audio_dir(self.date),
             "title": publish_path(self.date, "title.json"),
-            "cover": media_path(self.date, "cover.png"),
+            "cover": publish_path(self.date, "cover.png"),
             "publish_guide": publish_path(self.date, "publish_guide.md"),
             "render_props": render_path(self.date, "cli_props.json"),
             "output": publish_path(self.date, "output.mp4"),

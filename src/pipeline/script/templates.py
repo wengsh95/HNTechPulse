@@ -1,8 +1,10 @@
 """Script templates: opening, closing, and highlight entry generation."""
 
+from __future__ import annotations
+
 from datetime import date as Date
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from src.core.models import (
     ContentPackage,
@@ -11,6 +13,9 @@ from src.core.models import (
     SelectionResult,
 )
 from src.utils.text import normalize_cjk_mixed_spacing
+
+if TYPE_CHECKING:
+    from src.core.interfaces import LLMProvider
 
 
 CHINESE_ORDINALS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
@@ -189,13 +194,6 @@ def _entry_spoken_hook(entry: dict, max_len: int = 18) -> str:
     return "技术信号"
 
 
-def _opening_audio(entries: list[dict]) -> str:
-    if not entries:
-        return "昨天，HN社区有三个技术变化值得停一下。早上好，这里是HN每日观察，我们展开看。"
-    hooks = "、".join(_entry_spoken_hook(e, max_len=16) for e in entries[:3])
-    return f"昨天，HN社区在讨论{hooks}。早上好，这里是HN每日观察，我们展开看。"
-
-
 HOLIDAY_CLOSING_GREETINGS = {
     (1, 1): "新年第一天也祝你顺利，我们下期继续。",
     (2, 14): "也祝你今天过得松弛一点，我们下期继续。",
@@ -237,6 +235,7 @@ def generate_fixed_opening(
     content: Optional[ContentPackage] = None,
     story_scan_segs: Optional[list[ScriptSegment]] = None,
     highlight_entries: Optional[list[dict]] = None,
+    llm_provider: Optional["LLMProvider"] = None,
 ) -> ScriptSegment:
     """Generate a short positioning line before the first story."""
     try:
@@ -247,7 +246,19 @@ def generate_fixed_opening(
 
     entries = highlight_entries or []
     focus_count = len([e for e in entries if e.get("coverage_tier") == "focus"])
-    audio_text = _opening_audio(entries)
+
+    if llm_provider:
+        audio_text = llm_provider.complete_prompt(
+            prompt_template_path="prompts/opening.md",
+            context={"date": date, "date_display": date_display},
+            label="opening",
+            expect_json=False,
+            max_tokens=100,
+        )
+        audio_text = audio_text.strip()
+    else:
+        audio_text = f"欢迎收看HN每日观察，今天是{date_display}。"
+
     duration = 8 if len(audio_text) > 45 else 6
 
     top3_titles: list[str] = []

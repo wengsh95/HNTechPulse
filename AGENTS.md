@@ -2,6 +2,13 @@
 
 Quick-start checklist for coding agents operating the pipeline.
 
+## Setup
+
+```bash
+uv sync                        # Install deps (Python 3.11, managed by uv)
+cp .env.example .env           # Configure API keys (ANTHROPIC, OPENAI, DEEPSEEK, etc.)
+```
+
 ## Commands
 
 ```bash
@@ -17,13 +24,24 @@ will reject direct agent calls. Manual debugging may use
 `main.py --agent --direct-agent-run`, but autonomous agents should always use
 `scripts/agent_run.py`.
 
+## Code Quality
+
+```bash
+uv run python scripts/quality_check.py              # All checks (ruff, vulture, mypy, pytest, coverage, pip-audit)
+uv run python scripts/quality_check.py --fix         # Auto-fix where possible
+uv run ruff check src/ tests/                        # Lint only
+uv run ruff format src/ tests/                       # Format only
+```
+
+Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
+
 ## Key References
 
 - **Full guidance**: [CLAUDE.md](CLAUDE.md) — architecture, patterns, pitfalls, behavioral rules
 - **Agent contract**: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) — state files, blocked reasons, decision gates, step handling policy, variants
 - **Module map**: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
-## State Files (under `data/{date}/`)
+## State Files (under `data/{date}/agent/`)
 
 | File | Purpose |
 |------|---------|
@@ -41,3 +59,12 @@ will reject direct agent calls. Manual debugging may use
 4. Never use `--allow-degraded-enrichment` for final output without explicit user approval.
 5. If `agent_status.py` reports stale artifacts, follow its `safe_next_commands`;
    do not render stale `script.json`/`cli_props.json` combinations.
+
+## Gotchas
+
+- **Chinese output garbled?** Run `. .\scripts\encoding.ps1` (sets `PYTHONUTF8=1`, `chcp 65001`).
+- **Remotion render filename**: h264+aac output must end in `.mp4`/`.mkv`/`.mov`. Use `.partial.mp4` for temp files, **never** `.mp4.partial` — Remotion validates the final suffix.
+- **Two renderers**: `--renderer remotion` (default) or `--renderer hyperframes`. HyperFrames lives at `src/providers/renderer/hyperframes/`.
+- **TS quality gate**: Pushes to `src/providers/renderer/remotion/` trigger a GitHub Actions workflow (prettier, eslint, tsc, vitest, knip, npm audit). Run `npm ci && npx vitest run` in that dir to test locally.
+- **Prompt placeholders**: `{{ foo }}` tokens must have matching `PH_FOO` constants in `src/core/prompts.py`. `render_prompt()` raises on unknown placeholders.
+- **Path literals**: Never build `f"data/{date}/foo.json"` directly — use helpers from `src/pipeline/paths.py`.

@@ -138,11 +138,7 @@ PIPELINE_DIRS = {
 RAW_FILES = {"raw_stories.json": _raw_target}
 RAW_DIRS = {"downloaded_pages": _raw_pages_target}
 
-MEDIA_FILES = {
-    "cover_bg.png": _media_target,
-    "cover.png": _media_target,
-    "cover_props.json": _media_target,
-}
+MEDIA_FILES = {}
 MEDIA_DIRS = {"images": _media_images_target}
 
 RENDER_FILES = {"cli_props.json": _render_target}
@@ -153,6 +149,9 @@ PUBLISH_FILES = {
     "title.json": _publish_target,
     "transcript.md": _publish_target,
     "publish_guide.md": _publish_target,
+    "cover_bg.png": _publish_target,
+    "cover.png": _publish_target,
+    "cover_props.json": _publish_target,
 }
 
 AGENT_FILES = {

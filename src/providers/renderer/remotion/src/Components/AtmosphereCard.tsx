@@ -1,18 +1,19 @@
 /* ================================================================
-   AtmosphereCard — 社区回声卡 (Warm Paper Theme)
+   AtmosphereCard �?社区回声�?(Warm Paper Theme)
    ================================================================
 
    Layout: four sections top-to-bottom
-     ① Discussion summary + controversy level tag
-     ② Debate topics (left) + stance distribution with concerns (right)
-     ③ Quoted opinions (stripe + quote text + author + stance label)
+     �?Discussion summary + controversy level tag
+     �?Debate topics (left) + stance distribution with concerns (right)
+     �?Quoted opinions (stripe + quote text + author + stance label)
 
    Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
-   adds entrance animation via useCurrentFrame/interpolate.
+   adds entrance animation via useCurrentFrame/interpolate (per-element stagger
+   with ANIM_PRESETS + fadeUp from timing.ts).
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame } from "remotion";
 import type { ControversyLevel, Stance } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
@@ -21,8 +22,6 @@ import {
   useDesign,
   FONTS,
   FW,
-  ANIM,
-  EASE_CARD,
   CARD_LAYOUT,
   COMMON_LAYOUT,
   ATMOSPHERE_LAYOUT,
@@ -30,6 +29,7 @@ import {
 import { CardShell, Fill } from "./CardShell";
 import { Panel, SectionHeading, SlideIndicator } from "./CardPrimitives";
 import { STANCE_COLORS } from "./stance";
+import { ANIM_PRESETS, fadeUp } from "./timing";
 
 /* ---- label maps ---- */
 
@@ -55,8 +55,8 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
   width: _width,
   height: _height,
 }) => {
-  const frame = useCurrentFrame();
   const d = useDesign();
+  const frame = useCurrentFrame();
 
   const typed = extractAtmosphereProps(elementProps);
   const {
@@ -88,17 +88,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
     stancePcts.skeptic += diff;
   }
 
-  // Entrance animation
-  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  // 入场动效: CardShell 整体 fade-up + 子元素交错 fade-up
 
   return (
     <CardShell
@@ -117,12 +107,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
       <SlideIndicator current={displayIndex + 1} total={storyCount} />
       <Fill gap={ATMOSPHERE_LAYOUT.fillGap} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
         {/* ① Stat-block header (对齐模板 stat-block: prefix + 大数字 + label) */}
-        <div
-          style={{
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0])}px)`,
-          }}
-        >
+        <div style={fadeUp(frame, ANIM_PRESETS.title)}>
           <h1
             style={{
               fontFamily: FONTS.serifBold,
@@ -175,8 +160,7 @@ export const AtmosphereCard: React.FC<ElementProps> = ({
             gap: d.scaled(ATMOSPHERE_LAYOUT.gridGap),
             flex: 1,
             minHeight: 0,
-            opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0])}px)`,
+            ...fadeUp(frame, ANIM_PRESETS.body),
           }}
         >
           {/* Panel A: 立场分布 */}

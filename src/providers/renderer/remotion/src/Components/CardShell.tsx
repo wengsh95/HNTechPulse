@@ -15,18 +15,18 @@
    ================================================================ */
 
 import React from "react";
-import { useCurrentFrame, interpolate } from "remotion";
+import { interpolate, useCurrentFrame } from "remotion";
 import type { ElementProps } from "./utils";
 import { CardAudioWaveform } from "./CardAudioWaveform";
 import {
+  ANIM,
   COLORS,
   CARD_REF,
+  EASE_CARD,
   useDesign,
   FONTS,
   FW,
   CARD_LAYOUT,
-  EASE_CARD,
-  ANIM,
   SHADOWS,
   SURFACES,
   COMMON_LAYOUT,
@@ -65,22 +65,12 @@ export interface CardShellProps {
   paddingLeft?: number;
   paddingRight?: number;
 
-  /** 卡片内的最大内容宽度, 防止长文本撑爆 */
-  contentMaxWidth?: number;
-
   // ── Chrome (顶部条 / 波形 / 页码, 全部 opt-in) ──
   showTopBar?: boolean;
   showWatermark?: boolean;
   showWaveform?: boolean;
   pageIndex?: number;
   totalPages?: number;
-
-  /**
-   * 章节上下文 (居中显示在 masthead 中间), 用于平衡左右视觉重量.
-   * 推荐: cover="今日封面", event="EVENT 0X · 标题缩写", atmosphere="讨论".
-   * 不传则居中区不渲染.
-   */
-  chapterLabel?: string;
 
   /**
    * 字幕总是显示 (HNTechPulseComposition 强制 standard mode).
@@ -117,19 +107,27 @@ export const CardShell: React.FC<CardShellProps> = ({
   paddingBottom,
   paddingLeft,
   paddingRight,
-  contentMaxWidth: _contentMaxWidth,
   showTopBar = true,
   showWatermark = false,
   showWaveform = true,
   pageIndex = 0,
   totalPages = 0,
   reserveSubtitle = false,
-  chapterLabel,
   style,
   contentStyle,
 }) => {
-  const frame = useCurrentFrame();
   const d = useDesign();
+  const frame = useCurrentFrame();
+
+  // ── 入场动效: opacity + translateY (卡片级，所有子元素一起入场) ──
+  // 与 ANIM 常量对齐: 第 3 帧开始，第 18 帧完成，ease-out 曲线
+  const cardProgress = interpolate(frame, [ANIM.cardStart, ANIM.cardEnd], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: EASE_CARD,
+  });
+  const cardOpacity = cardProgress;
+  const cardTranslateY = Math.round(interpolate(cardProgress, [0, 1], [16, 0]));
 
   // Padding 解析: 优先级 individual > gutter > CARD_LAYOUT.padding
   const pTop = d.scaled(paddingTop ?? CARD_LAYOUT.padding.top);
@@ -138,19 +136,7 @@ export const CardShell: React.FC<CardShellProps> = ({
   const pLeft = d.scaled(paddingLeft ?? gutter ?? CARD_LAYOUT.padding.left);
   const pRight = d.scaled(paddingRight ?? gutter ?? CARD_LAYOUT.padding.right);
 
-  // 整体卡片淡入
-  const cardProgress = interpolate(frame, [ANIM.cardStart, ANIM.cardEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const cardY = interpolate(cardProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0]);
-
   const dateStr = String(elementProps?.dateLabel ?? "");
-  // chapterLabel 优先从 prop 读, fallback 从 elementProps 读 (SegmentRenderer 通过 extraProps 注入)
-  const finalChapterLabel =
-    chapterLabel ??
-    String((elementProps as Record<string, unknown> | undefined)?.chapterLabel ?? "");
 
   return (
     <div
@@ -165,8 +151,9 @@ export const CardShell: React.FC<CardShellProps> = ({
         background: `linear-gradient(180deg, rgba(255,255,255,0.58), transparent 34%), ${COLORS.bg}`,
         borderRadius: d.scaled(CARD_LAYOUT.shell.radius),
         boxShadow: SHADOWS.card,
-        opacity: cardProgress,
-        transform: `translateY(${cardY}px)`,
+        // ── 入场动效 ──
+        opacity: cardOpacity,
+        transform: `translateY(${cardTranslateY}px)`,
         ...style,
       }}
     >
@@ -242,7 +229,7 @@ export const CardShell: React.FC<CardShellProps> = ({
                 background: COLORS.brand,
                 display: "inline-block",
                 flexShrink: 0,
-                animation: `hn-pulse-dot 1.8s ease-in-out 3 both`,
+                animation: `hn-pulse-dot 1.8s ease-in-out 1 both`,
               }}
             />
             HN TechPulse
@@ -262,64 +249,6 @@ export const CardShell: React.FC<CardShellProps> = ({
               {dateStr}
             </span>
           )}
-        </div>
-      )}
-
-      {/* ── 居中: 章节上下文胶囊 (双层边框 + 暖棕点 + 衬线微标) ── */}
-      {/* 已停用: 用户希望 header 保持极简, 不显示中央胶囊 */}
-      {false && finalChapterLabel && (
-        <div
-          style={{
-            position: "absolute",
-            top: d.scaled(CARD_LAYOUT.shell.chapterLabelTop),
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            alignItems: "center",
-            gap: d.scaled(CARD_LAYOUT.shell.chapterLabelGap),
-            maxWidth: d.scaled(CARD_LAYOUT.shell.chapterLabelMaxWidth),
-            padding: `${d.scaled(CARD_LAYOUT.shell.chapterLabelPaddingY)}px ${d.scaled(CARD_LAYOUT.shell.chapterLabelPaddingX)}px`,
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: d.scaled(COMMON_LAYOUT.pillRadius),
-            boxShadow: `0 1px 0 ${COLORS.surface} inset, 0 2px 6px ${COLORS.brand}11`,
-            whiteSpace: "nowrap" as const,
-            overflow: "hidden",
-            zIndex: 11,
-          }}
-        >
-          <span
-            style={{
-              width: d.scaled(CARD_LAYOUT.shell.chapterLabelDotSize),
-              height: d.scaled(CARD_LAYOUT.shell.chapterLabelDotSize),
-              borderRadius: "50%",
-              background: COLORS.brand,
-              boxShadow: `0 0 0 2px ${COLORS.brand}22`,
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontFamily: FONTS.serif,
-              fontSize: d.fs.textXs,
-              fontWeight: FW.bold,
-              color: COLORS.brand,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase" as const,
-            }}
-          >
-            {finalChapterLabel}
-          </span>
-          <span
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: d.fs.textXs,
-              color: COLORS.brand,
-              opacity: 0.6,
-            }}
-          >
-            ↗
-          </span>
         </div>
       )}
 
@@ -452,31 +381,6 @@ export const Fill: React.FC<ContentFillProps> = ({
         gap: d.scaled(gap),
         maxWidth: maxWidth ? d.scaled(maxWidth) : undefined,
         // 故意不加 flex: 1 — 留给父级 CardShell 的 justifyContent 分配空间
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-};
-
-/** 等距分布的容器 (justifyContent: space-between, 适合 2-3 块) */
-export const EvenSpread: React.FC<ContentFillProps> = ({
-  children,
-  direction = "column",
-  gap = 0,
-  style,
-}) => {
-  const d = useDesign();
-  return (
-    <div
-      style={{
-        flex: 1, // ← 这里反而需要 flex: 1, 让 space-between 真的起作用
-        minHeight: 0,
-        display: "flex",
-        flexDirection: direction,
-        justifyContent: "space-between",
-        gap: d.scaled(gap),
         ...style,
       }}
     >

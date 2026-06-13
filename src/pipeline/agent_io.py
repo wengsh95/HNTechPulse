@@ -62,6 +62,29 @@ def stable_hash(data: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def is_artifact_fresh(artifact_path: Path | str, inputs: dict[str, Any]) -> bool:
+    """Return True if `artifact_path` exists and its sidecar manifest's
+    ``input_hash`` matches ``stable_hash(inputs)``.
+
+    Used by pipeline steps to decide whether a cached artifact is still
+    valid for the current upstream inputs (story set, focus story, etc.),
+    instead of trusting file existence alone.
+    """
+    path = Path(artifact_path)
+    if not path.exists():
+        return False
+    manifest_path = path.with_suffix(path.suffix + ".manifest.json")
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(manifest, dict):
+        return False
+    return manifest.get("input_hash") == stable_hash(inputs)
+
+
 def write_artifact_manifest(
     artifact_path: Path | str,
     *,

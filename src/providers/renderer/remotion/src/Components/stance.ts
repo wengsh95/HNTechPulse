@@ -8,14 +8,6 @@
 
 import type { Stance } from "./cardTypes";
 
-export const STANCE_LABELS: Record<Stance, string> = {
-  support: "支持",
-  skeptic: "质疑",
-  neutral: "中立",
-  tease: "调侃",
-  worry: "担忧",
-};
-
 export const STANCE_COLORS: Record<Stance, string> = {
   support: "#4f8761", // 模板 --color-green (stance support bar)
   skeptic: "#c69230", // 模板 --color-amber (stance skeptical bar)

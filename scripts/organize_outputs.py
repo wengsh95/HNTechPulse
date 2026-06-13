@@ -25,9 +25,9 @@ if str(ROOT) not in sys.path:
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
-    media_path,
     pipeline_path,
     publish_path,
+    publish_root,
     render_path,
 )
 
@@ -38,7 +38,7 @@ from src.pipeline.paths import (  # noqa: E402
 OUTPUT_GROUPS: dict[str, list[tuple[str, Path]]] = {
     "final": [
         ("output.mp4", publish_path("__DATE__", "output.mp4")),
-        ("cover.png", media_path("__DATE__", "cover.png")),
+        ("cover.png", publish_path("__DATE__", "cover.png")),
     ],
     "publish": [
         ("publish_guide.md", publish_path("__DATE__", "publish_guide.md")),
@@ -122,10 +122,10 @@ def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
             copied.append(_copy_file(src, output_root / group / out_name))
 
     cover_dest = output_root / "cover"
-    cover_media = date_root(date) / "media"
+    cover_publish = publish_root(date)
     seen_cover_sources: set[Path] = set()
     for pattern in COVER_PATTERNS:
-        for src in sorted(cover_media.glob(pattern)):
+        for src in sorted(cover_publish.glob(pattern)):
             if not src.is_file() or src in seen_cover_sources:
                 continue
             seen_cover_sources.add(src)

@@ -101,10 +101,10 @@ class TranslationManager:
                 content, missing_comment_refs
             )
             translations.update(comment_translations)
-            self._apply_comment_translations(
-                content, translations, selected_ids_by_story, judgements
-            )
 
+        self._apply_comment_translations(
+            content, translations, selected_ids_by_story, judgements
+        )
         # Save checkpoint
         if translations:
             atomic_write_json(translations_path, translations)

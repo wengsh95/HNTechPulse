@@ -23,7 +23,6 @@ from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash 
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
-    media_path,
     pipeline_path,
     publish_path,
     raw_downloaded_pages_dir,
@@ -172,7 +171,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     }
     optional_publish = {
         "title": publish_path(date, "title.json"),
-        "cover_props": media_path(date, "cover_props.json"),
+        "cover_props": publish_path(date, "cover_props.json"),
         "publish_guide": publish_path(date, "publish_guide.md"),
     }
 
@@ -560,7 +559,7 @@ def audit(date: str) -> dict[str, Any]:
                 pipeline_path(date, "content.json"),
                 pipeline_path(date, "script.json"),
                 publish_path(date, "title.json"),
-                media_path(date, "cover_props.json"),
+                publish_path(date, "cover_props.json"),
                 publish_path(date, "publish_guide.md"),
             ]
         )

@@ -126,7 +126,6 @@ class PipelineProgress:
 
         # 10. synthesize_audio
         from src.pipeline.paths import (
-            media_path,
             pipeline_audio_dir,
             publish_path,
             render_path,
@@ -145,13 +144,13 @@ class PipelineProgress:
             entries.append(("title", "-", "will generate title"))
 
         # 12. cover_image
-        if media_path(date, "cover_bg.png").exists():
+        if publish_path(date, "cover_bg.png").exists():
             entries.append(("cover_image", "✓", "cover image cached"))
         else:
             entries.append(("cover_image", "-", "will generate cover image"))
 
         # 13. cover_thumbnail
-        if media_path(date, "cover.png").exists():
+        if publish_path(date, "cover.png").exists():
             entries.append(("cover_thumbnail", "✓", "cover thumbnail cached"))
         else:
             entries.append(("cover_thumbnail", "-", "will render cover thumbnail"))

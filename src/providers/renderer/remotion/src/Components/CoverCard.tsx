@@ -9,22 +9,22 @@
      - Highlights list (rank badge + title + metric pills + subtitle)
      - Right side decorative vertical line
 
-   Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling,
-   adds subtle entrance animation via useCurrentFrame/interpolate.
+   Adapted for Remotion: accepts ElementProps, uses useDesign() for scaling.
+   Entrance animation: CardShell handles card-level fade-up; per-element
+   staggered fade-up is applied via ANIM_PRESETS + fadeUp() from timing.ts.
 */
 
 import React from "react";
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame } from "remotion";
 import type { Highlight } from "./cardTypes";
-import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractCoverProps } from "./propsExtractors";
 import {
+  ANIM,
+  COLORS,
   useDesign,
   FONTS,
   FW,
-  ANIM,
-  EASE_CARD,
   CARD_LAYOUT,
   COMMON_LAYOUT,
   COVER_LAYOUT,
@@ -32,35 +32,21 @@ import {
 } from "./design";
 import { CardShell, Fill } from "./CardShell";
 import { MetricPill, NumberDisc, Panel } from "./CardPrimitives";
+import { ANIM_PRESETS, fadeUp } from "./timing";
 
 /* ---- sub-component ---- */
 
 function HighlightRow({
   h,
   d,
-  index,
   frame,
+  index,
 }: {
   h: Highlight;
   d: ReturnType<typeof useDesign>;
-  index: number;
   frame: number;
+  index: number;
 }) {
-  // 圆形纯色序号徽章 (对齐模板 .num-disc)
-  const rowProgress = interpolate(
-    frame,
-    [
-      ANIM.bodyStart + index * COVER_LAYOUT.rowStagger,
-      ANIM.bodyEnd + index * COVER_LAYOUT.rowStagger,
-    ],
-    [0, 1],
-    {
-      easing: EASE_CARD,
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    },
-  );
-
   return (
     <Panel
       style={{
@@ -69,8 +55,7 @@ function HighlightRow({
         alignItems: "center",
         gap: d.scaled(COVER_LAYOUT.rowGap),
         padding: `${d.scaled(COVER_LAYOUT.rowPaddingY)}px ${d.scaled(30)}px`,
-        opacity: rowProgress,
-        transform: `translateX(${interpolate(rowProgress, [0, 1], [-COMMON_LAYOUT.contentGap, 0])}px)`,
+        ...fadeUp(frame, ANIM_PRESETS.meta, index * ANIM.rowStagger),
       }}
     >
       <NumberDisc variant={h.rank === 1 ? "solid" : "soft"} size={COVER_LAYOUT.rankBadgeSize}>
@@ -144,8 +129,8 @@ export const CoverCard: React.FC<ElementProps> = ({
   width: _width,
   height: _height,
 }) => {
-  const frame = useCurrentFrame();
   const d = useDesign();
+  const frame = useCurrentFrame();
 
   const typed = extractCoverProps(elementProps);
   const { headline, highlights } = typed;
@@ -154,18 +139,6 @@ export const CoverCard: React.FC<ElementProps> = ({
       ? elementProps.subtitle
       : "";
   const hasHighlights = highlights.length > 0;
-
-  // Entrance animation
-  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
 
   return (
     <CardShell
@@ -177,7 +150,7 @@ export const CoverCard: React.FC<ElementProps> = ({
       showTopBar
       showWatermark={false}
       showWaveform
-      reserveSubtitle // 字幕始终显示, 底部给字幕让位
+      reserveSubtitle
     >
       <Fill gap={COVER_LAYOUT.fillGap} maxWidth={CARD_LAYOUT.content.wideMaxWidth}>
         {/* Headline — Fraunces serif, 对齐模板 card-title */}
@@ -191,8 +164,7 @@ export const CoverCard: React.FC<ElementProps> = ({
             color: COLORS.fg,
             fontFamily: FONTS.serifBold,
             maxWidth: d.scaled(COVER_LAYOUT.headlineMaxWidth),
-            opacity: titleProgress,
-            transform: `translateY(${interpolate(titleProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0])}px)`,
+            ...fadeUp(frame, ANIM_PRESETS.title),
           }}
         >
           {headline}
@@ -207,7 +179,7 @@ export const CoverCard: React.FC<ElementProps> = ({
               fontFamily: FONTS.sans,
               fontSize: d.fs.textLg,
               lineHeight: 1.3,
-              opacity: titleProgress,
+              ...fadeUp(frame, ANIM_PRESETS.body),
             }}
           >
             {subtitle}
@@ -220,7 +192,7 @@ export const CoverCard: React.FC<ElementProps> = ({
             display: "flex",
             alignItems: "center",
             gap: d.scaled(COVER_LAYOUT.titleGap),
-            opacity: bodyProgress,
+            ...fadeUp(frame, ANIM_PRESETS.body, 2),
           }}
         >
           <div
@@ -247,7 +219,7 @@ export const CoverCard: React.FC<ElementProps> = ({
                   height: d.scaled(COVER_LAYOUT.dotSize),
                   borderRadius: COMMON_LAYOUT.circleRadius,
                   background: color,
-                  opacity: interpolate(bodyProgress, [0, 1], [0, 0.6]),
+                  opacity: 0.6,
                 }}
               />
             ))}
@@ -262,11 +234,10 @@ export const CoverCard: React.FC<ElementProps> = ({
               flexDirection: "column" as const,
               gap: d.scaled(COVER_LAYOUT.rowGap),
               width: "100%",
-              opacity: bodyProgress,
             }}
           >
             {highlights.map((h, i) => (
-              <HighlightRow key={h.rank} h={h} d={d} index={i} frame={frame} />
+              <HighlightRow key={h.rank} h={h} d={d} frame={frame} index={i} />
             ))}
           </div>
         )}

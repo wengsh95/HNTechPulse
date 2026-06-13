@@ -7,34 +7,12 @@ import {
   EVENT_LAYOUT,
   FONTS,
   FW,
-  GRADIENTS,
   SHADOWS,
   SURFACES,
   useDesign,
 } from "./design";
 
 type StyleProp = React.CSSProperties | undefined;
-
-export const CardDivider: React.FC<{
-  opacity?: number;
-  style?: StyleProp;
-}> = ({ opacity, style }) => {
-  const d = useDesign();
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: d.scaled(CARD_LAYOUT.divider.maxWidth),
-        height: d.scaled(CARD_LAYOUT.divider.height),
-        borderRadius: d.scaled(CARD_LAYOUT.divider.borderRadius),
-        background: GRADIENTS.accentSoft,
-        opacity,
-        ...style,
-      }}
-    />
-  );
-};
 
 export const MetricPill: React.FC<{
   children: React.ReactNode;

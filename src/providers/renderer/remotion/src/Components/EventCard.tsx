@@ -1,21 +1,20 @@
 import React from "react";
-import { interpolate, staticFile, useCurrentFrame } from "remotion";
+import { staticFile, useCurrentFrame } from "remotion";
 
 import type { AnalysisItem, EventCardProps, HeatLevel } from "./cardTypes";
 import { CardShell } from "./CardShell";
 import { KeywordTag, MetricPill, Panel, SectionHeading, SlideIndicator } from "./CardPrimitives";
 import {
-  ANIM,
   CARD_LAYOUT,
   COLORS,
   COMMON_LAYOUT,
-  EASE_CARD,
   EVENT_LAYOUT,
   FONTS,
   FW,
   useDesign,
 } from "./design";
 import { extractEventProps } from "./propsExtractors";
+import { ANIM_PRESETS, fadeUp } from "./timing";
 import type { ElementProps } from "./utils";
 
 const HEAT_LABELS: Record<HeatLevel, string> = {
@@ -38,7 +37,7 @@ const ANALYSIS_META: Record<
   impact: { label: "影响分析", barColor: COLORS.brandLight, labelColor: COLORS.brandDeep },
 };
 
-function Header({ props, progress }: { props: EventCardProps; progress: number }) {
+function Header({ props }: { props: EventCardProps }) {
   const d = useDesign();
 
   return (
@@ -47,8 +46,6 @@ function Header({ props, progress }: { props: EventCardProps; progress: number }
         display: "flex",
         flexDirection: "column",
         gap: d.scaled(10),
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [COMMON_LAYOUT.riseMedium, 0])}px)`,
       }}
     >
       <h1
@@ -96,7 +93,7 @@ function Header({ props, progress }: { props: EventCardProps; progress: number }
   );
 }
 
-function MetaRow({ props, progress }: { props: EventCardProps; progress: number }) {
+function MetaRow({ props }: { props: EventCardProps }) {
   const d = useDesign();
 
   return (
@@ -109,7 +106,6 @@ function MetaRow({ props, progress }: { props: EventCardProps; progress: number 
         alignItems: "center",
         justifyContent: "space-between",
         gap: d.scaled(30),
-        opacity: progress,
       }}
     >
       <div
@@ -200,8 +196,8 @@ function AnalysisPanels({ items }: { items: AnalysisItem[] }) {
 }
 
 export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
-  const frame = useCurrentFrame();
   const d = useDesign();
+  const frame = useCurrentFrame();
   const props = extractEventProps(elementProps);
   const { imageUrl, logoUrl } = props;
   const hasVisual = Boolean(imageUrl || logoUrl);
@@ -209,22 +205,6 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
     props.imageType === "screenshot" ||
     props.imageType === "document" ||
     Boolean(imageUrl?.toLowerCase().includes("screenshot"));
-
-  const titleProgress = interpolate(frame, [ANIM.titleStart, ANIM.titleEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const bodyProgress = interpolate(frame, [ANIM.bodyStart, ANIM.bodyEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const visualProgress = interpolate(frame, [ANIM.imageStart, ANIM.imageEnd], [0, 1], {
-    easing: EASE_CARD,
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
 
   return (
     <CardShell
@@ -249,8 +229,12 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
           gap: d.scaled(24),
         }}
       >
-        <Header props={props} progress={titleProgress} />
-        <MetaRow props={props} progress={bodyProgress} />
+        <div style={fadeUp(frame, ANIM_PRESETS.title)}>
+          <Header props={props} />
+        </div>
+        <div style={fadeUp(frame, ANIM_PRESETS.meta)}>
+          <MetaRow props={props} />
+        </div>
 
         <div
           style={{
@@ -260,11 +244,11 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
             display: "grid",
             gridTemplateColumns: hasVisual ? "minmax(0, 0.92fr) minmax(0, 1.08fr)" : "1fr",
             gap: d.scaled(EVENT_LAYOUT.bodyColumnGap),
-            opacity: bodyProgress,
-            transform: `translateY(${interpolate(bodyProgress, [0, 1], [COMMON_LAYOUT.riseSmall, 0])}px)`,
           }}
         >
-          <AnalysisPanels items={props.analysis} />
+          <div style={fadeUp(frame, ANIM_PRESETS.body)}>
+            <AnalysisPanels items={props.analysis} />
+          </div>
 
           {imageUrl && (
             <aside
@@ -276,8 +260,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
                 borderRadius: d.scaled(COMMON_LAYOUT.panelRadius),
                 background: COLORS.surface2,
                 boxShadow: "0 10px 24px rgba(32,25,20,0.08)",
-                opacity: visualProgress,
-                transform: `translateX(${interpolate(visualProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0])}px)`,
+                ...fadeUp(frame, ANIM_PRESETS.body, 3),
               }}
             >
               <img
@@ -307,8 +290,7 @@ export const EventCard: React.FC<ElementProps> = ({ elementProps }) => {
                 borderRadius: d.scaled(COMMON_LAYOUT.panelRadius),
                 background: COLORS.surface2,
                 boxShadow: "0 10px 24px rgba(32,25,20,0.08)",
-                opacity: visualProgress,
-                transform: `translateX(${interpolate(visualProgress, [0, 1], [COMMON_LAYOUT.riseLarge, 0])}px)`,
+                ...fadeUp(frame, ANIM_PRESETS.body, 3),
               }}
             >
               <img

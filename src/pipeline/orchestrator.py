@@ -18,6 +18,7 @@ from src.pipeline.agent_decision import AgentDecisionEngine
 from src.pipeline.agent_io import (
     append_agent_event,
     file_sha256,
+    is_artifact_fresh,
     stable_hash,
     write_artifact_manifest,
 )
@@ -31,7 +32,6 @@ from src.pipeline.content_io import ContentPreparer
 from src.pipeline.paths import (
     agent_path,
     date_root,
-    media_path,
     pipeline_audio_dir,
     pipeline_path,
     publish_path,
@@ -825,7 +825,25 @@ class Orchestrator:
             return script
 
         cache_path = publish_path(date, "title.json")
-        if cache_path.exists():
+        focus_story, comment_analysis = self._build_focus_story_input(
+            script, content, date
+        )
+
+        # Manifest inputs are the semantic identity of *what* this title was
+        # written for. If the focus story or its comment lanes change between
+        # runs (e.g. prefilter swaps the top-3), the cache is stale and must
+        # be regenerated — even if `title.json` still exists on disk.
+        manifest_inputs = {
+            "focus_source_id": focus_story.get("source_id", ""),
+            "focus_title": focus_story.get("title", ""),
+            "focus_title_cn": focus_story.get("title_cn", ""),
+            "focus_editor_angle": focus_story.get("editor_angle", ""),
+            "comment_analysis_hash": stable_hash(comment_analysis),
+            "prompt_hash": file_sha256(Path("prompts/title.md")),
+            "date": date,
+        }
+
+        if is_artifact_fresh(cache_path, manifest_inputs):
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             self.logger.info(f"  Loaded cached title from {cache_path}")
             script.title = normalize_cjk_mixed_spacing(
@@ -844,15 +862,16 @@ class Orchestrator:
                 for tag in (cached.get("cover_tags") or script.cover_tags or [])
                 if str(tag).strip()
             ][:2]
+            script.cover_highlights = [
+                normalize_cjk_mixed_spacing(str(word))
+                for word in (cached.get("cover_highlights") or script.cover_highlights or [])
+                if str(word).strip()
+            ][:4]
             return script
 
         if self.dry_run:
             self.logger.info("Dry run: skipping title generation")
             return script
-
-        focus_story, comment_analysis = self._build_focus_story_input(
-            script, content, date
-        )
 
         context = {
             "focus_story_json": json.dumps(focus_story, ensure_ascii=False, indent=2),
@@ -873,19 +892,12 @@ class Orchestrator:
             self.logger.error(f"  Title LLM call failed: {e}")
             raise
 
-        # Enforce a reasonable length cap on the title.
-        # The prompt asks for ≤30 visual chars; we allow up to TITLE_HARD_MAX
-        # to accommodate English product names that are wider than CJK.
         chosen = _downgrade_unsupported_publish_claims(result.get("title") or "")
 
-        TITLE_IDEAL_MIN, TITLE_HARD_MAX = 8, 40
-
-        if chosen and not (TITLE_IDEAL_MIN <= len(chosen) <= TITLE_HARD_MAX):
-            original_len = len(chosen)
-            chosen = chosen[:TITLE_HARD_MAX]
-            self.logger.info(
-                f"  LLM's `title` field was {original_len} chars; "
-                f"truncated to {TITLE_HARD_MAX}: {chosen!r}"
+        if chosen and len(chosen) < 8:
+            self.logger.warning(
+                f"  LLM's `title` field was only {len(chosen)} chars; "
+                f"below minimum 8: {chosen!r}"
             )
 
         script.title = chosen or "HN每日观察"
@@ -907,14 +919,24 @@ class Orchestrator:
             for tag in (result.get("cover_tags") or [])
             if str(tag).strip()
         ][:2]
+        script.cover_highlights = [
+            normalize_cjk_mixed_spacing(str(word))
+            for word in (result.get("cover_highlights") or [])
+            if str(word).strip()
+        ][:4]
 
         atomic_write_json(
             cache_path,
             {
                 "title": script.title,
+                "title_candidates": [
+                    c for c in (result.get("title_candidates") or [script.title])
+                    if isinstance(c, str) and c.strip()
+                ][:4],
                 "description": script.description,
                 "cover_title": script.cover_title,
                 "cover_tags": script.cover_tags,
+                "cover_highlights": script.cover_highlights,
                 "cover_subtitle": script.cover_subtitle,
                 "tags": script.tags,
             },
@@ -923,10 +945,7 @@ class Orchestrator:
             cache_path,
             step="title",
             date=date,
-            inputs={
-                "script_segment_count": len(script.segments),
-                "content_item_count": len(content.items),
-            },
+            inputs=manifest_inputs,
             config=self.config,
         )
         self.script_writer.save_script(script, date)
@@ -936,15 +955,49 @@ class Orchestrator:
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info("Step: Cover image — generate AI image for cover")
-        bg_path = media_path(date, "cover_bg.png")
-        props_path = media_path(date, "cover_props.json")
+        bg_path = publish_path(date, "cover_bg.png")
+        props_path = publish_path(date, "cover_props.json")
         # CoverThumbnail composition in Remotion is 1920x1080 (16:9); the
         # generated image must match, otherwise objectFit:cover crops the
         # editorial illustration. The provider's config default may differ,
         # so we override explicitly here.
         cover_aspect_ratio = "16:9"
 
-        if bg_path.exists() and props_path.exists():
+        # Compute the props payload up-front so we can decide whether the
+        # cached props are still valid for the current script. The bg image
+        # itself is regeneration-expensive and stays gated on file existence.
+        title = (
+            script.cover_title
+            if script and script.cover_title
+            else script.title
+            if script
+            else "HN每日观察"
+        )
+        cover_tags = script.cover_tags[:2] if script and script.cover_tags else []
+        cover_highlights = script.cover_highlights[:4] if script and script.cover_highlights else []
+        # 封面副文：cover_subtitle 优先（格式/长度见 prompts/title.md cover_subtitle 段），fallback 到 description 截断
+        if script is None:
+            subtitle = date
+        elif script.cover_subtitle:
+            subtitle = script.cover_subtitle
+        elif script.description:
+            subtitle = script.description[:40] + (
+                "…" if len(script.description) > 40 else ""
+            )
+        else:
+            subtitle = date
+        date_label = date
+
+        props_inputs = {
+            "background": bg_path.name,
+            "title": title,
+            "subtitle": subtitle,
+            "tags": cover_tags,
+            "highlights": cover_highlights,
+            "date_label": date_label,
+        }
+
+        if bg_path.exists() and is_artifact_fresh(props_path, props_inputs):
             self.logger.info(f"  Cover image already done at {bg_path}")
             return
 
@@ -999,27 +1052,6 @@ class Orchestrator:
                 )
                 return
 
-        title = (
-            script.cover_title
-            if script and script.cover_title
-            else script.title
-            if script
-            else "HN每日观察"
-        )
-        cover_tags = script.cover_tags[:2] if script and script.cover_tags else []
-        # 封面副文：cover_subtitle 优先（格式/长度见 prompts/title.md cover_subtitle 段），fallback 到 description 截断
-        if script is None:
-            subtitle = date
-        elif script.cover_subtitle:
-            subtitle = script.cover_subtitle
-        elif script.description:
-            subtitle = script.description[:40] + (
-                "…" if len(script.description) > 40 else ""
-            )
-        else:
-            subtitle = date
-        date_label = date
-
         atomic_write_json(
             props_path,
             {
@@ -1027,6 +1059,7 @@ class Orchestrator:
                 "title": title,
                 "subtitle": subtitle,
                 "tags": cover_tags,
+                "highlights": cover_highlights,
                 "dateLabel": date_label,
             },
         )
@@ -1034,12 +1067,7 @@ class Orchestrator:
             props_path,
             step="cover_image",
             date=date,
-            inputs={
-                "background": str(bg_path).replace("\\", "/"),
-                "title": title,
-                "subtitle": subtitle,
-                "tags": cover_tags,
-            },
+            inputs=props_inputs,
             config=self.config,
         )
 
@@ -1063,19 +1091,23 @@ class Orchestrator:
         self.logger.info(
             "Step: Cover thumbnail — render Remotion still with title overlay"
         )
-        cover_path = media_path(date, "cover.png")
-        bg_path = media_path(date, "cover_bg.png")
-        props_path = media_path(date, "cover_props.json")
-
-        if cover_path.exists():
-            self.logger.info(f"  Cover thumbnail already exists at {cover_path}")
-            return
+        cover_path = publish_path(date, "cover.png")
+        bg_path = publish_path(date, "cover_bg.png")
+        props_path = publish_path(date, "cover_props.json")
 
         if not bg_path.exists() or not props_path.exists():
             raise FileNotFoundError(
                 "  cover_thumbnail requires cover_bg.png and cover_props.json; "
                 "run --steps cover_image first"
             )
+
+        thumb_inputs = {
+            "props_hash": file_sha256(props_path),
+            "bg_hash": file_sha256(bg_path),
+        }
+        if is_artifact_fresh(cover_path, thumb_inputs):
+            self.logger.info(f"  Cover thumbnail already exists at {cover_path}")
+            return
 
         if self.dry_run:
             self.logger.info("Dry run: skipping cover thumbnail render")
@@ -1125,6 +1157,13 @@ class Orchestrator:
             raise RuntimeError(
                 f"Cover render did not produce a valid file: {cover_path}"
             )
+        write_artifact_manifest(
+            cover_path,
+            step="cover_thumbnail",
+            date=date,
+            inputs=thumb_inputs,
+            config=self.config,
+        )
 
     def _step_publish_guide(
         self, content: ContentPackage, script: Optional[Script], date: str
@@ -1151,9 +1190,15 @@ class Orchestrator:
             }
             for item in content.items
         ]
+        title_candidates = title_payload.get("title_candidates") or [
+            title_payload.get("title") or (script.title if script else "HN每日观察")
+        ]
         context = {
             "script_title": title_payload.get("title")
             or (script.title if script else "HN每日观察"),
+            "title_candidates_json": json.dumps(
+                title_candidates, ensure_ascii=False, indent=2
+            ),
             "script_description": title_payload.get("description")
             or (script.description if script else ""),
             "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
@@ -1163,18 +1208,7 @@ class Orchestrator:
             **context,
             "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
         }
-        manifest_path = guide_path.with_suffix(guide_path.suffix + ".manifest.json")
-        manifest = None
-        if manifest_path.exists():
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                manifest = None
-        if (
-            guide_path.exists()
-            and isinstance(manifest, dict)
-            and manifest.get("input_hash") == stable_hash(manifest_context)
-        ):
+        if is_artifact_fresh(guide_path, manifest_context):
             self.logger.info(f"  Publish guide already exists at {guide_path}")
             return
 

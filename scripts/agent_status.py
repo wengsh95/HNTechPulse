@@ -23,7 +23,6 @@ from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash 
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
-    media_path,
     pipeline_path,
     publish_path,
     render_path,
@@ -182,7 +181,7 @@ def build_status(date: str) -> dict[str, Any]:
     hyperframes_index = base / "hyperframes_project" / "index.html"
     output = publish_path(date, "output.mp4")
     title = publish_path(date, "title.json")
-    cover = media_path(date, "cover.png")
+    cover = publish_path(date, "cover.png")
     publish_guide = publish_path(date, "publish_guide.md")
 
     stale: list[dict[str, str]] = []
