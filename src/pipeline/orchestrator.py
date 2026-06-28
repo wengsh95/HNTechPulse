@@ -24,8 +24,10 @@ from src.pipeline.agent_io import (
 )
 from src.pipeline.agent_variants import (
     promote_variant_script,
+    sync_selected_variant_snapshot,
     write_variants_index,
 )
+from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.content_io import ContentPreparer
@@ -36,12 +38,13 @@ from src.pipeline.paths import (
     pipeline_path,
     publish_path,
     raw_downloaded_pages_dir,
+    render_path,
     render_remotion_dir,
 )
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
 from src.providers.renderer.binary_finder import find_npx
-from src.pipeline.script import ScriptWriter
+from src.pipeline.script import ScriptWriter, apply_subtitle_revisions
 from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.transcript_generator import save_transcript
 from src.pipeline.translation_manager import TranslationManager
@@ -108,6 +111,49 @@ def _downgrade_unsupported_publish_claims(text: str) -> str:
     return text
 
 
+def _ensure_all_stories_in_description(
+    description: str,
+    focus_story: dict,
+    other_stories: list[dict],
+) -> str:
+    """Append any story not already mentioned in the description."""
+
+    # Story-skew key terms: if none of these appear in desc, the story is missing.
+    # Each story gets its own list derived from title_cn + editor_angle.
+    def _story_keywords(story: dict) -> set[str]:
+        src = normalize_cjk_mixed_spacing(
+            (story.get("title_cn") or "") + " " + (story.get("editor_angle") or "")
+        )
+        tokens = set(re.findall(r"[\w\u4e00-\u9fff]{2,}", src))
+        # Remove super-generic brand tokens that the focus story also owns
+        generic = {"苹果", "macbook", "ipad", "mac", "iphone"}
+        return {t for t in tokens if t not in generic}
+
+    def _story_mentioned(desc: str, story: dict) -> bool:
+        keywords = _story_keywords(story)
+        if not keywords:
+            return True  # can't detect, don't append noise
+        desc_lower = normalize_cjk_mixed_spacing(desc).lower()
+        return any(kw.lower() in desc_lower for kw in keywords)
+
+    def _compact_line(story: dict) -> str:
+        editor = story.get("editor_angle") or ""
+        summary = (story.get("article_summary") or "")[:120]
+        return normalize_cjk_mixed_spacing(editor or summary)
+
+    extra_lines = []
+    for story in other_stories:
+        if not _story_mentioned(description, story):
+            line = _compact_line(story)
+            if line:
+                extra_lines.append(line)
+
+    if not extra_lines:
+        return description
+
+    return description.rstrip("。；; ") + "。" + "；".join(extra_lines) + "。"
+
+
 def _format_mmss(seconds: float | int | None) -> str:
     total = max(0, int(round(float(seconds or 0))))
     return f"{total // 60:02d}:{total % 60:02d}"
@@ -125,6 +171,7 @@ PIPELINE_STEPS = [
     "analyze_comments",
     "judge_comments",
     "write_script",
+    "review_script",
     "translate_comments",
     "synthesize_audio",
     "title",
@@ -141,9 +188,13 @@ STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
 DEFAULT_STEPS = CORE_PIPELINE_STEPS
 
+# Number of cover text variants generated for manual selection (shared background).
+COVER_VARIANT_COUNT = 3
+
 # Steps that need `script` in memory (consume from `write_script` or disk).
 SCRIPT_CONSUMING_STEPS = frozenset(
     {
+        "review_script",
         "translate_comments",
         "synthesize_audio",
         "title",
@@ -159,6 +210,7 @@ SCRIPT_CONSUMING_STEPS = frozenset(
 SCRIPT_MUTATING_STEPS = frozenset(
     {
         "write_script",
+        "review_script",
         "translate_comments",
         "synthesize_audio",
         "title",
@@ -405,37 +457,42 @@ class Orchestrator:
                     "Script not found on disk; downstream steps may fail"
                 )
 
-        # ── 9. translate_comments ─────────────────────────────────────────
+        # ── 9. review_script ──────────────────────────────────────────────
+        if "review_script" in steps:
+            with self._tracked_step("review_script"):
+                script = self._step_review_script(content, script, date)
+
+        # ── 10. translate_comments ────────────────────────────────────────
         if "translate_comments" in steps:
             with self._tracked_step("translate_comments"):
                 content, script = self._step_translate_comments(content, script, date)
 
-        # ── 10. synthesize_audio ──────────────────────────────────────────
+        # ── 11. synthesize_audio ──────────────────────────────────────────
         if "synthesize_audio" in steps:
             with self._tracked_step("synthesize_audio"):
                 script = self._step_synthesize_audio(content, script, date)
 
-        # ── 11. title ─────────────────────────────────────────────────────
+        # ── 12. title ─────────────────────────────────────────────────────
         if "title" in steps:
             with self._tracked_step("title"):
                 script = self._step_title(content, script, date)
 
-        # ── 12. cover_image ───────────────────────────────────────────────
+        # ── 13. cover_image ───────────────────────────────────────────────
         if "cover_image" in steps:
             with self._tracked_step("cover_image"):
                 self._step_cover_image(content, script, date)
 
-        # ── 13. cover_thumbnail ───────────────────────────────────────────
+        # ── 14. cover_thumbnail ───────────────────────────────────────────
         if "cover_thumbnail" in steps:
             with self._tracked_step("cover_thumbnail"):
                 self._step_cover_thumbnail(content, script, date)
 
-        # ── 14. publish_guide ─────────────────────────────────────────────
+        # ── 15. publish_guide ─────────────────────────────────────────────
         if "publish_guide" in steps:
             with self._tracked_step("publish_guide"):
                 self._step_publish_guide(content, script, date)
 
-        # ── 15. prepare_render ────────────────────────────────────────────
+        # ── 16. prepare_render ────────────────────────────────────────────
         if "prepare_render" in steps:
             with self._tracked_step("prepare_render"):
                 self._step_prepare_render(content, script, date)
@@ -816,6 +873,135 @@ class Orchestrator:
 
         return focus_story, comment_analysis
 
+    def _step_review_script(
+        self, content: ContentPackage, script: Optional[Script], date: str
+    ) -> Optional[Script]:
+        self.logger.info("Step: Review script — LLM quality audit + auto-revise")
+        if script is None:
+            self.logger.warning("Script not loaded; skipping script review")
+            return script
+
+        segment = next(
+            (s for s in script.segments if s.segment_type == "story_scan"), None
+        )
+        sub_texts = (
+            segment.meta.get("sub_segment_subtitle_texts") if segment else None
+        ) or []
+        if not sub_texts:
+            self.logger.info("  No story_scan sub-segments to review; skipping")
+            return script
+
+        cache_path = pipeline_path(date, "script_review.json")
+
+        def _apply(revisions: dict[int, list[str]]) -> None:
+            changed, warnings = apply_subtitle_revisions(script, revisions)
+            for w in warnings:
+                self.logger.info(f"  Review: {w}")
+            self.logger.info(f"  Review: applied {changed} subtitle revision(s)")
+
+        # Idempotency: the step rewrites the very subtitle texts it reads, so we
+        # cannot gate on the input hash. Instead record the post-review subtitle
+        # hash; if the script on disk already matches it, the review is current.
+        current_hash = stable_hash(sub_texts)
+        if cache_path.exists():
+            try:
+                cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                cached = {}
+            if cached.get("result_subsegments_hash") == current_hash:
+                self.logger.info("  Script already matches cached review; skipping")
+                return script
+
+        if self.dry_run:
+            self.logger.info("Dry run: skipping script review")
+            return script
+
+        payload = [
+            {"index": i, "subtitle_texts": texts} for i, texts in enumerate(sub_texts)
+        ]
+        context = {
+            "subsegments_json": json.dumps(payload, ensure_ascii=False, indent=2),
+            "date": date,
+        }
+        try:
+            result = self.llm_provider.complete_prompt(
+                "prompts/script_review.md",
+                context,
+                label="review_script",
+                expect_json=True,
+                max_tokens=16384,
+                model=self.llm_provider.fast_model,
+                temperature=self.llm_provider.fast_temperature,
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"  Script review LLM call failed ({type(e).__name__}: {e}); "
+                f"leaving script unchanged"
+            )
+            return script
+
+        revisions = self._parse_review_revisions(result, len(sub_texts))
+        _apply(revisions)
+
+        # Hash the post-review subtitle texts so a clean re-run short-circuits.
+        result_segment = next(
+            (s for s in script.segments if s.segment_type == "story_scan"), None
+        )
+        result_texts = (
+            result_segment.meta.get("sub_segment_subtitle_texts")
+            if result_segment
+            else sub_texts
+        )
+        atomic_write_json(
+            cache_path,
+            {
+                "revisions": [
+                    {"index": i, "subtitle_texts": texts}
+                    for i, texts in sorted(revisions.items())
+                ],
+                "overall_assessment": str(result.get("overall_assessment") or ""),
+                "result_subsegments_hash": stable_hash(result_texts),
+            },
+        )
+        write_artifact_manifest(
+            cache_path,
+            step="review_script",
+            date=date,
+            inputs={
+                "source_subsegments_hash": current_hash,
+                "prompt_hash": file_sha256(Path("prompts/script_review.md")),
+                "date": date,
+            },
+            config=self.config,
+        )
+        self.script_writer.save_script(script, date)
+        # Keep the selected variant snapshot in sync with the reviewed script so
+        # the publishability audit's selected_variant_promoted check compares
+        # equal scripts (review rewrites script.json in place after promotion).
+        if self.agent_mode:
+            sync_selected_variant_snapshot(date, script)
+        return script
+
+    @staticmethod
+    def _parse_review_revisions(
+        result: dict, sub_segment_count: int
+    ) -> dict[int, list[str]]:
+        """Validate the review LLM output into ``{index: [subtitle texts]}``."""
+        revisions: dict[int, list[str]] = {}
+        for entry in result.get("revisions") or []:
+            if not isinstance(entry, dict):
+                continue
+            idx = entry.get("index")
+            texts = entry.get("subtitle_texts")
+            if not isinstance(idx, int) or idx < 0 or idx >= sub_segment_count:
+                continue
+            if not isinstance(texts, list):
+                continue
+            cleaned = [str(t).strip() for t in texts if str(t).strip()]
+            if cleaned:
+                revisions[idx] = cleaned
+        return revisions
+
     def _step_title(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> Optional[Script]:
@@ -864,7 +1050,9 @@ class Orchestrator:
             ][:2]
             script.cover_highlights = [
                 normalize_cjk_mixed_spacing(str(word))
-                for word in (cached.get("cover_highlights") or script.cover_highlights or [])
+                for word in (
+                    cached.get("cover_highlights") or script.cover_highlights or []
+                )
                 if str(word).strip()
             ][:4]
             return script
@@ -873,8 +1061,27 @@ class Orchestrator:
             self.logger.info("Dry run: skipping title generation")
             return script
 
+        # Build other stories list (excluding focus)
+        other_stories = []
+        focus_id = focus_story.get("source_id", "")
+        for item in content.items:
+            if str(item.source_id) == str(focus_id):
+                continue
+            other_stories.append(
+                {
+                    "title": item.title,
+                    "title_cn": item.title_cn or "",
+                    "editor_angle": item.editor_angle or "",
+                    "article_summary": (item.article_summary or "")[:300],
+                    "key_points": (item.key_points or [])[:3],
+                }
+            )
+
         context = {
             "focus_story_json": json.dumps(focus_story, ensure_ascii=False, indent=2),
+            "other_stories_json": json.dumps(
+                other_stories, ensure_ascii=False, indent=2
+            ),
             "comments_json": json.dumps(comment_analysis, ensure_ascii=False, indent=2),
             "date": date,
         }
@@ -901,12 +1108,16 @@ class Orchestrator:
             )
 
         script.title = chosen or "HN每日观察"
-        script.description = (
+        desc = (
             _clean_publish_description(
                 _downgrade_unsupported_publish_claims(result.get("description") or "")
             )
             or f"每日快讯 - {date}"
         )
+        # Fallback: if LLM omitted any other_story brand, append a one-liner
+        # per story to guarantee every story appears in the description.
+        desc = _ensure_all_stories_in_description(desc, focus_story, other_stories)
+        script.description = desc
         script.tags = list(result.get("tags") or [])
         script.cover_subtitle = normalize_cjk_mixed_spacing(
             _downgrade_unsupported_publish_claims(result.get("cover_subtitle") or "")
@@ -930,7 +1141,8 @@ class Orchestrator:
             {
                 "title": script.title,
                 "title_candidates": [
-                    c for c in (result.get("title_candidates") or [script.title])
+                    c
+                    for c in (result.get("title_candidates") or [script.title])
                     if isinstance(c, str) and c.strip()
                 ][:4],
                 "description": script.description,
@@ -954,51 +1166,55 @@ class Orchestrator:
     def _step_cover_image(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
-        self.logger.info("Step: Cover image — generate AI image for cover")
-        bg_path = publish_path(date, "cover_bg.png")
-        props_path = publish_path(date, "cover_props.json")
+        self.logger.info(
+            "Step: Cover image — generate AI image + 3 cover text variants"
+        )
+        bg_path = render_path(date, "cover_bg.png")
+        props_path = render_path(date, "cover_props.json")
         # CoverThumbnail composition in Remotion is 1920x1080 (16:9); the
         # generated image must match, otherwise objectFit:cover crops the
         # editorial illustration. The provider's config default may differ,
         # so we override explicitly here.
         cover_aspect_ratio = "16:9"
 
-        # Compute the props payload up-front so we can decide whether the
-        # cached props are still valid for the current script. The bg image
-        # itself is regeneration-expensive and stays gated on file existence.
-        title = (
+        # Single-cover fallback text from the title step, used when the variant
+        # LLM call fails or returns fewer than COVER_VARIANT_COUNT variants.
+        fallback_title = (
             script.cover_title
             if script and script.cover_title
             else script.title
             if script
             else "HN每日观察"
         )
-        cover_tags = script.cover_tags[:2] if script and script.cover_tags else []
-        cover_highlights = script.cover_highlights[:4] if script and script.cover_highlights else []
+        fallback_tags = script.cover_tags[:2] if script and script.cover_tags else []
+        fallback_highlights = (
+            script.cover_highlights[:4] if script and script.cover_highlights else []
+        )
         # 封面副文：cover_subtitle 优先（格式/长度见 prompts/title.md cover_subtitle 段），fallback 到 description 截断
         if script is None:
-            subtitle = date
+            fallback_subtitle = date
         elif script.cover_subtitle:
-            subtitle = script.cover_subtitle
+            fallback_subtitle = script.cover_subtitle
         elif script.description:
-            subtitle = script.description[:40] + (
+            fallback_subtitle = script.description[:40] + (
                 "…" if len(script.description) > 40 else ""
             )
         else:
-            subtitle = date
+            fallback_subtitle = date
         date_label = date
 
-        props_inputs = {
-            "background": bg_path.name,
-            "title": title,
-            "subtitle": subtitle,
-            "tags": cover_tags,
-            "highlights": cover_highlights,
-            "date_label": date_label,
-        }
-
-        if bg_path.exists() and is_artifact_fresh(props_path, props_inputs):
-            self.logger.info(f"  Cover image already done at {bg_path}")
+        # Freshness: the variant texts come from a non-deterministic LLM call,
+        # so a content hash would never be stable. Like the bg image, gate the
+        # variants on existence — if the bg and all variant props are present,
+        # skip entirely (no LLM call). Delete the props (or clear render cache)
+        # to regenerate.
+        variant_paths = [
+            render_path(date, f"cover_props_v{i}.json")
+            for i in range(1, COVER_VARIANT_COUNT + 1)
+        ]
+        if bg_path.exists() and all(p.exists() for p in variant_paths):
+            self.logger.info("  Cover image + variants already done; skipping")
+            self._mirror_cover_bg(date, bg_path)
             return
 
         if self.dry_run:
@@ -1052,28 +1268,142 @@ class Orchestrator:
                 )
                 return
 
-        atomic_write_json(
-            props_path,
-            {
+        # Generate the cover text variants (3 editorial angles, shared bg).
+        variants = self._generate_cover_variants(content, script, date)
+        if not variants:
+            variants = [
+                {
+                    "title": fallback_title,
+                    "subtitle": fallback_subtitle,
+                    "tags": fallback_tags,
+                    "highlights": fallback_highlights,
+                }
+            ]
+
+        for i, variant in enumerate(variants[:COVER_VARIANT_COUNT], start=1):
+            props = {
                 "backgroundImage": bg_path.name,
-                "title": title,
-                "subtitle": subtitle,
-                "tags": cover_tags,
-                "highlights": cover_highlights,
+                "title": variant["title"],
+                "subtitle": variant["subtitle"],
+                "tags": variant["tags"],
+                "highlights": variant["highlights"],
                 "dateLabel": date_label,
-            },
-        )
-        write_artifact_manifest(
-            props_path,
-            step="cover_image",
-            date=date,
-            inputs=props_inputs,
-            config=self.config,
+            }
+            variant_path = render_path(date, f"cover_props_v{i}.json")
+            atomic_write_json(variant_path, props)
+            write_artifact_manifest(
+                variant_path,
+                step="cover_image",
+                date=date,
+                inputs={"background": bg_path.name, "variant_index": i},
+                config=self.config,
+            )
+            # v1 also written to the canonical cover_props.json (back-compat).
+            if i == 1:
+                atomic_write_json(props_path, props)
+                write_artifact_manifest(
+                    props_path,
+                    step="cover_image",
+                    date=date,
+                    inputs={"background": bg_path.name, "variant_index": 1},
+                    config=self.config,
+                )
+
+        self._mirror_cover_bg(date, bg_path)
+        self.logger.info(
+            f"  Cover image + {min(len(variants), COVER_VARIANT_COUNT)} variant(s) "
+            f"written ({bg_path.name})"
         )
 
-        # Mirror the cover background into the per-date Remotion runtime dir
-        # so the source tree stays clean. The renderer also points
-        # --public-dir here when rendering.
+    def _generate_cover_variants(
+        self, content: ContentPackage, script: Optional[Script], date: str
+    ) -> list[dict]:
+        """Generate up to COVER_VARIANT_COUNT cover text variants (3 angles).
+
+        Returns a list of ``{title, subtitle, tags, highlights}`` dicts with
+        CJK spacing normalized. Returns [] on failure so the caller can fall
+        back to the single-cover text from the title step.
+        """
+        focus_story, comment_analysis = self._build_focus_story_input(
+            script, content, date
+        )
+        if not focus_story:
+            return []
+
+        focus_id = focus_story.get("source_id", "")
+        other_stories = []
+        for item in content.items:
+            if str(item.source_id) == str(focus_id):
+                continue
+            other_stories.append(
+                {
+                    "title": item.title,
+                    "title_cn": item.title_cn or "",
+                    "editor_angle": item.editor_angle or "",
+                }
+            )
+
+        context = {
+            "focus_story_json": json.dumps(focus_story, ensure_ascii=False, indent=2),
+            "other_stories_json": json.dumps(
+                other_stories, ensure_ascii=False, indent=2
+            ),
+            "comments_json": json.dumps(comment_analysis, ensure_ascii=False, indent=2),
+            "date": date,
+        }
+        try:
+            result = self.llm_provider.complete_prompt(
+                "prompts/cover_variants.md",
+                context,
+                label="cover_variants",
+                expect_json=True,
+                max_tokens=4096,
+                model=self.llm_provider.fast_model,
+                temperature=self.llm_provider.fast_temperature,
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"  Cover variants LLM call failed ({type(e).__name__}: {e}); "
+                f"falling back to single cover text"
+            )
+            return []
+
+        variants: list[dict] = []
+        for entry in result.get("variants") or []:
+            if not isinstance(entry, dict):
+                continue
+            title = normalize_cjk_mixed_spacing(
+                str(entry.get("cover_title") or "")
+            ).strip()
+            if not title:
+                continue
+            subtitle = normalize_cjk_mixed_spacing(
+                str(entry.get("cover_subtitle") or "")
+            ).strip()
+            tags = [
+                normalize_cjk_mixed_spacing(str(t)).strip()
+                for t in (entry.get("cover_tags") or [])
+                if str(t).strip()
+            ][:2]
+            highlights = [
+                normalize_cjk_mixed_spacing(str(w)).strip()
+                for w in (entry.get("cover_highlights") or [])
+                if str(w).strip()
+            ][:4]
+            variants.append(
+                {
+                    "title": title,
+                    "subtitle": subtitle or date,
+                    "tags": tags,
+                    "highlights": highlights,
+                }
+            )
+        return variants
+
+    def _mirror_cover_bg(self, date: str, bg_path: Path) -> None:
+        """Mirror the cover background into the per-date Remotion runtime dir
+        so the source tree stays clean. The renderer also points --public-dir
+        here when rendering."""
         public_bg = render_remotion_dir(date) / "public" / bg_path.name
         public_bg.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -1083,31 +1413,31 @@ class Orchestrator:
         if not same_file:
             shutil.copy2(bg_path, public_bg)
 
-        self.logger.info(f"  Cover image written to {bg_path}")
-
     def _step_cover_thumbnail(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info(
-            "Step: Cover thumbnail — render Remotion still with title overlay"
+            "Step: Cover thumbnail — render Remotion stills for all variants"
         )
-        cover_path = publish_path(date, "cover.png")
-        bg_path = publish_path(date, "cover_bg.png")
-        props_path = publish_path(date, "cover_props.json")
+        bg_path = render_path(date, "cover_bg.png")
 
-        if not bg_path.exists() or not props_path.exists():
+        # Collect variant props (cover_props_v{1..N}); fall back to the single
+        # cover_props.json if no variants were written.
+        variant_props = [
+            render_path(date, f"cover_props_v{i}.json")
+            for i in range(1, COVER_VARIANT_COUNT + 1)
+        ]
+        variant_props = [p for p in variant_props if p.exists()]
+        if not variant_props:
+            single = render_path(date, "cover_props.json")
+            if single.exists():
+                variant_props = [single]
+
+        if not bg_path.exists() or not variant_props:
             raise FileNotFoundError(
-                "  cover_thumbnail requires cover_bg.png and cover_props.json; "
+                "  cover_thumbnail requires cover_bg.png and cover_props_v*.json; "
                 "run --steps cover_image first"
             )
-
-        thumb_inputs = {
-            "props_hash": file_sha256(props_path),
-            "bg_hash": file_sha256(bg_path),
-        }
-        if is_artifact_fresh(cover_path, thumb_inputs):
-            self.logger.info(f"  Cover thumbnail already exists at {cover_path}")
-            return
 
         if self.dry_run:
             self.logger.info("Dry run: skipping cover thumbnail render")
@@ -1119,8 +1449,50 @@ class Orchestrator:
                 "npx not found; install Node.js or set PATH to include npx"
             )
 
+        # cover_thumbnail renders via the Remotion CLI before prepare_render runs,
+        # so the per-date public/fonts/ dir does not exist yet. Stage fonts now or
+        # the still render 404s on every woff2 and fails.
+        stage_fonts = getattr(self.renderer, "stage_fonts", None)
+        if callable(stage_fonts):
+            stage_fonts(date)
+
+        for i, props_path in enumerate(variant_props, start=1):
+            cover_path = publish_path(date, f"cover_v{i}.png")
+            thumb_inputs = {
+                "props_hash": file_sha256(props_path),
+                "bg_hash": file_sha256(bg_path),
+            }
+            if is_artifact_fresh(cover_path, thumb_inputs):
+                self.logger.info(
+                    f"  Cover variant {i} already rendered at {cover_path}"
+                )
+            else:
+                self._render_cover_still(npx_path, props_path, cover_path, date)
+                write_artifact_manifest(
+                    cover_path,
+                    step="cover_thumbnail",
+                    date=date,
+                    inputs=thumb_inputs,
+                    config=self.config,
+                )
+            # v1 is also the canonical cover.png (back-compat).
+            if i == 1:
+                canonical = publish_path(date, "cover.png")
+                if not is_artifact_fresh(canonical, thumb_inputs):
+                    shutil.copy2(cover_path, canonical)
+                    write_artifact_manifest(
+                        canonical,
+                        step="cover_thumbnail",
+                        date=date,
+                        inputs=thumb_inputs,
+                        config=self.config,
+                    )
+
+    def _render_cover_still(
+        self, npx_path: str, props_path: Path, output_path: Path, date: str
+    ) -> None:
+        """Render a single CoverThumbnail still via the Remotion CLI."""
         remotion_dir = Path("src/providers/renderer/remotion")
-        output_abs = cover_path.resolve()
         cmd = [
             npx_path,
             "remotion",
@@ -1128,7 +1500,7 @@ class Orchestrator:
             "CoverThumbnail",
             f"--props={props_path.resolve()}",
             "--frame=0",
-            f"--output={output_abs}",
+            f"--output={output_path.resolve()}",
             f"--public-dir={(render_remotion_dir(date) / 'public').resolve()}",
         ]
         try:
@@ -1138,11 +1510,13 @@ class Orchestrator:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=120,
             )
             if result.stdout:
                 self.logger.info(f"  [remotion] {result.stdout.strip()}")
-            self.logger.info(f"  Cover thumbnail written to {cover_path}")
+            self.logger.info(f"  Cover thumbnail written to {output_path}")
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
                 f"Cover render failed (exit={e.returncode}):\n"
@@ -1153,17 +1527,10 @@ class Orchestrator:
             raise RuntimeError(f"Cover render timed out after 120s: {e}") from e
         except FileNotFoundError as e:
             raise FileNotFoundError(f"npx not found: {e}") from e
-        if not cover_path.exists() or cover_path.stat().st_size <= 0:
+        if not output_path.exists() or output_path.stat().st_size <= 0:
             raise RuntimeError(
-                f"Cover render did not produce a valid file: {cover_path}"
+                f"Cover render did not produce a valid file: {output_path}"
             )
-        write_artifact_manifest(
-            cover_path,
-            step="cover_thumbnail",
-            date=date,
-            inputs=thumb_inputs,
-            config=self.config,
-        )
 
     def _step_publish_guide(
         self, content: ContentPackage, script: Optional[Script], date: str
@@ -1204,10 +1571,10 @@ class Orchestrator:
             "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
             "date": date,
         }
-        manifest_context = {
-            **context,
-            "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
-        }
+        # Freshness inputs are computed from disk via a shared helper so the
+        # publishability audit derives an identical hash (otherwise the guide is
+        # flagged stale forever: writer skips, audit complains).
+        manifest_context = publish_guide_manifest_inputs(date)
         if is_artifact_fresh(guide_path, manifest_context):
             self.logger.info(f"  Publish guide already exists at {guide_path}")
             return

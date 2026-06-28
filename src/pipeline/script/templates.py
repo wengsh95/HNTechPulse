@@ -293,15 +293,15 @@ def generate_fixed_opening(
                 if len(keywords) >= 3:
                     break
 
-    # ── Cover subtitle: 今日 3 件事钩子 (rule-based, 不调 LLM) ──
-    # 优先用 highlight_entries[:3] 的 editor_angle 拼接, 替换原纯日期显示.
+    # ── Cover subtitle: 今日 2 件事钩子 (rule-based, 不调 LLM) ──
+    # 优先用 highlight_entries[:2] 的 editor_angle 拼接, 替换原纯日期显示.
     hook_parts: list[str] = []
-    for entry in (highlight_entries or [])[:3]:
+    for entry in (highlight_entries or [])[:2]:
         hook = _entry_hook(entry, max_len=16)
         if hook:
             hook_parts.append(hook)
     if not hook_parts and top3_titles:
-        hook_parts = top3_titles[:3]
+        hook_parts = top3_titles[:2]
     if hook_parts:
         # Compact each hook once; if the full subtitle still does not fit,
         # drop tail hooks instead of adding ellipses.

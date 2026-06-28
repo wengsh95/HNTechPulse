@@ -104,6 +104,8 @@ class RemotionRenderer(Renderer):
         self._prepare_audio_assets(script, audio_dir, target_dir=audio_target_dir)
         if content and date:
             self._prepare_image_assets(content, date, target_dir=image_target_dir)
+        if data_dir:
+            self._prepare_font_assets(data_dir / "public" / "fonts")
 
         props_data = script_to_props(
             script,
@@ -629,9 +631,7 @@ class RemotionRenderer(Renderer):
         crash that left a half-written MP4 behind.
         """
         if not chunk_file.exists() or chunk_file.stat().st_size == 0:
-            raise RuntimeError(
-                f"Chunk {label}: file missing or empty at {chunk_file}"
-            )
+            raise RuntimeError(f"Chunk {label}: file missing or empty at {chunk_file}")
         duration = self._probe_duration(chunk_file)
         if duration is None:
             raise RuntimeError(
@@ -660,9 +660,7 @@ class RemotionRenderer(Renderer):
         Returns the actual probed duration.
         """
         if not output_file.exists() or output_file.stat().st_size == 0:
-            raise RuntimeError(
-                f"Final video missing or empty at {output_file}"
-            )
+            raise RuntimeError(f"Final video missing or empty at {output_file}")
         actual = self._probe_duration(output_file)
         if actual is None:
             raise RuntimeError(
@@ -675,7 +673,7 @@ class RemotionRenderer(Renderer):
             if actual < min_acceptable:
                 raise RuntimeError(
                     f"Final video {output_file} is {actual:.2f}s, expected "
-                    f"~{expected_duration:.2f}s (tolerance {tolerance*100:.0f}%). "
+                    f"~{expected_duration:.2f}s (tolerance {tolerance * 100:.0f}%). "
                     "ffmpeg concat truncated the output — one or more chunks "
                     "are likely corrupt. Re-render the affected chunks."
                 )
@@ -746,6 +744,41 @@ class RemotionRenderer(Renderer):
     def _is_remote_url(path: str) -> bool:
         return path.startswith(("http://", "https://"))
 
+    def stage_fonts(self, date: str) -> None:
+        """Stage vendored fonts into the per-date ``public/fonts/`` for ``date``.
+
+        Public entry point so steps that render via the Remotion CLI before
+        ``prepare_render`` (e.g. ``cover_thumbnail``) can ensure fonts are served
+        from ``--public-dir``. Without this, the cover still render 404s on every
+        woff2 because fonts are otherwise only copied during ``write_props``.
+        """
+        self._prepare_font_assets(self._remotion_data_dir(date) / "public" / "fonts")
+
+    def _prepare_font_assets(self, target_dir: Path) -> None:
+        """Copy vendored woff2 fonts from assets/fonts/ to the per-date public/fonts/.
+
+        Fonts are project-level static assets (not date-specific), but Remotion
+        only serves files from ``--public-dir`` which is scoped per date. So we
+        mirror the same staging pattern as audio/images: copy on every
+        ``prepare_render`` so each date directory is self-contained.
+        """
+        source_dir = self.remotion_dir / "assets" / "fonts"
+        if not source_dir.exists():
+            self.logger.warning(
+                f"Font source dir missing: {source_dir} — renders will fall back to system fonts"
+            )
+            return
+        target_dir.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        for src in source_dir.glob("*.woff2"):
+            dest = target_dir / src.name
+            if not dest.exists() or dest.stat().st_size != src.stat().st_size:
+                shutil.copy2(src, dest)
+                copied += 1
+        self.logger.info(
+            f"Prepared {copied} new font files in public/fonts/ (target: {target_dir})"
+        )
+
     def _prepare_image_assets(self, content, date: str, target_dir: Path | None = None):
         """Copy enriched images to the Remotion public/images/ for serving.
 
@@ -765,7 +798,7 @@ class RemotionRenderer(Renderer):
             if not src.is_absolute():
                 src = date_root(date) / path
                 if not src.exists():
-                    alt = date_root(date) / 'media' / path
+                    alt = date_root(date) / "media" / path
                     src = alt if alt.exists() else src
             return src if src.exists() else None
 

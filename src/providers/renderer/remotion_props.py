@@ -681,7 +681,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
         if not src.is_absolute():
             src = date_root(date) / p
             if not src.exists():
-                alt = date_root(date) / 'media' / p
+                alt = date_root(date) / "media" / p
                 src = alt if alt.exists() else src
         return src if src.exists() else None
 

@@ -92,11 +92,13 @@ def _collect_subtitle_cues(full_props: Dict[str, Any]) -> List[Dict[str, Any]]:
             end = seg_start + float(cue.get("end_time") or 0)
             if end <= start:
                 continue
-            cues.append({
-                "text": text,
-                "start": round(start, 3),
-                "end": round(end, 3),
-            })
+            cues.append(
+                {
+                    "text": text,
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                }
+            )
     return cues
 
 
@@ -109,7 +111,9 @@ def _collect_story_markers(full_props: Dict[str, Any]) -> List[Dict[str, Any]]:
             if elem.get("element_type") != "event_card":
                 continue
             props = elem.get("props") or {}
-            story_index = props.get("story_index", props.get("display_index", len(markers)))
+            story_index = props.get(
+                "story_index", props.get("display_index", len(markers))
+            )
             key = str(story_index)
             if key in seen:
                 continue
@@ -121,15 +125,19 @@ def _collect_story_markers(full_props: Dict[str, Any]) -> List[Dict[str, Any]]:
                 or props.get("source_title")
                 or ""
             )
-            markers.append({
-                "start": round(seg_start + float(elem.get("start_time") or 0), 3),
-                "title": str(title),
-                "category": str(props.get("category") or ""),
-            })
+            markers.append(
+                {
+                    "start": round(seg_start + float(elem.get("start_time") or 0), 3),
+                    "title": str(title),
+                    "category": str(props.get("category") or ""),
+                }
+            )
     return sorted(markers, key=lambda item: float(item.get("start") or 0))
 
 
-def _build_decorative_waveform(total_duration: float, sample_rate: int = 12) -> Dict[str, Any]:
+def _build_decorative_waveform(
+    total_duration: float, sample_rate: int = 12
+) -> Dict[str, Any]:
     """Create deterministic pseudo-amplitude data for the root waveform layer."""
     import math
 
@@ -147,7 +155,9 @@ def _build_decorative_waveform(total_duration: float, sample_rate: int = 12) -> 
     return {"sample_rate": sample_rate, "values": values}
 
 
-def build_waveform_from_pcm(samples: List[float], sample_rate_hz: int, buckets_per_sec: int = 12) -> Dict[str, Any]:
+def build_waveform_from_pcm(
+    samples: List[float], sample_rate_hz: int, buckets_per_sec: int = 12
+) -> Dict[str, Any]:
     """Convert normalized PCM samples into RMS buckets for future real waveforms.
 
     This helper is intentionally dependency-free. The renderer currently uses
@@ -159,7 +169,7 @@ def build_waveform_from_pcm(samples: List[float], sample_rate_hz: int, buckets_p
     bucket_size = max(1, int(sample_rate_hz / buckets_per_sec))
     values: List[float] = []
     for start in range(0, len(samples), bucket_size):
-        bucket = samples[start:start + bucket_size]
+        bucket = samples[start : start + bucket_size]
         if not bucket:
             continue
         rms = (sum(float(x) * float(x) for x in bucket) / len(bucket)) ** 0.5
@@ -197,8 +207,14 @@ def script_to_hyperframes_scenes(
 
     # Reuse the shared Remotion serializer to get fully expanded scene_elements.
     full = script_to_props(
-        script, audio_dir, width, height, fps, bg_color,
-        content=content, logger=logger,
+        script,
+        audio_dir,
+        width,
+        height,
+        fps,
+        bg_color,
+        content=content,
+        logger=logger,
     )
 
     scenes: List[Dict[str, Any]] = []
@@ -208,11 +224,7 @@ def script_to_hyperframes_scenes(
     # stay well above any visual card count.
     next_visual_track = 0
     next_audio_track = 1000
-    default_date_label = _date_label(
-        getattr(content, "date", "")
-        or date
-        or ""
-    )
+    default_date_label = _date_label(getattr(content, "date", "") or date or "")
 
     for seg in full.get("segments", []):
         seg_start = float(seg.get("start_time") or 0)
@@ -242,7 +254,8 @@ def script_to_hyperframes_scenes(
                     "src": sa["audio_path"],
                     "start": round(seg_start + float(sa.get("start_time") or 0), 3),
                     "duration": round(
-                        float(sa.get("end_time") or 0) - float(sa.get("start_time") or 0),
+                        float(sa.get("end_time") or 0)
+                        - float(sa.get("start_time") or 0),
                         3,
                     ),
                     "track_index": next_audio_track,
@@ -321,11 +334,7 @@ def _extract_variables(
         # Title priority mirrors Remotion's extractEventProps:
         # editor_angle (Chinese editorial framing) → title_cn → story_title (English).
         story_title = props.get("story_title", "")
-        title_zh = (
-            props.get("editor_angle")
-            or props.get("title_cn")
-            or story_title
-        )
+        title_zh = props.get("editor_angle") or props.get("title_cn") or story_title
         # sub_title is the English source title shown small under the
         # Chinese headline. Skip it when it would duplicate the headline.
         source_title = props.get("source_title") or story_title
@@ -362,13 +371,17 @@ def _extract_variables(
             "title": props.get("title") or "争议指数",
             "controversy_score": score,
             "controversy_label": _controversy_label(score),
-            "discussion_summary": props.get("discussion_summary") or props.get("subtitle", ""),
+            "discussion_summary": props.get("discussion_summary")
+            or props.get("subtitle", ""),
             "date_label": props.get("date_label") or date_label,
             "stance_json": json.dumps(
-                props.get("stance_distribution") or {"support": 0, "neutral": 0, "skeptical": 0},
+                props.get("stance_distribution")
+                or {"support": 0, "neutral": 0, "skeptical": 0},
                 ensure_ascii=False,
             ),
-            "debate_focus_json": json.dumps(props.get("debate_focus") or [], ensure_ascii=False),
+            "debate_focus_json": json.dumps(
+                props.get("debate_focus") or [], ensure_ascii=False
+            ),
             "quotes_json": json.dumps(props.get("quotes") or [], ensure_ascii=False),
         }
     if element_type == "closing_card":
@@ -379,11 +392,13 @@ def _extract_variables(
             if isinstance(item, str):
                 stories.append({"title": item, "rank": idx + 1})
             elif isinstance(item, dict):
-                stories.append({
-                    "title": item.get("title") or item.get("text") or "",
-                    "signal": item.get("signal") or item.get("category") or "",
-                    "rank": item.get("rank") or idx + 1,
-                })
+                stories.append(
+                    {
+                        "title": item.get("title") or item.get("text") or "",
+                        "signal": item.get("signal") or item.get("category") or "",
+                        "rank": item.get("rank") or idx + 1,
+                    }
+                )
         raw_summary = (props.get("signal") or props.get("question") or "").strip()
         summary = "" if raw_summary == "今日信号" else raw_summary
         takeaways = [
@@ -444,7 +459,7 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
     host_lines: List[str] = []
     for i, s in enumerate(scenes):
         host_lines.append(
-            f'  <div\n'
+            f"  <div\n"
             f'    id="host-{i}"\n'
             f'    data-composition-id="{html_lib.escape(s["comp_id"])}"\n'
             f'    data-composition-src="{html_lib.escape(s["comp_src"])}"\n'
@@ -452,20 +467,20 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
             f'    data-duration="{s["duration"]}"\n'
             f'    data-track-index="{s["track_index"]}"\n'
             f"    data-variable-values='{_json_attr(s['variables'])}'\n"
-            f'  ></div>'
+            f"  ></div>"
         )
 
     audio_lines: List[str] = []
     for i, a in enumerate(audio_tracks):
         audio_lines.append(
-            f'  <audio\n'
+            f"  <audio\n"
             f'    id="audio-{i}"\n'
             f'    data-start="{a["start"]}"\n'
             f'    data-duration="{a["duration"]}"\n'
             f'    data-track-index="{a["track_index"]}"\n'
             f'    src="{html_lib.escape(a["src"])}"\n'
             f'    data-volume="1"\n'
-            f'  ></audio>'
+            f"  ></audio>"
         )
 
     title_safe = html_lib.escape(title or "HN TechPulse")
@@ -504,13 +519,15 @@ def render_index_html(scenes_payload: Dict[str, Any], title: str) -> str:
         "  </head>\n"
         "  <body>\n"
         f'    <div data-composition-id="hn-techpulse-root" data-width="{width}" data-height="{height}" data-start="0" data-duration="{total_duration}">\n'
-        + "\n".join(host_lines) + "\n"
-        + "\n".join(audio_lines) + "\n"
+        + "\n".join(host_lines)
+        + "\n"
+        + "\n".join(audio_lines)
+        + "\n"
         '      <div class="hf-global-layer">\n'
         '        <div class="hf-waveform" aria-hidden="true"></div>\n'
         '        <div class="hf-subtitle"></div>\n'
         '        <div class="hf-progress"><div class="hf-progress__bar"></div></div>\n'
-        '      </div>\n'
+        "      </div>\n"
         "    </div>\n"
         '    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>\n'
         "    <script>\n"
@@ -565,7 +582,9 @@ def filter_scenes_to_chunk(
         new_dur = new_end - new_start
         if new_dur <= 0:
             continue
-        new_scenes.append({**s, "start": round(new_start, 3), "duration": round(new_dur, 3)})
+        new_scenes.append(
+            {**s, "start": round(new_start, 3), "duration": round(new_dur, 3)}
+        )
 
     new_audio: List[Dict[str, Any]] = []
     for a in scenes_payload.get("audio_tracks", []):
@@ -579,7 +598,9 @@ def filter_scenes_to_chunk(
         new_dur = new_end - new_start
         if new_dur <= 0:
             continue
-        new_audio.append({**a, "start": round(new_start, 3), "duration": round(new_dur, 3)})
+        new_audio.append(
+            {**a, "start": round(new_start, 3), "duration": round(new_dur, 3)}
+        )
 
     new_cues: List[Dict[str, Any]] = []
     for cue in scenes_payload.get("subtitle_cues", []):
@@ -591,11 +612,13 @@ def filter_scenes_to_chunk(
         new_end = min(cue_end, chunk_end_sec) - chunk_start_sec
         if new_end <= new_start:
             continue
-        new_cues.append({
-            **cue,
-            "start": round(new_start, 3),
-            "end": round(new_end, 3),
-        })
+        new_cues.append(
+            {
+                **cue,
+                "start": round(new_start, 3),
+                "end": round(new_end, 3),
+            }
+        )
 
     total_duration = float(scenes_payload.get("totalDuration") or 0)
     markers = scenes_payload.get("story_markers", [])
@@ -604,10 +627,12 @@ def filter_scenes_to_chunk(
         marker_start = float(marker.get("start") or 0)
         if marker_start < chunk_start_sec or marker_start >= chunk_end_sec:
             continue
-        new_markers.append({
-            **marker,
-            "start": round(marker_start - chunk_start_sec, 3),
-        })
+        new_markers.append(
+            {
+                **marker,
+                "start": round(marker_start - chunk_start_sec, 3),
+            }
+        )
 
     waveform = scenes_payload.get("waveform") or {}
     sample_rate = int(waveform.get("sample_rate") or 12)
@@ -620,14 +645,19 @@ def filter_scenes_to_chunk(
         new_waveform = waveform
 
     return {
-        **{k: v for k, v in scenes_payload.items() if k not in (
-            "scenes",
-            "audio_tracks",
-            "subtitle_cues",
-            "story_markers",
-            "waveform",
-            "totalDuration",
-        )},
+        **{
+            k: v
+            for k, v in scenes_payload.items()
+            if k
+            not in (
+                "scenes",
+                "audio_tracks",
+                "subtitle_cues",
+                "story_markers",
+                "waveform",
+                "totalDuration",
+            )
+        },
         "scenes": new_scenes,
         "audio_tracks": new_audio,
         "subtitle_cues": new_cues,

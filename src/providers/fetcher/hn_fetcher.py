@@ -603,12 +603,12 @@ class HNFetcher(ContentFetcher):
 
         beijing_tz = timezone(timedelta(hours=8))
 
-        # 今天早上6点 ~ 昨天早上6点（北京时区）
+        # 抓取窗口：昨天 20:00 ~ 今天 20:00（北京时间，UTC+8，滚动 24 小时）
         start_beijing = datetime(
             yesterday.year,
             yesterday.month,
             yesterday.day,
-            6,
+            20,
             0,
             0,
             tzinfo=beijing_tz,
@@ -617,7 +617,7 @@ class HNFetcher(ContentFetcher):
             target_date.year,
             target_date.month,
             target_date.day,
-            6,
+            20,
             0,
             0,
             tzinfo=beijing_tz,

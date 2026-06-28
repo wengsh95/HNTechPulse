@@ -115,7 +115,9 @@ _PIPELINE_FILES: dict[str, str] = {
     "comment_judgement.json": "comment_judgement.json",
     "translations.json": "translations.json",
     "script.json": "script.json",
+    "script_review.json": "script_review.json",
     "selected_variant.json": "script.json",  # legacy alias — see agent_variants.promote_variant_script
+    "transcript.md": "transcript.md",
 }
 
 _MEDIA_FILES: dict[str, str] = {}
@@ -123,11 +125,11 @@ _MEDIA_FILES: dict[str, str] = {}
 _PUBLISH_FILES: dict[str, str] = {
     "output.mp4": "output.mp4",
     "title.json": "title.json",
-    "transcript.md": "transcript.md",
     "publish_guide.md": "publish_guide.md",
-    "cover_bg.png": "cover_bg.png",
     "cover.png": "cover.png",
-    "cover_props.json": "cover_props.json",
+    "cover_v1.png": "cover_v1.png",
+    "cover_v2.png": "cover_v2.png",
+    "cover_v3.png": "cover_v3.png",
 }
 
 _AGENT_FILES: dict[str, str] = {
@@ -146,6 +148,11 @@ _RAW_FILES: dict[str, str] = {
 
 _RENDER_FILES: dict[str, str] = {
     "cli_props.json": "cli_props.json",
+    "cover_bg.png": "cover_bg.png",
+    "cover_props.json": "cover_props.json",
+    "cover_props_v1.json": "cover_props_v1.json",
+    "cover_props_v2.json": "cover_props_v2.json",
+    "cover_props_v3.json": "cover_props_v3.json",
 }
 
 

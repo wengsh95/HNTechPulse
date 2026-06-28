@@ -17,6 +17,7 @@ from src.pipeline.script.templates import (
     generate_fixed_closing,
     build_highlight_entries,
 )
+from src.pipeline.script.reviser import apply_subtitle_revisions
 
 __all__ = [
     "save_script",
@@ -34,4 +35,5 @@ __all__ = [
     "generate_fixed_opening",
     "generate_fixed_closing",
     "build_highlight_entries",
+    "apply_subtitle_revisions",
 ]

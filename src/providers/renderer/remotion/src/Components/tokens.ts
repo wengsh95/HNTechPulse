@@ -19,12 +19,12 @@ export const VIDEO_DEFAULTS = {
 
 export const FONTS = {
   mono: '"JetBrains Mono", "SF Mono", "Menlo", "Source Code Pro", monospace',
-  sans: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
-  bold: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
+  sans: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
+  bold: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", "Source Han Sans SC", sans-serif',
   serif:
-    '"Fraunces", "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+    '"Fraunces", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
   serifBold:
-    '"Fraunces", "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
+    '"Fraunces", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif',
 };
 
 export const FW = {

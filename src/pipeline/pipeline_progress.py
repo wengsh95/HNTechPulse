@@ -144,7 +144,7 @@ class PipelineProgress:
             entries.append(("title", "-", "will generate title"))
 
         # 12. cover_image
-        if publish_path(date, "cover_bg.png").exists():
+        if render_path(date, "cover_bg.png").exists():
             entries.append(("cover_image", "✓", "cover image cached"))
         else:
             entries.append(("cover_image", "-", "will generate cover image"))

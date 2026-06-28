@@ -34,6 +34,8 @@ PH_SCRIPT_TITLE = "script_title"
 PH_SCRIPT_DESCRIPTION = "script_description"
 PH_TITLE_CANDIDATES_JSON = "title_candidates_json"
 PH_DATE_DISPLAY = "date_display"
+PH_OTHER_STORIES_JSON = "other_stories_json"
+PH_SUBSEGMENTS_JSON = "subsegments_json"
 
 _KNOWN_PLACEHOLDERS = frozenset(
     {
@@ -60,6 +62,8 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_SCRIPT_DESCRIPTION,
         PH_TITLE_CANDIDATES_JSON,
         PH_DATE_DISPLAY,
+        PH_OTHER_STORIES_JSON,
+        PH_SUBSEGMENTS_JSON,
     }
 )
 

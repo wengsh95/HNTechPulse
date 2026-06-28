@@ -39,6 +39,7 @@ build/
 
 # Project-specific
 .workbuddy/
+.mimocode/
 articles/
 
 

@@ -125,44 +125,6 @@ def _issue(
     return payload
 
 
-def _publish_guide_context(
-    date: str, content_path: Path, script_path: Path
-) -> dict[str, Any] | None:
-    content_data = _read_json(content_path)
-    script_data = _read_json(script_path)
-    if not isinstance(content_data, dict) or not isinstance(script_data, dict):
-        return None
-    title_data = _read_json(publish_path(date, "title.json"))
-    if not isinstance(title_data, dict):
-        title_data = {}
-    items_payload = []
-    for item in content_data.get("items") or []:
-        if not isinstance(item, dict):
-            continue
-        items_payload.append(
-            {
-                "title_cn": item.get("title_cn") or item.get("title"),
-                "title": item.get("title"),
-                "editor_angle": item.get("editor_angle") or item.get("dek") or "",
-                "category": item.get("category") or "",
-                "keywords": item.get("keywords") or [],
-                "score": item.get("score"),
-                "comment_count": item.get("comment_count"),
-            }
-        )
-    return {
-        "script_title": title_data.get("title")
-        or script_data.get("title")
-        or "HN每日观察",
-        "script_description": title_data.get("description")
-        or script_data.get("description")
-        or "",
-        "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
-        "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
-        "date": date,
-    }
-
-
 def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     required = {
@@ -171,7 +133,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     }
     optional_publish = {
         "title": publish_path(date, "title.json"),
-        "cover_props": publish_path(date, "cover_props.json"),
+        "cover": publish_path(date, "cover.png"),
         "publish_guide": publish_path(date, "publish_guide.md"),
     }
 
@@ -213,11 +175,9 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
             )
     publish_guide = optional_publish["publish_guide"]
     if publish_guide.exists():
-        context = _publish_guide_context(
-            date,
-            required["content"],
-            required["script"],
-        )
+        from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
+
+        context = publish_guide_manifest_inputs(date)
         manifest = _read_json(
             publish_guide.with_suffix(publish_guide.suffix + ".manifest.json")
         )
@@ -559,7 +519,7 @@ def audit(date: str) -> dict[str, Any]:
                 pipeline_path(date, "content.json"),
                 pipeline_path(date, "script.json"),
                 publish_path(date, "title.json"),
-                publish_path(date, "cover_props.json"),
+                publish_path(date, "cover.png"),
                 publish_path(date, "publish_guide.md"),
             ]
         )

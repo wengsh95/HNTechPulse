@@ -23,7 +23,7 @@ tts:
   provider: "minimax"
   model: "speech-2.8-hd"
   voice_id: "Chinese (Mandarin)_Warm_Bestie"
-  speed: 1
+  speed: 1.1
   vol: 1
   pitch: 0
   english_normalization: false

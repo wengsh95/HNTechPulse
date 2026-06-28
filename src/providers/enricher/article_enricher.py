@@ -76,8 +76,10 @@ class ArticleEnricher:
         if os.environ.get("HNP_HEADED", "").lower() in ("1", "true", "yes"):
             self.use_headed = True
         self.bing_image_search = enrich_cfg.get("bing_image_search", True)
-        self.bing_max_results = enrich_cfg.get("bing_max_results", 3)
-        self.bing_max_queries = enrich_cfg.get("bing_max_queries", 2)
+        self.bing_max_results = enrich_cfg.get("bing_max_results", 5)
+        self.bing_max_queries = enrich_cfg.get("bing_max_queries", 4)
+        self.bing_entity_search = enrich_cfg.get("bing_entity_search", True)
+        self.bing_entity_all_stories = enrich_cfg.get("bing_entity_all_stories", False)
         self.screenshot_enabled = enrich_cfg.get("screenshot_enabled", True)
         self.save_fetched_html = enrich_cfg.get("save_fetched_html", True)
         self.headless_batch = enrich_cfg.get("headless_batch", True)
@@ -124,6 +126,7 @@ class ArticleEnricher:
 
         self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
         self._image_select_prompt = self._load_prompt("prompts/image_select.md")
+        self._image_entities_prompt = self._load_prompt("prompts/image_entities.md")
 
     @staticmethod
     def _load_prompt(path: str) -> str:
@@ -599,18 +602,25 @@ class ArticleEnricher:
                     self.image_handler.candidate_has_suitable_size(c)
                     for c in page_candidates
                 )
-                if (
+                want_bing = (
                     not cached_image_candidates
-                    and not has_suitable_page_images
                     and self.bing_image_search
                     and item.title
-                ):
+                    and (not has_suitable_page_images or self.bing_entity_all_stories)
+                )
+                if want_bing:
+                    entity_queries = (
+                        self._extract_image_entities(item)
+                        if self.bing_entity_search
+                        else []
+                    )
                     bing_candidates = await self.image_handler.search_bing_images(
                         item.title,
                         item.url or "",
                         image_dir,
                         str(item.source_id),
                         self.fetcher,
+                        entity_queries=entity_queries,
                     )
 
                 screenshot_image = item.screenshot_image
@@ -788,6 +798,60 @@ class ArticleEnricher:
         except Exception as e:
             self.logger.debug(f"PDF image extraction failed for {pdf_path}: {e}")
         return candidates
+
+    def _extract_image_entities(self, item: Any) -> list[str]:
+        """Ask the fast model for 1-3 image-search-friendly entity queries.
+
+        Widens the Bing candidate pool with brand/product/landmark terms (e.g.
+        "OpenAI logo", "US Capitol building") that a title-only query misses.
+        Returns [] on any failure — Bing then falls back to title queries.
+        """
+        if not self._image_entities_prompt or not item.title:
+            return []
+
+        prompt = render_prompt(
+            self._image_entities_prompt,
+            title=item.title or "",
+            title_cn=item.title_cn or "",
+            editor_angle=item.editor_angle or "",
+            keywords=json.dumps(item.keywords or [], ensure_ascii=False),
+        )
+        if "<!-- SYSTEM_CUT -->" in prompt:
+            system_msg, user_msg = (
+                p.strip() for p in prompt.split("<!-- SYSTEM_CUT -->", 1)
+            )
+        else:
+            system_msg = "你是图片检索策划。"
+            user_msg = prompt
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ]
+
+        def _validate(parsed: Any) -> None:
+            if not isinstance(parsed, dict) or not isinstance(
+                parsed.get("queries"), list
+            ):
+                raise ValueError("image entities result missing 'queries' list")
+
+        try:
+            response_text = self.llm_client.call_llm_with_json_retry(
+                messages=messages,
+                label=f"image_entities_{(item.title or '')[:30]}",
+                max_tokens=256,
+                model=self.llm_client.fast_model,
+                temperature=self.llm_client.fast_temperature,
+                validator=_validate,
+            )
+            parsed = self.llm_client.extract_json(response_text)
+        except Exception as e:
+            self.logger.info(f"Image entity extraction failed for '{item.title}': {e}")
+            return []
+
+        queries = [
+            str(q).strip() for q in (parsed.get("queries") or []) if str(q).strip()
+        ]
+        return queries[:3]
 
     def _enrich_content(
         self, article_text: str, title: str

@@ -15,7 +15,7 @@
    ================================================================ */
 
 import React from "react";
-import { interpolate, useCurrentFrame } from "remotion";
+import { Easing, interpolate, useCurrentFrame } from "remotion";
 import type { ElementProps } from "./utils";
 import { CardAudioWaveform } from "./CardAudioWaveform";
 import {
@@ -138,6 +138,22 @@ export const CardShell: React.FC<CardShellProps> = ({
 
   const dateStr = String(elementProps?.dateLabel ?? "");
 
+  // ── pulse-dot: Remotion interpolate 替代 CSS @keyframes ──
+  // CSS @keyframes 在 CLI 渲染时由 Remotion 通过 Web Animations API
+  // pause + seek 到每帧时间，但 seek 精度不稳定导致帧间抖动。
+  // 改用 interpolate() 确保每帧状态完全确定性。
+  // 原始动画: 1.8s ease-in-out, scale(1)→scale(1.35)→scale(1), opacity 0.36→1→0.36
+  const PULSE_DURATION_FRAMES = Math.round(1.8 * 24); // 43 frames
+  const pulseRaw = interpolate(frame, [0, PULSE_DURATION_FRAMES], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const pulseProgress = Easing.inOut(Easing.ease)(pulseRaw);
+  // 三角形波: 0→1→0 (在 0.5 处达到峰值)
+  const pulseTriangle = 1 - Math.abs(2 * pulseProgress - 1);
+  const dotScale = 1 + pulseTriangle * 0.35;
+  const dotOpacity = 0.36 + pulseTriangle * 0.64;
+
   return (
     <div
       style={{
@@ -184,13 +200,6 @@ export const CardShell: React.FC<CardShellProps> = ({
         }}
       />
 
-      {/* pulse-dot keyframes */}
-      <style>{`
-        @keyframes hn-pulse-dot {
-          0%, 100% { opacity: 0.36; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.35); }
-        }
-      `}</style>
       {/* ── Chrome: 顶部 masthead (brand-strip 风格 — 对齐模板) ── */}
       {showTopBar && (
         <div
@@ -229,7 +238,8 @@ export const CardShell: React.FC<CardShellProps> = ({
                 background: COLORS.brand,
                 display: "inline-block",
                 flexShrink: 0,
-                animation: `hn-pulse-dot 1.8s ease-in-out 1 both`,
+                opacity: dotOpacity,
+                transform: `scale(${dotScale})`,
               }}
             />
             HN TechPulse

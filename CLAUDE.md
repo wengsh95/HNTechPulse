@@ -104,6 +104,8 @@ data/{date}/
 │                segments/, variants/, audio/
 ├── media/       images/
 ├── render/      remotion/{chunks,public}/, cli_props.json
+│                public/fonts/ — 本地 woff2 字体，由 prepare_render
+│                从 src/providers/renderer/remotion/assets/fonts/ 复制
 ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
 │                cover_bg.png, cover.png, cover_props.json
 ├── agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,

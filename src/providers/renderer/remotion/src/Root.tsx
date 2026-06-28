@@ -1,5 +1,5 @@
 import React from "react";
-import { Composition } from "remotion";
+import { cancelRender, Composition, continueRender, delayRender, staticFile } from "remotion";
 
 import { HNTechPulseComposition } from "./Components/HNTechPulseComposition";
 import { CoverThumbnail } from "./Components/CoverThumbnail";
@@ -20,11 +20,43 @@ import { ScriptProps } from "./types";
  * CLI 渲染模式：通过 --props 参数注入完整数据，Remotion 自动传递给组件
  */
 
-// ── Fraunces font loading (Google Fonts) ──
-// 对齐模板 hn-card-template-reference: Fraunces 500/700/900
-const FONT_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@500;600;700&display=swap');
-`;
+// ── 字体本地化加载 ────────────────────────────────────────────────────────
+// 字体源文件在 assets/fonts/，由 prepare_render 复制到
+// data/{date}/render/remotion/public/fonts/，再通过 staticFile("fonts/...")
+// 取到 URL。使用 delayRender 阻塞抓帧，直到所有字体就绪——绝不允许悄悄
+// 回退到 Georgia / 宋体等系统字体（那是旧版 @import 异步加载的根因）。
+//
+// family 字符串必须与 tokens.ts 的 FONTS 字体栈完全一致。
+// Fraunces / JetBrains Mono 是 variable font，单个 woff2 覆盖整段 weight 范围。
+type FontDef = { family: string; weight: string; file: string };
+const FONT_FILES: FontDef[] = [
+  { family: "Fraunces", weight: "500 900", file: "fonts/Fraunces-VF-latin.woff2" },
+  { family: "JetBrains Mono", weight: "500 700", file: "fonts/JetBrainsMono-VF-latin.woff2" },
+  { family: "Noto Sans SC", weight: "400", file: "fonts/NotoSansSC-Regular.woff2" },
+  { family: "Noto Sans SC", weight: "700", file: "fonts/NotoSansSC-Bold.woff2" },
+  { family: "Noto Serif SC", weight: "400", file: "fonts/NotoSerifSC-Regular.woff2" },
+  { family: "Noto Serif SC", weight: "700", file: "fonts/NotoSerifSC-Bold.woff2" },
+];
+
+const fontHandle = delayRender("loading-fonts");
+(async () => {
+  try {
+    await Promise.all(
+      FONT_FILES.map(async ({ family, weight, file }) => {
+        const face = new FontFace(family, `url(${staticFile(file)}) format('woff2')`, {
+          weight,
+          style: "normal",
+          display: "block",
+        });
+        await face.load();
+        document.fonts.add(face);
+      }),
+    );
+    continueRender(fontHandle);
+  } catch (err) {
+    cancelRender(err instanceof Error ? err : new Error(String(err)));
+  }
+})();
 
 /** Validate and extract ScriptProps from raw props */
 function validateScriptProps(props: Record<string, unknown>): ScriptProps {
@@ -95,7 +127,6 @@ const CardShellDemoWrapper: React.FC<Record<string, unknown>> = (rawProps) => {
 export const Root: React.FC = () => {
   return (
     <>
-      <style>{FONT_CSS}</style>
       <Composition
         id="HNTechPulseComposition"
         component={ValidatedComposition}

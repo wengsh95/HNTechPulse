@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripts.agent_audit import _publish_guide_context, audit
+from scripts.agent_audit import audit
 from src.pipeline.agent_io import file_sha256, write_artifact_manifest
 from src.pipeline.paths import (
     agent_path,
@@ -8,6 +8,7 @@ from src.pipeline.paths import (
     pipeline_variants_root,
     publish_path,
 )
+from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.utils.atomic_io import atomic_write_json
 
 
@@ -186,11 +187,7 @@ def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monke
     guide = publish_path(date, "publish_guide.md")
     guide.parent.mkdir(parents=True, exist_ok=True)
     guide.write_text("fresh guide", encoding="utf-8")
-    context = _publish_guide_context(
-        date,
-        pipeline_path(date, "content.json"),
-        pipeline_path(date, "script.json"),
-    )
+    context = publish_guide_manifest_inputs(date)
     assert context is not None
     assert context["script_title"] == "Published title"
     assert context["script_description"] == "Published desc"

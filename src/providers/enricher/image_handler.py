@@ -494,11 +494,26 @@ class ImageHandler:
         return candidates
 
     async def search_bing_images(
-        self, title: str, url: str, image_dir: Path, source_id: str, fetcher
+        self,
+        title: str,
+        url: str,
+        image_dir: Path,
+        source_id: str,
+        fetcher,
+        entity_queries: List[str] | None = None,
     ) -> List[Dict[str, Any]]:
-        """Search Bing Images for article title, download top results."""
+        """Search Bing Images and download top results.
+
+        Entity queries (brand/product/landmark terms, no ``site:`` filter) are
+        tried first since they yield cleaner image hits, followed by the
+        title-based queries.
+        """
         domain = urlparse(url).hostname or ""
-        queries = []
+        queries: List[str] = []
+        for eq in entity_queries or []:
+            eq = eq.strip()
+            if eq and eq not in queries:
+                queries.append(eq)
         if domain:
             queries.append(f"{title} site:{domain}".strip())
         queries.append(title.strip())

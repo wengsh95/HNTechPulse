@@ -91,6 +91,7 @@ class TestStepList:
             "analyze_comments",
             "judge_comments",
             "write_script",
+            "review_script",
             "translate_comments",
             "synthesize_audio",
             "title",

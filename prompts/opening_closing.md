@@ -15,7 +15,7 @@
 
 ### cover_card.subtitle
 
-- 从 `highlight_entries[:3].editor_angle / signal / title_translation` 生成三个看点短语。
+- 从 `highlight_entries[:2].editor_angle / signal / title_translation` 生成两个看点短语。
 - 用 ` · ` 拼接，优先保留完整短语。
 - 每个短语 6-14 字，整行不超过 50 字。
 - 过长时删尾部钩子，不加省略号，不截半个词。

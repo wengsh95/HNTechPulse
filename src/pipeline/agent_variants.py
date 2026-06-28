@@ -232,6 +232,68 @@ def promote_variant_script(date: str, variant_id: str) -> Script:
     return script
 
 
+def selected_variant_id(date: str) -> str | None:
+    """Return the variant id chosen by the agent for ``date``, or None.
+
+    Reads ``agent_variant_decision.json`` (written by the agent decision layer);
+    falls back to the ``selected_variant.json`` sidecar.
+    """
+
+    def _read(path: Path) -> dict[str, Any] | None:
+        if not path.exists():
+            return None
+        try:
+            import json
+
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    decision = _read(agent_path(date, "agent_variant_decision.json"))
+    if decision and decision.get("selected_variant"):
+        return str(decision["selected_variant"])
+    sidecar = _read(agent_path(date, "selected_variant.json"))
+    if sidecar and sidecar.get("selected_variant"):
+        return str(sidecar["selected_variant"])
+    return None
+
+
+def sync_selected_variant_snapshot(date: str, script: Script) -> Path | None:
+    """Re-save ``script`` into the selected variant's frozen snapshot.
+
+    The variant snapshot at ``variants/{selected}/script.json`` is written at
+    write_script time, but ``review_script`` later rewrites the promoted
+    ``script.json`` in place. Without this sync the snapshot and the promoted
+    script diverge, and the publishability audit's ``selected_variant_promoted``
+    check fails on a script that is in fact the chosen one. Mirroring the
+    reviewed script back keeps the snapshot the source of truth for "the
+    selected, finalized script". No-op if no variant was selected.
+    """
+    variant_id = selected_variant_id(date)
+    if not variant_id:
+        return None
+    snapshot = variant_dir(date, variant_id) / "script.json"
+    if not snapshot.exists():
+        return None
+    from src.pipeline.script.io import save_script_to_path
+
+    save_script_to_path(
+        script,
+        snapshot,
+        date=date,
+        step="review_script_resync",
+        inputs={"variant_id": variant_id},
+    )
+    append_agent_event(
+        date,
+        "variant_snapshot_resynced",
+        variant_id=variant_id,
+        snapshot=str(snapshot).replace("\\", "/"),
+    )
+    return snapshot
+
+
 def script_preview(script: Script, max_chars: int = 260) -> str:
     text = " ".join((segment.audio_text or "") for segment in script.segments).strip()
     return text[:max_chars] + ("..." if len(text) > max_chars else "")

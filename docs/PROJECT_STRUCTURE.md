@@ -222,7 +222,17 @@ The Remotion app lives at:
 
 ```text
 src/providers/renderer/remotion/
+|-- assets/fonts/          # 本地 woff2 字体 (Fraunces / JetBrains Mono /
+|                          #   Noto Sans SC / Noto Serif SC) + OFL.txt
+|-- src/                   # React/TS 组件、Composition、Root.tsx
+`-- public/                # 空（运行时通过 --public-dir 指向
+                           #   data/{date}/render/remotion/public/）
 ```
+
+字体在 `Root.tsx` 顶层用 `delayRender` + `FontFace` 阻塞加载，避免抓帧时
+回退到系统字体导致跨机器字形不一致。`prepare_render` 把 `assets/fonts/*.woff2`
+复制到 `data/{date}/render/remotion/public/fonts/`，由 Remotion CLI 通过
+`--public-dir` 暴露给 `staticFile("fonts/...")`。
 
 Important render detail: temporary h264+aac output must use `.partial.mp4`
 rather than `.mp4.partial`, because Remotion validates the final filename
