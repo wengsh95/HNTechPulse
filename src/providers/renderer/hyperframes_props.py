@@ -325,7 +325,7 @@ def _extract_variables(
     if element_type == "cover_card":
         lineup = props.get("lineup_entries") or props.get("highlight_entries") or []
         return {
-            "headline": props.get("headline") or "每日HN观察",
+            "headline": props.get("headline") or "每日HN日报",
             "date_label": props.get("date_label") or date_label,
             "subtitle": props.get("subtitle") or "快讯 / 洞察 / 趋势",
             "lineup_json": json.dumps(lineup[:3], ensure_ascii=False),

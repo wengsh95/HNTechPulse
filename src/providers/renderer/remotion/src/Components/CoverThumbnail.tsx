@@ -34,11 +34,11 @@ import { useDesign, FONTS, FW, COLORS } from "./design";
 
 /** 封面字号（@1920×1080 参考）— 调定后不要改 */
 const COVER_FS = {
-  title: 132,
-  titleSmall: 112,
+  title: 152, // B站缩略图优化:主标题大一档
+  titleSmall: 132, // 长标题用,跟 title 同档
   kicker: 70,
-  dateLabel: 82,
-  tag: 42,
+  dateLabel: 64, // B站缩略图下可读
+  tag: 56, // 内联文字 + 分隔符版本,字号跟原来 pill 版一致但无 chrome
   brand: 30,
   logo: 64,
   logoText: 36,
@@ -58,7 +58,15 @@ const COVER_FS = {
 } as const;
 
 /** 品牌条文案 */
-const BRAND_TEXT = "HN观察";
+const BRAND_TEXT = "HN日报";
+
+/** 把任何 "YYYY-MM-DD" / "YYYY/MM/DD" / "YYYY.MM.DD" 归一化成 "YYYY.MM.DD"。 */
+const formatDateLabel = (raw: string | undefined): string => {
+  if (!raw) return "";
+  const m = raw.trim().match(/^(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})/);
+  if (!m) return raw;
+  return m[1] + "." + m[2].padStart(2, "0") + "." + m[3].padStart(2, "0");
+};
 
 /** 高亮数字正则 — fallback 用，LLM 未提供 highlights 时自动检测 */
 const NUMBER_REGEX = /(\d+[\d,.]*[万亿]?)/g;
@@ -87,7 +95,15 @@ const titleLength = (text: string): number => {
 };
 
 const splitTitle = (title: string): { kicker: string; impact: string } => {
-  const normalized = title.replace(/\s+/g, " ").trim();
+  const explicitLines = title
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean);
+  if (explicitLines.length > 1) {
+    return { kicker: "", impact: explicitLines.join("\n") };
+  }
+
+  const normalized = title.replace(/[ \t\r\f\v]+/g, " ").trim();
   const commaMatch = normalized.match(/^(.{2,18})[，,：:](.+)$/);
   if (commaMatch) {
     return { kicker: commaMatch[1].trim(), impact: commaMatch[2].trim() };
@@ -391,7 +407,11 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
           }}
         >
           <span>{BRAND_TEXT}</span>
-          {dateLabel && <span style={{ opacity: 0.88 }}>{dateLabel}</span>}
+          {dateLabel && (
+            <span style={{ opacity: 0.82, letterSpacing: "0.04em" }}>
+              {formatDateLabel(dateLabel)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -461,30 +481,33 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
           <div
             style={{
               display: "flex",
-              gap: d.scaled(COVER_FS.tagGap),
+              gap: d.scaled(16),
               flexWrap: "wrap",
-              alignItems: "center",
+              alignItems: "baseline",
+              fontFamily: FONTS.sans,
+              fontSize: d.scaled(COVER_FS.tag),
+              fontWeight: FW.bold,
+              lineHeight: 1.1,
+              color: "rgba(255,255,255,0.92)",
+              letterSpacing: "0.02em",
+              textShadow: "0 2px 10px rgba(0,0,0,0.55)",
             }}
           >
-            {topicTags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  fontFamily: FONTS.sans,
-                  fontSize: d.scaled(COVER_FS.tag),
-                  fontWeight: FW.bold,
-                  lineHeight: 1,
-                  color: "#ffffff",
-                  padding: `${d.scaled(8)}px ${d.scaled(16)}px`,
-                  borderRadius: d.scaled(6),
-                  background: COLORS.brand,
-                  boxShadow: "0 2px 8px rgba(255,102,0,0.4)",
-                }}
-              >
-                {tag}
-              </span>
+            {topicTags.map((tag, idx) => (
+              <React.Fragment key={tag}>
+                {idx > 0 && (
+                  <span
+                    style={{
+                      opacity: 0.55,
+                      margin: "0 2px",
+                      fontWeight: "normal",
+                    }}
+                  >
+                    ·
+                  </span>
+                )}
+                <span>{tag}</span>
+              </React.Fragment>
             ))}
           </div>
         )}

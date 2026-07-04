@@ -1,4 +1,6 @@
+import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -40,6 +42,7 @@ from src.pipeline.paths import (
     raw_downloaded_pages_dir,
     render_path,
     render_remotion_dir,
+    render_root,
 )
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
@@ -1258,15 +1261,41 @@ class Orchestrator:
                     "abstract central metaphor, no logos, no text."
                 )
 
-            try:
-                self.image_generator.generate(
-                    cover_prompt, str(bg_path), aspect_ratio=cover_aspect_ratio
+            # Generate N candidates with different seeds for manual layout
+            # selection. Each candidate is written as cover_bg_v{i}.png. The
+            # first candidate also becomes the canonical cover_bg.png so
+            # downstream cover_thumbnail keeps working unchanged.
+            cover_cfg = self.config.get("image_generator", {})
+            candidate_count = max(
+                1,
+                int(os.environ.get("HN_COVER_CANDIDATES") or cover_cfg.get("candidate_count", 1) or 1),
+            )
+            candidate_seeds = [1001, 2002, 3003, 4004, 5005, 6006, 7007, 8008]
+
+            for i in range(1, candidate_count + 1):
+                if i == 1:
+                    candidate_path = bg_path
+                else:
+                    candidate_path = render_path(date, f"cover_bg_v{i}.png")
+                seed = candidate_seeds[(i - 1) % len(candidate_seeds)]
+                try:
+                    self.image_generator.generate(
+                        cover_prompt,
+                        str(candidate_path),
+                        aspect_ratio=cover_aspect_ratio,
+                        seed=seed,
+                    )
+                except (ValueError, RuntimeError, OSError) as e:
+                    self.logger.warning(
+                        f"Cover candidate {i} image generation failed "
+                        f"({type(e).__name__}: {e})"
+                    )
+                    continue
+            if candidate_count > 1:
+                self.logger.info(
+                    f"  Generated {candidate_count} cover background candidates "
+                    f"({bg_path.name} + cover_bg_v*.png); review and pick the best."
                 )
-            except (ValueError, RuntimeError, OSError) as e:
-                self.logger.warning(
-                    f"Image generation failed ({type(e).__name__}: {e})"
-                )
-                return
 
         # Generate the cover text variants (3 editorial angles, shared bg).
         variants = self._generate_cover_variants(content, script, date)
@@ -1417,25 +1446,39 @@ class Orchestrator:
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info(
-            "Step: Cover thumbnail — render Remotion stills for all variants"
+            "Step: Cover thumbnail — render 3 bg × 3 text grid (9 stills)"
         )
-        bg_path = render_path(date, "cover_bg.png")
+        render_dir = render_root(date)
 
-        # Collect variant props (cover_props_v{1..N}); fall back to the single
-        # cover_props.json if no variants were written.
-        variant_props = [
+        # Collect up to 3 background candidates: cover_bg.png (v1),
+        # cover_bg_v2.png, cover_bg_v3.png.
+        bg_candidates = sorted(
+            p for p in (render_dir.glob("cover_bg*.png")) if p.name.startswith("cover_bg")
+        )
+        # Dedup and cap at 3.
+        seen = set()
+        unique_bgs = []
+        for p in bg_candidates:
+            if p.name not in seen:
+                seen.add(p.name)
+                unique_bgs.append(p)
+            if len(unique_bgs) >= 3:
+                break
+
+        # Collect text variants (cover_props_v{1..N}); fall back to cover_props.json.
+        text_variants = [
             render_path(date, f"cover_props_v{i}.json")
             for i in range(1, COVER_VARIANT_COUNT + 1)
         ]
-        variant_props = [p for p in variant_props if p.exists()]
-        if not variant_props:
+        text_variants = [p for p in text_variants if p.exists()]
+        if not text_variants:
             single = render_path(date, "cover_props.json")
             if single.exists():
-                variant_props = [single]
+                text_variants = [single]
 
-        if not bg_path.exists() or not variant_props:
+        if not unique_bgs or not text_variants:
             raise FileNotFoundError(
-                "  cover_thumbnail requires cover_bg.png and cover_props_v*.json; "
+                "  cover_thumbnail requires cover_bg*.png and cover_props_v*.json; "
                 "run --steps cover_image first"
             )
 
@@ -1456,37 +1499,80 @@ class Orchestrator:
         if callable(stage_fonts):
             stage_fonts(date)
 
-        for i, props_path in enumerate(variant_props, start=1):
-            cover_path = publish_path(date, f"cover_v{i}.png")
-            thumb_inputs = {
-                "props_hash": file_sha256(props_path),
-                "bg_hash": file_sha256(bg_path),
-            }
-            if is_artifact_fresh(cover_path, thumb_inputs):
-                self.logger.info(
-                    f"  Cover variant {i} already rendered at {cover_path}"
+        n_bgs = len(unique_bgs)
+        n_texts = len(text_variants)
+        self.logger.info(
+            f"  Rendering {n_bgs} bg(s) × {n_texts} text(s) = {n_bgs * n_texts} covers"
+        )
+
+        # Mirror every bg candidate into the per-date Remotion public dir so
+        # the <Img> component can load them at render time.
+        for bg_path in unique_bgs:
+            self._mirror_cover_bg(date, bg_path)
+
+        for bg_idx, bg_path in enumerate(unique_bgs, start=1):
+            for t_idx, props_path in enumerate(text_variants, start=1):
+                # Read text props, swap backgroundImage to current bg.
+                with io.open(props_path, "r", encoding="utf-8") as f:
+                    props = json.load(f)
+                props["backgroundImage"] = bg_path.name
+
+                # Write combined props file.
+                combined_path = render_path(
+                    date, f"cover_props_b{bg_idx}_t{t_idx}.json"
                 )
-            else:
-                self._render_cover_still(npx_path, props_path, cover_path, date)
-                write_artifact_manifest(
-                    cover_path,
-                    step="cover_thumbnail",
-                    date=date,
-                    inputs=thumb_inputs,
-                    config=self.config,
+                atomic_write_json(combined_path, props)
+
+                # Render the cover.
+                cover_path = publish_path(
+                    date, f"cover_b{bg_idx}_t{t_idx}.png"
                 )
-            # v1 is also the canonical cover.png (back-compat).
-            if i == 1:
-                canonical = publish_path(date, "cover.png")
-                if not is_artifact_fresh(canonical, thumb_inputs):
-                    shutil.copy2(cover_path, canonical)
+                thumb_inputs = {
+                    "props_hash": file_sha256(combined_path),
+                    "bg_hash": file_sha256(bg_path),
+                }
+                if is_artifact_fresh(cover_path, thumb_inputs):
+                    self.logger.info(
+                        f"  cover_b{bg_idx}_t{t_idx} already rendered"
+                    )
+                else:
+                    self._render_cover_still(
+                        npx_path, combined_path, cover_path, date
+                    )
                     write_artifact_manifest(
-                        canonical,
+                        cover_path,
                         step="cover_thumbnail",
                         date=date,
                         inputs=thumb_inputs,
                         config=self.config,
                     )
+
+                # b1_t1 stays as canonical cover.png (back-compat).
+                if bg_idx == 1 and t_idx == 1:
+                    canonical = publish_path(date, "cover.png")
+                    if not is_artifact_fresh(canonical, thumb_inputs):
+                        shutil.copy2(cover_path, canonical)
+                        write_artifact_manifest(
+                            canonical,
+                            step="cover_thumbnail",
+                            date=date,
+                            inputs=thumb_inputs,
+                            config=self.config,
+                        )
+
+                # For bg 1, also write cover_v{t_idx}.png (back-compat alias for
+                # the original 1-bg × 3-text layout).
+                if bg_idx == 1:
+                    legacy = publish_path(date, f"cover_v{t_idx}.png")
+                    if not is_artifact_fresh(legacy, thumb_inputs):
+                        shutil.copy2(cover_path, legacy)
+                        write_artifact_manifest(
+                            legacy,
+                            step="cover_thumbnail",
+                            date=date,
+                            inputs=thumb_inputs,
+                            config=self.config,
+                        )
 
     def _render_cover_still(
         self, npx_path: str, props_path: Path, output_path: Path, date: str

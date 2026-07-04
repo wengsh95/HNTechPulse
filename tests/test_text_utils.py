@@ -9,3 +9,6 @@ def test_normalize_cjk_mixed_spacing_tightens_cn_ascii_edges():
 def test_normalize_cjk_mixed_spacing_keeps_ascii_phrase_spaces():
     assert normalize_cjk_mixed_spacing("Windows PC and OpenAI API") == "Windows PC and OpenAI API"
 
+
+def test_normalize_cjk_mixed_spacing_preserves_line_breaks():
+    assert normalize_cjk_mixed_spacing("Meta AI重组\n未达预期") == "Meta AI重组\n未达预期"

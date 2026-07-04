@@ -118,7 +118,7 @@ def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
             head = text.split(sep, 1)[0].strip()
             if 0 < len(head) <= max_len + 4:
                 return head
-    for sep in ("，", "。", "、", "：", "；", "的", "为", "让", "把", "后", "在"):
+    for sep in ("，", "。", "、", "：", "；"):
         idx = text.find(sep)
         if 3 <= idx <= max_len + 4:
             candidate = text[:idx].strip()
@@ -326,7 +326,7 @@ def generate_fixed_opening(
                 start_time=0.0,
                 end_time=duration,
                 props={
-                    "headline": "每日HN观察",
+                    "headline": "每日HN日报",
                     "subtitle": subtitle,
                     "date_label": date_display,  # 保留日期用于 chrome 显示
                     "keywords": keywords[:3],
@@ -378,15 +378,22 @@ def closing_summary_items(
     items: list[dict] = []
     for entry in (highlight_entries or [])[:3]:
         title = (
-            entry.get("title_translation")
+            entry.get("why_it_matters")
+            or entry.get("title_translation")
             or entry.get("title_cn")
             or entry.get("title")
             or entry.get("editor_angle")
         )
         assert title, "Story missing display title"
-        signal = entry.get("signal") or entry.get("editor_angle") or ""
+        signal = (
+            entry.get("editor_angle")
+            or entry.get("title_cn")
+            or entry.get("title_translation")
+            or entry.get("signal")
+            or ""
+        )
         category = entry.get("category") or "观察"
-        short_title = _compact_copy(str(title), 24)
+        short_title = _compact_copy(str(title), 30)
         short_signal = _compact_copy(str(signal), 28) if signal else short_title
         items.append(
             {

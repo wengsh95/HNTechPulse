@@ -130,6 +130,15 @@ _PUBLISH_FILES: dict[str, str] = {
     "cover_v1.png": "cover_v1.png",
     "cover_v2.png": "cover_v2.png",
     "cover_v3.png": "cover_v3.png",
+    "cover_b1_t1.png": "cover_b1_t1.png",
+    "cover_b1_t2.png": "cover_b1_t2.png",
+    "cover_b1_t3.png": "cover_b1_t3.png",
+    "cover_b2_t1.png": "cover_b2_t1.png",
+    "cover_b2_t2.png": "cover_b2_t2.png",
+    "cover_b2_t3.png": "cover_b2_t3.png",
+    "cover_b3_t1.png": "cover_b3_t1.png",
+    "cover_b3_t2.png": "cover_b3_t2.png",
+    "cover_b3_t3.png": "cover_b3_t3.png",
 }
 
 _AGENT_FILES: dict[str, str] = {
@@ -149,10 +158,31 @@ _RAW_FILES: dict[str, str] = {
 _RENDER_FILES: dict[str, str] = {
     "cli_props.json": "cli_props.json",
     "cover_bg.png": "cover_bg.png",
+    "cover_bg_v2.png": "cover_bg_v2.png",
+    "cover_bg_v3.png": "cover_bg_v3.png",
+    "cover_bg_v4.png": "cover_bg_v4.png",
     "cover_props.json": "cover_props.json",
     "cover_props_v1.json": "cover_props_v1.json",
     "cover_props_v2.json": "cover_props_v2.json",
     "cover_props_v3.json": "cover_props_v3.json",
+    "cover_props_b1_t1.json": "cover_props_b1_t1.json",
+    "cover_props_b1_t2.json": "cover_props_b1_t2.json",
+    "cover_props_b1_t3.json": "cover_props_b1_t3.json",
+    "cover_props_b2_t1.json": "cover_props_b2_t1.json",
+    "cover_props_b2_t2.json": "cover_props_b2_t2.json",
+    "cover_props_b2_t3.json": "cover_props_b2_t3.json",
+    "cover_props_b3_t1.json": "cover_props_b3_t1.json",
+    "cover_props_b3_t2.json": "cover_props_b3_t2.json",
+    "cover_props_b3_t3.json": "cover_props_b3_t3.json",
+    "cover_b1_t1.png": "cover_b1_t1.png",
+    "cover_b1_t2.png": "cover_b1_t2.png",
+    "cover_b1_t3.png": "cover_b1_t3.png",
+    "cover_b2_t1.png": "cover_b2_t1.png",
+    "cover_b2_t2.png": "cover_b2_t2.png",
+    "cover_b2_t3.png": "cover_b2_t3.png",
+    "cover_b3_t1.png": "cover_b3_t1.png",
+    "cover_b3_t2.png": "cover_b3_t2.png",
+    "cover_b3_t3.png": "cover_b3_t3.png",
 }
 
 

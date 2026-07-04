@@ -89,7 +89,7 @@ function hydrateCover(host, vars) {
   const root = host.querySelector('.hf-comp-cover');
   if (!root) return false;
   setText(root, '.brand-strip__date', vars.date_label || '');
-  setText(root, '.card-title', vars.headline || '每日HN观察');
+  setText(root, '.card-title', vars.headline || '每日HN日报');
   setText(root, '.card-deck', vars.subtitle || '快讯 / 洞察 / 趋势');
   const lineup = parseJson(vars.lineup_json, []);
   fillList(root, '.opening__list', lineup.slice(0, 3), (it, index) => {

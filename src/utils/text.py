@@ -2,9 +2,9 @@ import re
 
 
 _CJK_ALNUM_SPACE_PATTERNS = (
-    (re.compile(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])"), ""),
-    (re.compile(r"(?<=[\u4e00-\u9fff])\s+(?=[A-Za-z0-9])"), ""),
-    (re.compile(r"(?<=[A-Za-z0-9])\s+(?=[\u4e00-\u9fff])"), ""),
+    (re.compile(r"(?<=[\u4e00-\u9fff])[ \t]+(?=[\u4e00-\u9fff])"), ""),
+    (re.compile(r"(?<=[\u4e00-\u9fff])[ \t]+(?=[A-Za-z0-9])"), ""),
+    (re.compile(r"(?<=[A-Za-z0-9])[ \t]+(?=[\u4e00-\u9fff])"), ""),
 )
 
 
