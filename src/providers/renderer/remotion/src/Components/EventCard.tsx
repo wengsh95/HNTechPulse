@@ -4,15 +4,7 @@ import { staticFile, useCurrentFrame } from "remotion";
 import type { AnalysisItem, EventCardProps, HeatLevel } from "./cardTypes";
 import { CardShell } from "./CardShell";
 import { KeywordTag, MetricPill, Panel, SectionHeading, SlideIndicator } from "./CardPrimitives";
-import {
-  CARD_LAYOUT,
-  COLORS,
-  COMMON_LAYOUT,
-  EVENT_LAYOUT,
-  FONTS,
-  FW,
-  useDesign,
-} from "./design";
+import { CARD_LAYOUT, COLORS, COMMON_LAYOUT, EVENT_LAYOUT, FONTS, FW, useDesign } from "./design";
 import { extractEventProps } from "./propsExtractors";
 import { ANIM_PRESETS, fadeUp } from "./timing";
 import type { ElementProps } from "./utils";

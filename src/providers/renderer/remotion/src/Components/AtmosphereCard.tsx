@@ -18,14 +18,7 @@ import type { ControversyLevel, Stance } from "./cardTypes";
 import { COLORS } from "./design";
 import type { ElementProps } from "./utils";
 import { extractAtmosphereProps } from "./propsExtractors";
-import {
-  useDesign,
-  FONTS,
-  FW,
-  CARD_LAYOUT,
-  COMMON_LAYOUT,
-  ATMOSPHERE_LAYOUT,
-} from "./design";
+import { useDesign, FONTS, FW, CARD_LAYOUT, COMMON_LAYOUT, ATMOSPHERE_LAYOUT } from "./design";
 import { CardShell, Fill } from "./CardShell";
 import { Panel, SectionHeading, SlideIndicator } from "./CardPrimitives";
 import { STANCE_COLORS } from "./stance";
