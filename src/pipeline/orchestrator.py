@@ -71,6 +71,7 @@ def _clean_publish_description(text: str, max_len: int = 130) -> str:
     text = normalize_cjk_mixed_spacing(str(text or "")).strip()
     for phrase in _PUBLISH_DISCUSSION_CLICHES:
         text = text.replace(phrase, "")
+    text = text.replace("；", "。").replace(";", "。")
     text = re.sub(r"\s+", " ", text).strip()
     if len(text) <= max_len:
         return text
@@ -154,7 +155,7 @@ def _ensure_all_stories_in_description(
     if not extra_lines:
         return description
 
-    return description.rstrip("。；; ") + "。" + "；".join(extra_lines) + "。"
+    return description.rstrip("。；; ") + "。" + "。".join(extra_lines) + "。"
 
 
 def _format_mmss(seconds: float | int | None) -> str:
