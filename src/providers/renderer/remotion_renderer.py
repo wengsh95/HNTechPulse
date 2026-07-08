@@ -67,6 +67,13 @@ class RemotionRenderer(Renderer):
         self.chunk_frames = remotion_config.get("chunk_frames", 1500)
         self.resume_enabled = remotion_config.get("resume_enabled", True)
         self.render_workers = remotion_config.get("render_workers", 2)
+        self.audio_loudnorm_enabled = remotion_config.get("audio_loudnorm_enabled", True)
+        self.audio_loudnorm_i = remotion_config.get("audio_loudnorm_i", -16)
+        self.audio_loudnorm_tp = remotion_config.get("audio_loudnorm_tp", -1.5)
+        self.audio_loudnorm_lra = remotion_config.get("audio_loudnorm_lra", 11)
+        self.audio_bitrate = remotion_config.get("audio_bitrate", "320k")
+        self.audio_channels = remotion_config.get("audio_channels", 2)
+        self.audio_sample_rate = remotion_config.get("audio_sample_rate", 48000)
 
         self._node_path = find_node()
         self._npm_path = find_npm(self._node_path)
@@ -442,6 +449,7 @@ class RemotionRenderer(Renderer):
 
             try:
                 subprocess.run(concat_cmd, check=True, capture_output=True)
+                self._normalize_output_audio(output_file)
                 self.logger.info(f"Video complete: {output_path}")
             except subprocess.CalledProcessError as e:
                 self.logger.error(
@@ -562,11 +570,62 @@ class RemotionRenderer(Renderer):
             if output_file.exists():
                 output_file.unlink()
             shutil.move(str(remotion_output), str(output_file))
+            self._normalize_output_audio(output_file)
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
             self.logger.info(f"Video complete: {output_file} ({file_size_mb:.1f} MB)")
         else:
             raise FileNotFoundError(
                 f"Remotion did not produce expected output at {remotion_output}"
+            )
+
+    def _normalize_output_audio(self, output_file: Path) -> None:
+        if not self.audio_loudnorm_enabled:
+            return
+        if not self._ffmpeg_path or not output_file.exists():
+            return
+
+        tmp = output_file.with_name(
+            f"{output_file.stem}.audio-normalized{output_file.suffix}"
+        )
+        loudnorm = (
+            f"loudnorm=I={self.audio_loudnorm_i}:"
+            f"TP={self.audio_loudnorm_tp}:LRA={self.audio_loudnorm_lra}"
+        )
+        cmd = [
+            str(self._ffmpeg_path),
+            "-y",
+            "-i",
+            str(output_file),
+            "-c:v",
+            "copy",
+            "-af",
+            loudnorm,
+            "-c:a",
+            "aac",
+            "-ac",
+            str(self.audio_channels),
+            "-ar",
+            str(self.audio_sample_rate),
+            "-b:a",
+            str(self.audio_bitrate),
+            "-movflags",
+            "+faststart",
+            str(tmp),
+        ]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            tmp.replace(output_file)
+            self.logger.info(
+                "Normalized output audio "
+                f"(I={self.audio_loudnorm_i}, TP={self.audio_loudnorm_tp}, "
+                f"LRA={self.audio_loudnorm_lra})"
+            )
+        except subprocess.CalledProcessError as e:
+            if tmp.exists():
+                tmp.unlink()
+            self.logger.warning(
+                "Could not normalize Remotion output audio: "
+                f"{e.stderr.decode('utf-8', errors='ignore')}"
             )
 
     # ------------------------------------------------------------------

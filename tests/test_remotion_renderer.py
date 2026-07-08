@@ -43,6 +43,13 @@ def _make_renderer(ffprobe_path: str | None = None):
         renderer._npx_path = "/usr/bin/npx"
         renderer._ffmpeg_path = "/usr/bin/ffmpeg"
         renderer._ffprobe_path = ffprobe_path
+        renderer.audio_loudnorm_enabled = True
+        renderer.audio_loudnorm_i = -16
+        renderer.audio_loudnorm_tp = -1.5
+        renderer.audio_loudnorm_lra = 11
+        renderer.audio_bitrate = "320k"
+        renderer.audio_channels = 2
+        renderer.audio_sample_rate = 48000
         renderer.chrome_path = None
         return renderer
 
@@ -254,6 +261,51 @@ class TestPreview:
                                 )
 
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
+
+
+class TestAudioNormalization:
+    def test_normalizes_output_audio_with_loudnorm(self, tmp_path, monkeypatch):
+        renderer = _make_renderer()
+        video = tmp_path / "out.mp4"
+        video.write_bytes(b"mp4")
+        calls = []
+
+        class Result:
+            returncode = 0
+
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            tmp = tmp_path / "out.audio-normalized.mp4"
+            tmp.write_bytes(b"normalized")
+            return Result()
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        renderer._normalize_output_audio(video)
+
+        cmd = calls[0][0]
+        assert "-af" in cmd
+        assert cmd[cmd.index("-af") + 1] == "loudnorm=I=-16:TP=-1.5:LRA=11"
+        assert "-ac" in cmd
+        assert cmd[cmd.index("-ac") + 1] == "2"
+        assert "-ar" in cmd
+        assert cmd[cmd.index("-ar") + 1] == "48000"
+        assert "-b:a" in cmd
+        assert cmd[cmd.index("-b:a") + 1] == "320k"
+        assert video.read_bytes() == b"normalized"
+
+    def test_skips_audio_normalization_when_disabled(self, tmp_path, monkeypatch):
+        renderer = _make_renderer()
+        renderer.audio_loudnorm_enabled = False
+        video = tmp_path / "out.mp4"
+        video.write_bytes(b"mp4")
+
+        def fake_run(*args, **kwargs):
+            raise AssertionError("ffmpeg should not run")
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        renderer._normalize_output_audio(video)
+
+        assert video.read_bytes() == b"mp4"
 
 
 class TestChunkCacheDir:
