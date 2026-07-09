@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Create a tidy, publish-facing outputs folder for a date run.
 
-The pipeline keeps canonical artifacts at data/{date}/ because status checks,
+The pipeline keeps canonical artifacts at data/{month}/{date}/ because status checks,
 audit, render review, and cache invalidation all depend on those paths. This
-script mirrors the useful deliverables into data/{date}/outputs/ so humans can
+script mirrors the useful deliverables into data/{month}/{date}/outputs/ so humans can
 review/share the run without sorting through every intermediate cache file.
 """
 
@@ -16,7 +16,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -35,41 +35,50 @@ from src.pipeline.paths import (  # noqa: E402
 # Each entry resolves a typed path (via the paths module) into a list of
 # (output_filename, source_path) tuples. Keeping the source-resolution logic
 # here means the script stays correct as the lifecycle buckets evolve.
-OUTPUT_GROUPS: dict[str, list[tuple[str, Path]]] = {
+OUTPUT_GROUPS: dict[str, list[tuple[str, Callable[[str], Path]]]] = {
     "final": [
-        ("output.mp4", publish_path("__DATE__", "output.mp4")),
-        ("cover.png", publish_path("__DATE__", "cover.png")),
+        ("output.mp4", lambda date: publish_path(date, "output.mp4")),
+        ("cover.png", lambda date: publish_path(date, "cover.png")),
     ],
     "publish": [
-        ("publish_guide.md", publish_path("__DATE__", "publish_guide.md")),
-        ("transcript.md", publish_path("__DATE__", "transcript.md")),
-        ("title.json", publish_path("__DATE__", "title.json")),
+        ("publish_guide.md", lambda date: publish_path(date, "publish_guide.md")),
+        ("transcript.md", lambda date: publish_path(date, "transcript.md")),
+        ("title.json", lambda date: publish_path(date, "title.json")),
     ],
     "script": [
-        ("script.json", pipeline_path("__DATE__", "script.json")),
-        ("selected_variant.json", agent_path("__DATE__", "selected_variant.json")),
-        ("agent_decision.json", agent_path("__DATE__", "agent_decision.json")),
+        ("script.json", lambda date: pipeline_path(date, "script.json")),
+        (
+            "selected_variant.json",
+            lambda date: agent_path(date, "selected_variant.json"),
+        ),
+        ("agent_decision.json", lambda date: agent_path(date, "agent_decision.json")),
         (
             "agent_variant_decision.json",
-            agent_path("__DATE__", "agent_variant_decision.json"),
+            lambda date: agent_path(date, "agent_variant_decision.json"),
         ),
     ],
     "render": [
-        ("cli_props.json", render_path("__DATE__", "cli_props.json")),
+        ("cli_props.json", lambda date: render_path(date, "cli_props.json")),
     ],
     "sources": [
-        ("content.json", pipeline_path("__DATE__", "content.json")),
-        ("enrichment.json", pipeline_path("__DATE__", "enrichment.json")),
-        ("comment_analysis.json", pipeline_path("__DATE__", "comment_analysis.json")),
-        ("comment_judgement.json", pipeline_path("__DATE__", "comment_judgement.json")),
-        ("translations.json", pipeline_path("__DATE__", "translations.json")),
-        ("prefilter.json", pipeline_path("__DATE__", "prefilter.json")),
+        ("content.json", lambda date: pipeline_path(date, "content.json")),
+        ("enrichment.json", lambda date: pipeline_path(date, "enrichment.json")),
+        (
+            "comment_analysis.json",
+            lambda date: pipeline_path(date, "comment_analysis.json"),
+        ),
+        (
+            "comment_judgement.json",
+            lambda date: pipeline_path(date, "comment_judgement.json"),
+        ),
+        ("translations.json", lambda date: pipeline_path(date, "translations.json")),
+        ("prefilter.json", lambda date: pipeline_path(date, "prefilter.json")),
     ],
 }
 
 
 # Cover-related files are matched by pattern (variants come and go). We sweep
-# `data/{date}/media/` for the matches instead of listing each variant.
+# `data/{month}/{date}/media/` for the matches instead of listing each variant.
 COVER_PATTERNS = [
     "cover_*.png",
     "cover_props*.json",
@@ -114,8 +123,8 @@ def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
     missing: list[str] = []
 
     for group, entries in OUTPUT_GROUPS.items():
-        for out_name, src_template in entries:
-            src = Path(str(src_template).replace("__DATE__", date))
+        for out_name, src_factory in entries:
+            src = src_factory(date)
             if not src.exists():
                 missing.append(str(src.relative_to(ROOT)).replace("\\", "/"))
                 continue
@@ -137,7 +146,7 @@ def organize_outputs(date: str, *, refresh: bool = False) -> dict[str, Any]:
             [
                 f"# Outputs for {date}",
                 "",
-                "Canonical pipeline files live under `data/{date}/{raw,pipeline,media,render,publish,agent}/`.",
+                "Canonical pipeline files live under `data/{month}/{date}/{raw,pipeline,media,render,publish,agent}/`.",
                 "This folder is a tidy mirror for review, publishing, and handoff.",
                 "",
                 "## Folders",
@@ -176,7 +185,7 @@ def main() -> int:
     parser.add_argument(
         "--refresh",
         action="store_true",
-        help="Delete and recreate data/{date}/outputs before copying.",
+        help="Delete and recreate data/{month}/{date}/outputs before copying.",
     )
     args = parser.parse_args()
 

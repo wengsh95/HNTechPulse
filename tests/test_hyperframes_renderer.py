@@ -346,8 +346,8 @@ class TestCachePaths:
     def test_includes_project_and_chunks(self):
         r = _make_renderer()
         paths = r.cache_paths("2026-06-07")
-        assert Path("data/2026-06-07/hyperframes_project") in paths
-        assert Path("data/2026-06-07/hyperframes_cache") in paths
+        assert Path("data/2026-06/2026-06-07/hyperframes_project") in paths
+        assert Path("data/2026-06/2026-06-07/hyperframes_cache") in paths
 
     def test_empty_when_no_date(self):
         r = _make_renderer()
@@ -356,7 +356,7 @@ class TestCachePaths:
     def test_chunk_cache_root_is_outside_runtime_project(self):
         r = _make_renderer()
         cache_root = r._chunk_cache_root("2026-06-07")
-        assert cache_root == Path("data/2026-06-07/hyperframes_cache/chunks")
+        assert cache_root == Path("data/2026-06/2026-06-07/hyperframes_cache/chunks")
         assert Path("hyperframes_project") not in cache_root.parents
 
     def test_manifest_required_for_cache_hit(self, tmp_path):
@@ -746,7 +746,9 @@ class TestWriteProps:
         )
 
         project_cli = index_path.parent / "data" / "cli_props.json"
-        canonical_cli = tmp_path / "data" / "2026-06-09" / "render" / "cli_props.json"
+        canonical_cli = (
+            tmp_path / "data" / "2026-06" / "2026-06-09" / "render" / "cli_props.json"
+        )
         assert project_cli.exists()
         assert canonical_cli.exists()
         assert project_cli.read_text(encoding="utf-8") == canonical_cli.read_text(
@@ -810,7 +812,7 @@ class TestAudioTracks:
         )
         return script_to_hyperframes_scenes(
             script,
-            audio_dir="data/2026-06-07/audio",
+            audio_dir="data/2026-06/2026-06-07/audio",
             width=1280,
             height=720,
             fps=24,

@@ -31,17 +31,17 @@ steps before invoking the pipeline.
 Prefer these machine-readable files over human-readable logs:
 
 ```text
-data/{date}/agent/pipeline_state.json
-data/{date}/agent/agent_events.jsonl
-data/{date}/agent/agent_tasks.json
-data/{date}/agent/agent_decision.json
-data/{date}/agent/agent_variant_decision.json
-data/{date}/pipeline/variants/index.json
-data/{date}/pipeline/variants/selection_brief.md
+data/{month}/{date}/agent/pipeline_state.json
+data/{month}/{date}/agent/agent_events.jsonl
+data/{month}/{date}/agent/agent_tasks.json
+data/{month}/{date}/agent/agent_decision.json
+data/{month}/{date}/agent/agent_variant_decision.json
+data/{month}/{date}/pipeline/variants/index.json
+data/{month}/{date}/pipeline/variants/selection_brief.md
 ```
 
 The normal publishable script is always promoted to:
 
 ```text
-data/{date}/pipeline/script.json
+data/{month}/{date}/pipeline/script.json
 ```

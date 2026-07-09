@@ -85,7 +85,7 @@ class HyperFramesRenderer(Renderer):
         # Output location is per-date so multiple dates can be rendered in parallel
         self.output_subdir = hf_config.get(
             "output_subdir", "hyperframes_project"
-        )  # appended under data/{date}/
+        )  # appended under data/{month}/{date}/
         self.cache_subdir = hf_config.get("cache_subdir", "hyperframes_cache")
         self.default_quality = hf_config.get("default_quality", "standard")
         self.preview_port = int(hf_config.get("preview_port", 3002))
@@ -154,7 +154,7 @@ class HyperFramesRenderer(Renderer):
         date: str = "",
         scenes_payload: Optional[Dict] = None,
     ) -> Tuple[Path, str, Dict]:
-        """Generate per-date HyperFrames project under data/{date}/<output_subdir>/.
+        """Generate per-date HyperFrames project under data/{month}/{date}/<output_subdir>/.
 
         Returns (index.html absolute path, html string, scenes_payload).
         The caller can pass a pre-computed `scenes_payload` (e.g. from

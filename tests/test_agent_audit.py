@@ -121,7 +121,7 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
 def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-04-26"
-    base = tmp_path / "data" / date
+    base = tmp_path / "data" / date[:7] / date
     base.mkdir(parents=True)
 
     atomic_write_json(
@@ -149,7 +149,7 @@ def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
 def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-04-26"
-    base = tmp_path / "data" / date
+    base = tmp_path / "data" / date[:7] / date
     base.mkdir(parents=True)
 
     atomic_write_json(

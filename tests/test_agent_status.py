@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from scripts.agent_status import _stale_command, build_status
-from src.pipeline.paths import render_path
+from src.pipeline.paths import date_root, render_path
 
 
 def _write_manifest(base: Path, renderer: str) -> None:
@@ -20,7 +20,7 @@ class TestRendererSpecificStaleness:
         self, tmp_path, monkeypatch
     ):
         monkeypatch.chdir(tmp_path)
-        base = tmp_path / "data" / "2026-06-09"
+        base = tmp_path / date_root("2026-06-09")
         (base / "hyperframes_project").mkdir(parents=True)
         _cli = render_path("2026-06-09", "cli_props.json")
         _cli.parent.mkdir(parents=True, exist_ok=True)
@@ -39,7 +39,7 @@ class TestRendererSpecificStaleness:
 
     def test_hyperframes_missing_index_is_stale(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        base = tmp_path / "data" / "2026-06-09"
+        base = tmp_path / date_root("2026-06-09")
         base.mkdir(parents=True)
         _cli = render_path("2026-06-09", "cli_props.json")
         _cli.parent.mkdir(parents=True, exist_ok=True)
@@ -49,13 +49,13 @@ class TestRendererSpecificStaleness:
         status = build_status("2026-06-09")
 
         assert {
-            "artifact": "data/2026-06-09/hyperframes_project/index.html",
+            "artifact": "data/2026-06/2026-06-09/hyperframes_project/index.html",
             "reason": "HyperFrames project index is missing",
         } in status["stale_artifacts"]
 
     def test_remotion_still_requires_public_props(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        base = tmp_path / "data" / "2026-06-09"
+        base = tmp_path / date_root("2026-06-09")
         base.mkdir(parents=True)
         _cli = render_path("2026-06-09", "cli_props.json")
         _cli.parent.mkdir(parents=True, exist_ok=True)
@@ -76,7 +76,7 @@ class TestStaleCommand:
             "2026-06-09",
             [
                 {
-                    "artifact": "data/2026-06-09/script.json",
+                    "artifact": "data/2026-06/2026-06-09/script.json",
                     "reason": "content.json is newer than script.json",
                 }
             ],

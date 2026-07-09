@@ -1,10 +1,10 @@
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 import json
 
 
 from src.core.interfaces import TTSProvider
 from src.core.models import Script, ScriptSegment
+from src.pipeline.paths import pipeline_audio_dir
 from src.pipeline.tts_processor import TTSProcessor
 
 
@@ -64,7 +64,7 @@ class TestTTSProcessor:
 
             processor.process_audio(script, "2026-04-26")
 
-        assert Path("data/2026-04-26/pipeline/audio").exists()
+        assert pipeline_audio_dir("2026-04-26").exists()
 
     def test_calls_synthesize_once_per_segment(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -135,7 +135,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/pipeline/audio")
+        audio_dir = pipeline_audio_dir("2026-04-26")
         audio_dir.mkdir(parents=True, exist_ok=True)
 
         # Pre-create per-segment audio + manifest with alignment data
@@ -171,7 +171,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/pipeline/audio")
+        audio_dir = pipeline_audio_dir("2026-04-26")
         audio_dir.mkdir(parents=True, exist_ok=True)
         seg_path = audio_dir / "segment_00.mp3"
         audio_text = "First sentence. Second sentence."
@@ -231,7 +231,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/pipeline/audio")
+        audio_dir = pipeline_audio_dir("2026-04-26")
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_01.mp3").write_bytes(b"\x00" * 100)
@@ -257,7 +257,7 @@ class TestTTSProcessor:
         with patch("src.pipeline.tts_processor.setup_logger"):
             processor = TTSProcessor(mock_provider, _make_config())
 
-        audio_dir = Path("data/2026-04-26/pipeline/audio")
+        audio_dir = pipeline_audio_dir("2026-04-26")
         audio_dir.mkdir(parents=True, exist_ok=True)
         (audio_dir / "segment_00.mp3").write_bytes(b"\x00" * 100)
         (audio_dir / "segment_00.mp3.json").write_text(
@@ -389,7 +389,7 @@ class TestTTSProcessor:
 
             processor.process_audio(script, "2026-04-26")
 
-        audio_dir = Path("data/2026-04-26/pipeline/audio")
+        audio_dir = pipeline_audio_dir("2026-04-26")
         manifest_path = audio_dir / "segment_00.mp3.json"
         assert manifest_path.exists()
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

@@ -5,7 +5,7 @@
 的字体加载逻辑，以及 [tokens.ts](../../src/Components/tokens.ts) 的字体栈）。
 
 prepare_render 步骤会把这里的所有 `.woff2` 拷贝到
-`data/{date}/render/remotion/public/fonts/`，Remotion CLI 通过
+`data/{month}/{date}/render/remotion/public/fonts/`，Remotion CLI 通过
 `--public-dir=...` 把它们暴露给 `staticFile("fonts/...")`。
 
 ## 文件清单
@@ -39,5 +39,5 @@ prepare_render 步骤会把这里的所有 `.woff2` 拷贝到
 2. 在 [src/Root.tsx](../../src/Root.tsx) 的 `FONT_FILES` 数组里加一行
    `{ family, weight, file }` —— `family` 必须与
    [tokens.ts](../../src/Components/tokens.ts) 的 `FONTS` 字体栈中的字符串完全一致。
-3. 跑一次 `prepare_render`，确认 `data/{date}/render/remotion/public/fonts/`
+3. 跑一次 `prepare_render`，确认 `data/{month}/{date}/render/remotion/public/fonts/`
    出现了新文件。

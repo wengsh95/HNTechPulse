@@ -20,7 +20,7 @@ def test_stale_content_recovery_uses_publish_pipeline_order():
         {
             "stale_artifacts": [
                 {
-                    "artifact": "data/2026-06-09/script.json",
+                    "artifact": "data/2026-06/2026-06-09/script.json",
                     "reason": "content.json is newer than script.json",
                 }
             ]

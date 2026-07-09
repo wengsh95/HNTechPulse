@@ -6,7 +6,7 @@ from src.core.models import ContentPackage
 from src.pipeline.paths import pipeline_path
 from src.utils.logger import setup_logger
 
-_CACHE_SCHEMA_VERSION = 13
+_CACHE_SCHEMA_VERSION = 14
 
 
 def _prompt_hash() -> str:
@@ -303,16 +303,9 @@ class Prefilter:
     def _input_fingerprint(self, content: ContentPackage) -> str:
         """Stable identity of the prefilter input set.
 
-        Hashes only story-level identity (source_id, title, url, score,
-        comment_count). Preview comment text *and* the set of preview
-        comment ids are intentionally excluded: HN re-orders top-level
-        comments by hotness on every fetch, so a non-deterministic preview
-        slice would invalidate the cache and trigger a fresh LLM call on
-        every resume. With LLM `temperature=0.1`, even small score wobbles
-        flip the editorial-score top-3, which then poisons every downstream
-        artifact (script focus, title, cover, publish_guide). Pinning the
-        fingerprint to the story set itself keeps the prefilter decision
-        stable across the resume loop.
+        Hashes story identity plus the preview comment text sent to the LLM.
+        If that preview changes, the editorial classification input changed
+        too, so the cached prefilter decision must be invalidated.
         """
         import hashlib
 
@@ -326,6 +319,7 @@ class Prefilter:
                     "score": item.score,
                     "comment_count": item.comment_count,
                     "comments_partial": item.comments_partial,
+                    "preview_comments": self._extract_comment_texts(item),
                 }
             )
         encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()

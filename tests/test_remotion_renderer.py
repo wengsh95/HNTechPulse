@@ -197,7 +197,7 @@ class TestWritePropsFile:
                 with patch.object(
                     Path,
                     "resolve",
-                    return_value=Path("/data/2024-01-15/cli_props.json"),
+                    return_value=Path("/data/2024-01/2024-01-15/cli_props.json"),
                 ):
                     result = renderer._write_props_file(
                         '{"key": "val"}', date="2024-01-15"
@@ -243,7 +243,7 @@ class TestPreview:
                 with patch.object(
                     renderer,
                     "_write_props_file",
-                    return_value="data/2024-01-15/cli_props.json",
+                    return_value="data/2024-01/2024-01-15/cli_props.json",
                 ) as write_props:
                     with patch.object(
                         renderer,
@@ -257,7 +257,9 @@ class TestPreview:
                                 run.return_value.returncode = 0
 
                                 renderer.preview(
-                                    script, "data/2024-01-15/audio", date="2024-01-15"
+                                    script,
+                                    "data/2024-01/2024-01-15/audio",
+                                    date="2024-01-15",
                                 )
 
         write_props.assert_called_once_with('{"ok": true}', date="2024-01-15")
@@ -320,7 +322,12 @@ class TestChunkCacheDir:
         # runtime dir), not under the Remotion source tree.
         assert (
             may_11.parent
-            == Path("data") / "2026-05-11" / "render" / "remotion" / "chunks"
+            == Path("data")
+            / "2026-05"
+            / "2026-05-11"
+            / "render"
+            / "remotion"
+            / "chunks"
         )
         assert may_11.name.startswith("2026-05-11_")
         assert may_13.name.startswith("2026-05-13_")
@@ -545,10 +552,11 @@ class TestVerifyChunk:
         renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
         f = tmp_path / "corrupt.mp4"
         f.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 100)
-        with patch.object(
-            renderer, "_probe_duration", return_value=None
-        ) as probe, __import__("pytest").raises(
-            RuntimeError, match="could not read any streams"
+        with (
+            patch.object(renderer, "_probe_duration", return_value=None) as probe,
+            __import__("pytest").raises(
+                RuntimeError, match="could not read any streams"
+            ),
         ):
             renderer._verify_chunk(f, "story_0")
         probe.assert_called_once_with(f)
@@ -557,9 +565,10 @@ class TestVerifyChunk:
         renderer = _make_renderer(ffprobe_path="/usr/bin/ffprobe")
         f = tmp_path / "zero.mp4"
         f.write_bytes(b"\x00" * 1024)
-        with patch.object(
-            renderer, "_probe_duration", return_value=0.0
-        ), __import__("pytest").raises(RuntimeError, match="0.000s"):
+        with (
+            patch.object(renderer, "_probe_duration", return_value=0.0),
+            __import__("pytest").raises(RuntimeError, match="0.000s"),
+        ):
             renderer._verify_chunk(f, "story_0")
 
     def test_healthy_chunk_returns_duration(self, tmp_path):

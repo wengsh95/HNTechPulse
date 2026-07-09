@@ -17,14 +17,14 @@ and source IDs** that are no longer valid.
 These were written to recover from a specific failed run on `2026-05-28`. The
 HN `source_id` values (48295679, 48293080) are ephemeral and not meaningful
 to future runs. Re-running them today would either:
-- Open a non-existent `data/2026-05-28/content.json` (FileNotFoundError)
+- Open a non-existent `data/2026-05/2026-05-28/content.json` (FileNotFoundError)
 - Silently mutate the wrong day's content if a path was hardcoded to today
 
 ## Replacements
 
 If you need similar debugging in the future, prefer:
-- `data/{date}/report.md` — auto-generated run report (issue summary)
-- `data/{date}/downloaded_pages/{source_id}.html` — manual download directory
+- `data/{month}/{date}/report.md` — auto-generated run report (issue summary)
+- `data/{month}/{date}/downloaded_pages/{source_id}.html` — manual download directory
 - `scripts/quality_check.py` — code quality gate
 
 The pipeline's "failed items" guidance in [orchestrator.py:353-368](../pipeline/orchestrator.py)

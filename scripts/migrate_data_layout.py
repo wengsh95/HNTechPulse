@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""One-shot migration of data/{date}/ from the flat layout to the bucketed layout.
+"""One-shot migration of data/{month}/{date}/ from the flat layout to the bucketed layout.
 
-Pre-refactor, every per-date artifact lived at the top of ``data/{date}/`` —
+Pre-refactor, every per-date artifact lived at the top of ``data/{month}/{date}/`` —
 ~30 different files, including intermediate caches, media, and agent state.
 After the refactor, they're grouped into ``raw/``, ``pipeline/``, ``media/``,
 ``render/``, ``publish/``, ``agent/`` (see ``src/pipeline/paths.py``).
@@ -63,7 +63,7 @@ from src.pipeline.paths import (  # noqa: E402
 
 # Map of legacy top-level entry name → (bucket_dir_factory, resolver).
 # Each tuple's first element is a function that returns the target directory
-# under data/{date}/, the second returns the typed-path version of the file
+# under data/{month}/{date}/, the second returns the typed-path version of the file
 # (used for manifest rewriting).
 def _pipeline_target(date: str, name: str) -> Path:
     return pipeline_path(date, name)
@@ -406,6 +406,20 @@ def _iter_dates(root: Path) -> Iterable[str]:
         if not child.is_dir():
             continue
         if child.name.startswith("_") or child.name in {"models"}:
+            continue
+        if (
+            len(child.name) == 7
+            and child.name[4:5] == "-"
+            and child.name[:4].isdigit()
+            and child.name[5:].isdigit()
+        ):
+            for date_child in sorted(child.iterdir()):
+                if (
+                    date_child.is_dir()
+                    and len(date_child.name) >= 10
+                    and date_child.name[:7] == child.name
+                ):
+                    yield date_child.name
             continue
         yield child.name
 

@@ -378,10 +378,10 @@ def closing_summary_items(
     items: list[dict] = []
     for entry in (highlight_entries or [])[:3]:
         title = (
-            entry.get("why_it_matters")
-            or entry.get("title_translation")
+            entry.get("title_translation")
             or entry.get("title_cn")
             or entry.get("title")
+            or entry.get("why_it_matters")
             or entry.get("editor_angle")
         )
         assert title, "Story missing display title"

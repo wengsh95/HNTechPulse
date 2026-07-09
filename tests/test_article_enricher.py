@@ -282,7 +282,7 @@ class TestImageSelection:
         enricher = _make_enricher()
         monkeypatch.chdir(tmp_path)
         date = "2026-05-11"
-        sel_dir = Path("data") / date / "pipeline"
+        sel_dir = Path("data") / date[:7] / date / "pipeline"
         sel_dir.mkdir(parents=True)
         sel_path = sel_dir / "image_selection.json"
         sel_path.write_text(
@@ -366,9 +366,9 @@ class TestImageSelection:
         )
 
         data = json.loads(
-            (Path("data") / date / "pipeline" / "image_selection.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                Path("data") / date[:7] / date / "pipeline" / "image_selection.json"
+            ).read_text(encoding="utf-8")
         )
         entry = data["items"]["42"]
         assert entry["selected_image"] == "images/shot.jpg"
@@ -411,9 +411,9 @@ class TestImageSelection:
         )
 
         data = json.loads(
-            (Path("data") / date / "pipeline" / "image_selection.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                Path("data") / date[:7] / date / "pipeline" / "image_selection.json"
+            ).read_text(encoding="utf-8")
         )
         entry = data["items"]["42"]
         assert entry["selected_image"] == "images/bing.jpg"
@@ -434,7 +434,7 @@ class TestImageSelection:
         enricher = ArticleEnricher(provider, _make_config())
         monkeypatch.chdir(tmp_path)
         date = "2026-05-11"
-        image_dir = Path("data") / date / "images"
+        image_dir = Path("data") / date[:7] / date / "images"
         image_dir.mkdir(parents=True)
         (image_dir / "page.jpg").write_bytes(b"\xff\xd8fake-jpeg\xff\xd9")
         item = ContentItem(
@@ -507,9 +507,9 @@ class TestImageSelection:
         )
 
         data = json.loads(
-            (Path("data") / date / "pipeline" / "image_selection.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                Path("data") / date[:7] / date / "pipeline" / "image_selection.json"
+            ).read_text(encoding="utf-8")
         )
         entry = data["items"]["42"]
         assert entry["selected_image"] == "images/page.jpg"
@@ -520,8 +520,8 @@ class TestImageSelection:
         enricher = _make_enricher()
         monkeypatch.chdir(tmp_path)
         date = "2026-05-11"
-        pages_dir = Path("data") / date / "raw" / "downloaded_pages"
-        image_dir = Path("data") / date / "media" / "images"
+        pages_dir = Path("data") / date[:7] / date / "raw" / "downloaded_pages"
+        image_dir = Path("data") / date[:7] / date / "media" / "images"
         pages_dir.mkdir(parents=True)
         image_dir.mkdir(parents=True)
         (pages_dir / "42.html").write_text(

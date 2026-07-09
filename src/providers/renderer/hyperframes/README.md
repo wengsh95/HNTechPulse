@@ -2,7 +2,7 @@
 
 Alternative video renderer that produces the daily HN briefing via HTML + GSAP
 instead of Remotion. This directory is the **template** project — Python copies
-and fills it on every `prepare_render` step into `data/{date}/hyperframes_project/`.
+and fills it on every `prepare_render` step into `data/{month}/{date}/hyperframes_project/`.
 
 ## Structure
 
@@ -25,7 +25,7 @@ handles the full pipeline. To drive `npx hyperframes` directly inside a
 generated project:
 
 ```bash
-cd data/2026-06-07/hyperframes_project
+cd data/2026-06/2026-06-07/hyperframes_project
 npx hyperframes lint
 npx hyperframes inspect --samples 10
 npx hyperframes preview --port 3002

@@ -41,7 +41,7 @@ Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
 - **Agent contract**: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) — state files, blocked reasons, decision gates, step handling policy, variants
 - **Module map**: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
-## State Files (under `data/{date}/agent/`)
+## State Files (under `data/{month}/{date}/agent/`)
 
 | File | Purpose |
 |------|---------|
@@ -67,4 +67,4 @@ Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
 - **Two renderers**: `--renderer remotion` (default) or `--renderer hyperframes`. HyperFrames lives at `src/providers/renderer/hyperframes/`.
 - **TS quality gate**: Pushes to `src/providers/renderer/remotion/` trigger a GitHub Actions workflow (prettier, eslint, tsc, vitest, knip, npm audit). Run `npm ci && npx vitest run` in that dir to test locally.
 - **Prompt placeholders**: `{{ foo }}` tokens must have matching `PH_FOO` constants in `src/core/prompts.py`. `render_prompt()` raises on unknown placeholders.
-- **Path literals**: Never build `f"data/{date}/foo.json"` directly — use helpers from `src/pipeline/paths.py`.
+- **Path literals**: Never build `f"data/{month}/{date}/foo.json"` directly — use helpers from `src/pipeline/paths.py`.

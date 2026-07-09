@@ -36,9 +36,9 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
 If the pipeline blocks or fails, inspect JSON files:
 
 ```text
-data/YYYY-MM-DD/pipeline_state.json
-data/YYYY-MM-DD/agent_events.jsonl
-data/YYYY-MM-DD/agent_tasks.json
+data/YYYY-MM/YYYY-MM-DD/pipeline_state.json
+data/YYYY-MM/YYYY-MM-DD/agent_events.jsonl
+data/YYYY-MM/YYYY-MM-DD/agent_tasks.json
 ```
 
 After repairing the issue, resume:
@@ -110,11 +110,11 @@ The primary state contract. Important fields:
   "blocked_reason": "manual_download_required",
   "blocked_items": [],
   "missing_manual_files": [],
-  "agent_task_file": "data/YYYY-MM-DD/agent_tasks.json",
+  "agent_task_file": "data/YYYY-MM/YYYY-MM-DD/agent_tasks.json",
   "next_recommended_command": "uv run python scripts/agent_run.py --date YYYY-MM-DD --resume",
   "artifacts": {
-    "content": "data/YYYY-MM-DD/content.json",
-    "script": "data/YYYY-MM-DD/script.json"
+    "content": "data/YYYY-MM/YYYY-MM-DD/content.json",
+    "script": "data/YYYY-MM/YYYY-MM-DD/script.json"
   }
 }
 ```
@@ -148,8 +148,8 @@ Created when the pipeline blocks on article fetching. Example task:
   "title": "Story title",
   "url": "https://example.com/article",
   "save_as": {
-    "html": "data/YYYY-MM-DD/downloaded_pages/123.html",
-    "pdf": "data/YYYY-MM-DD/downloaded_pages/123.pdf"
+    "html": "data/YYYY-MM/YYYY-MM-DD/downloaded_pages/123.html",
+    "pdf": "data/YYYY-MM/YYYY-MM-DD/downloaded_pages/123.pdf"
   }
 }
 ```
@@ -195,7 +195,7 @@ configured confidence/readiness threshold.
 
 Agent action:
 
-1. Read `data/YYYY-MM-DD/agent_decision.json`.
+1. Read `data/YYYY-MM/YYYY-MM-DD/agent_decision.json`.
 2. Inspect `scores`, `thresholds`, and `rationale`.
 3. Repair the weak input if possible: gather source context, rerun comment
    judgement, or regenerate the script.
@@ -249,12 +249,12 @@ Agent action:
 Key artifacts get adjacent manifests:
 
 ```text
-data/YYYY-MM-DD/content.json.manifest.json
-data/YYYY-MM-DD/script.json.manifest.json
-data/YYYY-MM-DD/title.json.manifest.json
-data/YYYY-MM-DD/cover_props.json.manifest.json
-data/YYYY-MM-DD/publish_guide.md.manifest.json
-data/YYYY-MM-DD/cli_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/content.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/script.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/title.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/cover_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/publish_guide.md.manifest.json
+data/YYYY-MM/YYYY-MM-DD/cli_props.json.manifest.json
 ```
 
 Manifests include:
@@ -277,7 +277,7 @@ relevant step.
 Agent mode writes:
 
 ```text
-data/YYYY-MM-DD/agent_decision.json
+data/YYYY-MM/YYYY-MM-DD/agent_decision.json
 ```
 
 The decision layer runs after source enrichment and after script generation.
@@ -335,20 +335,20 @@ Current scope:
 Multiple script variants are generated.
 Each variant gets a scorecard.
 The agent selects one automatically.
-The selected script is promoted to data/YYYY-MM-DD/script.json.
+The selected script is promoted to data/YYYY-MM/YYYY-MM-DD/script.json.
 Downstream steps still run once against the selected script.
 ```
 
 Variant files:
 
 ```text
-data/YYYY-MM-DD/variants/index.json
-data/YYYY-MM-DD/variants/{variant_id}/variant.json
-data/YYYY-MM-DD/variants/{variant_id}/script.json
-data/YYYY-MM-DD/variants/{variant_id}/scorecard.json
-data/YYYY-MM-DD/variants/selection_brief.md
-data/YYYY-MM-DD/selected_variant.json
-data/YYYY-MM-DD/agent_variant_decision.json
+data/YYYY-MM/YYYY-MM-DD/variants/index.json
+data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/variant.json
+data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/script.json
+data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/scorecard.json
+data/YYYY-MM/YYYY-MM-DD/variants/selection_brief.md
+data/YYYY-MM/YYYY-MM-DD/selected_variant.json
+data/YYYY-MM/YYYY-MM-DD/agent_variant_decision.json
 ```
 
 Do not ask the user to choose between variants by default. Read

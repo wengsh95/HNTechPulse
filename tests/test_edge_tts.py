@@ -5,6 +5,10 @@ from src.providers.tts.edge_tts import EdgeTTSProvider
 from src.core.interfaces import TTSResult
 
 
+def _close_coro(coro):
+    coro.close()
+
+
 def _make_config():
     return {
         "logging": {"level": "WARNING"},
@@ -37,7 +41,7 @@ class TestSynthesizeDirectoryCreation:
                 "src.providers.tts.edge_tts.get_audio_duration", return_value=1.0
             ):
                 with patch("src.providers.tts.edge_tts.run_async") as mock_run:
-                    mock_run.return_value = None
+                    mock_run.side_effect = _close_coro
                     assert not Path(output_path).parent.exists()
                     provider.synthesize("test text", output_path)
                     assert Path(output_path).parent.exists()
@@ -55,7 +59,7 @@ class TestSynthesize:
 
         with patch("src.providers.tts.edge_tts.get_audio_duration", return_value=2.5):
             with patch("src.providers.tts.edge_tts.run_async") as mock_run:
-                mock_run.return_value = None
+                mock_run.side_effect = _close_coro
                 result = provider.synthesize("test text", output_path)
                 assert Path(output_path).parent.exists()
                 assert isinstance(result, TTSResult)
@@ -68,7 +72,7 @@ class TestSynthesize:
 
         with patch("src.providers.tts.edge_tts.get_audio_duration", return_value=3.7):
             with patch("src.providers.tts.edge_tts.run_async") as mock_run:
-                mock_run.return_value = None
+                mock_run.side_effect = _close_coro
                 result = provider.synthesize("hello world", output_path)
                 assert result.duration == 3.7
 
@@ -87,6 +91,6 @@ class TestSynthesize:
                 "src.providers.tts.edge_tts.get_audio_duration", return_value=1.0
             ):
                 with patch("src.providers.tts.edge_tts.run_async") as mock_run:
-                    mock_run.return_value = None
+                    mock_run.side_effect = _close_coro
                     provider.synthesize("test", output_path)
                     assert mock_run.called

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render HyperFrames from an existing data/{date}/cli_props.json.
+"""Render HyperFrames from an existing data/{month}/{date}/cli_props.json.
 
 This is the fast path for visual/template iteration. It avoids re-running
 write_script, TTS, title generation, or any LLM-backed pipeline step.
@@ -65,7 +65,7 @@ def _load_script_from_cli_props(date: str) -> Script:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Render HyperFrames from data/{date}/render/cli_props.json"
+        description="Render HyperFrames from data/{month}/{date}/render/cli_props.json"
     )
     parser.add_argument("--date", required=True, help="Date to render, YYYY-MM-DD")
     parser.add_argument(
@@ -76,12 +76,12 @@ def main() -> int:
     parser.add_argument(
         "--output",
         default=None,
-        help="Output MP4 path. Defaults to data/{date}/publish/output.mp4",
+        help="Output MP4 path. Defaults to data/{month}/{date}/publish/output.mp4",
     )
     parser.add_argument(
         "--prepare-only",
         action="store_true",
-        help="Only regenerate data/{date}/hyperframes_project, do not render MP4.",
+        help="Only regenerate data/{month}/{date}/hyperframes_project, do not render MP4.",
     )
     args = parser.parse_args()
 

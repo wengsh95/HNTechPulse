@@ -1269,7 +1269,11 @@ class Orchestrator:
             cover_cfg = self.config.get("image_generator", {})
             candidate_count = max(
                 1,
-                int(os.environ.get("HN_COVER_CANDIDATES") or cover_cfg.get("candidate_count", 1) or 1),
+                int(
+                    os.environ.get("HN_COVER_CANDIDATES")
+                    or cover_cfg.get("candidate_count", 1)
+                    or 1
+                ),
             )
             candidate_seeds = [1001, 2002, 3003, 4004, 5005, 6006, 7007, 8008]
 
@@ -1446,15 +1450,19 @@ class Orchestrator:
     def _step_cover_thumbnail(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
-        self.logger.info(
-            "Step: Cover thumbnail — render 3 bg × 3 text grid (9 stills)"
-        )
+        self.logger.info("Step: Cover thumbnail — render 3 bg × 3 text grid (9 stills)")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping cover thumbnail render")
+            return
+
         render_dir = render_root(date)
 
         # Collect up to 3 background candidates: cover_bg.png (v1),
         # cover_bg_v2.png, cover_bg_v3.png.
         bg_candidates = sorted(
-            p for p in (render_dir.glob("cover_bg*.png")) if p.name.startswith("cover_bg")
+            p
+            for p in (render_dir.glob("cover_bg*.png"))
+            if p.name.startswith("cover_bg")
         )
         # Dedup and cap at 3.
         seen = set()
@@ -1482,10 +1490,6 @@ class Orchestrator:
                 "  cover_thumbnail requires cover_bg*.png and cover_props_v*.json; "
                 "run --steps cover_image first"
             )
-
-        if self.dry_run:
-            self.logger.info("Dry run: skipping cover thumbnail render")
-            return
 
         npx_path = find_npx()
         if not npx_path:
@@ -1525,21 +1529,15 @@ class Orchestrator:
                 atomic_write_json(combined_path, props)
 
                 # Render the cover.
-                cover_path = publish_path(
-                    date, f"cover_b{bg_idx}_t{t_idx}.png"
-                )
+                cover_path = publish_path(date, f"cover_b{bg_idx}_t{t_idx}.png")
                 thumb_inputs = {
                     "props_hash": file_sha256(combined_path),
                     "bg_hash": file_sha256(bg_path),
                 }
                 if is_artifact_fresh(cover_path, thumb_inputs):
-                    self.logger.info(
-                        f"  cover_b{bg_idx}_t{t_idx} already rendered"
-                    )
+                    self.logger.info(f"  cover_b{bg_idx}_t{t_idx} already rendered")
                 else:
-                    self._render_cover_still(
-                        npx_path, combined_path, cover_path, date
-                    )
+                    self._render_cover_still(npx_path, combined_path, cover_path, date)
                     write_artifact_manifest(
                         cover_path,
                         step="cover_thumbnail",
@@ -1816,7 +1814,7 @@ class Orchestrator:
         # by cache_paths() above. Keep this fallback for any renderer that
         # doesn't opt in.
         remotion_dir = Path("src/providers/renderer/remotion")
-        # Match the new per-date runtime layout: data/{date}/remotion/chunks.
+        # Match the new per-date runtime layout: data/{month}/{date}/remotion/chunks.
         chunk_dir = render_remotion_dir(date) / "chunks"
         if chunk_dir.exists() and not any(
             str(p).startswith(str(remotion_dir))

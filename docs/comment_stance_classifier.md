@@ -17,7 +17,7 @@ all fetched comments -> local classifier probabilities -> weighted story distrib
 The output is written beside the normal date artifacts:
 
 ```text
-data/{date}/stance_distribution.local.json
+data/{month}/{date}/stance_distribution.local.json
 ```
 
 This does not change `comment_judgement.json` or its schema. Render/script code
@@ -311,7 +311,7 @@ but they should still be treated as a model estimate, not ground truth.
    Recommended behavior:
 
    ```text
-   if data/{date}/stance_distribution.local.json exists:
+   if data/{month}/{date}/stance_distribution.local.json exists:
        use local stance_distribution for the bar chart
    else:
        use comment_judgement.stance_distribution

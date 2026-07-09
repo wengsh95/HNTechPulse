@@ -1,13 +1,13 @@
 """Centralized per-date data directory layout.
 
-All pipeline artifacts under ``data/{date}/`` are grouped by lifecycle into
+All pipeline artifacts under ``data/{month}/{date}/`` are grouped by lifecycle into
 subdirectories. This module is the single source of truth for those paths —
 every other module should import from here instead of building
-``f"data/{date}/foo.json"`` strings directly.
+``f"data/{month}/{date}/foo.json"`` strings directly.
 
 Layout::
 
-    data/{date}/
+    data/{month}/{date}/
     ├── raw/         raw_stories.json, downloaded_pages/
     ├── pipeline/    prefilter, enrichment, content, comment_*, script,
     │                segments/, variants/, audio/
@@ -35,7 +35,13 @@ MODELS_DIR = Path("data/models")
 
 def date_root(date: str) -> Path:
     """Return the per-date root directory."""
-    return Path(f"data/{date}")
+    return month_root(date) / date
+
+
+def month_root(date: str) -> Path:
+    """Return the month bucket for a date-like run id."""
+    month = date[:7] if len(date) >= 7 and date[4:5] == "-" else date
+    return Path("data") / month
 
 
 # Bucket roots ─────────────────────────────────────────────────────────────
@@ -187,7 +193,7 @@ _RENDER_FILES: dict[str, str] = {
 
 
 def pipeline_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/pipeline/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/pipeline/``."""
     if name not in _PIPELINE_FILES:
         raise KeyError(
             f"Unknown pipeline artifact: {name!r}. Known: {sorted(_PIPELINE_FILES)}"
@@ -196,7 +202,7 @@ def pipeline_path(date: str, name: str) -> Path:
 
 
 def media_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/media/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/media/``."""
     if name not in _MEDIA_FILES:
         raise KeyError(
             f"Unknown media artifact: {name!r}. Known: {sorted(_MEDIA_FILES)}"
@@ -205,7 +211,7 @@ def media_path(date: str, name: str) -> Path:
 
 
 def publish_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/publish/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/publish/``."""
     if name not in _PUBLISH_FILES:
         raise KeyError(
             f"Unknown publish artifact: {name!r}. Known: {sorted(_PUBLISH_FILES)}"
@@ -214,7 +220,7 @@ def publish_path(date: str, name: str) -> Path:
 
 
 def agent_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/agent/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/agent/``."""
     if name not in _AGENT_FILES:
         raise KeyError(
             f"Unknown agent artifact: {name!r}. Known: {sorted(_AGENT_FILES)}"
@@ -223,14 +229,14 @@ def agent_path(date: str, name: str) -> Path:
 
 
 def raw_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/raw/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/raw/``."""
     if name not in _RAW_FILES:
         raise KeyError(f"Unknown raw artifact: {name!r}. Known: {sorted(_RAW_FILES)}")
     return raw_root(date) / _RAW_FILES[name]
 
 
 def render_path(date: str, name: str) -> Path:
-    """Resolve a named artifact under ``data/{date}/render/``."""
+    """Resolve a named artifact under ``data/{month}/{date}/render/``."""
     if name not in _RENDER_FILES:
         raise KeyError(
             f"Unknown render artifact: {name!r}. Known: {sorted(_RENDER_FILES)}"
@@ -239,7 +245,7 @@ def render_path(date: str, name: str) -> Path:
 
 
 # Backwards-compatibility aliases for the pre-refactor flat layout.
-# These are the file names the pipeline used to write at data/{date}/<name>
+# These are the file names the pipeline used to write at data/{month}/{date}/<name>
 # before this refactor. New code should call the typed helpers above; these
 # constants exist so tests and migration logic can reference the old paths.
 LEGACY_FLAT_LAYOUT = {
@@ -299,6 +305,7 @@ def ensure_date_dirs(date: str) -> None:
 __all__ = [
     "COMMENT_CACHE_DIR",
     "MODELS_DIR",
+    "month_root",
     "date_root",
     "raw_root",
     "pipeline_root",

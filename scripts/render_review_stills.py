@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Render representative Remotion stills for visual review.
 
-Uses data/{date}/cli_props.json, so it does not rerun script generation, TTS, or
+Uses data/{month}/{date}/cli_props.json, so it does not rerun script generation, TTS, or
 the full video render. Outputs PNGs and a manifest under
-data/{date}/review_stills/remotion/.
+data/{month}/{date}/review_stills/remotion/.
 """
 
 from __future__ import annotations

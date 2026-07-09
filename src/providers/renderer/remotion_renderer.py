@@ -67,7 +67,9 @@ class RemotionRenderer(Renderer):
         self.chunk_frames = remotion_config.get("chunk_frames", 1500)
         self.resume_enabled = remotion_config.get("resume_enabled", True)
         self.render_workers = remotion_config.get("render_workers", 2)
-        self.audio_loudnorm_enabled = remotion_config.get("audio_loudnorm_enabled", True)
+        self.audio_loudnorm_enabled = remotion_config.get(
+            "audio_loudnorm_enabled", True
+        )
         self.audio_loudnorm_i = remotion_config.get("audio_loudnorm_i", -16)
         self.audio_loudnorm_tp = remotion_config.get("audio_loudnorm_tp", -1.5)
         self.audio_loudnorm_lra = remotion_config.get("audio_loudnorm_lra", 11)
@@ -126,8 +128,8 @@ class RemotionRenderer(Renderer):
         )
         props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
-        # Always also write to data/{date}/cli_props.json for CLI use.
-        # The data/{date}/remotion/public/props.json copy is the file
+        # Always also write to data/{month}/{date}/cli_props.json for CLI use.
+        # The data/{month}/{date}/remotion/public/props.json copy is the file
         # Remotion Studio hot-reloads from when --public-dir points there.
         cli_props_path = self._write_props_file(props_json, date=date)
         if data_dir:
@@ -289,7 +291,7 @@ class RemotionRenderer(Renderer):
 
         if not self.resume_enabled or len(script.segments) <= 1:
             # Render whole video at once. Single-shot temp goes under
-            # data/{date}/remotion/ (not the Remotion source dir) so the
+            # data/{month}/{date}/remotion/ (not the Remotion source dir) so the
             # source tree stays clean.
             remotion_output = (
                 self._remotion_data_dir(date) / "single.mp4"
@@ -948,7 +950,7 @@ class RemotionRenderer(Renderer):
         """Write props JSON to a persistent file and return its path.
 
         Avoids OS command-line length limits when passing large props to the
-        Remotion CLI. The file is persisted under data/{date}/ for debugging.
+        Remotion CLI. The file is persisted under data/{month}/{date}/ for debugging.
         """
         if date:
             props_path = render_path(date, "cli_props.json")
@@ -962,7 +964,7 @@ class RemotionRenderer(Renderer):
     def _chunk_cache_dir(self, date: str, props_json: str) -> Path:
         """Return a chunk cache directory scoped to the exact render input.
 
-        Chunks live under ``data/{date}/remotion/chunks/`` so the source tree
+        Chunks live under ``data/{month}/{date}/remotion/chunks/`` so the source tree
         stays clean. Falls back to ``remotion/out/chunks/`` when no date is
         supplied (test/legacy path).
         """

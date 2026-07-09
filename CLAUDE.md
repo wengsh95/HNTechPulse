@@ -93,12 +93,12 @@ HN API → [fetch] ContentPackage
 
 ### Data Layout
 
-Artifacts under `data/{date}/` are grouped by lifecycle into subdirectories. All
+Artifacts under `data/{month}/{date}/` are grouped by lifecycle into subdirectories. All
 path literals go through [src/pipeline/paths.py](src/pipeline/paths.py) — never
-build `f"data/{date}/foo.json"` strings directly.
+build `f"data/{month}/{date}/foo.json"` strings directly.
 
 ```
-data/{date}/
+data/{month}/{date}/
 ├── raw/         raw_stories.json, downloaded_pages/
 ├── pipeline/    prefilter, enrichment, content, comment_*, script,
 │                segments/, variants/, audio/
@@ -116,7 +116,7 @@ data/{date}/
 ### Cache Files
 
 Resolved via `src/pipeline/paths.py` helpers — paths in the table below are
-relative to `data/{date}/`.
+relative to `data/{month}/{date}/`.
 
 | File | Step | Contents |
 |------|------|----------|

@@ -665,7 +665,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
 
-    # Copy image assets to data/{date}/render/remotion/public/images/
+    # Copy image assets to data/{month}/{date}/render/remotion/public/images/
     data_remotion = render_remotion_dir(date)
     data_remotion.mkdir(parents=True, exist_ok=True)
     image_subdir = data_remotion / "public" / "images"
@@ -731,7 +731,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     )
     props_json = json.dumps(props_data, ensure_ascii=False, indent=2)
 
-    # Write to data/{date}/remotion/public/props.json (studio hot-reloads
+    # Write to data/{month}/{date}/remotion/public/props.json (studio hot-reloads
     # from here when launched with --public-dir)
     public_dir = data_remotion / "public"
     public_dir.mkdir(parents=True, exist_ok=True)
@@ -739,7 +739,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     atomic_write_text(props_file, props_json)
     logger.info(f"Props written to {props_file} ({len(props_json)} bytes)")
 
-    # Also write to data/{date}/ for CLI use
+    # Also write to data/{month}/{date}/ for CLI use
     cli_path = render_path(date, "cli_props.json")
     atomic_write_text(cli_path, props_json)
     logger.info(f"Props written to {cli_path}")

@@ -22,7 +22,7 @@ import { ScriptProps } from "./types";
 
 // ── 字体本地化加载 ────────────────────────────────────────────────────────
 // 字体源文件在 assets/fonts/，由 prepare_render 复制到
-// data/{date}/render/remotion/public/fonts/，再通过 staticFile("fonts/...")
+// data/{month}/{date}/render/remotion/public/fonts/，再通过 staticFile("fonts/...")
 // 取到 URL。使用 delayRender 阻塞抓帧，直到所有字体就绪——绝不允许悄悄
 // 回退到 Georgia / 宋体等系统字体（那是旧版 @import 异步加载的根因）。
 //

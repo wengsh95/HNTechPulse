@@ -16,7 +16,7 @@ prepares or runs Remotion rendering.
 |-- scripts/
 |-- tests/
 |-- docs/
-|-- data/{date}/
+|-- data/{month}/{date}/
 |-- expressions/
 `-- src/providers/renderer/remotion/
 ```
@@ -151,8 +151,8 @@ strategies:
 - `discussion`
 - `source_grounded`
 
-Agent mode writes variants under `data/{date}/pipeline/variants/`, selects one, and
-promotes the selected output to `data/{date}/pipeline/script.json`.
+Agent mode writes variants under `data/{month}/{date}/pipeline/variants/`, selects one, and
+promotes the selected output to `data/{month}/{date}/pipeline/script.json`.
 
 ## Comment Pipeline
 
@@ -179,7 +179,7 @@ not independently reselect comments.
 `支持 / 质疑 / 中立` distributions over all fetched comments. Training labels
 are generated once with the configured LLM via
 `scripts/train_comment_stance.py`; local reports are written to
-`data/{date}/stance_distribution.local.json` (a user-side training artifact,
+`data/{month}/{date}/stance_distribution.local.json` (a user-side training artifact,
 not part of the new bucket layout). See
 [Comment Stance Classifier](comment_stance_classifier.md) for the current
 findings and training strategy.
@@ -226,12 +226,12 @@ src/providers/renderer/remotion/
 |                          #   Noto Sans SC / Noto Serif SC) + OFL.txt
 |-- src/                   # React/TS 组件、Composition、Root.tsx
 `-- public/                # 空（运行时通过 --public-dir 指向
-                           #   data/{date}/render/remotion/public/）
+                           #   data/{month}/{date}/render/remotion/public/）
 ```
 
 字体在 `Root.tsx` 顶层用 `delayRender` + `FontFace` 阻塞加载，避免抓帧时
 回退到系统字体导致跨机器字形不一致。`prepare_render` 把 `assets/fonts/*.woff2`
-复制到 `data/{date}/render/remotion/public/fonts/`，由 Remotion CLI 通过
+复制到 `data/{month}/{date}/render/remotion/public/fonts/`，由 Remotion CLI 通过
 `--public-dir` 暴露给 `staticFile("fonts/...")`。
 
 Important render detail: temporary h264+aac output must use `.partial.mp4`
@@ -286,11 +286,11 @@ uv run python scripts/quality_check.py
 
 ## Date-Scoped Artifacts
 
-Most runtime outputs live under `data/{date}/`, grouped by lifecycle into
+Most runtime outputs live under `data/{month}/{date}/`, grouped by lifecycle into
 buckets. All path literals go through [src/pipeline/paths.py](../src/pipeline/paths.py).
 
 ```text
-data/{date}/
+data/{month}/{date}/
 |-- raw/         raw_stories.json, downloaded_pages/
 |-- pipeline/    prefilter, enrichment, content, comment_*, script,
 |                segments/, variants/, audio/
@@ -346,7 +346,7 @@ publish/publish_guide.md.manifest.json
 The Remotion props manifest lives beside the canonical render props file:
 
 ```text
-data/YYYY-MM-DD/render/cli_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/render/cli_props.json.manifest.json
 ```
 
 For human review or handoff, mirror the useful deliverables into a tidy
@@ -359,7 +359,7 @@ uv run python scripts/organize_outputs.py --date YYYY-MM-DD --refresh
 This creates:
 
 ```text
-data/{date}/outputs/
+data/{month}/{date}/outputs/
 |-- final/     # output.mp4 and selected cover
 |-- publish/   # publish guide, transcript, title metadata
 |-- script/    # promoted script and agent decisions

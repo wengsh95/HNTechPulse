@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dates",
         required=True,
-        help="Comma-separated dates to read from data/YYYY-MM-DD/content.json",
+        help="Comma-separated dates to read from data/YYYY-MM/YYYY-MM-DD/content.json",
     )
     parser.add_argument("--label", action="store_true", help="Generate LLM labels")
     parser.add_argument("--train", action="store_true", help="Train local classifier")
@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default="",
-        help="Report output path; default data/{date}/stance_distribution.local.json",
+        help="Report output path; default data/{month}/{date}/stance_distribution.local.json",
     )
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()

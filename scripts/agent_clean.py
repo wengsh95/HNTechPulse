@@ -2,7 +2,7 @@
 """Date-scoped cleanup helper for agents.
 
 Defaults to dry-run. Use --yes to actually delete the listed files/directories.
-All targets are constrained under data/{date} to avoid accidental workspace
+All targets are constrained under data/{month}/{date} to avoid accidental workspace
 damage.
 """
 

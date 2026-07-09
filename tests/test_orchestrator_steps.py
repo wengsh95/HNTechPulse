@@ -138,13 +138,13 @@ class TestStepPrefilter:
 
     def test_prefilter_cache_is_validated_by_prefilter(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "data" / "2026-04-26" / "pipeline").mkdir(parents=True)
-        (tmp_path / "data" / "2026-04-26" / "pipeline" / "content.json").write_text(
-            '{"items":[]}'
-        )
-        (tmp_path / "data" / "2026-04-26" / "pipeline" / "prefilter.json").write_text(
-            "{}"
-        )
+        (tmp_path / "data" / "2026-04" / "2026-04-26" / "pipeline").mkdir(parents=True)
+        (
+            tmp_path / "data" / "2026-04" / "2026-04-26" / "pipeline" / "content.json"
+        ).write_text('{"items":[]}')
+        (
+            tmp_path / "data" / "2026-04" / "2026-04-26" / "pipeline" / "prefilter.json"
+        ).write_text("{}")
 
         orch = _make_orchestrator(dry_run=False)
         orch.config["prefilter"] = {"comment_preview_enabled": False}
@@ -325,7 +325,7 @@ class TestStepPublishGuide:
     ):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
-        base = tmp_path / "data" / date / "publish"
+        base = tmp_path / "data" / date[:7] / date / "publish"
         base.mkdir(parents=True)
         guide_path = base / "publish_guide.md"
         guide_path.write_text("old", encoding="utf-8")
@@ -344,7 +344,7 @@ class TestStepPublishGuide:
     def test_uses_title_json_for_publish_metadata_context(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
-        base = tmp_path / "data" / date / "publish"
+        base = tmp_path / "data" / date[:7] / date / "publish"
         base.mkdir(parents=True)
         (base / "title.json").write_text(
             json.dumps(
@@ -484,7 +484,14 @@ class TestRunDispatch:
 
         orch.run("2026-04-26", steps=["fetch"], force=False)
 
-        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
+        state_path = (
+            tmp_path
+            / "data"
+            / "2026-04"
+            / "2026-04-26"
+            / "agent"
+            / "pipeline_state.json"
+        )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "complete"
         assert state["completed_steps"] == ["fetch"]
@@ -509,12 +516,21 @@ class TestRunDispatch:
 
         orch._step_translate_titles.assert_not_called()
         orch._step_write_script.assert_not_called()
-        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
+        state_path = (
+            tmp_path
+            / "data"
+            / "2026-04"
+            / "2026-04-26"
+            / "agent"
+            / "pipeline_state.json"
+        )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
         assert state["blocked_reason"] == "manual_download_required"
         assert state["missing_manual_files"][0]["story_id"] == "123"
-        task_path = tmp_path / "data" / "2026-04-26" / "agent" / "agent_tasks.json"
+        task_path = (
+            tmp_path / "data" / "2026-04" / "2026-04-26" / "agent" / "agent_tasks.json"
+        )
         tasks = json.loads(task_path.read_text(encoding="utf-8"))
         assert tasks["schema_version"] == 2
         assert tasks["repair_contract"]["owner"] == "agent"
@@ -530,7 +546,14 @@ class TestRunDispatch:
             "scripts/agent_run.py --date 2026-04-26 --resume"
         )
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
-        events_path = tmp_path / "data" / "2026-04-26" / "agent" / "agent_events.jsonl"
+        events_path = (
+            tmp_path
+            / "data"
+            / "2026-04"
+            / "2026-04-26"
+            / "agent"
+            / "agent_events.jsonl"
+        )
         assert "run_blocked" in events_path.read_text(encoding="utf-8")
         assert "downloaded_pages" in state["next_recommended_command"]
 
@@ -554,7 +577,14 @@ class TestRunDispatch:
 
         orch._step_translate_titles.assert_called_once()
         orch._step_write_script.assert_called_once()
-        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
+        state_path = (
+            tmp_path
+            / "data"
+            / "2026-04"
+            / "2026-04-26"
+            / "agent"
+            / "pipeline_state.json"
+        )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "degraded"
         assert state["degraded_items"][0]["story_id"] == "123"
@@ -562,7 +592,7 @@ class TestRunDispatch:
 
     def test_refresh_variants_clears_script_outputs_only(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        base = tmp_path / "data" / "2026-04-26"
+        base = tmp_path / "data" / "2026-04" / "2026-04-26"
         segments = base / "pipeline" / "segments"
         variants = base / "pipeline" / "variants"
         segments.mkdir(parents=True)
@@ -601,7 +631,14 @@ class TestRunDispatch:
         orch.run("2026-04-26", steps=["translate_titles"], force=False)
 
         orch._step_translate_titles.assert_not_called()
-        state_path = tmp_path / "data" / "2026-04-26" / "agent" / "pipeline_state.json"
+        state_path = (
+            tmp_path
+            / "data"
+            / "2026-04"
+            / "2026-04-26"
+            / "agent"
+            / "pipeline_state.json"
+        )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
         assert state["blocked_reason"] == "insufficient_story_context"

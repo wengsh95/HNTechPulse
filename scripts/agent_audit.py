@@ -52,7 +52,7 @@ def _scripts_semantically_equal(variant_path: Path, promoted_path: Path) -> bool
     """Compare the segment-level content of two script.json files.
 
     Why not byte-compare: post-process steps (translate_comments, synthesize_audio,
-    title) re-save data/{date}/script.json to attach top-level fields
+    title) re-save data/{month}/{date}/script.json to attach top-level fields
     (title/description/tags/cover_subtitle/total_duration) and per-segment
     audio/cue/timing data. The variant snapshot at data/.../variants/{id}/script.json
     is intentionally frozen at write_script time. Byte-equality would always
@@ -310,7 +310,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 why=(
                     "Some items were enriched with degraded source context "
                     "(incomplete article body or missing images). Script was "
-                    f"still produced; review data/{date}/degraded_items before publish."
+                    f"still produced; review {date_root(date)}/degraded_items before publish."
                 ),
             )
         ]

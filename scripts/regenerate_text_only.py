@@ -35,7 +35,7 @@ def main() -> int:
     parser.add_argument(
         "--refresh-title",
         action="store_true",
-        help="Delete data/{date}/title.json before regenerating title metadata.",
+        help="Delete data/{month}/{date}/title.json before regenerating title metadata.",
     )
     args = parser.parse_args()
 

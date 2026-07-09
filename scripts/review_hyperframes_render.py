@@ -24,7 +24,8 @@ def main() -> None:
     )
     parser.add_argument("--date", required=True, help="Pipeline date (YYYY-MM-DD)")
     parser.add_argument(
-        "--video", help="Path to video file (default: data/{date}/publish/output.mp4)"
+        "--video",
+        help="Path to video file (default: data/{month}/{date}/publish/output.mp4)",
     )
     parser.add_argument(
         "--out-dir", help="Output directory (default: tmp/hyperframes_review/{date})"

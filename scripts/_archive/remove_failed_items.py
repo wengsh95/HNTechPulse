@@ -1,6 +1,6 @@
 import json
 
-with open("data/2026-05-28/content.json", "r", encoding="utf-8") as f:
+with open("data/2026-05/2026-05-28/content.json", "r", encoding="utf-8") as f:
     content = json.load(f)
 
 # Check current state
@@ -24,6 +24,6 @@ content["brief_indices"] = list(range(len(content["items"])))
 print(f"\nItems remaining: {len(content['items'])}")
 print(f"brief_indices: {content['brief_indices']}")
 
-with open("data/2026-05-28/content.json", "w", encoding="utf-8") as f:
+with open("data/2026-05/2026-05-28/content.json", "w", encoding="utf-8") as f:
     json.dump(content, f, ensure_ascii=False, indent=2)
 print("Done")
