@@ -132,7 +132,7 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
     judgement_path.write_text(
         """
 {
-  "schema_version": 2,
+  "schema_version": 7,
   "stories": {
     "story": {
       "comment_lanes": {

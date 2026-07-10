@@ -142,6 +142,7 @@ def select_judge_candidate_comments(
 
     top_quality_limit = min(max_n, max(5, max_n // 2))
     add_from(candidates, top_quality_limit)
+    add_from([r for r in candidates if "color" in r[3]], 2)
     add_from([r for r in candidates if (r[1].sentiment or 0.0) <= -0.25], 3)
     add_from([r for r in candidates if (r[1].sentiment or 0.0) >= 0.25], 2)
     add_from([r for r in candidates if r[1].depth is not None and r[1].depth >= 2], 2)
@@ -260,6 +261,7 @@ def select_discussion_profile_comments(
 
     anchor_limit = min(max_n, max(3, max_n // 3))
     add_from(rows, anchor_limit)
+    add_from([r for r in rows if "color" in r[3]], 2)
     add_from([r for r in rows if (r[1].depth or 0) <= 1], 3)
     add_from(
         [r for r in rows if "skeptical" in r[3] or (r[1].sentiment or 0) <= -0.25], 3

@@ -24,7 +24,10 @@ from src.utils.logger import setup_logger
 # ── Schema versions ────────────────────────────────────────────────────
 
 ANALYSIS_SCHEMA_VERSION = 3
-JUDGEMENT_SCHEMA_VERSION = 2
+JUDGEMENT_SCHEMA_VERSION = 8
+
+COLOR_PROMOTION_MAX_CHARS = 38
+QUOTE_SOFT_MAX_CHARS = 42
 
 DISCUSSION_MODES = {
     "debate",
@@ -37,12 +40,31 @@ DISCUSSION_MODES = {
     "low_signal",
 }
 
-COMMENT_LANES = {
+COMMENT_LANES = (
     "representative",
     "counterpoint",
     "detail",
     "color",
-}
+)
+
+OVERHEATED_QUOTE_TERMS = (
+    "法西斯",
+    "垃圾",
+    "完蛋",
+    "白痴",
+    "脑残",
+    "傻子",
+    "邪恶",
+    "全烂",
+    "没救",
+)
+
+LAZY_QUOTE_TERMS = (
+    "讽刺",
+    "反讽",
+    "值得一提",
+    "有趣的是",
+)
 
 _save_lock = threading.Lock()
 
@@ -606,13 +628,20 @@ def _normalize_candidate(raw: dict, valid_ids: set[str]) -> Optional[dict]:
     reject = bool(raw.get("reject_for_quote", False))
     has_viewpoint = bool(raw.get("has_viewpoint", not reject))
     score = max(0.0, min(1.0, _safe_float(raw.get("quote_score"), 0.0)))
+    claim = str(raw.get("claim") or "")[:220]
+    if _has_overheated_claim(claim):
+        score = min(score, 0.68)
+    if _has_lazy_quote_claim(claim):
+        score = min(score, 0.72)
+    if len(claim) > QUOTE_SOFT_MAX_CHARS:
+        score = min(score, 0.76)
 
     return {
         "comment_id": comment_id,
         "quote_score": score,
         "category": str(raw.get("category") or "viewpoint"),
         "stance": str(raw.get("stance") or "neutral"),
-        "claim": str(raw.get("claim") or "")[:220],
+        "claim": claim,
         "role": str(raw.get("role") or raw.get("category") or "viewpoint")[:48],
         "has_viewpoint": has_viewpoint,
         "reject_for_quote": reject,
@@ -652,6 +681,11 @@ def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
             candidate = _normalize_candidate(entry, valid_ids)
             if candidate is None:
                 continue
+            if lane_key == "color" and (
+                _has_overheated_claim(candidate.get("claim"))
+                or _has_lazy_quote_claim(candidate.get("claim"))
+            ):
+                continue
             cid = candidate["comment_id"]
             if cid in seen_by_lane[lane_key]:
                 continue
@@ -660,6 +694,53 @@ def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
             lanes[lane_key].append(candidate)
 
     return lanes
+
+
+def _has_overheated_claim(value: Any) -> bool:
+    return any(term in str(value or "") for term in OVERHEATED_QUOTE_TERMS)
+
+
+def _has_lazy_quote_claim(value: Any) -> bool:
+    return any(term in str(value or "") for term in LAZY_QUOTE_TERMS)
+
+
+def _quote_candidate_sort_key(candidate: dict, color_ids: set[str]) -> tuple[bool, float]:
+    """Promote memorable color-lane quotes without letting cheap outrage win."""
+    score = float(candidate.get("quote_score") or 0.0)
+    is_color = str(candidate.get("comment_id")) in color_ids
+    claim = str(candidate.get("claim") or "")
+    is_tight_color = is_color and len(claim) <= COLOR_PROMOTION_MAX_CHARS
+    return (is_tight_color and score >= 0.8, score)
+
+
+def _apply_color_candidate_claims(
+    candidates: list[dict], comment_lanes: dict
+) -> None:
+    color_by_id = {
+        str(entry["comment_id"]): entry
+        for entry in comment_lanes.get("color", [])
+        if entry.get("quote_score", 0.0) >= 0.8
+        and len(str(entry.get("claim") or "")) <= COLOR_PROMOTION_MAX_CHARS
+    }
+    if not color_by_id:
+        return
+    for candidate in candidates:
+        color = color_by_id.get(str(candidate.get("comment_id")))
+        if not color:
+            continue
+        candidate.update(
+            {
+                "quote_score": max(
+                    float(candidate.get("quote_score") or 0.0),
+                    float(color.get("quote_score") or 0.0),
+                ),
+                "category": color.get("category", candidate.get("category")),
+                "stance": color.get("stance", candidate.get("stance")),
+                "claim": color.get("claim", candidate.get("claim")),
+                "role": color.get("role", candidate.get("role")),
+                "reason": color.get("reason", candidate.get("reason")),
+            }
+        )
 
 
 def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
@@ -687,8 +768,6 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
             continue
         seen.add(candidate["comment_id"])
         candidates.append(candidate)
-
-    candidates.sort(key=lambda c: c.get("quote_score", 0.0), reverse=True)
 
     debate_focus = []
     for entry in raw.get("debate_focus", []) or []:
@@ -720,6 +799,13 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
     discussion_mode = _normalize_discussion_mode(raw.get("discussion_mode"))
     discussion_summary = str(raw.get("discussion_summary") or "").strip()[:48]
     comment_lanes = _normalize_comment_lanes(raw, valid_ids)
+    color_ids = {
+        str(entry["comment_id"])
+        for entry in comment_lanes.get("color", [])
+        if entry.get("quote_score", 0.0) >= 0.8
+    }
+    _apply_color_candidate_claims(candidates, comment_lanes)
+    candidates.sort(key=lambda c: _quote_candidate_sort_key(c, color_ids), reverse=True)
 
     return {
         "story_id": comment_judgement_key(item),

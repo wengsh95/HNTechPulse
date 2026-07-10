@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
-from src.pipeline.comment import CommentAnalyzer, ANALYSIS_SCHEMA_VERSION
+from src.pipeline.comment import (
+    ANALYSIS_SCHEMA_VERSION,
+    CommentAnalyzer,
+    local_comment_type_hints,
+)
 
 
 def _make_config(**overrides):
@@ -173,6 +177,14 @@ class TestGetTopComments:
 
 
 class TestGetJudgeCandidates:
+    def test_color_hint_detects_ironic_comments(self):
+        hints = local_comment_type_hints(
+            "Because nothing says user freedom like asking the platform for permission."
+        )
+
+        assert "color" in hints
+        assert "viewpoint" in hints
+
     def test_balanced_keeps_minority_negative_and_deep_replies(self):
         with patch("src.pipeline.comment.judge.setup_logger"):
             analyzer = CommentAnalyzer(
@@ -326,6 +338,49 @@ class TestGetJudgeCandidates:
         assert "question" in selected_ids
         assert "experience" in selected_ids
         assert len(selected) <= 10
+
+    def test_balanced_profile_sample_keeps_memorable_color_comment(self):
+        with patch("src.pipeline.comment.judge.setup_logger"):
+            analyzer = CommentAnalyzer(
+                _make_config(
+                    judge_candidate_strategy="balanced",
+                    judge_candidate_min_quality=0.05,
+                )
+            )
+        comments = [
+            _make_comment(
+                content=(
+                    "The implementation seems useful because it removes repeated "
+                    "work for teams adopting the tool."
+                ),
+                source_id=f"polished{i}",
+                quality_score=0.9 - i * 0.01,
+                sentiment=0.25,
+                depth=0,
+            )
+            for i in range(8)
+        ]
+        comments.append(
+            _make_comment(
+                content=(
+                    "Because nothing says user freedom like asking the platform "
+                    "for permission before the app can do its job."
+                ),
+                source_id="color",
+                quality_score=0.08,
+                sentiment=-0.1,
+                depth=1,
+            )
+        )
+        item = _make_item(
+            title="Platform permission changes for apps",
+            article_summary="A platform now requires app permission before access.",
+            comments=comments,
+        )
+
+        selected = analyzer.get_judge_candidates(item, n=4)
+
+        assert "color" in {c.source_id for c in selected}
 
     def test_top_quality_strategy_uses_original_ranking(self):
         with patch("src.pipeline.comment.judge.setup_logger"):

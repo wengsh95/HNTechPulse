@@ -74,6 +74,114 @@ def test_normalize_story_judgement_drops_unknown_ids_and_orders_by_score():
     assert [c["comment_id"] for c in result["quote_candidates"]] == ["skeptic", "ops"]
 
 
+def test_normalize_story_judgement_promotes_strong_color_quote():
+    item = _item()
+    result = normalize_story_judgement(
+        {
+            "comment_lanes": {
+                "color": [
+                    {
+                        "comment_id": "support",
+                        "role": "memorable_line",
+                        "stance": "中立",
+                        "claim": "把平台权限当自由证明，多少有点荒诞",
+                        "quote_score": 0.82,
+                    }
+                ]
+            },
+            "quote_candidates": [
+                {"comment_id": "skeptic", "quote_score": 0.95, "has_viewpoint": True},
+                {"comment_id": "ops", "quote_score": 0.9, "has_viewpoint": True},
+            ],
+        },
+        item,
+    )
+
+    assert [c["comment_id"] for c in result["quote_candidates"]][:3] == [
+        "support",
+        "skeptic",
+        "ops",
+    ]
+
+
+def test_normalize_story_judgement_caps_overheated_quote_claims():
+    item = _item()
+    result = normalize_story_judgement(
+        {
+            "comment_lanes": {
+                "color": [
+                    {
+                        "comment_id": "support",
+                        "role": "memorable_line",
+                        "stance": "质疑",
+                        "claim": "这产品完蛋了只剩垃圾决策",
+                        "quote_score": 0.98,
+                    }
+                ]
+            },
+            "quote_candidates": [
+                {"comment_id": "skeptic", "quote_score": 0.9, "has_viewpoint": True},
+            ],
+        },
+        item,
+    )
+
+    by_id = {c["comment_id"]: c for c in result["quote_candidates"]}
+    assert by_id["support"]["quote_score"] == 0.68
+    assert result["quote_candidates"][0]["comment_id"] == "skeptic"
+    assert result["comment_lanes"]["color"] == []
+
+
+def test_normalize_story_judgement_caps_lazy_color_labels():
+    item = _item()
+    result = normalize_story_judgement(
+        {
+            "comment_lanes": {
+                "color": [
+                    {
+                        "comment_id": "support",
+                        "role": "memorable_line",
+                        "stance": "质疑",
+                        "claim": "政客自己免扫描，讽刺",
+                        "quote_score": 0.94,
+                    }
+                ]
+            },
+            "quote_candidates": [
+                {"comment_id": "skeptic", "quote_score": 0.86, "has_viewpoint": True},
+            ],
+        },
+        item,
+    )
+
+    by_id = {c["comment_id"]: c for c in result["quote_candidates"]}
+    assert by_id["support"]["quote_score"] == 0.72
+    assert result["quote_candidates"][0]["comment_id"] == "skeptic"
+    assert result["comment_lanes"]["color"] == []
+
+
+def test_normalize_story_judgement_caps_overlong_quote_claims():
+    item = _item()
+    result = normalize_story_judgement(
+        {
+            "quote_candidates": [
+                {
+                    "comment_id": "support",
+                    "claim": "这是一条长度明显超过软上限的金句候选因为它把太多解释都塞进同一句里所以读起来像段长摘要",
+                    "quote_score": 0.95,
+                    "has_viewpoint": True,
+                },
+                {"comment_id": "skeptic", "quote_score": 0.86, "has_viewpoint": True},
+            ],
+        },
+        item,
+    )
+
+    by_id = {c["comment_id"]: c for c in result["quote_candidates"]}
+    assert by_id["support"]["quote_score"] == 0.76
+    assert result["quote_candidates"][0]["comment_id"] == "skeptic"
+
+
 def test_select_quote_comments_uses_judgement_before_heuristic_fallback():
     item = _item()
     judgement = normalize_story_judgement(

@@ -46,6 +46,16 @@ _COMPARISON_MARKER_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+_COLOR_MARKER_RE = re.compile(
+    r"\b("
+    r"ironic(?:ally)?|funny|hilarious|amusing|absurd|ridiculous|classic|"
+    r"of course|naturally|apparently|surely|peak|parody|satire|sarcasm|"
+    r"sarcastic|punchline|what could possibly go wrong|nothing says|"
+    r"because nothing|so much for|i love how|thanks, i hate it|"
+    r"mission accomplished"
+    r")\b",
+    re.IGNORECASE,
+)
 _VIEWPOINT_MARKER_RE = re.compile(
     r"\b("
     r"because|since|therefore|however|but|although|unless|if|when|why|how|"
@@ -254,6 +264,8 @@ def local_comment_type_hints(text: str) -> set[str]:
         hints.add("correction")
     if _COMPARISON_MARKER_RE.search(clean_text):
         hints.add("comparison")
+    if _COLOR_MARKER_RE.search(clean_text):
+        hints.add("color")
     if _VIEWPOINT_MARKER_RE.search(clean_text):
         hints.add("viewpoint")
     if "?" in clean_text:
@@ -283,6 +295,8 @@ def compute_judge_candidate_score(
         bonus += 0.04
     if "correction" in hints or "comparison" in hints:
         bonus += 0.03
+    if "color" in hints:
+        bonus += 0.055
     if comment.depth is not None and comment.depth >= 2:
         bonus += 0.025
 
