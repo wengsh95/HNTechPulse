@@ -185,9 +185,9 @@ export const CLOSING_LAYOUT = {
 } as const;
 
 export const SUBTITLE_LAYOUT = {
-  cueToleranceSeconds: 0.05,
-  fadeOutSeconds: 0.5,
-  fadeInSeconds: 0.15,
+  cueToleranceSeconds: 0,
+  fadeOutSeconds: 0,
+  fadeInSeconds: 0.06,
   bottomOffset: 8,
   paddingY: 11,
   paddingX: 30,
@@ -195,8 +195,8 @@ export const SUBTITLE_LAYOUT = {
   opacity: 0.88,
   radius: 12,
   fontScale: 1,
-  lineHeight: 1.35,
-  maxLines: 2,
+  lineHeight: 1.18,
+  maxLines: 1,
   enterSlideY: 6,
   exitSlideY: 4,
 } as const;

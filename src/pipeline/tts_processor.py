@@ -13,6 +13,7 @@ from src.utils.audio import get_audio_duration
 from src.utils.audio_alignment import AlignmentSegment, align_audio
 from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
+from src.utils.subtitles import split_subtitle_texts
 
 _FFMPEG = find_ffmpeg() or "ffmpeg"
 
@@ -87,6 +88,7 @@ class TTSProcessor:
         # `tts_jobs` is the queue for new TTS work; `story_scan_elems` and
         # `simple_segs` track what each segment will need to finalize.
         tts_jobs: list[dict] = []
+        align_existing_jobs: list[dict] = []
         story_scan_elems: dict[
             int, list[dict]
         ] = {}  # seg_idx -> per-element dicts (cached or pending)
@@ -103,12 +105,20 @@ class TTSProcessor:
                     if not texts:
                         elem.props["audio_duration"] = 0.0
                         continue
+                    ref_texts = self._subtitle_alignment_refs(texts)
+                    elem.props["subtitle_texts"] = ref_texts
                     combined = "\n\n".join(texts)
                     elem_audio_path = str(
                         audio_dir / f"segment_{seg_idx:02d}_elem_{elem_idx:02d}.mp3"
                     )
                     text_hash = self._text_hash(combined)
-                    cached = self._load_segment_alignment(elem_audio_path, text_hash)
+                    ref_texts_hash = self._text_hash("\n".join(ref_texts))
+                    cached = self._load_segment_alignment(
+                        elem_audio_path,
+                        text_hash,
+                        ref_texts_hash=ref_texts_hash,
+                        ref_texts=ref_texts,
+                    )
                     if cached is not None:
                         duration = get_audio_duration(elem_audio_path)
                         elem.props["audio_duration"] = duration
@@ -116,34 +126,45 @@ class TTSProcessor:
                             {
                                 "elem_idx": elem_idx,
                                 "audio_path": elem_audio_path,
-                                "ref_texts": texts,
+                                "ref_texts": ref_texts,
                                 "text_hash": text_hash,
+                                "ref_texts_hash": ref_texts_hash,
                                 "aligned": cached,
                                 "duration": duration,
                                 "needs_tts": False,
                             }
                         )
                     else:
-                        elem_entries.append(
-                            {
-                                "elem_idx": elem_idx,
-                                "audio_path": elem_audio_path,
-                                "ref_texts": texts,
-                                "text_hash": text_hash,
-                                "aligned": None,
-                                "duration": 0.0,
-                                "needs_tts": True,
-                            }
+                        duration = (
+                            get_audio_duration(elem_audio_path)
+                            if self._manifest_text_hash_matches(
+                                elem_audio_path, text_hash
+                            )
+                            else 0.0
                         )
-                        tts_jobs.append(
-                            {
-                                "seg_idx": seg_idx,
-                                "elem_idx": elem_idx,
-                                "text": combined,
-                                "audio_path": elem_audio_path,
-                                "emotion": None,
-                            }
-                        )
+                        entry = {
+                            "elem_idx": elem_idx,
+                            "audio_path": elem_audio_path,
+                            "ref_texts": ref_texts,
+                            "text_hash": text_hash,
+                            "ref_texts_hash": ref_texts_hash,
+                            "aligned": None,
+                            "duration": duration,
+                            "needs_tts": duration <= 0,
+                        }
+                        elem_entries.append(entry)
+                        job = {
+                            "seg_idx": seg_idx,
+                            "elem_idx": elem_idx,
+                            "text": combined,
+                            "audio_path": elem_audio_path,
+                            "emotion": None,
+                            "ref_texts": ref_texts,
+                        }
+                        if entry["needs_tts"]:
+                            tts_jobs.append(job)
+                        else:
+                            align_existing_jobs.append(job)
                 if elem_entries:
                     story_scan_elems[seg_idx] = elem_entries
             else:
@@ -155,7 +176,7 @@ class TTSProcessor:
                     continue
                 seg_audio_path = str(audio_dir / f"segment_{seg_idx:02d}.mp3")
                 text_hash = self._text_hash(audio_text)
-                ref_texts = [audio_text]
+                ref_texts = self._subtitle_alignment_refs([audio_text])
                 ref_texts_hash = self._text_hash("\n".join(ref_texts))
                 cached = self._load_segment_alignment(
                     seg_audio_path,
@@ -200,14 +221,8 @@ class TTSProcessor:
 
         # Phase 3: align newly-synthesized audio (serial; CPU bound and the
         # Whisper model is now cached so reloading is free).
-        for job in tts_jobs:
-            if job["elem_idx"] is None:
-                ref_texts = job.get("ref_texts") or [job["text"]]
-            else:
-                seg = script.segments[job["seg_idx"]]
-                elem = seg.scene_elements[job["elem_idx"]]
-                subtitle_texts = elem.props.get("subtitle_texts", []) or []
-                ref_texts = [t.strip() for t in subtitle_texts if t and t.strip()]
+        for job in [*tts_jobs, *align_existing_jobs]:
+            ref_texts = job.get("ref_texts") or [job["text"]]
             aligned = align_audio(
                 job["audio_path"],
                 ref_texts,
@@ -268,6 +283,10 @@ class TTSProcessor:
     @staticmethod
     def _has_per_card_audio(segment: ScriptSegment) -> bool:
         return any(elem.props.get("subtitle_texts") for elem in segment.scene_elements)
+
+    @staticmethod
+    def _subtitle_alignment_refs(texts: list[str]) -> list[str]:
+        return split_subtitle_texts(texts)
 
     # ── Parallel TTS batch ─────────────────────────────────────────────
 

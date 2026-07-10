@@ -5,6 +5,14 @@ import { CueData } from "../types";
 import { ElementProps, p, stripHtml } from "./utils";
 import { COLORS, EASE_CARD, FONTS, FW, useDesign, SUBTITLE_LAYOUT, SURFACES } from "./design";
 
+const subtitleWeight = (text: string) =>
+  Array.from(text).reduce((sum, ch) => {
+    if (/\s/.test(ch)) return sum + 0.25;
+    if (/[\u4e00-\u9fff]/.test(ch)) return sum + 1;
+    if (/[\x00-\x7f]/.test(ch)) return sum + 0.5;
+    return sum + 0.8;
+  }, 0);
+
 export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: _height }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -22,7 +30,7 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
     let activeCue = cues.find(
       (c) =>
         currentTime >= c.start_time - SUBTITLE_LAYOUT.cueToleranceSeconds &&
-        currentTime <= c.end_time + SUBTITLE_LAYOUT.cueToleranceSeconds,
+        currentTime < c.end_time + SUBTITLE_LAYOUT.cueToleranceSeconds,
     );
     if (!activeCue) {
       const lastCue = cues[cues.length - 1];
@@ -64,6 +72,13 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
   }
 
   const subMaxWidth = Math.min(width - d.layout.pageInset * 2, d.layout.subtitleMaxWidth);
+  const baseFontSize = Math.round(d.fs.subtitle * SUBTITLE_LAYOUT.fontScale);
+  const targetWeight = width < 1000 ? 18 : 24;
+  const fitScale = Math.min(
+    1,
+    Math.max(0.72, targetWeight / Math.max(1, subtitleWeight(displayText))),
+  );
+  const subtitleFontSize = Math.round(baseFontSize * fitScale);
 
   return (
     <div
@@ -87,14 +102,16 @@ export const Subtitle: React.FC<ElementProps> = ({ elementProps, width, height: 
       <span
         style={{
           fontFamily: FONTS.sans,
-          fontSize: Math.round(d.fs.subtitle * SUBTITLE_LAYOUT.fontScale),
+          fontSize: subtitleFontSize,
           color: COLORS.fg,
           textAlign: "center",
           lineHeight: SUBTITLE_LAYOUT.lineHeight,
           fontWeight: FW.medium,
           letterSpacing: 0,
           maxWidth: "100%",
-          whiteSpace: "normal",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "clip",
         }}
       >
         {displayText}
