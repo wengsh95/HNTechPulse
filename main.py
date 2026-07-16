@@ -91,16 +91,17 @@ def main():
         default=(
             "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
             "analyze_comments,judge_comments,write_script,translate_comments,"
-            "synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,"
-            "prepare_render,render"
+            "title,cover_image,cover_thumbnail,xhs_guide"
         ),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
             "write_script, translate_comments, synthesize_audio, title, cover_image, "
-            "cover_thumbnail, publish_guide, prepare_render, render, preview). "
-            "Default runs the full 16-step chain through video render; preview is "
-            "always opt-in."
+            "cover_thumbnail, publish_guide, xhs_guide, prepare_render, render, "
+            "preview). Default runs the Xiaohongshu image-text flow (xhs_guide, "
+            "no TTS/render). For the video flow add "
+            "synthesize_audio,prepare_render,render. The two flows are independent; "
+            "prefer scripts/agent_run.py --flow xhs|video. preview is always opt-in."
         ),
     )
     parser.add_argument(
@@ -108,7 +109,11 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.agent and not args.direct_agent_run and not os.environ.get("HN_AGENT_RUNNER"):
+    if (
+        args.agent
+        and not args.direct_agent_run
+        and not os.environ.get("HN_AGENT_RUNNER")
+    ):
         parser.error(
             "--agent runs must use the managed wrapper: "
             "uv run python scripts/agent_run.py --date YYYY-MM-DD. "
@@ -175,9 +180,8 @@ def main():
         tts_provider_name = config.get("tts", {}).get("provider", "edge-tts")
         tts_provider = create_tts_provider(tts_provider_name, config, debug=args.debug)
 
-        renderer_name = (
-            args.renderer
-            or config.get("renderer", {}).get("provider", "remotion")
+        renderer_name = args.renderer or config.get("renderer", {}).get(
+            "provider", "remotion"
         )
         renderer = create_renderer(renderer_name, config, debug=args.debug)
         logger.info(f"Using renderer: {renderer_name}")

@@ -25,7 +25,9 @@ from scripts.agent_preflight import main as preflight_main  # noqa: E402
 from scripts.agent_status import build_status  # noqa: E402
 
 
-DEFAULT_CHAIN = [
+# Shared upstream prefix (fetch -> cover_thumbnail): produces content, script,
+# title and cover assets consumed by BOTH downstream flows.
+_SHARED_PREFIX = [
     "fetch",
     "prefilter",
     "fetch_comments",
@@ -35,27 +37,24 @@ DEFAULT_CHAIN = [
     "judge_comments",
     "write_script",
     "translate_comments",
-    "synthesize_audio",
     "title",
     "cover_image",
     "cover_thumbnail",
-    "publish_guide",
-    "prepare_render",
-    "render",
 ]
 
+# Xiaohongshu image-text flow: no TTS, no render. Terminates at xhs_guide.
+XHS_CHAIN = _SHARED_PREFIX + ["xhs_guide"]
+
+# Video flow: TTS + render. Does NOT produce xhs_guide.
+VIDEO_CHAIN = _SHARED_PREFIX + ["synthesize_audio", "prepare_render", "render"]
+
+# Map each flow name to its chain. Recovery logic slices the SELECTED flow's
+# chain so the two flows never drag in each other's tail steps.
+_FLOW_CHAINS = {"xhs": XHS_CHAIN, "video": VIDEO_CHAIN}
+
 DOWNSTREAM_FROM = {
-    "write_script": [
-        "write_script",
-        "translate_comments",
-        "synthesize_audio",
-        "title",
-        "cover_image",
-        "cover_thumbnail",
-        "publish_guide",
-        "prepare_render",
-        "render",
-    ],
+    # write_script recovery is now flow-scoped via _FLOW_CHAINS (see
+    # _stale_recovery_steps); only render-side sub-chains remain here.
     "prepare_render": ["prepare_render", "render"],
     "render": ["render"],
 }
@@ -86,10 +85,20 @@ def _preflight(date: str, config: str) -> int:
         sys.argv = old_argv
 
 
-def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
+def _stale_recovery_steps(status: dict[str, Any], flow: str) -> list[str] | None:
+    """Recover from stale artifacts, scoped to the selected flow.
+
+    A content.json -> script.json staleness reruns the selected flow from
+    write_script onward (NOT both flows). Render-side staleness only applies to
+    the video flow.
+    """
     reasons = {item.get("reason") for item in status.get("stale_artifacts") or []}
+    chain = _FLOW_CHAINS[flow]
     if any(reason and reason.startswith("content.json is newer") for reason in reasons):
-        return DOWNSTREAM_FROM["write_script"]
+        return chain[chain.index("write_script") :]
+    # Render-side staleness is video-only; ignore for xhs flow.
+    if flow != "video":
+        return None
     if "script.json is newer than cli_props.json" in reasons:
         return DOWNSTREAM_FROM["prepare_render"]
     if (
@@ -101,13 +110,18 @@ def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     return None
 
 
-def _failed_recovery_steps(status: dict[str, Any]) -> list[str] | None:
+def _failed_recovery_steps(status: dict[str, Any], flow: str) -> list[str] | None:
+    """Resume from a failed step, scoped to the selected flow's chain."""
     failed = status.get("failed_step") or status.get("current_step")
     if not failed:
         return None
     failed = str(failed)
-    if failed in DEFAULT_CHAIN:
-        return DEFAULT_CHAIN[DEFAULT_CHAIN.index(failed) :]
+    chain = _FLOW_CHAINS[flow]
+    if failed in chain:
+        return chain[chain.index(failed) :]
+    # Failed step belongs to the other flow (e.g. running --flow xhs but state
+    # has a failed render step): just retry that single step so we don't drag
+    # the wrong flow's tail in.
     return [failed]
 
 
@@ -136,34 +150,47 @@ def _choose_steps(
     status: dict[str, Any],
     requested_steps: str | None,
     force_resume: bool,
+    flow: str,
 ) -> list[str] | None:
     if requested_steps:
         return [s.strip() for s in requested_steps.split(",") if s.strip()]
 
+    chain = _FLOW_CHAINS[flow]
     pipeline_status = status.get("pipeline_status")
     if pipeline_status == "not_started":
-        return DEFAULT_CHAIN
+        return chain
     if pipeline_status == "blocked" and _manual_downloads_repaired(status):
-        return _failed_recovery_steps(status)
+        return _failed_recovery_steps(status, flow)
     if pipeline_status in {"failed", "running"} or force_resume:
-        failed_steps = _failed_recovery_steps(status)
+        failed_steps = _failed_recovery_steps(status, flow)
         if failed_steps:
             return failed_steps
-    stale_steps = _stale_recovery_steps(status)
+    stale_steps = _stale_recovery_steps(status, flow)
     if stale_steps:
         return stale_steps
     if pipeline_status == "complete":
         return None
-    return DEFAULT_CHAIN
+    return chain
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Managed agent pipeline runner")
     parser.add_argument("--date", default=_default_date())
     parser.add_argument("--config", default="config/")
+    parser.add_argument(
+        "--flow",
+        choices=["xhs", "video"],
+        default="xhs",
+        help="Which independent flow to run: 'xhs' (image-text guide, default) "
+        "or 'video' (TTS + render). The two flows do not depend on each other.",
+    )
     parser.add_argument("--steps", default=None, help="Override managed step choice")
-    parser.add_argument("--resume", action="store_true", help="Resume from failed/current step")
-    parser.add_argument("--force", action="store_true", help="Force renderer cache clear")
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume from failed/current step"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Force renderer cache clear"
+    )
     parser.add_argument("--refresh-variants", action="store_true")
     parser.add_argument("--allow-degraded-enrichment", action="store_true")
     parser.add_argument("--renderer", choices=["remotion", "hyperframes"], default=None)
@@ -183,13 +210,16 @@ def main() -> int:
 
     status = build_status(args.date)
     _print_json({"event": "agent_status", **status})
-    if status.get("pipeline_status") == "blocked" and not _manual_downloads_repaired(status):
+    if status.get("pipeline_status") == "blocked" and not _manual_downloads_repaired(
+        status
+    ):
         return 2
 
     steps = _choose_steps(
         status=status,
         requested_steps=args.steps,
         force_resume=args.resume,
+        flow=args.flow,
     )
     if not steps:
         _print_json(
@@ -199,8 +229,12 @@ def main() -> int:
                 "reason": "pipeline already complete and no stale artifact requires rerun",
             }
         )
-        if not args.skip_audit and status.get("artifacts", {}).get("output", {}).get("exists"):
-            return _run(["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date])
+        if not args.skip_audit and status.get("artifacts", {}).get("output", {}).get(
+            "exists"
+        ):
+            return _run(
+                ["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date]
+            )
         return 0
 
     cmd = [
@@ -224,7 +258,9 @@ def main() -> int:
         cmd.append("--allow-degraded-enrichment")
     if args.renderer:
         cmd.extend(["--renderer", args.renderer])
-    _print_json({"event": "agent_run_command", "command": " ".join(cmd), "steps": steps})
+    _print_json(
+        {"event": "agent_run_command", "command": " ".join(cmd), "steps": steps}
+    )
     if args.dry_run:
         return 0
 
@@ -234,11 +270,12 @@ def main() -> int:
 
     final_status = build_status(args.date)
     _print_json({"event": "agent_status_after_run", **final_status})
-    if (
-        not args.skip_audit
-        and final_status.get("artifacts", {}).get("output", {}).get("exists")
+    if not args.skip_audit and final_status.get("artifacts", {}).get("output", {}).get(
+        "exists"
     ):
-        return _run(["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date])
+        return _run(
+            ["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date]
+        )
     return 0
 
 

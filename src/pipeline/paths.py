@@ -14,7 +14,7 @@ Layout::
     ├── media/       images/
     ├── render/      remotion/{chunks,public}/, cli_props.json
     ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
-    │                cover_bg.png, cover.png, cover_props.json
+    │                xhs_guide.md, cover_bg.png, cover.png, cover_props.json
     ├── agent/       pipeline_state.json, agent_decision.json,
     │                agent_events.jsonl, selected_variant.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
@@ -132,6 +132,7 @@ _PUBLISH_FILES: dict[str, str] = {
     "output.mp4": "output.mp4",
     "title.json": "title.json",
     "publish_guide.md": "publish_guide.md",
+    "xhs_guide.md": "xhs_guide.md",
     "cover.png": "cover.png",
     "cover_v1.png": "cover_v1.png",
     "cover_v2.png": "cover_v2.png",
@@ -271,6 +272,7 @@ LEGACY_FLAT_LAYOUT = {
     "title.json",
     "transcript.md",
     "publish_guide.md",
+    "xhs_guide.md",
     "pipeline_state.json",
     "agent_decision.json",
     "agent_events.jsonl",

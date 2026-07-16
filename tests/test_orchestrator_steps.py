@@ -98,6 +98,7 @@ class TestStepList:
             "cover_image",
             "cover_thumbnail",
             "publish_guide",
+            "xhs_guide",
             "prepare_render",
         ]
         assert PIPELINE_STEPS == expected
@@ -109,6 +110,8 @@ class TestStepList:
         assert "cover_image" not in DEFAULT_STEPS
         assert "cover_thumbnail" not in DEFAULT_STEPS
         assert "publish_guide" not in DEFAULT_STEPS
+        assert "xhs_guide" not in DEFAULT_STEPS
+        assert "synthesize_audio" not in DEFAULT_STEPS
         assert DEFAULT_STEPS[-1] == "prepare_render"
 
     def test_optional_cover_thumbnail_expands_to_cover_image_only(self):
@@ -116,6 +119,17 @@ class TestStepList:
             "cover_image",
             "cover_thumbnail",
         ]
+
+    def test_prepare_render_auto_pulls_synthesize_audio(self):
+        resolved = _resolve_steps(["prepare_render", "render"])
+        assert "synthesize_audio" in resolved
+        assert "prepare_render" in resolved
+        assert "render" in resolved
+
+    def test_xhs_chain_skips_synthesize_audio(self):
+        resolved = _resolve_steps(["xhs_guide"])
+        assert "synthesize_audio" not in resolved
+        assert "xhs_guide" in resolved
 
 
 # ── Per-step behaviour ──────────────────────────────────────────────────
@@ -426,6 +440,7 @@ class TestRunDispatch:
             "_step_cover_image",
             "_step_cover_thumbnail",
             "_step_publish_guide",
+            "_step_xhs_guide",
             "_step_prepare_render",
         ]
         mocks = {}
@@ -448,7 +463,8 @@ class TestRunDispatch:
             setattr(orch, name, m)
             mocks[name] = m
 
-        # Request only "title" — should expand to all steps up to "title"
+        # Request only "title" — should expand to all core steps up to "title"
+        # (synthesize_audio is now optional, so it is NOT pulled in by "title")
         orch.run("2026-04-26", steps=["title"], force=False)
 
         # Steps before and including "title" should have been called;
@@ -463,13 +479,14 @@ class TestRunDispatch:
             "_step_judge_comments",
             "_step_write_script",
             "_step_translate_comments",
-            "_step_synthesize_audio",
             "_step_title",
         ]
         steps_after = [
+            "_step_synthesize_audio",
             "_step_cover_image",
             "_step_cover_thumbnail",
             "_step_publish_guide",
+            "_step_xhs_guide",
             "_step_prepare_render",
         ]
         for name in steps_in_order:

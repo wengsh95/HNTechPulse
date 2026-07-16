@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from src.core.interfaces import (
     ContentFetcher,
@@ -30,6 +30,7 @@ from src.pipeline.agent_variants import (
     write_variants_index,
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
+from src.pipeline.xhs_guide_inputs import xhs_guide_manifest_inputs
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.content_io import ContentPreparer
@@ -182,9 +183,19 @@ PIPELINE_STEPS = [
     "cover_image",
     "cover_thumbnail",
     "publish_guide",
+    "xhs_guide",
     "prepare_render",
 ]
-OPTIONAL_PRODUCTION_STEPS = {"cover_image", "cover_thumbnail", "publish_guide"}
+OPTIONAL_PRODUCTION_STEPS = {
+    "cover_image",
+    "cover_thumbnail",
+    "publish_guide",
+    "xhs_guide",
+    # TTS is a render-side branch only (prepare_render needs audio_dir +
+    # actual_duration); title/cover/publish/xhs do not depend on it, so it is
+    # optional rather than a forced core prerequisite of write_script.
+    "synthesize_audio",
+}
 CORE_PIPELINE_STEPS = [
     step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
 ]
@@ -205,6 +216,7 @@ SCRIPT_CONSUMING_STEPS = frozenset(
         "cover_image",
         "cover_thumbnail",
         "publish_guide",
+        "xhs_guide",
         "prepare_render",
         "render",
     }
@@ -242,6 +254,12 @@ def _resolve_steps(requested: List[str]) -> List[str]:
         and "cover_image" not in optional_requested
     ):
         optional_requested = ["cover_image", *optional_requested]
+
+    # prepare_render needs audio (audio_dir + actual_duration); auto-pull
+    # synthesize_audio so video flows stay correct without listing it by hand.
+    # prepare_render may enter via core expansion, so check the resolved set.
+    if "prepare_render" in resolved and "synthesize_audio" not in resolved:
+        optional_requested = ["synthesize_audio", *optional_requested]
 
     for step in optional_requested:
         if step not in resolved:
@@ -496,7 +514,12 @@ class Orchestrator:
             with self._tracked_step("publish_guide"):
                 self._step_publish_guide(content, script, date)
 
-        # ── 16. prepare_render ────────────────────────────────────────────
+        # ── 16. xhs_guide ───────────────────────────────────────────────
+        if "xhs_guide" in steps:
+            with self._tracked_step("xhs_guide"):
+                self._step_xhs_guide(content, script, date)
+
+        # ── 17. prepare_render ────────────────────────────────────────────
         if "prepare_render" in steps:
             with self._tracked_step("prepare_render"):
                 self._step_prepare_render(content, script, date)
@@ -1686,6 +1709,144 @@ class Orchestrator:
             config=self.config,
         )
         self.logger.info(f"  Publish guide written to {guide_path}")
+
+    def _step_xhs_guide(
+        self, content: ContentPackage, script: Optional[Script], date: str
+    ) -> None:
+        self.logger.info("Step: XHS guide - generate Xiaohongshu image-text post copy")
+        guide_path = publish_path(date, "xhs_guide.md")
+        title_path = publish_path(date, "title.json")
+        title_payload = {}
+        if title_path.exists():
+            try:
+                loaded_title = json.loads(title_path.read_text(encoding="utf-8"))
+                if isinstance(loaded_title, dict):
+                    title_payload = loaded_title
+            except (OSError, json.JSONDecodeError):
+                title_payload = {}
+        items_payload = [
+            {
+                "title_cn": item.title_cn or item.title,
+                "title": item.title,
+                "editor_angle": item.editor_angle or item.dek or "",
+                "category": item.category or "",
+            }
+            for item in content.items
+        ]
+        # Pull quotable comments (with Chinese translations where available) as
+        # opening hooks. comment_judgement.json keys stories by source_id;
+        # translations.json keys comments as "comment_{source_id}_{comment_id}".
+        quotes_payload = self._collect_xhs_quotes(date)
+        context = {
+            "script_title": title_payload.get("title")
+            or (script.title if script else "HN每日观察"),
+            "script_description": title_payload.get("description")
+            or (script.description if script else ""),
+            "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
+            "quotes_json": json.dumps(quotes_payload, ensure_ascii=False, indent=2),
+            "date": date,
+        }
+        # Freshness inputs are computed from disk via a shared helper so the
+        # publishability audit derives an identical hash (mirrors
+        # publish_guide: writer skips, audit complains -> stale forever).
+        manifest_context = xhs_guide_manifest_inputs(date)
+        if is_artifact_fresh(guide_path, manifest_context):
+            self.logger.info(f"  XHS guide already exists at {guide_path}")
+            return
+
+        if self.dry_run:
+            self.logger.info("Dry run: skipping XHS guide generation")
+            return
+
+        text = self.llm_provider.complete_prompt(
+            "prompts/xhs_guide.md",
+            context,
+            label="xhs_guide",
+            expect_json=False,
+            model=self.llm_provider.fast_model,
+            temperature=self.llm_provider.fast_temperature,
+        )
+
+        atomic_write_text(guide_path, text)
+        write_artifact_manifest(
+            guide_path,
+            step="xhs_guide",
+            date=date,
+            inputs=manifest_context,
+            config=self.config,
+        )
+        self.logger.info(f"  XHS guide written to {guide_path}")
+
+    @staticmethod
+    def _collect_xhs_quotes(date: str) -> list[dict[str, Any]]:
+        """Collect quotable comments + Chinese translations for the XHS guide.
+
+        Reads comment_judgement.json (quote_candidates per story, keyed by
+        source_id) and translations.json (keyed
+        ``comment_{source_id}_{comment_id}``). Falls back to the original
+        ``claim`` when no translation is cached. Returns at most 3 highest-scoring
+        quotes per story, each tagged with the story's source_id and title so
+        the prompt can attribute the hook.
+        """
+        judgement_path = pipeline_path(date, "comment_judgement.json")
+        translations_path = pipeline_path(date, "translations.json")
+        content_path = pipeline_path(date, "content.json")
+        try:
+            judgement = json.loads(judgement_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        if not isinstance(judgement, dict):
+            return []
+        stories = judgement.get("stories") or {}
+        if not isinstance(stories, dict):
+            return []
+        try:
+            translations = json.loads(translations_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            translations = {}
+        if not isinstance(translations, dict):
+            translations = {}
+        title_cn_by_source: dict[str, str] = {}
+        try:
+            content_data = json.loads(content_path.read_text(encoding="utf-8"))
+            if isinstance(content_data, dict):
+                for item in content_data.get("items") or []:
+                    if isinstance(item, dict) and item.get("source_id"):
+                        title_cn_by_source[str(item["source_id"])] = (
+                            item.get("title_cn") or item.get("title") or ""
+                        )
+        except (OSError, json.JSONDecodeError):
+            pass
+
+        quotes: list[dict[str, Any]] = []
+        for source_id, story in stories.items():
+            if not isinstance(story, dict):
+                continue
+            candidates = story.get("quote_candidates") or []
+            if not isinstance(candidates, list):
+                continue
+            ranked = sorted(
+                (c for c in candidates if isinstance(c, dict)),
+                key=lambda c: c.get("quote_score", 0) or 0,
+                reverse=True,
+            )[:3]
+            for cand in ranked:
+                comment_id = str(cand.get("comment_id") or "")
+                trans_key = f"comment_{source_id}_{comment_id}"
+                quote_text = translations.get(trans_key) or cand.get("claim") or ""
+                if not quote_text:
+                    continue
+                quotes.append(
+                    {
+                        "source_id": source_id,
+                        "story_title_cn": title_cn_by_source.get(str(source_id), ""),
+                        "comment_id": comment_id,
+                        "stance": cand.get("stance", ""),
+                        "quote_score": cand.get("quote_score", 0),
+                        "quote_cn": quote_text,
+                    }
+                )
+        return quotes
 
     def _step_prepare_render(
         self, content: ContentPackage, script: Optional[Script], date: str
