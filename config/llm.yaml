@@ -7,7 +7,7 @@ llm:
   max_tokens: 8192
   temperature: 0.4
   api_key_env: "MINIMAX_API_KEY"
-  json_parse_max_retries: 3           # LLM 输出 JSON 解析失败时的重试次数
+  json_parse_max_retries: 5           # LLM 输出 JSON 解析/校验失败时的重试次数（subtitle 规则校验需要多次修正）
   max_completion_tokens_cap: 32768     # Auto-expand cap when output is truncated
   max_workers: 3                       # Concurrent story script generation
   cache_schema_version: 4              # Segment cache fingerprint version (4: persist LLM estimated_duration)

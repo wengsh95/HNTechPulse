@@ -75,3 +75,7 @@ tmp/
 .codegraph/
 
 hn-deep-dive/
+
+# Local social-card generation scratch output (HTML/JS renderers,
+# node_modules, rendered PNGs). Not pipeline artifacts - never commit.
+social-card-*/

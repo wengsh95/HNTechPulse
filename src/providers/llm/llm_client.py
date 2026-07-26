@@ -273,14 +273,32 @@ class LLMClient:
                     f"  [{label}] Response invalid on attempt {attempt}/{self.json_parse_max_retries}: {e}"
                 )
                 if attempt < self.json_parse_max_retries:
-                    error_feedback = (
-                        f"\n\n---\nYour previous response was rejected:\n"
-                        f"Error: {e}\n\n"
-                        f"Return ONLY a valid JSON object that matches the required schema. "
-                        f"No markdown fences, no commentary. "
-                        f"Make sure every required field (including card_type) is present "
-                        f"with the exact spelling specified in the prompt."
-                    )
+                    err_str = str(e)
+                    # When the validator flagged subtitle content rules (length,
+                    # commas, semicolons, repetition), give targeted fix guidance
+                    # instead of generic schema advice.
+                    if "subtitle rule" in err_str:
+                        error_feedback = (
+                            f"\n\n---\nYour previous response was rejected:\n"
+                            f"{err_str}\n\n"
+                            f"Fix every violation above and return ONLY a valid JSON object. "
+                            f"For 超长(too long): split one long sentence into two shorter ones "
+                            f"or delete the weakest detail - do NOT just trim a few characters. "
+                            f"For 逗号过多(too many commas): split into two sentences or delete "
+                            f"the least important clause. For 分号(semicolon): replace with a "
+                            f"period and split into two elements. For 复读(repetition): rewrite "
+                            f"the second sentence with different wording. Keep all brand names "
+                            f"and numbers. No markdown fences, no commentary."
+                        )
+                    else:
+                        error_feedback = (
+                            f"\n\n---\nYour previous response was rejected:\n"
+                            f"Error: {e}\n\n"
+                            f"Return ONLY a valid JSON object that matches the required schema. "
+                            f"No markdown fences, no commentary. "
+                            f"Make sure every required field (including card_type) is present "
+                            f"with the exact spelling specified in the prompt."
+                        )
                     current_messages = list(messages) + [
                         {"role": "assistant", "content": response_text},
                         {"role": "user", "content": error_feedback},

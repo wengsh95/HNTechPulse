@@ -1,9 +1,8 @@
 # Project Structure
 
-HN TechPulse is a Python pipeline, not a web app. The main workflow pulls
-Hacker News stories, enriches source context, analyzes comments, generates a
-Chinese script, produces audio/title/cover/publish artifacts, and optionally
-prepares or runs Remotion rendering.
+HN TechPulse is a Python pipeline, not a web app. The managed workflow pulls
+Hacker News stories, enriches source context, analyzes comments, selects one
+focus story, and renders a six-page Xiaohongshu PNG card package.
 
 ## Top-Level Layout
 
@@ -37,7 +36,7 @@ Important CLI patterns:
 ```bash
 uv run python main.py
 uv run python main.py --date YYYY-MM-DD
-uv run python main.py --steps fetch,write_script
+uv run python main.py --steps render_xhs_cards
 uv run python scripts/agent_run.py --date YYYY-MM-DD
 uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 uv run python scripts/agent_status.py --date YYYY-MM-DD
@@ -292,11 +291,11 @@ buckets. All path literals go through [src/pipeline/paths.py](../src/pipeline/pa
 ```text
 data/{month}/{date}/
 |-- raw/         raw_stories.json, downloaded_pages/
-|-- pipeline/    prefilter, enrichment, content, comment_*, script,
-|                segments/, variants/, audio/
-|-- media/       images/, cover_bg.png, cover.png, cover_props.json
-|-- render/      remotion/{chunks,public}/, cli_props.json
-|-- publish/     output.mp4, title.json, transcript.md, publish_guide.md
+|-- pipeline/    prefilter, enrichment, content, comment_*; legacy video caches
+|-- media/       images/
+|-- render/      legacy video render artifacts
+|-- publish/     xhs_cards.json, xhs_cards/{index.html,assets/,xhs-*.png,
+|                _contact-sheet.png}
 |-- agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
 |                agent_events.jsonl, selected_variant.json, report.md
 `-- outputs/     (organize_outputs.py mirror — unchanged)
@@ -306,10 +305,11 @@ Common pipeline artifacts:
 
 ```text
 pipeline/content.json
-pipeline/script.json
-publish/title.json
-media/cover_props.json
-publish/publish_guide.md
+pipeline/comment_judgement.json
+publish/xhs_cards.json
+publish/xhs_cards/index.html
+publish/xhs_cards/xhs-01-cover.png
+publish/xhs_cards/_contact-sheet.png
 ```
 
 Agent artifacts:

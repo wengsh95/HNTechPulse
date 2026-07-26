@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**HN TechPulse** — Python CLI pipeline (not a web app) that generates a video tech news briefing from Hacker News content, producing a daily digest with editorial judgment. Entry point: [main.py](main.py) → [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py).
+**HN TechPulse** — Python CLI pipeline (not a web app) that turns one high-signal Hacker News story into a six-page Xiaohongshu card package. Entry point: [main.py](main.py) → [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py).
 
 ## Commands
 
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv sync                                                # Install deps
 uv run python main.py                                  # Run pipeline (default steps)
 uv run python main.py --date 2026-04-26 --debug        # Specific date, debug logging
-uv run python main.py --steps fetch,write_script       # Sub-chain (expands to all prerequisites)
+uv run python main.py --steps render_xhs_cards         # Re-render an existing card plan
 uv run python main.py --dry-run                        # Skip API calls
 uv run python -m pytest                                # Tests
 ```
@@ -51,45 +51,30 @@ Full module map: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
 ### Pipeline Steps
 
-Three groups (see `src/pipeline/orchestrator.py`):
-
-- **Default chain (16)** — `DEFAULT_STEPS`; what `scripts/agent_run.py` runs by default: core 12 + `cover_image` + `cover_thumbnail` + `publish_guide` + `render`
-- **Core chain (12)** — `fetch … title, prepare_render` minus the production trio; reachable via `--steps` for sub-chain runs
-- **Standalone (1)** — `preview`, always opt-in (manual QC after a successful render)
+The managed/default chain has nine steps:
 
 ```
 fetch → prefilter → fetch_comments → enrich_articles → translate_titles
-  → analyze_comments → judge_comments → write_script
-  → translate_comments → synthesize_audio → title
-  → cover_image → cover_thumbnail → publish_guide → prepare_render → render
-                                                                              ↓ (opt-in)
-                                                                            preview
+  → analyze_comments → judge_comments → plan_xhs_cards → render_xhs_cards
 ```
 
-`--steps X` expands to all steps up to and including X. Each step has its own cache and can be re-run in isolation. `--steps` overrides the default chain; pass an explicit subset to skip cover/render on dev iterations.
+`plan_xhs_cards` selects one story and writes a deterministic six-page JSON
+contract. `render_xhs_cards` can be repaired independently without another LLM
+call. Old video steps remain available only for manual maintenance of old dates.
 
 ### Data Flow
 
 ```
-HN API → [fetch] ContentPackage
-  → [prefilter] LLM tech-relevance filter → prefilter.json
-  → [fetch_comments] HN comments → content.json
-  → [enrich_articles] Article body + images → content.json
-  → [translate_titles] Batch translate titles → content.json
-  → [analyze_comments] VADER + quality scores → comment_analysis.json
-  → [judge_comments] LLM top-15 → quote_candidates, debate_focus → comment_judgement.json
-  → [write_script] ScriptWriter → event/quote/atmosphere cards → script.json
-  → [translate_comments] Fast model translate comments → translations.json
-  → [synthesize_audio] TTS + alignment → audio/
-  → [title] LLM video title/description/tags → title.json
-  → [cover_image] Image generator → cover_bg.png + cover_props.json
-  → [cover_thumbnail] Remotion still render → cover.png
-  → [publish_guide] LLM publish checklist → publish_guide.md
-  → [prepare_render] Write props + copy assets → cli_props.json
-  → [render] Remotion video → output.mp4 (opt-in)
+HN API → [fetch/prefilter/enrich] ContentPackage + source images
+  → [analyze_comments/judge_comments] quote candidates + stance distribution
+  → [plan_xhs_cards] one focus story + six-page card contract → xhs_cards.json
+  → [render_xhs_cards] Swiss HTML seed + Playwright
+  → xhs-01-cover.png … xhs-06-closing.png + _contact-sheet.png
 ```
 
-**Key principle**: CommentAnalyzer scores → CommentJudge selects `quote_candidates` → ScriptWriter consumes directly. No independent re-selection downstream.
+**Key principle**: CommentAnalyzer scores → CommentJudge selects exact
+`quote_candidates` → the card planner selects comment IDs → the renderer hydrates
+the original claims. The LLM never rewrites card quotes.
 
 ### Data Layout
 
@@ -100,14 +85,11 @@ build `f"data/{month}/{date}/foo.json"` strings directly.
 ```
 data/{month}/{date}/
 ├── raw/         raw_stories.json, downloaded_pages/
-├── pipeline/    prefilter, enrichment, content, comment_*, script,
-│                segments/, variants/, audio/
+├── pipeline/    prefilter, enrichment, content, comment_*; legacy video caches
 ├── media/       images/
-├── render/      remotion/{chunks,public}/, cli_props.json
-│                public/fonts/ — 本地 woff2 字体，由 prepare_render
-│                从 src/providers/renderer/remotion/assets/fonts/ 复制
-├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
-│                cover_bg.png, cover.png, cover_props.json
+├── render/      legacy video render artifacts
+├── publish/     xhs_cards.json, xhs_cards/{index.html,assets/,xhs-*.png,
+│                _contact-sheet.png}; legacy video artifacts may also exist
 ├── agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
 │                agent_events.jsonl, selected_variant.json, report.md
 └── outputs/     (organize_outputs.py mirror — unchanged)
@@ -124,15 +106,10 @@ relative to `data/{month}/{date}/`.
 | `pipeline/content.json` | fetch…translate_titles | Canonical ContentPackage |
 | `pipeline/comment_analysis.json` | analyze_comments | VADER + quality scores |
 | `pipeline/comment_judgement.json` | judge_comments | quote_candidates, debate_focus, stance |
-| `pipeline/script.json` | write_script | Final Script with cards |
-| `pipeline/translations.json` | translate_comments | Translated comment text |
-| `pipeline/audio/` | synthesize_audio | TTS chunks + alignment |
-| `publish/title.json` | title | Video title/description/tags |
-| `publish/cover_bg.png`, `publish/cover_props.json` | cover_image | Raw image + props |
-| `publish/cover.png` | cover_thumbnail | Final cover with title overlay |
-| `publish/publish_guide.md` | publish_guide | Publish checklist |
-| `render/cli_props.json` | prepare_render | Remotion props |
-| `report.md` | always | Enrichment stats + issues |
+| `publish/xhs_cards.json` | plan_xhs_cards | One-story six-page card contract |
+| `publish/xhs_cards/index.html` | render_xhs_cards | Renderable Swiss card source |
+| `publish/xhs_cards/xhs-*.png` | render_xhs_cards | Six 1080×1440 cards |
+| `publish/xhs_cards/_contact-sheet.png` | render_xhs_cards | 3×2 visual overview |
 
 **Manifest sidecars**: `*.manifest.json` captures path, hash, input hash, step, date, model. Use to detect stale artifacts — never delete casually.
 
@@ -142,7 +119,7 @@ Config: [config/](config/) (YAML deep-merged, alphabetically layered), env vars 
 
 - **Provider Factory**: Add `(kind, name, module_path, class_name, register_fn)` tuple to `_auto_register()` `attempts` in [factory.py](src/providers/factory.py). Must implement ABC from [interfaces.py](src/core/interfaces.py). Registration runs on import; missing deps are silently skipped.
 - **LLM JSON Retry**: `_call_llm_with_json_retry()` retries on invalid JSON; doubles `max_tokens` on `finish_reason=length`. Cap via `llm.max_completion_tokens_cap`.
-- **Two-Model LLM**: Main model for scripts, `fast` model (lower tokens/temp) for translation and comment judging.
+- **Two-Model LLM**: `fast` model handles title translation, comment judging, and the structured card plan.
 - **Prompt Placeholders**: `{{ placeholder }}` tokens must be `PH_*` constants in [prompts.py](src/core/prompts.py). `render_prompt()` raises `ValueError` on typos.
 - **Concurrency**: `llm.max_workers` for stories, `analyze.comment_judge_max_workers` for comment judging. Bump `llm.cache_schema_version` when segment-cache semantics change.
 - **Dead Code**: Use `vulture` and `ruff --select F`. False positives: auto-registered provider classes.
@@ -158,8 +135,7 @@ Full contract: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md)
 
 **Managed flags**: `--resume` (continue from `pipeline_state.json`), `--steps`
 (explicit repair path), `--allow-degraded-enrichment` (continue past enrichment
-failures only with user approval), `--refresh-variants` (regenerate script
-variants), `--force` (clear render cache), `--dry-run` (show the selected command
+failures only with user approval), and `--dry-run` (show the selected command
 without mutating state).
 
 Manual debugging may use `main.py --agent --direct-agent-run`, but autonomous

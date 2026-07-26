@@ -107,7 +107,7 @@ class PipelineProgress:
             ):
                 entries.append((step, "-", "fetch first"))
 
-        # 6-8. comment analysis + judge + script
+        # Comment analysis + judgement
         for step, filename, label in [
             ("analyze_comments", "comment_analysis.json", "comment analysis"),
             ("judge_comments", "comment_judgement.json", "comment judgement"),
@@ -118,6 +118,25 @@ class PipelineProgress:
             else:
                 entries.append((step, "-", f"will generate {label}"))
 
+        from src.pipeline.paths import publish_xhs_cards_dir, publish_path
+
+        card_plan = publish_path(date, "xhs_cards.json")
+        if card_plan.exists():
+            entries.append(("plan_xhs_cards", "✓", "six-page plan cached"))
+        else:
+            entries.append(("plan_xhs_cards", "-", "will plan six cards"))
+
+        card_dir = publish_xhs_cards_dir(date)
+        rendered_cards = (
+            list(card_dir.glob("xhs-??-*.png")) if card_dir.exists() else []
+        )
+        if len(rendered_cards) == 6:
+            entries.append(("render_xhs_cards", "✓", "six PNG cards cached"))
+        else:
+            entries.append(
+                ("render_xhs_cards", "-", f"{len(rendered_cards)}/6 cards rendered")
+            )
+
         # 9. translate_comments
         if pipeline_path(date, "translations.json").exists():
             entries.append(("translate_comments", "✓", "translations cached"))
@@ -127,7 +146,6 @@ class PipelineProgress:
         # 10. synthesize_audio
         from src.pipeline.paths import (
             pipeline_audio_dir,
-            publish_path,
             render_path,
         )
 

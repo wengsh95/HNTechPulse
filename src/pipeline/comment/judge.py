@@ -704,7 +704,9 @@ def _has_lazy_quote_claim(value: Any) -> bool:
     return any(term in str(value or "") for term in LAZY_QUOTE_TERMS)
 
 
-def _quote_candidate_sort_key(candidate: dict, color_ids: set[str]) -> tuple[bool, float]:
+def _quote_candidate_sort_key(
+    candidate: dict, color_ids: set[str]
+) -> tuple[bool, float]:
     """Promote memorable color-lane quotes without letting cheap outrage win."""
     score = float(candidate.get("quote_score") or 0.0)
     is_color = str(candidate.get("comment_id")) in color_ids
@@ -713,9 +715,7 @@ def _quote_candidate_sort_key(candidate: dict, color_ids: set[str]) -> tuple[boo
     return (is_tight_color and score >= 0.8, score)
 
 
-def _apply_color_candidate_claims(
-    candidates: list[dict], comment_lanes: dict
-) -> None:
+def _apply_color_candidate_claims(candidates: list[dict], comment_lanes: dict) -> None:
     color_by_id = {
         str(entry["comment_id"]): entry
         for entry in comment_lanes.get("color", [])

@@ -332,21 +332,17 @@ class AgentState:
 
     def _artifacts(self) -> dict[str, str | None]:
         from src.pipeline.paths import (
-            pipeline_audio_dir,
             pipeline_path,
             publish_path,
-            render_path,
+            publish_xhs_cards_dir,
         )
 
         artifacts = {
             "content": pipeline_path(self.date, "content.json"),
-            "script": pipeline_path(self.date, "script.json"),
-            "audio_dir": pipeline_audio_dir(self.date),
-            "title": publish_path(self.date, "title.json"),
-            "cover": publish_path(self.date, "cover.png"),
-            "publish_guide": publish_path(self.date, "publish_guide.md"),
-            "render_props": render_path(self.date, "cli_props.json"),
-            "output": publish_path(self.date, "output.mp4"),
+            "comment_judgement": pipeline_path(self.date, "comment_judgement.json"),
+            "xhs_cards": publish_path(self.date, "xhs_cards.json"),
+            "card_index": publish_xhs_cards_dir(self.date) / "index.html",
+            "contact_sheet": publish_xhs_cards_dir(self.date) / "_contact-sheet.png",
         }
         return {
             name: str(path).replace("\\", "/") if path.exists() else None
@@ -355,9 +351,10 @@ class AgentState:
 
     def _write(self) -> None:
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "updated_at": utc_now(),
             "date": self.date,
+            "product": "xhs_cards",
             "status": self.status,
             "steps": self.steps,
             "current_step": self.current_step,

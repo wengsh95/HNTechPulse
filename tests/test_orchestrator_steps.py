@@ -90,6 +90,8 @@ class TestStepList:
             "translate_titles",
             "analyze_comments",
             "judge_comments",
+            "plan_xhs_cards",
+            "render_xhs_cards",
             "write_script",
             "review_script",
             "translate_comments",
@@ -106,13 +108,15 @@ class TestStepList:
     def test_standalone_is_render(self):
         assert STANDALONE_STEPS == {"render", "preview"}
 
-    def test_default_steps_skip_optional_production_assets(self):
-        assert "cover_image" not in DEFAULT_STEPS
-        assert "cover_thumbnail" not in DEFAULT_STEPS
-        assert "publish_guide" not in DEFAULT_STEPS
-        assert "xhs_guide" not in DEFAULT_STEPS
+    def test_default_steps_are_xhs_cards_only(self):
+        assert DEFAULT_STEPS[-2:] == ["plan_xhs_cards", "render_xhs_cards"]
+        assert "write_script" not in DEFAULT_STEPS
         assert "synthesize_audio" not in DEFAULT_STEPS
-        assert DEFAULT_STEPS[-1] == "prepare_render"
+        assert "render" not in DEFAULT_STEPS
+
+    def test_card_chain_resolves_without_legacy_steps(self):
+        resolved = _resolve_steps(DEFAULT_STEPS)
+        assert resolved == DEFAULT_STEPS
 
     def test_optional_cover_thumbnail_expands_to_cover_image_only(self):
         assert _resolve_steps(["cover_thumbnail"]) == [
@@ -126,10 +130,8 @@ class TestStepList:
         assert "prepare_render" in resolved
         assert "render" in resolved
 
-    def test_xhs_chain_skips_synthesize_audio(self):
-        resolved = _resolve_steps(["xhs_guide"])
-        assert "synthesize_audio" not in resolved
-        assert "xhs_guide" in resolved
+    def test_card_render_can_be_repaired_without_replanning(self):
+        assert _resolve_steps(["render_xhs_cards"]) == ["render_xhs_cards"]
 
 
 # ── Per-step behaviour ──────────────────────────────────────────────────

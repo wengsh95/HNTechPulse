@@ -465,13 +465,10 @@ class TestStateSchema:
         # All artifact keys present, even if the file is None
         for key in (
             "content",
-            "script",
-            "audio_dir",
-            "title",
-            "cover",
-            "publish_guide",
-            "render_props",
-            "output",
+            "comment_judgement",
+            "xhs_cards",
+            "card_index",
+            "contact_sheet",
         ):
             assert key in snapshot["artifacts"]
 
@@ -486,7 +483,8 @@ class TestStateSchema:
     def test_pipeline_state_includes_schema_version(self, state, tmp_path):
         state.start_run()
         snapshot = load_pipeline_state("2026-06-08")
-        assert snapshot["schema_version"] == 1
+        assert snapshot["schema_version"] == 2
+        assert snapshot["product"] == "xhs_cards"
 
     def test_event_log_is_append_only(self, state, tmp_path):
         """A second AgentState on the same date appends to the same log."""

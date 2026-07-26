@@ -8,6 +8,7 @@ article pages before invoking the full pipeline.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -55,13 +56,6 @@ def _env_checks(config: dict[str, Any]) -> list[dict]:
     llm_cfg = config.get("llm", {})
     if llm_cfg.get("api_key_env"):
         env_names.append(("llm", llm_cfg["api_key_env"]))
-    tts_cfg = config.get("tts", {})
-    if tts_cfg.get("api_key_env"):
-        env_names.append(("tts", tts_cfg["api_key_env"]))
-    image_cfg = config.get("image_generator", {})
-    if image_cfg.get("enabled") and image_cfg.get("api_key_env"):
-        env_names.append(("image_generator", image_cfg["api_key_env"]))
-
     for owner, env_name in env_names:
         if not os.environ.get(env_name):
             issues.append(
@@ -78,16 +72,42 @@ def _env_checks(config: dict[str, Any]) -> list[dict]:
 
 def _tool_checks() -> list[dict]:
     issues = []
-    for tool in ("uv", "ffmpeg", "npx"):
-        if not shutil.which(tool):
-            issues.append(
-                {
-                    "severity": "warning",
-                    "check": "tool",
-                    "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
-                    "message": f"{tool} was not found on PATH",
-                }
-            )
+    if not shutil.which("uv"):
+        issues.append(
+            {
+                "severity": "warning",
+                "check": "tool",
+                "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
+                "message": "uv was not found on PATH",
+            }
+        )
+
+    browser_candidates = [
+        shutil.which("chrome"),
+        shutil.which("msedge"),
+        Path(os.environ.get("PROGRAMFILES", ""))
+        / "Google"
+        / "Chrome"
+        / "Application"
+        / "chrome.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", ""))
+        / "Microsoft"
+        / "Edge"
+        / "Application"
+        / "msedge.exe",
+    ]
+    has_browser = any(
+        bool(candidate and Path(candidate).exists()) for candidate in browser_candidates
+    )
+    if importlib.util.find_spec("playwright") is None or not has_browser:
+        issues.append(
+            {
+                "severity": "blocked",
+                "check": "browser",
+                "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
+                "message": "Playwright and Chrome/Edge are required to render cards",
+            }
+        )
     return issues
 
 
@@ -139,8 +159,7 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
     # Pull a few more useful fields from the artifacts when present.
     report = agent_path(date, "report.md")
     if report.exists():
-        # Cheap parse: just grab total_duration, story_count, video title,
-        # publishable from the markdown table.
+        # Cheap parse of the optional legacy report.
         try:
             txt = report.read_text(encoding="utf-8")
         except OSError:
@@ -158,27 +177,14 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
                         if len(cells) >= 2:
                             summary[label] = cells[-1]
                             break
-    # Title file is the most direct "is this usable" signal.
     from src.pipeline.paths import publish_path
 
-    title_path = publish_path(date, "title.json")
-    if title_path.exists():
+    cards_path = publish_path(date, "xhs_cards.json")
+    if cards_path.exists():
         try:
-            t = json.loads(title_path.read_text(encoding="utf-8"))
-            summary["video_title"] = t.get("title") or summary.get("video_title")
-        except (OSError, json.JSONDecodeError):
-            pass
-    # Variant decision: tells the agent which strategy won.
-    var = agent_path(date, "agent_variant_decision.json")
-    if var.exists():
-        try:
-            v = json.loads(var.read_text(encoding="utf-8"))
-            summary["selected_variant"] = v.get("selected_variant")
-            summary["variant_score"] = (
-                (v.get("scores") or [{}])[0].get("total_score")
-                if v.get("scores")
-                else None
-            )
+            cards = json.loads(cards_path.read_text(encoding="utf-8"))
+            summary["focus_story_id"] = cards.get("focus_story_id")
+            summary["card_count"] = len(cards.get("cards") or [])
         except (OSError, json.JSONDecodeError):
             pass
     return summary

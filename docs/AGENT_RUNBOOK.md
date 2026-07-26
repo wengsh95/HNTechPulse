@@ -17,6 +17,22 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD
 agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
 ```
 
+The managed product is a six-page Xiaohongshu card package:
+
+```text
+fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles
+  -> analyze_comments -> judge_comments -> plan_xhs_cards -> render_xhs_cards
+```
+
+Successful output:
+
+```text
+data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards.json
+data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/index.html
+data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/xhs-01-cover.png ... xhs-06-closing.png
+data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/_contact-sheet.png
+```
+
 Do not call `main.py --agent` directly. `main.py --agent` is guarded and will
 reject direct agent calls unless `--direct-agent-run` is passed for manual
 debugging. Autonomous agents should not use `--direct-agent-run`.
@@ -36,9 +52,9 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
 If the pipeline blocks or fails, inspect JSON files:
 
 ```text
-data/YYYY-MM/YYYY-MM-DD/pipeline_state.json
-data/YYYY-MM/YYYY-MM-DD/agent_events.jsonl
-data/YYYY-MM/YYYY-MM-DD/agent_tasks.json
+data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state.json
+data/YYYY-MM/YYYY-MM-DD/agent/agent_events.jsonl
+data/YYYY-MM/YYYY-MM-DD/agent/agent_tasks.json
 ```
 
 After repairing the issue, resume:
@@ -380,31 +396,19 @@ fetch_comments
 translate_titles
 analyze_comments
 judge_comments
-translate_comments
-prepare_render
-cover_thumbnail
+plan_xhs_cards
+render_xhs_cards
 ```
 
 Agent should stop and repair source context:
 
 ```text
 enrich_articles
-write_script when source context is insufficient
 ```
 
-Agent can generate drafts but should not assume final quality:
-
-```text
-synthesize_audio
-title
-cover_image
-publish_guide
-render
-preview
-```
-
-Final video, audio, cover, title, and publication copy may still require human
-review.
+The generated cards still require visual review for overflow, image crop,
+factual wording, and mobile readability. Video/TTS steps documented elsewhere
+are legacy manual paths and are not selected by `agent_run.py`.
 
 ## Common Recipes
 

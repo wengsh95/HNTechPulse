@@ -197,3 +197,248 @@ def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monke
 
     assert result["publishable"] is True
     assert not any(i["check"] == "publish_guide_fresh" for i in result["issues"])
+
+
+def test_agent_audit_tolerates_subtitle_rechunking(tmp_path, monkeypatch):
+    """synthesize_audio re-splits subtitle_texts into finer display cues; the
+    audit must compare joined content, not the raw chunk lists, or every
+    post-audio run would falsely report variant drift."""
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    selected_dir = pipeline_variants_root(date) / "v01_balanced"
+    selected_dir.mkdir(parents=True)
+
+    atomic_write_json(
+        agent_path(date, "pipeline_state.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "complete",
+            "next_recommended_command": None,
+        },
+    )
+    atomic_write_json(
+        agent_path(date, "agent_decision.json"),
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(
+        agent_path(date, "agent_variant_decision.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "continue",
+            "selected_variant": "v01_balanced",
+        },
+    )
+    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
+
+    # Same content, different chunking. The variant snapshot is frozen at
+    # write_script time (single line); the promoted script holds the
+    # post-synthesize_audio re-split cues. Joining must make them equal.
+    seg_variant = {
+        "segment_type": "story_scan",
+        "audio_text": "相同的解说文本",
+        "scene_elements": [{"props": {"subtitle_texts": ["你好世界今天天气不错"]}}],
+    }
+    seg_promoted = {
+        "segment_type": "story_scan",
+        "audio_text": "相同的解说文本",
+        "scene_elements": [{"props": {"subtitle_texts": ["你好世界", "今天天气不错"]}}],
+    }
+    atomic_write_json(
+        pipeline_path(date, "script.json"),
+        {"title": "Promoted", "segments": [seg_promoted]},
+    )
+    atomic_write_json(
+        selected_dir / "script.json",
+        {"title": "Variant", "segments": [seg_variant]},
+    )
+
+    for path in [
+        pipeline_path(date, "content.json"),
+        pipeline_path(date, "script.json"),
+    ]:
+        _write_manifest(path)
+
+    result = audit(date)
+
+    assert result["publishable"] is True
+    assert result["status"] == "ok"
+    assert result["error_count"] == 0
+
+
+def test_agent_audit_tolerates_subtitle_rechunking_english(tmp_path, monkeypatch):
+    """English/mixed subtitle cues get re-split at sentence-break + space
+    boundaries by synthesize_audio; the splitter keeps the period on the left
+    chunk and drops the inter-chunk space, so the audit must compare
+    whitespace-stripped content (not folded whitespace) or English narration
+    would falsely report variant drift."""
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    selected_dir = pipeline_variants_root(date) / "v01_balanced"
+    selected_dir.mkdir(parents=True)
+
+    atomic_write_json(
+        agent_path(date, "pipeline_state.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "complete",
+            "next_recommended_command": None,
+        },
+    )
+    atomic_write_json(
+        agent_path(date, "agent_decision.json"),
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(
+        agent_path(date, "agent_variant_decision.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "continue",
+            "selected_variant": "v01_balanced",
+        },
+    )
+    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
+
+    # Author froze a single English cue at write_script time. synthesize_audio
+    # re-splits it into two cues at the sentence break; the splitter keeps the
+    # period on the left chunk and drops the inter-chunk space. Joining must
+    # treat these as content-equal.
+    seg_variant = {
+        "segment_type": "story_scan",
+        "audio_text": "Same narration text.",
+        "scene_elements": [
+            {"props": {"subtitle_texts": ["First sentence. Second sentence."]}}
+        ],
+    }
+    seg_promoted = {
+        "segment_type": "story_scan",
+        "audio_text": "Same narration text.",
+        "scene_elements": [
+            {"props": {"subtitle_texts": ["First sentence.", "Second sentence."]}}
+        ],
+    }
+    atomic_write_json(
+        pipeline_path(date, "script.json"),
+        {"title": "Promoted", "segments": [seg_promoted]},
+    )
+    atomic_write_json(
+        selected_dir / "script.json",
+        {"title": "Variant", "segments": [seg_variant]},
+    )
+
+    for path in [
+        pipeline_path(date, "content.json"),
+        pipeline_path(date, "script.json"),
+    ]:
+        _write_manifest(path)
+
+    result = audit(date)
+
+    assert result["publishable"] is True
+    assert result["status"] == "ok"
+    assert result["error_count"] == 0
+
+
+def test_agent_audit_blocks_on_real_subtitle_drift(tmp_path, monkeypatch):
+    """Re-chunking tolerance must not mask genuine textual drift: when the
+    promoted subtitle content differs from the variant by real characters
+    (not just split points), the audit must still block."""
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    selected_dir = pipeline_variants_root(date) / "v01_balanced"
+    selected_dir.mkdir(parents=True)
+
+    atomic_write_json(
+        agent_path(date, "pipeline_state.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "complete",
+            "next_recommended_command": None,
+        },
+    )
+    atomic_write_json(
+        agent_path(date, "agent_decision.json"),
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(
+        agent_path(date, "agent_variant_decision.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "continue",
+            "selected_variant": "v01_balanced",
+        },
+    )
+    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
+
+    # Same split point, but the words differ - this is real drift that
+    # re-chunking tolerance must not hide.
+    seg_variant = {
+        "segment_type": "story_scan",
+        "audio_text": "Same narration text.",
+        "scene_elements": [{"props": {"subtitle_texts": ["你好世界今天天气不错"]}}],
+    }
+    seg_promoted = {
+        "segment_type": "story_scan",
+        "audio_text": "Same narration text.",
+        "scene_elements": [{"props": {"subtitle_texts": ["你好世界", "今天天气真好"]}}],
+    }
+    atomic_write_json(
+        pipeline_path(date, "script.json"),
+        {"title": "Promoted", "segments": [seg_promoted]},
+    )
+    atomic_write_json(
+        selected_dir / "script.json",
+        {"title": "Variant", "segments": [seg_variant]},
+    )
+
+    result = audit(date)
+
+    assert result["publishable"] is False
+    assert result["status"] == "blocked"
+    assert any(i["check"] == "selected_variant_promoted" for i in result["issues"])
+
+
+def test_agent_audit_blocks_incomplete_xhs_card_package(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-07-27"
+    atomic_write_json(
+        agent_path(date, "pipeline_state.json"),
+        {
+            "schema_version": 2,
+            "date": date,
+            "status": "complete",
+            "product": "xhs_cards",
+            "steps": ["plan_xhs_cards", "render_xhs_cards"],
+        },
+    )
+    atomic_write_json(
+        agent_path(date, "agent_decision.json"),
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
+    atomic_write_json(
+        publish_path(date, "xhs_cards.json"),
+        {
+            "cards": [
+                {"role": role}
+                for role in (
+                    "cover",
+                    "evidence",
+                    "breakdown",
+                    "debate",
+                    "quotes",
+                    "closing",
+                )
+            ]
+        },
+    )
+
+    result = audit(date)
+
+    assert result["publishable"] is False
+    assert any(i["check"] == "xhs_card_renders_fresh" for i in result["issues"])

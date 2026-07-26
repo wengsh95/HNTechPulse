@@ -45,5 +45,7 @@ def get_audio_duration(audio_path: str, fallback: float = 30.0) -> float:
     except Exception as e:
         logger.debug(f"mutagen failed for {audio_path}: {e}")
 
-    logger.warning(f"Failed to get audio duration, using estimate {fallback}s: {audio_path}")
+    logger.warning(
+        f"Failed to get audio duration, using estimate {fallback}s: {audio_path}"
+    )
     return fallback

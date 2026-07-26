@@ -76,13 +76,16 @@ def test_prefilter_cache_invalidates_when_comment_preview_count_changes(
     prefilter, llm = _make_prefilter(comment_preview_count=5)
     prefilter.filter(_make_content(), "2026-04-26")
 
-    changed_prefilter = Prefilter(llm, {
-        **prefilter.config,
-        "prefilter": {
-            **prefilter.config["prefilter"],
-            "comment_preview_count": 3,
+    changed_prefilter = Prefilter(
+        llm,
+        {
+            **prefilter.config,
+            "prefilter": {
+                **prefilter.config["prefilter"],
+                "comment_preview_count": 3,
+            },
         },
-    })
+    )
     changed_prefilter.filter(_make_content(), "2026-04-26")
 
     assert llm.prefilter_stories.call_count == 2

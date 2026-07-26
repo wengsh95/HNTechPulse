@@ -10,22 +10,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
+from src.pipeline.agent_io import (  # noqa: E402
+    file_sha256,
+    is_artifact_fresh,
+    load_pipeline_state,
+    stable_hash,
+)
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
     pipeline_path,
     publish_path,
+    publish_xhs_cards_dir,
     raw_downloaded_pages_dir,
+)
+from src.pipeline.xhs_cards import (  # noqa: E402
+    CARD_HEIGHT,
+    CARD_ROLES,
+    CARD_WIDTH,
+    xhs_card_output_paths,
+    xhs_card_set_is_fresh,
+    xhs_cards_plan_inputs,
 )
 
 
@@ -64,14 +81,32 @@ def _scripts_semantically_equal(variant_path: Path, promoted_path: Path) -> bool
     # We exclude these so the audit passes after a normal pipeline run.
     _TIMING_KEYS = frozenset({"start_time", "end_time", "audio_duration"})
 
-    def _strip_timing(obj):
-        """Recursively drop timing keys from dicts; pass lists/tuples through."""
+    def _normalize(obj):
+        """Recursively drop timing keys and join subtitle_texts for comparison.
+
+        Post-process steps (synthesize_audio) may re-split subtitle_texts into
+        different chunks for timing. Joining them tolerates legitimate
+        re-chunking while still catching real content drift.
+        """
         if isinstance(obj, dict):
-            return {
-                k: _strip_timing(v) for k, v in obj.items() if k not in _TIMING_KEYS
-            }
+            result = {}
+            for k, v in obj.items():
+                if k in _TIMING_KEYS:
+                    continue
+                norm_v = _normalize(v)
+                if k == "subtitle_texts" and isinstance(norm_v, list):
+                    # Drop all whitespace, not just fold it: the subtitle
+                    # splitter (src/utils/subtitles.py) strips whitespace at
+                    # chunk boundaries, so "".join loses those spaces and
+                    # folding-to-space would still mismatch on English/mixed
+                    # content. Removing whitespace tolerates legitimate
+                    # re-chunking while still catching real textual drift.
+                    result[k] = re.sub(r"\s+", "", "".join(norm_v))
+                else:
+                    result[k] = norm_v
+            return result
         if isinstance(obj, list):
-            return [_strip_timing(v) for v in obj]
+            return [_normalize(v) for v in obj]
         return obj
 
     try:
@@ -92,7 +127,7 @@ def _scripts_semantically_equal(variant_path: Path, promoted_path: Path) -> bool
             return False
         if v_seg.get("audio_text") != p_seg.get("audio_text"):
             return False
-        if _strip_timing(v_seg.get("scene_elements")) != _strip_timing(
+        if _normalize(v_seg.get("scene_elements")) != _normalize(
             p_seg.get("scene_elements")
         ):
             return False
@@ -198,6 +233,112 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     why=(
                         "Publish copy depends on the selected content and script. "
                         "Regenerate it after upstream artifacts change."
+                    ),
+                    fixable_by_agent=True,
+                )
+            )
+    return issues
+
+
+def _xhs_card_artifact_check(date: str) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    content = pipeline_path(date, "content.json")
+    plan = publish_path(date, "xhs_cards.json")
+    card_dir = publish_xhs_cards_dir(date)
+    index = card_dir / "index.html"
+
+    if not content.exists():
+        issues.append(
+            _issue(
+                "error",
+                "content_exists",
+                f"Required content is missing: {content}",
+                path=content,
+                recommendation=f"uv run python scripts/agent_run.py --date {date}",
+                fixable_by_agent=True,
+            )
+        )
+    if not plan.exists():
+        issues.append(
+            _issue(
+                "error",
+                "xhs_card_plan_exists",
+                f"Xiaohongshu card plan is missing: {plan}",
+                path=plan,
+                recommendation=(
+                    f"uv run python scripts/agent_run.py --date {date} "
+                    "--steps plan_xhs_cards,render_xhs_cards"
+                ),
+                fixable_by_agent=True,
+            )
+        )
+        return issues
+
+    payload = _read_json(plan)
+    cards = payload.get("cards") if isinstance(payload, dict) else None
+    roles = [card.get("role") for card in cards or [] if isinstance(card, dict)]
+    if roles != list(CARD_ROLES):
+        issues.append(
+            _issue(
+                "error",
+                "xhs_card_contract",
+                f"Expected card roles {list(CARD_ROLES)}, got {roles}",
+                path=plan,
+                recommendation=(
+                    f"uv run python scripts/agent_run.py --date {date} "
+                    "--steps plan_xhs_cards,render_xhs_cards"
+                ),
+                fixable_by_agent=True,
+            )
+        )
+    if not is_artifact_fresh(plan, xhs_cards_plan_inputs(date)):
+        issues.append(
+            _issue(
+                "error",
+                "xhs_card_plan_fresh",
+                "Xiaohongshu card plan inputs changed.",
+                path=plan,
+                recommendation=(
+                    f"uv run python scripts/agent_run.py --date {date} "
+                    "--steps plan_xhs_cards,render_xhs_cards"
+                ),
+                fixable_by_agent=True,
+            )
+        )
+
+    if not index.exists() or not xhs_card_set_is_fresh(date):
+        issues.append(
+            _issue(
+                "error",
+                "xhs_card_renders_fresh",
+                "Six current Xiaohongshu PNG cards were not found.",
+                path=card_dir,
+                recommendation=(
+                    f"uv run python scripts/agent_run.py --date {date} "
+                    "--steps render_xhs_cards"
+                ),
+                fixable_by_agent=True,
+            )
+        )
+
+    for card_path in xhs_card_output_paths(date):
+        if not card_path.exists():
+            continue
+        try:
+            with Image.open(card_path) as image:
+                size = image.size
+        except OSError:
+            size = None
+        if size != (CARD_WIDTH, CARD_HEIGHT):
+            issues.append(
+                _issue(
+                    "error",
+                    "xhs_card_dimensions",
+                    f"Expected {CARD_WIDTH}x{CARD_HEIGHT}, got {size}: {card_path}",
+                    path=card_path,
+                    recommendation=(
+                        f"uv run python scripts/agent_run.py --date {date} "
+                        "--steps render_xhs_cards"
                     ),
                     fixable_by_agent=True,
                 )
@@ -510,20 +651,40 @@ def audit(date: str) -> dict[str, Any]:
     issues.extend(state_issues)
     decision, decision_issues = _decision_check(date)
     issues.extend(decision_issues)
-    variant_decision, variant_issues = _variant_check(date)
-    issues.extend(variant_issues)
-    issues.extend(_artifact_check(date, base))
-    issues.extend(
-        _manifest_check(
-            [
-                pipeline_path(date, "content.json"),
-                pipeline_path(date, "script.json"),
-                publish_path(date, "title.json"),
-                publish_path(date, "cover.png"),
-                publish_path(date, "publish_guide.md"),
-            ]
-        )
+    state_steps = set((state or {}).get("steps") or [])
+    is_card_run = (
+        (state or {}).get("product") == "xhs_cards"
+        or "plan_xhs_cards" in state_steps
+        or publish_path(date, "xhs_cards.json").exists()
     )
+    variant_decision = None
+    if is_card_run:
+        issues.extend(_xhs_card_artifact_check(date))
+        issues.extend(
+            _manifest_check(
+                [
+                    pipeline_path(date, "content.json"),
+                    publish_path(date, "xhs_cards.json"),
+                    publish_xhs_cards_dir(date) / "index.html",
+                ]
+            )
+        )
+    else:
+        # Backward-compatible audit for old video dates.
+        variant_decision, variant_issues = _variant_check(date)
+        issues.extend(variant_issues)
+        issues.extend(_artifact_check(date, base))
+        issues.extend(
+            _manifest_check(
+                [
+                    pipeline_path(date, "content.json"),
+                    pipeline_path(date, "script.json"),
+                    publish_path(date, "title.json"),
+                    publish_path(date, "cover.png"),
+                    publish_path(date, "publish_guide.md"),
+                ]
+            )
+        )
 
     error_count = sum(1 for i in issues if i["severity"] == "error")
     warning_count = sum(1 for i in issues if i["severity"] == "warning")

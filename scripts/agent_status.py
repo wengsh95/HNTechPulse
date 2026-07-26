@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Compact machine-readable status for agent runs.
-
-This script is intentionally read-only. It summarizes the date-scoped state,
-artifact presence/staleness, and the safest next commands without requiring an
-agent to inspect several JSON files manually.
-"""
+"""Machine-readable status for the Xiaohongshu card pipeline."""
 
 from __future__ import annotations
 
@@ -19,14 +14,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import file_sha256, load_pipeline_state, stable_hash  # noqa: E402
+from src.pipeline.agent_io import is_artifact_fresh, load_pipeline_state  # noqa: E402
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
     pipeline_path,
     publish_path,
-    render_path,
-    render_remotion_dir,
+    publish_xhs_cards_dir,
+)
+from src.pipeline.xhs_cards import (  # noqa: E402
+    xhs_card_output_paths,
+    xhs_card_set_is_fresh,
+    xhs_cards_plan_inputs,
 )
 
 
@@ -43,19 +42,6 @@ def _read_json(path: Path) -> Any:
         return None
 
 
-def _prepare_render_renderer(date: str) -> str:
-    manifest_path = render_path(date, "cli_props.json").with_suffix(
-        render_path(date, "cli_props.json").suffix + ".manifest.json"
-    )
-    manifest = _read_json(manifest_path)
-    if not isinstance(manifest, dict):
-        return ""
-    inputs = manifest.get("inputs") or {}
-    if not isinstance(inputs, dict):
-        return ""
-    return str(inputs.get("renderer") or "")
-
-
 def _artifact(path: Path) -> dict[str, Any]:
     exists = path.exists()
     return {
@@ -66,40 +52,6 @@ def _artifact(path: Path) -> dict[str, Any]:
     }
 
 
-def _is_newer(a: Path, b: Path) -> bool:
-    return a.exists() and b.exists() and a.stat().st_mtime > b.stat().st_mtime
-
-
-def _format_mmss(seconds: float | int | None) -> str:
-    total = max(0, int(round(float(seconds or 0))))
-    return f"{total // 60:02d}:{total % 60:02d}"
-
-
-def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
-    artifacts = [item.get("artifact", "") for item in stale]
-    if any("script.json" in artifact for artifact in artifacts):
-        return {
-            "command": f"uv run python scripts/agent_run.py --date {date} --steps write_script,translate_comments,synthesize_audio,title,cover_image,cover_thumbnail,publish_guide,prepare_render,render",
-            "why": "Content changed after script generation; regenerate script and all downstream artifacts.",
-        }
-    if any("cli_props.json" in artifact for artifact in artifacts) or any(
-        "output.mp4" in artifact for artifact in artifacts
-    ):
-        return {
-            "command": f"uv run python scripts/agent_run.py --date {date} --steps prepare_render,render",
-            "why": "Script changed after render props; regenerate props and render.",
-        }
-    if any("publish_guide.md" in artifact for artifact in artifacts):
-        return {
-            "command": f"uv run python scripts/agent_run.py --date {date} --steps title,publish_guide",
-            "why": "Publish metadata changed after the guide; regenerate the guide.",
-        }
-    return {
-        "command": f"uv run python scripts/agent_run.py --date {date} --steps prepare_render,render",
-        "why": "Render props/output look stale or incomplete.",
-    }
-
-
 def _pending_tasks(date: str) -> dict[str, Any]:
     tasks_path = agent_path(date, "agent_tasks.json")
     data = _read_json(tasks_path)
@@ -107,9 +59,9 @@ def _pending_tasks(date: str) -> dict[str, Any]:
     if isinstance(data, dict):
         for task in data.get("tasks") or []:
             save_as = task.get("save_as") or {}
-            html = Path(save_as.get("html") or "")
-            pdf = Path(save_as.get("pdf") or "")
-            if not html.exists() and not pdf.exists():
+            html_path = Path(save_as.get("html") or "")
+            pdf_path = Path(save_as.get("pdf") or "")
+            if not html_path.exists() and not pdf_path.exists():
                 pending.append(task)
     return {
         "path": str(tasks_path).replace("\\", "/"),
@@ -119,133 +71,61 @@ def _pending_tasks(date: str) -> dict[str, Any]:
     }
 
 
-def _publish_guide_context(
-    date: str, content_path: Path, script_path: Path
-) -> dict[str, Any] | None:
-    content_data = _read_json(content_path)
-    script_data = _read_json(script_path)
-    if not isinstance(content_data, dict) or not isinstance(script_data, dict):
-        return None
-    title_data = _read_json(publish_path(date, "title.json"))
-    if not isinstance(title_data, dict):
-        title_data = {}
-    items_payload = []
-    for item in content_data.get("items") or []:
-        if not isinstance(item, dict):
-            continue
-        items_payload.append(
-            {
-                "title_cn": item.get("title_cn") or item.get("title"),
-                "title": item.get("title"),
-                "editor_angle": item.get("editor_angle") or item.get("dek") or "",
-                "category": item.get("category") or "",
-                "keywords": item.get("keywords") or [],
-                "score": item.get("score"),
-                "comment_count": item.get("comment_count"),
-            }
-        )
+def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
+    reasons = {item.get("reason") for item in stale}
+    if any(reason and "card plan" in reason for reason in reasons):
+        return {
+            "command": (
+                f"uv run python scripts/agent_run.py --date {date} "
+                "--steps plan_xhs_cards,render_xhs_cards"
+            ),
+            "why": "Card source inputs changed or the card plan is missing.",
+        }
     return {
-        "script_title": title_data.get("title")
-        or script_data.get("title")
-        or "HN每日观察",
-        "script_description": title_data.get("description")
-        or script_data.get("description")
-        or "",
-        "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
-        "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
-        "date": date,
+        "command": (
+            f"uv run python scripts/agent_run.py --date {date} --steps render_xhs_cards"
+        ),
+        "why": "The card plan is current but PNG renders are missing or stale.",
     }
-
-
-def _has_stale_publish_guide(
-    date: str, content_path: Path, script_path: Path, guide_path: Path
-) -> bool:
-    if not guide_path.exists():
-        return False
-    context = _publish_guide_context(date, content_path, script_path)
-    if context is None:
-        return False
-    manifest = _read_json(guide_path.with_suffix(guide_path.suffix + ".manifest.json"))
-    return not isinstance(manifest, dict) or manifest.get("input_hash") != stable_hash(
-        context
-    )
 
 
 def build_status(date: str) -> dict[str, Any]:
     base = date_root(date)
     state = load_pipeline_state(date)
     content = pipeline_path(date, "content.json")
-    script = pipeline_path(date, "script.json")
-    cli_props = render_path(date, "cli_props.json")
-    public_props = render_remotion_dir(date) / "public" / "props.json"
-    hyperframes_index = base / "hyperframes_project" / "index.html"
-    output = publish_path(date, "output.mp4")
-    title = publish_path(date, "title.json")
-    cover = publish_path(date, "cover.png")
-    publish_guide = publish_path(date, "publish_guide.md")
+    judgement = pipeline_path(date, "comment_judgement.json")
+    plan = publish_path(date, "xhs_cards.json")
+    card_dir = publish_xhs_cards_dir(date)
+    card_index = card_dir / "index.html"
+    contact_sheet = card_dir / "_contact-sheet.png"
+    card_paths = xhs_card_output_paths(date)
 
     stale: list[dict[str, str]] = []
-    if _is_newer(content, script):
+    plan_fresh = plan.exists() and is_artifact_fresh(plan, xhs_cards_plan_inputs(date))
+    if state and state.get("status") in {"complete", "degraded"} and not plan.exists():
         stale.append(
             {
-                "artifact": str(script).replace("\\", "/"),
-                "reason": "content.json is newer than script.json",
+                "artifact": str(plan).replace("\\", "/"),
+                "reason": "Xiaohongshu card plan is missing",
             }
         )
-    if _is_newer(content, cli_props):
+    elif plan.exists() and not plan_fresh:
         stale.append(
             {
-                "artifact": str(cli_props).replace("\\", "/"),
-                "reason": "content.json is newer than cli_props.json",
+                "artifact": str(plan).replace("\\", "/"),
+                "reason": "Xiaohongshu card plan inputs changed",
             }
         )
-    if _is_newer(script, cli_props):
+    elif plan_fresh and not xhs_card_set_is_fresh(date):
         stale.append(
             {
-                "artifact": str(cli_props).replace("\\", "/"),
-                "reason": "script.json is newer than cli_props.json",
-            }
-        )
-    if _is_newer(cli_props, output):
-        stale.append(
-            {
-                "artifact": str(output).replace("\\", "/"),
-                "reason": "cli_props.json is newer than output.mp4",
-            }
-        )
-    renderer_name = _prepare_render_renderer(date)
-    if (
-        cli_props.exists()
-        and renderer_name == "RemotionRenderer"
-        and not public_props.exists()
-    ):
-        stale.append(
-            {
-                "artifact": str(public_props).replace("\\", "/"),
-                "reason": "public Remotion props mirror is missing",
-            }
-        )
-    if (
-        cli_props.exists()
-        and renderer_name == "HyperFramesRenderer"
-        and not hyperframes_index.exists()
-    ):
-        stale.append(
-            {
-                "artifact": str(hyperframes_index).replace("\\", "/"),
-                "reason": "HyperFrames project index is missing",
-            }
-        )
-    if _has_stale_publish_guide(date, content, script, publish_guide):
-        stale.append(
-            {
-                "artifact": str(publish_guide).replace("\\", "/"),
-                "reason": "publish_guide.md input hash does not match content/script",
+                "artifact": str(card_dir).replace("\\", "/"),
+                "reason": "Xiaohongshu card renders are stale or incomplete",
             }
         )
 
-    safe_next_commands: list[dict[str, str]] = []
     status = state.get("status") if state else "not_started"
+    safe_next_commands: list[dict[str, str]] = []
     if not state:
         safe_next_commands.append(
             {
@@ -254,39 +134,24 @@ def build_status(date: str) -> dict[str, Any]:
             }
         )
     elif status in {"blocked", "failed", "running"}:
-        next_step = (state or {}).get("failed_step") or (state or {}).get(
-            "current_step"
-        )
-        command = (
-            f"uv run python scripts/agent_run.py --date {date} --steps {next_step}"
-            if next_step
-            else f"uv run python scripts/agent_run.py --date {date} --resume"
-        )
         safe_next_commands.append(
             {
-                "command": command,
+                "command": f"uv run python scripts/agent_run.py --date {date} --resume",
                 "why": f"Pipeline state is {status}.",
             }
         )
     elif stale:
         safe_next_commands.append(_stale_command(date, stale))
-    elif cli_props.exists():
-        safe_next_commands.append(
-            {
-                "command": f"uv run python scripts/render_review_stills.py --date {date}",
-                "why": "cli_props.json exists; review stills can be rendered without rerunning LLM/TTS.",
-            }
-        )
-    if output.exists():
+    elif card_index.exists():
         safe_next_commands.append(
             {
                 "command": f"uv run python scripts/agent_audit.py --date {date}",
-                "why": "Final video exists; run publishability audit.",
+                "why": "The card package exists; run the final publishability audit.",
             }
         )
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "date": date,
         "base_dir": str(base).replace("\\", "/"),
         "pipeline_status": status,
@@ -295,16 +160,14 @@ def build_status(date: str) -> dict[str, Any]:
         "current_step": (state or {}).get("current_step"),
         "completed_steps": (state or {}).get("completed_steps") or [],
         "next_recommended_command": (state or {}).get("next_recommended_command"),
+        "pipeline_state": state or {},
         "artifacts": {
             "content": _artifact(content),
-            "script": _artifact(script),
-            "cli_props": _artifact(cli_props),
-            "public_props": _artifact(public_props),
-            "hyperframes_index": _artifact(hyperframes_index),
-            "output": _artifact(output),
-            "title": _artifact(title),
-            "cover": _artifact(cover),
-            "publish_guide": _artifact(publish_guide),
+            "comment_judgement": _artifact(judgement),
+            "card_plan": _artifact(plan),
+            "card_index": _artifact(card_index),
+            "contact_sheet": _artifact(contact_sheet),
+            "cards": [_artifact(path) for path in card_paths],
         },
         "stale_artifacts": stale,
         "agent_tasks": _pending_tasks(date),
@@ -313,7 +176,7 @@ def build_status(date: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Summarize agent run status")
+    parser = argparse.ArgumentParser(description="Summarize Xiaohongshu card status")
     parser.add_argument("--date", default=_default_date())
     args = parser.parse_args()
     print(json.dumps(build_status(args.date), ensure_ascii=False, indent=2))

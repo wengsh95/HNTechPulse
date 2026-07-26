@@ -1,14 +1,14 @@
 # HN TechPulse
 
-从 Hacker News 自动生成中文科技资讯每日简报的 Python CLI 管线。不是简单搬运 HN 热榜，而是把当天高价值讨论整理成有筛选、有判断、有社区温度的技术日报，最终输出为视频。
+从 Hacker News 自动生成小红书科技深度卡片的 Python CLI 管线。不是简单搬运 HN 热榜，而是选出一条高张力新闻，整理成有事实、有社区分歧的 6 页图文。
 
 ## 功能
 
 - 自动获取 HN 热门故事和评论
 - 文章正文抓取（Playwright + Bing 图片兜底）
 - 评论情绪/质量评分 → 代表观点筛选 → LLM 判断
-- LLM 生成中文简报脚本（JSON 重试、并发、segment 缓存）
-- TTS 语音合成 + Remotion 视频渲染
+- LLM 选择单条焦点新闻并生成结构化 6 页卡片契约
+- Guizang Swiss 模板 + Playwright 渲染 1080×1440 PNG 和总览图
 
 ## 快速开始
 
@@ -17,7 +17,7 @@ uv sync                                        # 安装依赖
 cp .env.example .env                           # 配置 API keys
 uv run python main.py                          # 运行完整管线
 uv run python main.py --date 2026-04-26        # 指定日期
-uv run python main.py --steps fetch,write_script  # 运行子链
+uv run python main.py --steps render_xhs_cards    # 只重新渲染现有卡片
 uv run python main.py --dry-run                # 跳过 API 调用
 uv run python -m pytest                        # 测试
 ```
@@ -26,14 +26,10 @@ uv run python -m pytest                        # 测试
 
 ```text
 fetch → prefilter → fetch_comments → enrich_articles → translate_titles
-  → analyze_comments → judge_comments → write_script
-  → translate_comments → synthesize_audio → title
-  → cover_image → cover_thumbnail → publish_guide → prepare_render → render
-                                                                              ↓
-                                                                          preview (opt-in)
+  → analyze_comments → judge_comments → plan_xhs_cards → render_xhs_cards
 ```
 
-`--steps X` 自动展开为 X 及之前所有步骤。每个步骤有独立缓存，可单独重跑。
+卡片规划与 PNG 渲染分别缓存；只改模板时可单独运行 `render_xhs_cards`。
 
 ## 配置
 

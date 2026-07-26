@@ -31,6 +31,7 @@ from src.pipeline.agent_variants import (
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.pipeline.xhs_guide_inputs import xhs_guide_manifest_inputs
+from src.pipeline.xhs_cards import plan_xhs_cards, render_xhs_cards
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.content_io import ContentPreparer
@@ -164,9 +165,21 @@ def _format_mmss(seconds: float | int | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-# Ordered pipeline steps with their prerequisites.
-# Each step depends on all steps listed before it (linear chain),
-# except standalone steps which have no prerequisites.
+# The default product is now a six-page Xiaohongshu card package. Video steps
+# remain addressable for old dates/manual maintenance, but are not part of the
+# managed/default chain.
+XHS_CARD_STEPS = [
+    "fetch",
+    "prefilter",
+    "fetch_comments",
+    "enrich_articles",
+    "translate_titles",
+    "analyze_comments",
+    "judge_comments",
+    "plan_xhs_cards",
+    "render_xhs_cards",
+]
+
 PIPELINE_STEPS = [
     "fetch",
     "prefilter",
@@ -175,6 +188,8 @@ PIPELINE_STEPS = [
     "translate_titles",
     "analyze_comments",
     "judge_comments",
+    "plan_xhs_cards",
+    "render_xhs_cards",
     "write_script",
     "review_script",
     "translate_comments",
@@ -187,6 +202,13 @@ PIPELINE_STEPS = [
     "prepare_render",
 ]
 OPTIONAL_PRODUCTION_STEPS = {
+    "plan_xhs_cards",
+    "render_xhs_cards",
+    "write_script",
+    "review_script",
+    "translate_comments",
+    "title",
+    "prepare_render",
     "cover_image",
     "cover_thumbnail",
     "publish_guide",
@@ -199,9 +221,17 @@ OPTIONAL_PRODUCTION_STEPS = {
 CORE_PIPELINE_STEPS = [
     step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
 ]
+LEGACY_CORE_PIPELINE_STEPS = [
+    *CORE_PIPELINE_STEPS,
+    "write_script",
+    "review_script",
+    "translate_comments",
+    "title",
+    "prepare_render",
+]
 STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
-DEFAULT_STEPS = CORE_PIPELINE_STEPS
+DEFAULT_STEPS = XHS_CARD_STEPS
 
 # Number of cover text variants generated for manual selection (shared background).
 COVER_VARIANT_COUNT = 3
@@ -241,11 +271,17 @@ def _resolve_steps(requested: List[str]) -> List[str]:
         return []
 
     core_requested = [s for s in valid if s in CORE_PIPELINE_STEPS]
+    legacy_core_requested = [s for s in valid if s in LEGACY_CORE_PIPELINE_STEPS]
     optional_requested = [s for s in valid if s in OPTIONAL_PRODUCTION_STEPS]
     standalone_requested = [s for s in valid if s in STANDALONE_STEPS]
 
     resolved = []
-    if core_requested:
+    if legacy_core_requested:
+        max_idx = max(
+            LEGACY_CORE_PIPELINE_STEPS.index(s) for s in legacy_core_requested
+        )
+        resolved.extend(LEGACY_CORE_PIPELINE_STEPS[: max_idx + 1])
+    elif core_requested:
         max_idx = max(CORE_PIPELINE_STEPS.index(s) for s in core_requested)
         resolved.extend(CORE_PIPELINE_STEPS[: max_idx + 1])
 
@@ -255,7 +291,7 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     ):
         optional_requested = ["cover_image", *optional_requested]
 
-    # prepare_render needs audio (audio_dir + actual_duration); auto-pull
+    # Legacy video maintenance: prepare_render needs audio.
     # synthesize_audio so video flows stay correct without listing it by hand.
     # prepare_render may enter via core expansion, so check the resolved set.
     if "prepare_render" in resolved and "synthesize_audio" not in resolved:
@@ -449,6 +485,15 @@ class Orchestrator:
         if "judge_comments" in steps:
             with self._tracked_step("judge_comments"):
                 content = self._step_judge_comments(content, date)
+
+        # ── Xiaohongshu card product ─────────────────────────────────────
+        if "plan_xhs_cards" in steps:
+            with self._tracked_step("plan_xhs_cards"):
+                self._step_plan_xhs_cards(content, date)
+
+        if "render_xhs_cards" in steps:
+            with self._tracked_step("render_xhs_cards"):
+                self._step_render_xhs_cards(date)
 
         # ── 8. write_script ───────────────────────────────────────────────
         if "write_script" in steps:
@@ -698,6 +743,21 @@ class Orchestrator:
         self.comment_judge.judge(content, date)
         self.content_preparer.save_content(content, date)
         return content
+
+    def _step_plan_xhs_cards(self, content: ContentPackage, date: str) -> None:
+        self.logger.info("Step: Plan Xiaohongshu cards — one story, six pages")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping Xiaohongshu card planning")
+            return
+        plan_xhs_cards(content, date, self.llm_provider, self.config)
+
+    def _step_render_xhs_cards(self, date: str) -> None:
+        self.logger.info("Step: Render Xiaohongshu cards — 1080x1440 PNG")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping Xiaohongshu card rendering")
+            return
+        rendered = render_xhs_cards(date, self.config)
+        self.logger.info(f"  Rendered {len(rendered)} Xiaohongshu cards")
 
     def _step_write_script(self, content: ContentPackage, date: str) -> Script:
         self.logger.info("=" * 50)

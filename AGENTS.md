@@ -58,13 +58,14 @@ Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
 3. On `blocked` status → read `blocked_reason` in `pipeline_state.json` → follow [AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md).
 4. Never use `--allow-degraded-enrichment` for final output without explicit user approval.
 5. If `agent_status.py` reports stale artifacts, follow its `safe_next_commands`;
-   do not render stale `script.json`/`cli_props.json` combinations.
+   do not render PNGs from a stale `xhs_cards.json` plan.
 
 ## Gotchas
 
 - **Chinese output garbled?** Run `. .\scripts\encoding.ps1` (sets `PYTHONUTF8=1`, `chcp 65001`).
-- **Remotion render filename**: h264+aac output must end in `.mp4`/`.mkv`/`.mov`. Use `.partial.mp4` for temp files, **never** `.mp4.partial` — Remotion validates the final suffix.
-- **Two renderers**: `--renderer remotion` (default) or `--renderer hyperframes`. HyperFrames lives at `src/providers/renderer/hyperframes/`.
-- **TS quality gate**: Pushes to `src/providers/renderer/remotion/` trigger a GitHub Actions workflow (prettier, eslint, tsc, vitest, knip, npm audit). Run `npm ci && npx vitest run` in that dir to test locally.
+- **Card output**: the managed flow writes exactly 6 PNGs at `1080×1440`
+  under `publish/xhs_cards/`, plus `_contact-sheet.png`.
+- **Browser renderer**: Playwright uses installed Chrome first and Edge as a
+  fallback. Video renderers are legacy manual paths, not managed defaults.
 - **Prompt placeholders**: `{{ foo }}` tokens must have matching `PH_FOO` constants in `src/core/prompts.py`. `render_prompt()` raises on unknown placeholders.
 - **Path literals**: Never build `f"data/{month}/{date}/foo.json"` directly — use helpers from `src/pipeline/paths.py`.

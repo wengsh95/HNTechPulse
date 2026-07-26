@@ -37,7 +37,7 @@ def validate_date(value: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="HN TechPulse: Generate tech video from Hacker News"
+        description="HN TechPulse: Generate Xiaohongshu cards from Hacker News"
     )
     parser.add_argument(
         "--date",
@@ -90,18 +90,13 @@ def main():
         type=str,
         default=(
             "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
-            "analyze_comments,judge_comments,write_script,translate_comments,"
-            "title,cover_image,cover_thumbnail,xhs_guide"
+            "analyze_comments,judge_comments,plan_xhs_cards,render_xhs_cards"
         ),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
-            "write_script, translate_comments, synthesize_audio, title, cover_image, "
-            "cover_thumbnail, publish_guide, xhs_guide, prepare_render, render, "
-            "preview). Default runs the Xiaohongshu image-text flow (xhs_guide, "
-            "no TTS/render). For the video flow add "
-            "synthesize_audio,prepare_render,render. The two flows are independent; "
-            "prefer scripts/agent_run.py --flow xhs|video. preview is always opt-in."
+            "plan_xhs_cards, render_xhs_cards). Default produces one six-page "
+            "Xiaohongshu card package; video/TTS steps are legacy manual options."
         ),
     )
     parser.add_argument(
@@ -151,7 +146,7 @@ def main():
     else:
         steps = [s.strip() for s in args.steps.split(",")]
 
-    product = "daily_brief"
+    product = "xhs_cards"
 
     log_file = get_log_file_path(args.date) if not args.dry_run else None
     log_level = config.get("logging", {}).get("level", "INFO")
@@ -194,7 +189,7 @@ def main():
 
         image_generator = None
         img_cfg = config.get("image_generator", {})
-        if img_cfg.get("enabled", False):
+        if img_cfg.get("enabled", False) and "cover_image" in steps:
             image_generator = create_image_generator(
                 img_cfg.get("provider", "noop"),
                 config,

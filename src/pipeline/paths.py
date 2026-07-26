@@ -14,7 +14,7 @@ Layout::
     ├── media/       images/
     ├── render/      remotion/{chunks,public}/, cli_props.json
     ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
-    │                xhs_guide.md, cover_bg.png, cover.png, cover_props.json
+    │                xhs_cards.json, xhs_cards/, cover_bg.png, cover.png
     ├── agent/       pipeline_state.json, agent_decision.json,
     │                agent_events.jsonl, selected_variant.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
@@ -75,6 +75,11 @@ def publish_root(date: str) -> Path:
     return date_root(date) / PUBLISH_DIR
 
 
+def publish_xhs_cards_dir(date: str) -> Path:
+    """Return the rendered Xiaohongshu card package directory."""
+    return publish_root(date) / "xhs_cards"
+
+
 def agent_root(date: str) -> Path:
     return date_root(date) / AGENT_DIR
 
@@ -133,6 +138,7 @@ _PUBLISH_FILES: dict[str, str] = {
     "title.json": "title.json",
     "publish_guide.md": "publish_guide.md",
     "xhs_guide.md": "xhs_guide.md",
+    "xhs_cards.json": "xhs_cards.json",
     "cover.png": "cover.png",
     "cover_v1.png": "cover_v1.png",
     "cover_v2.png": "cover_v2.png",
@@ -273,6 +279,7 @@ LEGACY_FLAT_LAYOUT = {
     "transcript.md",
     "publish_guide.md",
     "xhs_guide.md",
+    "xhs_cards.json",
     "pipeline_state.json",
     "agent_decision.json",
     "agent_events.jsonl",
@@ -314,6 +321,7 @@ __all__ = [
     "media_root",
     "render_root",
     "publish_root",
+    "publish_xhs_cards_dir",
     "agent_root",
     "pipeline_segments_dir",
     "pipeline_variants_root",

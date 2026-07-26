@@ -1,4 +1,4 @@
-﻿"""Shared LLM provider base for OpenAI-compatible and Anthropic transports.
+"""Shared LLM provider base for OpenAI-compatible and Anthropic transports.
 
 Subclasses only need to declare which ``LLMClient`` class to instantiate. All
 script generation, translation, comment judging, and prefilter logic lives
@@ -33,12 +33,92 @@ from src.providers.llm.llm_client import (
 _TEMPLATE_CACHE: Dict[str, tuple[float, str]] = {}
 _SUBTITLE_PUNCTUATION = "\u3002\uff01\uff1f.!?"
 
+# Hard subtitle rules — must match what story_script.md declares.  These are
+# enforced in code (not just the prompt) because LLM self-checks are unreliable
+# for character counting, especially with CJK+ASCII mixed text.
+_SUBTITLE_MAX_WIDTH = 76  # 38 汉字 (CJK=2, ASCII=1 per char)
+_SUBTITLE_MAX_COMMAS = 2
+_SUBTITLE_FORBIDDEN_WORDS = ("断网", "高管不在乎", "全落空", "士气崩", "翻脸")
+_SUBTITLE_REPEAT_THRESHOLD = 12  # adjacent subtitle max shared substring
+
 
 def _with_sentence_punctuation(text: str) -> str:
     text = text.strip()
     if text and text[-1] not in _SUBTITLE_PUNCTUATION:
         return text + "\u3002"
     return text
+
+
+def _subtitle_width(text: str) -> int:
+    """Visual width: CJK / full-width = 2, ASCII / half-width = 1."""
+    return sum(2 if ord(ch) > 127 else 1 for ch in text)
+
+
+def _longest_common_substring_len(a: str, b: str) -> int:
+    """Length of the longest contiguous substring shared by *a* and *b*."""
+    if not a or not b:
+        return 0
+    m, n = len(a), len(b)
+    dp = [0] * (n + 1)
+    best = 0
+    for i in range(1, m + 1):
+        prev = 0
+        for j in range(1, n + 1):
+            tmp = dp[j]
+            if a[i - 1] == b[j - 1]:
+                dp[j] = prev + 1
+                best = max(best, dp[j])
+            else:
+                dp[j] = 0
+            prev = tmp
+    return best
+
+
+def _check_subtitle_texts(card_index: int, texts: List[str]) -> List[str]:
+    """Return a list of human-readable violation strings for one card's subtitles.
+
+    Empty list = all good.  Each string is suitable for inclusion in the
+    retry-feedback message sent back to the LLM.
+    """
+    violations: List[str] = []
+    for j, raw in enumerate(texts):
+        t = (raw or "").strip()
+        if not t:
+            continue
+        tag = f"card[{card_index}].subtitle[{j}]"
+        # Semicolons (both CJK ； and ASCII ;)
+        if "\uff1b" in t or ";" in t:
+            violations.append(f"{tag} 含分号（禁止）：{t}")
+        # Width / length
+        w = _subtitle_width(t)
+        if w > _SUBTITLE_MAX_WIDTH:
+            violations.append(f"{tag} 超长({w}宽>{_SUBTITLE_MAX_WIDTH})：{t}")
+        # Multiple sentence-end punctuation in one element
+        end_count = sum(t.count(p) for p in _SUBTITLE_PUNCTUATION)
+        if end_count > 1:
+            violations.append(f"{tag} 一句多标点({end_count})：{t}")
+        # Commas
+        comma_count = t.count("\uff0c") + t.count(",")
+        if comma_count > _SUBTITLE_MAX_COMMAS:
+            violations.append(
+                f"{tag} 逗号过多({comma_count}>{_SUBTITLE_MAX_COMMAS})：{t}"
+            )
+        # Forbidden words
+        for w in _SUBTITLE_FORBIDDEN_WORDS:
+            if w in t:
+                violations.append(f"{tag} 禁词[{w}]：{t}")
+    # Adjacent repetition
+    for a, b in zip(texts, texts[1:]):
+        ta, tb = (a or "").strip(), (b or "").strip()
+        if (
+            ta
+            and tb
+            and _longest_common_substring_len(ta, tb) >= _SUBTITLE_REPEAT_THRESHOLD
+        ):
+            violations.append(
+                f"card[{card_index}] 相邻句复读(≥{_SUBTITLE_REPEAT_THRESHOLD}字)：「{ta}」→「{tb}」"
+            )
+    return violations
 
 
 def _normalize_card_narration_subtitles(cards: list) -> None:
@@ -127,6 +207,23 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
                     raise ValueError(
                         f"card_narrations[{i}].subtitle_texts[{j}] must end with punctuation"
                     )
+
+        # Enforce hard subtitle rules (length / commas / semicolons / repetition /
+        # forbidden words).  The LLM cannot reliably self-check CJK character
+        # counts, so we validate here and trigger a retry with feedback.
+        all_violations: List[str] = []
+        for i, card in enumerate(cards):
+            if isinstance(card, dict):
+                texts = card.get("subtitle_texts") or []
+                if isinstance(texts, list):
+                    all_violations.extend(_check_subtitle_texts(i, texts))
+        if all_violations:
+            summary = "; ".join(all_violations[:6])
+            if len(all_violations) > 6:
+                summary += f"; ...({len(all_violations)} total)"
+            raise ValueError(
+                f"subtitle rule violations ({len(all_violations)}): {summary}"
+            )
 
     return _validate
 
@@ -704,4 +801,3 @@ class LLMProviderBase(LLMProvider):
             f"Story[{index}] serialized: {len(result)} chars ({story_dict['truncated_to']} comments)"
         )
         return result
-
