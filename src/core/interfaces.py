@@ -63,8 +63,21 @@ class LLMProvider(ABC):
         story_index: int,
         prompt_template_path: str = "prompts/comment_analyze.md",
         candidates=None,
+        distribution_candidates=None,
     ) -> dict:
         """Rank comments suitable for quote display. Return {} if unsupported."""
+        pass
+
+    @abstractmethod
+    def judge_story_comment_stances(
+        self,
+        item,
+        story_index: int,
+        candidates,
+        prompt_template_path: str = "prompts/comment_distribution.md",
+        batch_index: int = 0,
+    ) -> dict:
+        """Classify a batch of comments relative to the story target."""
         pass
 
     @abstractmethod

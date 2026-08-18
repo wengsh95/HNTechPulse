@@ -1,8 +1,9 @@
-"""Inspect LLM-based image selection against existing daily data.
+"""Inspect deterministic image selection against existing daily data.
 
 This script is intentionally read-only with respect to daily pipeline artifacts:
-it loads ``content.json`` / ``enrichment.json`` and calls ArticleEnricher's image
-selection helper, but it does not rewrite ``image_selection.json``.
+it loads ``content.json`` / ``enrichment.json`` and calls ArticleEnricher's
+deterministic image-selection helper, but it does not rewrite
+``image_selection.json``.
 """
 
 from __future__ import annotations
@@ -18,12 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.core.models import ContentItem
-from src.pipeline.content_io import ContentPreparer
-from src.pipeline.paths import pipeline_path
-from src.providers.enricher.article_enricher import ArticleEnricher
-from src.providers.factory import create_llm_provider
-from src.utils.config import load_config
+from src.core.models import ContentItem  # noqa: E402
+from src.pipeline.content_io import ContentPreparer  # noqa: E402
+from src.pipeline.paths import pipeline_path  # noqa: E402
+from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
+from src.providers.factory import create_llm_provider  # noqa: E402
+from src.utils.config import load_config  # noqa: E402
 
 
 def _load_enrichment(date: str) -> dict[str, Any]:
@@ -89,7 +90,6 @@ def inspect_dates(
         "items": [],
         "summary": {
             "total": 0,
-            "llm": 0,
             "heuristic": 0,
             "no_candidates": 0,
             "changed_from_existing_auto": 0,
@@ -137,9 +137,7 @@ def inspect_dates(
             )
             selected_path = selected.get("path") if selected else None
             selection_source = selected.get("selection_source") if selected else None
-            if selection_source == "llm":
-                report["summary"]["llm"] += 1
-            elif selection_source == "heuristic":
+            if selection_source == "heuristic":
                 report["summary"]["heuristic"] += 1
             if existing_auto and selected_path != existing_auto:
                 report["summary"]["changed_from_existing_auto"] += 1

@@ -2,12 +2,25 @@ prefilter:
   enabled: true
   batch_size: 30
   min_keep: 3
-  temperature: 0.1
+  temperature: 0.0
   comment_preview_enabled: true
   comment_preview_count: 5
   min_news_focus: 4
   min_newsworthiness: 3
+  allow_shareable_non_news: true
+  min_non_news_audience_interest: 4
+  min_non_news_discussion_heat: 3
+  min_project_fit: 3
+  min_research_project_fit: 4
+  shareable_non_news_types:
+    - technical_experiment
+    - incident_postmortem
+    - tool_product
+    - research_science
+    - tech_culture
   news_focus_weight: 2.0          # 复合分权重：新闻类程度
   newsworthiness_weight: 1.5      # 复合分权重：新闻价值
   audience_interest_weight: 1.8   # 复合分权重：B站观众兴趣/视频钩子
   discussion_heat_weight: 1.2     # 复合分权重：HN讨论热度/评论密度
+  project_fit_weight: 1.5         # 复合分权重：对 HN TechPulse 核心主题的相关性
+  ai_relevance_weight: 1.5        # 复合分权重：AI厂商/模型方向优先级

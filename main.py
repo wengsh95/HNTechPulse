@@ -37,7 +37,7 @@ def validate_date(value: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="HN TechPulse: Generate Xiaohongshu cards from Hacker News"
+        description="HN TechPulse: Generate Xiaohongshu cards or tech video from Hacker News"
     )
     parser.add_argument(
         "--date",
@@ -46,11 +46,17 @@ def main():
         help="Date to process (YYYY-MM-DD)",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument(
+        "--flow",
+        choices=["xhs", "video"],
+        default="xhs",
+        help="Product flow; selects the product state and execution branch",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume from pipeline_state.json failed/current/next step",
+        help="Resume from the selected product's failed/current/next step",
     )
     parser.add_argument(
         "--agent",
@@ -76,6 +82,16 @@ def main():
         help="Clear script and variant caches before agent script generation",
     )
     parser.add_argument(
+        "--refresh-script",
+        action="store_true",
+        help="Explicitly regenerate a manually changed editorial script",
+    )
+    parser.add_argument(
+        "--refresh-selection",
+        action="store_true",
+        help="Explicitly allow agent prefilter to replace the locked story selection",
+    )
+    parser.add_argument(
         "--renderer",
         type=str,
         choices=["remotion", "hyperframes"],
@@ -95,8 +111,11 @@ def main():
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
-            "plan_xhs_cards, render_xhs_cards). Default produces one six-page "
-            "Xiaohongshu card package; video/TTS steps are legacy manual options."
+            "plan_xhs_cards, render_xhs_cards, write_script, review_script, "
+            "translate_comments, synthesize_audio, title, cover_image, "
+            "cover_thumbnail, publish_guide, xhs_guide, prepare_render, render, "
+            "preview). Default produces one six-page Xiaohongshu card package; "
+            "video steps can be run through scripts/agent_run.py --flow video."
         ),
     )
     parser.add_argument(
@@ -117,10 +136,13 @@ def main():
 
     config = load_config(args.config)
     if args.resume:
-        state = load_pipeline_state(args.date)
+        state = load_pipeline_state(
+            args.date,
+            product="video" if args.flow == "video" else "xhs_cards",
+        )
         if not state:
             parser.error(
-                f"--resume requested but data/{args.date}/pipeline_state.json was not found"
+                f"--resume requested but no {args.flow} pipeline state was found for {args.date}"
             )
         resume_step = (
             state.get("failed_step")
@@ -136,7 +158,7 @@ def main():
         )
         if not resume_step:
             parser.error(
-                "--resume requested but pipeline_state.json has no pending step"
+                "--resume requested but the selected product state has no pending step"
             )
         state_steps = [str(step) for step in state.get("steps", []) if step]
         if state_steps and str(resume_step) in state_steps:
@@ -146,7 +168,14 @@ def main():
     else:
         steps = [s.strip() for s in args.steps.split(",")]
 
-    product = "xhs_cards"
+    product = (
+        "video"
+        if args.flow == "video"
+        or any(
+            step in {"synthesize_audio", "prepare_render", "render"} for step in steps
+        )
+        else "xhs_cards"
+    )
 
     log_file = get_log_file_path(args.date) if not args.dry_run else None
     log_level = config.get("logging", {}).get("level", "INFO")
@@ -163,6 +192,7 @@ def main():
     logger.info(f"Agent mode: {args.agent}")
     logger.info(f"Allow degraded enrichment: {args.allow_degraded_enrichment}")
     logger.info(f"Refresh variants: {args.refresh_variants}")
+    logger.info(f"Refresh selection: {args.refresh_selection}")
     logger.info(f"Pipeline steps: {steps}")
     logger.info("=" * 60)
 
@@ -184,7 +214,9 @@ def main():
         article_enricher = None
         enrich_config = config.get("enrich", {})
         if enrich_config.get("enabled", False):
-            article_enricher = ArticleEnricher(llm_provider, config, debug=args.debug)
+            article_enricher = ArticleEnricher(
+                llm_provider, config, debug=args.debug, agent_mode=args.agent
+            )
             logger.info("Article enrichment enabled")
 
         image_generator = None
@@ -210,6 +242,9 @@ def main():
             agent_mode=args.agent,
             allow_degraded_enrichment=args.allow_degraded_enrichment,
             refresh_variants=args.refresh_variants,
+            refresh_selection=args.refresh_selection,
+            refresh_script=args.refresh_script,
+            flow=args.flow,
         )
 
         orchestrator.run(

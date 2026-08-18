@@ -198,6 +198,12 @@ class HNFetcher(ContentFetcher):
                         source_id=str(hn_comment.id),
                         upvotes=hn_comment.score,
                         depth=hn_comment.depth,
+                        parent_id=(
+                            str(hn_comment.parent_id)
+                            if hn_comment.parent_id is not None
+                            else None
+                        ),
+                        parent_text=hn_comment.parent_text,
                         published_at=hn_comment.time,
                     )
                 )
@@ -494,25 +500,25 @@ class HNFetcher(ContentFetcher):
         )
 
         comments: List[HNComment] = []
-        queue: deque[Tuple[int, int]] = deque()
+        queue: deque[Tuple[int, int, Optional[int], Optional[str]]] = deque()
         for kid_id in top_kids:
-            queue.append((kid_id, 1))
+            queue.append((kid_id, 1, None, None))
 
         fetched_count = 0
         last_log_count = 0
 
         while queue:
-            batch: List[Tuple[int, int]] = []
+            batch: List[Tuple[int, int, Optional[int], Optional[str]]] = []
             while queue and len(batch) < self.max_concurrent_requests:
                 batch.append(queue.popleft())
 
             tasks = [
                 self._async_fetch_item(session, semaphore, item_id)
-                for item_id, _depth in batch
+                for item_id, _depth, _parent_id, _parent_text in batch
             ]
             results = await asyncio.gather(*tasks)
 
-            for (item_id, depth), result in zip(batch, results):
+            for (item_id, depth, parent_id, parent_text), result in zip(batch, results):
                 if result is None:
                     continue
                 assert isinstance(result, dict), f"Expected dict, got {type(result)}"
@@ -527,6 +533,8 @@ class HNFetcher(ContentFetcher):
                         time=result.get("time", 0),
                         score=result.get("score"),
                         depth=depth,
+                        parent_id=parent_id,
+                        parent_text=parent_text,
                     )
                     comments.append(comment)
                     fetched_count += 1
@@ -534,7 +542,7 @@ class HNFetcher(ContentFetcher):
                     if depth < self.max_comment_depth:
                         sub_kids = result.get("kids", [])
                         for kid_id in sub_kids:
-                            queue.append((kid_id, depth + 1))
+                            queue.append((kid_id, depth + 1, comment.id, comment.text))
 
                 interval = self.comment_log_interval
                 if interval > 0 and fetched_count - last_log_count >= interval:
@@ -642,7 +650,8 @@ class HNFetcher(ContentFetcher):
 
     def _select_top_stories(self, stories: List[HNStory]) -> List[HNStory]:
         stories_sorted = sorted(
-            stories, key=lambda s: (s.score, s.descendants), reverse=True
+            stories,
+            key=lambda s: (-int(s.score or 0), -int(s.descendants or 0), int(s.id)),
         )
         return stories_sorted[: self.target_stories_count]
 
@@ -786,6 +795,10 @@ class HNFetcher(ContentFetcher):
             d["score"] = comment.score
         if comment.depth is not None:
             d["depth"] = comment.depth
+        if comment.parent_id is not None:
+            d["parent_id"] = comment.parent_id
+        if comment.parent_text:
+            d["parent_text"] = comment.parent_text
         return d
 
     def _dict_to_comment(self, d: dict) -> HNComment:
@@ -796,4 +809,6 @@ class HNFetcher(ContentFetcher):
             time=d["time"],
             score=d.get("score"),
             depth=d.get("depth"),
+            parent_id=d.get("parent_id"),
+            parent_text=d.get("parent_text"),
         )

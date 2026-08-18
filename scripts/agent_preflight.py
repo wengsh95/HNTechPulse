@@ -50,12 +50,19 @@ def _check_yaml_config(config_path: str) -> tuple[dict[str, Any] | None, list[di
     return config, issues
 
 
-def _env_checks(config: dict[str, Any]) -> list[dict]:
+def _env_checks(config: dict[str, Any], flow: str = "xhs") -> list[dict]:
     issues = []
     env_names = []
     llm_cfg = config.get("llm", {})
     if llm_cfg.get("api_key_env"):
         env_names.append(("llm", llm_cfg["api_key_env"]))
+    if flow == "video":
+        tts_cfg = config.get("tts", {})
+        if tts_cfg.get("api_key_env"):
+            env_names.append(("tts", tts_cfg["api_key_env"]))
+        image_cfg = config.get("image_generator", {})
+        if image_cfg.get("enabled") and image_cfg.get("api_key_env"):
+            env_names.append(("image_generator", image_cfg["api_key_env"]))
     for owner, env_name in env_names:
         if not os.environ.get(env_name):
             issues.append(
@@ -70,7 +77,7 @@ def _env_checks(config: dict[str, Any]) -> list[dict]:
     return issues
 
 
-def _tool_checks() -> list[dict]:
+def _tool_checks(flow: str = "xhs") -> list[dict]:
     issues = []
     if not shutil.which("uv"):
         issues.append(
@@ -82,38 +89,55 @@ def _tool_checks() -> list[dict]:
             }
         )
 
-    browser_candidates = [
-        shutil.which("chrome"),
-        shutil.which("msedge"),
-        Path(os.environ.get("PROGRAMFILES", ""))
-        / "Google"
-        / "Chrome"
-        / "Application"
-        / "chrome.exe",
-        Path(os.environ.get("PROGRAMFILES(X86)", ""))
-        / "Microsoft"
-        / "Edge"
-        / "Application"
-        / "msedge.exe",
-    ]
-    has_browser = any(
-        bool(candidate and Path(candidate).exists()) for candidate in browser_candidates
-    )
-    if importlib.util.find_spec("playwright") is None or not has_browser:
-        issues.append(
-            {
-                "severity": "blocked",
-                "check": "browser",
-                "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
-                "message": "Playwright and Chrome/Edge are required to render cards",
-            }
+    if flow == "video":
+        for tool in ("ffmpeg", "npx"):
+            if not shutil.which(tool):
+                issues.append(
+                    {
+                        "severity": "blocked",
+                        "check": "tool",
+                        "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
+                        "message": f"{tool} is required for video generation",
+                    }
+                )
+    else:
+        browser_candidates = [
+            shutil.which("chrome"),
+            shutil.which("msedge"),
+            Path(os.environ.get("PROGRAMFILES", ""))
+            / "Google"
+            / "Chrome"
+            / "Application"
+            / "chrome.exe",
+            Path(os.environ.get("PROGRAMFILES(X86)", ""))
+            / "Microsoft"
+            / "Edge"
+            / "Application"
+            / "msedge.exe",
+        ]
+        has_browser = any(
+            bool(candidate and Path(candidate).exists())
+            for candidate in browser_candidates
         )
+        if importlib.util.find_spec("playwright") is None or not has_browser:
+            issues.append(
+                {
+                    "severity": "blocked",
+                    "check": "browser",
+                    "blocked_reason": BLOCK_EXTERNAL_TOOL_MISSING,
+                    "message": "Playwright and Chrome/Edge are required to render cards",
+                }
+            )
     return issues
 
 
-def _state_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
+def _state_checks(
+    date: str, flow: str = "xhs"
+) -> tuple[dict[str, Any] | None, list[dict]]:
     issues = []
-    state = load_pipeline_state(date)
+    state = load_pipeline_state(
+        date, product="video" if flow == "video" else "xhs_cards"
+    )
     if not state:
         return None, issues
     if state.get("status") == "blocked":
@@ -138,15 +162,17 @@ def _state_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     return state, issues
 
 
-def _last_run_summary(date: str) -> dict[str, Any] | None:
+def _last_run_summary(date: str, flow: str = "xhs") -> dict[str, Any] | None:
     """One-line summary of the most recent successful run for a date.
 
-    Reads pipeline_state.json + report.md (if present) to give the agent
+    Reads the product-scoped pipeline state + report.md (if present) to give the agent
     the answer to "is this date already done, and if so, what did I get?"
     without re-running the full audit. Saves a full audit call when the
     agent's only question is "did I already do this date?".
     """
-    state = load_pipeline_state(date)
+    state = load_pipeline_state(
+        date, product="video" if flow == "video" else "xhs_cards"
+    )
     if not state or state.get("status") not in {"complete", "degraded"}:
         return None
     summary: dict[str, Any] = {
@@ -229,13 +255,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Agent preflight for HN TechPulse")
     parser.add_argument("--date", default=_default_date())
     parser.add_argument("--config", default="config/")
+    parser.add_argument("--flow", choices=["xhs", "video"], default="xhs")
     args = parser.parse_args()
 
     config, issues = _check_yaml_config(args.config)
     if config:
-        issues.extend(_env_checks(config))
-    issues.extend(_tool_checks())
-    state, state_issues = _state_checks(args.date)
+        issues.extend(_env_checks(config, args.flow))
+    issues.extend(_tool_checks(args.flow))
+    state, state_issues = _state_checks(args.date, args.flow)
     tasks, task_issues = _task_checks(args.date)
     issues.extend(state_issues)
     issues.extend(task_issues)
@@ -243,7 +270,7 @@ def main() -> int:
     fatal = any(i["severity"] == "fatal" for i in issues)
     blocked = any(i["severity"] == "blocked" for i in issues)
     status = "fatal" if fatal else "blocked" if blocked else "ok"
-    last_run = _last_run_summary(args.date)
+    last_run = _last_run_summary(args.date, args.flow)
     payload = {
         "schema_version": 2,
         "date": args.date,

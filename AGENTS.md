@@ -13,6 +13,7 @@ cp .env.example .env           # Configure API keys (ANTHROPIC, OPENAI, DEEPSEEK
 
 ```bash
 uv run python scripts/agent_run.py --date YYYY-MM-DD         # 1. Managed agent run (preflight + status + safe steps)
+uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video  # Managed TTS + video render flow
 uv run python scripts/agent_run.py --date YYYY-MM-DD --resume # 2. Resume through managed entrypoint
 uv run python scripts/agent_status.py --date YYYY-MM-DD      # 3. Inspect machine-readable state/artifacts
 uv run python scripts/agent_audit.py --date YYYY-MM-DD       # 4. Final publishability audit
@@ -45,17 +46,18 @@ Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
 
 | File | Purpose |
 |------|---------|
-| `pipeline_state.json` | Pipeline status, completed/failed steps, blocked reason |
+| `pipeline_state_video.json` / `pipeline_state_xhs.json` | Product-scoped pipeline status; legacy `pipeline_state.json` is migration fallback |
 | `agent_events.jsonl` | Append-only event log |
 | `agent_tasks.json` | Pending repair tasks (e.g. manual article fetch) |
 | `agent_decision.json` | Decision gate result (confidence, scores, thresholds) |
+| `script_lock.json` | Editorial script hash; prevents implicit regeneration after manual edits |
 
 ## Rules
 
 1. Always use `scripts/agent_run.py` for pipeline execution; it runs preflight
    and status checks before invoking `main.py --agent`.
 2. Read JSON state files, never parse human logs.
-3. On `blocked` status → read `blocked_reason` in `pipeline_state.json` → follow [AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md).
+3. On `blocked` status → read `blocked_reason` in the product state file → follow [AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md).
 4. Never use `--allow-degraded-enrichment` for final output without explicit user approval.
 5. If `agent_status.py` reports stale artifacts, follow its `safe_next_commands`;
    do not render PNGs from a stale `xhs_cards.json` plan.
@@ -66,6 +68,7 @@ Pre-commit hooks run **ruff + vulture only** (no mypy, no pytest).
 - **Card output**: the managed flow writes exactly 6 PNGs at `1080×1440`
   under `publish/xhs_cards/`, plus `_contact-sheet.png`.
 - **Browser renderer**: Playwright uses installed Chrome first and Edge as a
-  fallback. Video renderers are legacy manual paths, not managed defaults.
+  fallback for the XHS card flow. Video rendering uses the configured Remotion
+  or HyperFrames provider through `--flow video`.
 - **Prompt placeholders**: `{{ foo }}` tokens must have matching `PH_FOO` constants in `src/core/prompts.py`. `render_prompt()` raises on unknown placeholders.
 - **Path literals**: Never build `f"data/{month}/{date}/foo.json"` directly — use helpers from `src/pipeline/paths.py`.

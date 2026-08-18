@@ -34,3 +34,21 @@ def test_splits_long_cjk_text_to_one_line_weight():
 
     assert len(parts) == 2
     assert all(subtitle_display_weight(part) <= 24 for part in parts)
+
+
+def test_merges_numeric_unit_split_before_resplitting():
+    texts = [
+        "据Bloomberg报道，Stripe已敲定以超过七十",
+        "亿美元收购AI模型路由平台OpenRouter。",
+    ]
+
+    assert split_subtitle_texts(texts) == [
+        "据Bloomberg报道，Stripe已敲定以超过七十亿美元",
+        "收购AI模型路由平台OpenRouter。",
+    ]
+
+
+def test_merges_split_english_token():
+    assert split_subtitle_texts(["Open", "Router平台已上线。"]) == [
+        "OpenRouter平台已上线。"
+    ]

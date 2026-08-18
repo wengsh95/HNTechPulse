@@ -175,7 +175,10 @@ class AgentDecisionEngine:
                 quote_elements += len(props.get("quotes") or [])
                 quote_elements += len(props.get("selected_comment_ids") or [])
 
+        alignment_issues = self._script_alignment_issues(content, story_segments)
         story_coherence = sum([has_opening, has_story, has_closing]) / 3
+        if alignment_issues:
+            story_coherence = 0.0
         comment_usage = min(1.0, quote_elements / max(1, len(content.items)))
         title_strength = 1.0 if script.title and len(script.title.strip()) >= 4 else 0.4
         factual_grounding = self._content_grounding_score(content)
@@ -200,7 +203,13 @@ class AgentDecisionEngine:
         status = "continue"
         blocked_reason = None
         rationale = "Script quality gate passed."
-        if publish_readiness < self.min_script_publish_readiness:
+        if alignment_issues:
+            status = "blocked"
+            blocked_reason = BLOCK_LOW_DECISION_CONFIDENCE
+            rationale = "Script story-to-source alignment failed: " + "; ".join(
+                issue["reason"] for issue in alignment_issues
+            )
+        elif publish_readiness < self.min_script_publish_readiness:
             status = "blocked"
             blocked_reason = BLOCK_LOW_DECISION_CONFIDENCE
             rationale = "Script publish readiness is below the configured threshold."
@@ -223,10 +232,120 @@ class AgentDecisionEngine:
             },
             rationale=rationale,
             blocked_reason=blocked_reason,
+            blocked_items=alignment_issues,
             requires_human_review=False,
         )
         self.write_decision(date, result)
         return result
+
+    @staticmethod
+    def _script_alignment_issues(
+        content: ContentPackage, story_segments: list[Any]
+    ) -> list[dict[str, Any]]:
+        """Find story cards whose metadata points at another source item."""
+        issues: list[dict[str, Any]] = []
+        for segment_index, segment in enumerate(story_segments):
+            declared = segment.meta.get("story_indices") or []
+            declared_indices: list[int] = []
+            for raw_index in declared:
+                try:
+                    declared_indices.append(int(raw_index))
+                except (TypeError, ValueError):
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "reason": f"invalid declared story index {raw_index!r}",
+                        }
+                    )
+                else:
+                    if not 0 <= declared_indices[-1] < len(content.items):
+                        issues.append(
+                            {
+                                "segment_index": segment_index,
+                                "story_index": declared_indices[-1],
+                                "reason": (
+                                    "declared story index is outside content items"
+                                ),
+                            }
+                        )
+
+            if len(set(declared_indices)) != len(declared_indices):
+                issues.append(
+                    {
+                        "segment_index": segment_index,
+                        "reason": "duplicate declared story indices",
+                    }
+                )
+
+            card_indices: set[int] = set()
+            for element in segment.scene_elements:
+                if element.element_type not in {"event_card", "atmosphere_card"}:
+                    continue
+                props = element.props or {}
+                raw_index = props.get("story_index")
+                if raw_index is None:
+                    continue
+                try:
+                    story_index = int(raw_index)
+                except (TypeError, ValueError):
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "reason": f"invalid card story index {raw_index!r}",
+                        }
+                    )
+                    continue
+                card_indices.add(story_index)
+                if not 0 <= story_index < len(content.items):
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "story_index": story_index,
+                            "reason": "card story index is outside content items",
+                        }
+                    )
+                    continue
+
+                item = content.items[story_index]
+                if (
+                    props.get("source_title")
+                    and props.get("source_title") != item.title
+                ):
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "story_index": story_index,
+                            "reason": "card source_title does not match story index",
+                        }
+                    )
+                if item.title_cn and props.get("title_cn") != item.title_cn:
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "story_index": story_index,
+                            "reason": "card title_cn does not match story index",
+                        }
+                    )
+                if item.editor_angle and props.get("editor_angle") != item.editor_angle:
+                    issues.append(
+                        {
+                            "segment_index": segment_index,
+                            "story_index": story_index,
+                            "reason": "card editor_angle does not match story index",
+                        }
+                    )
+
+            if declared_indices and card_indices != set(declared_indices):
+                issues.append(
+                    {
+                        "segment_index": segment_index,
+                        "reason": (
+                            "card story indices do not match declared story indices "
+                            f"({sorted(card_indices)} != {sorted(set(declared_indices))})"
+                        ),
+                    }
+                )
+        return issues
 
     def select_script_variant(
         self, content: ContentPackage, variants: list[dict[str, Any]], date: str

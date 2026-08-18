@@ -385,9 +385,32 @@ def _expand_atmosphere_card(props, content, logger=None):
         )
     result["quotes"] = quotes
 
-    # Override stance_distribution and debate_focus from judgement if available
+    # Only accept distributions built from the separate, unbiased per-comment
+    # labels. Legacy LLM percentages were based on the quote sampler and are
+    # intentionally hidden after the judgement schema upgrade.
     if judgement.get("stance_distribution"):
-        result["stance_distribution"] = judgement["stance_distribution"]
+        meta = judgement.get("stance_distribution_meta") or {}
+        usable = int(meta.get("context_sufficient_count") or 0)
+        coverage = float(meta.get("coverage") or 0.0)
+        mean_confidence = float(meta.get("mean_confidence") or 0.0)
+        if (
+            meta.get("source") == "llm_per_comment"
+            and usable >= 5
+            and coverage >= 0.7
+            and mean_confidence >= 0.6
+        ):
+            result["stance_distribution"] = judgement["stance_distribution"]
+        elif meta.get("source") == "legacy_llm":
+            result["stance_distribution"] = {}
+            logger.info(
+                "atmosphere_card: hiding legacy stance distribution for %s",
+                item.source_id,
+            )
+        elif not meta:
+            # Backward-compatible input for direct callers/tests. Persisted
+            # schema-v9 judgements always include metadata and are gated above.
+            result["stance_distribution"] = judgement["stance_distribution"]
+        result["stance_distribution_meta"] = meta
     if judgement.get("debate_focus"):
         result["debate_focus"] = judgement["debate_focus"]
     if judgement.get("stance_concerns"):
@@ -661,7 +684,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     from src.pipeline.script.io import load_script as _load_script
     from src.pipeline.content_io import ContentPreparer as _ContentPreparer
 
-    script = _load_script(date)
+    script = _load_script(date, with_audio=True)
     cp = _ContentPreparer(config)
     content = cp.load_content(date)
 

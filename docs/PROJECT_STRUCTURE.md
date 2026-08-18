@@ -128,7 +128,7 @@ Key responsibilities:
 - `orchestrator.py`: step execution, prerequisite expansion, agent gates,
   resume behavior, and manifests.
 - `content_io.py`: date-scoped content artifact loading/writing.
-- `agent_state.py`: `pipeline_state.json` and blocked/failed/complete state.
+- `agent_state.py`: product-scoped pipeline state files and blocked/failed/complete state.
 - `agent_io.py`: JSONL events, state loading, artifact hashes, manifests.
 - `agent_decision.py`: source-context and script-quality decision gates.
 - `agent_variants.py`: script variants, scorecards, selected variant promotion.
@@ -296,8 +296,9 @@ data/{month}/{date}/
 |-- render/      legacy video render artifacts
 |-- publish/     xhs_cards.json, xhs_cards/{index.html,assets/,xhs-*.png,
 |                _contact-sheet.png}
-|-- agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
-|                agent_events.jsonl, selected_variant.json, report.md
+|-- agent/       pipeline_state_video.json, pipeline_state_xhs.json,
+|                agent_decision.json, agent_tasks.json, agent_events.jsonl,
+|                script_lock.json, selected_variant.json, report.md
 `-- outputs/     (organize_outputs.py mirror — unchanged)
 ```
 
@@ -315,7 +316,7 @@ publish/xhs_cards/_contact-sheet.png
 Agent artifacts:
 
 ```text
-agent/pipeline_state.json
+agent/pipeline_state_video.json or agent/pipeline_state_xhs.json
 agent/agent_events.jsonl
 agent/agent_tasks.json
 agent/agent_decision.json
@@ -338,6 +339,7 @@ Artifact manifests are written next to key outputs:
 ```text
 pipeline/content.json.manifest.json
 pipeline/script.json.manifest.json
+pipeline/audio_manifest.json
 publish/title.json.manifest.json
 media/cover_props.json.manifest.json
 publish/publish_guide.md.manifest.json

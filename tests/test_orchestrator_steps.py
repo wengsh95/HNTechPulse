@@ -14,6 +14,7 @@ from src.pipeline.orchestrator import (
     STANDALONE_STEPS,
     _resolve_steps,
 )
+from src.pipeline.script.io import save_script, save_script_to_path
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ def _make_config():
     }
 
 
-def _make_orchestrator(dry_run=True):
+def _make_orchestrator(dry_run=True, flow=None):
     config = _make_config()
     return Orchestrator(
         config=config,
@@ -37,6 +38,7 @@ def _make_orchestrator(dry_run=True):
         renderer=MagicMock(spec=Renderer),
         debug=True,
         dry_run=dry_run,
+        flow=flow,
     )
 
 
@@ -95,6 +97,7 @@ class TestStepList:
             "write_script",
             "review_script",
             "translate_comments",
+            "prepare_subtitles",
             "synthesize_audio",
             "title",
             "cover_image",
@@ -129,6 +132,23 @@ class TestStepList:
         assert "synthesize_audio" in resolved
         assert "prepare_render" in resolved
         assert "render" in resolved
+        assert resolved.index("synthesize_audio") < resolved.index("prepare_render")
+        assert resolved.index("prepare_subtitles") < resolved.index("synthesize_audio")
+
+    def test_video_downstream_recovery_does_not_expand_editorial_chain(self):
+        resolved = _resolve_steps(["synthesize_audio", "prepare_render", "render"])
+        assert resolved == [
+            "prepare_subtitles",
+            "synthesize_audio",
+            "prepare_render",
+            "render",
+        ]
+        assert "write_script" not in resolved
+        assert "review_script" not in resolved
+        assert "fetch" not in resolved
+
+    def test_render_only_stays_render_only(self):
+        assert _resolve_steps(["render"]) == ["render"]
 
     def test_card_render_can_be_repaired_without_replanning(self):
         assert _resolve_steps(["render_xhs_cards"]) == ["render_xhs_cards"]
@@ -144,6 +164,116 @@ class TestStepFetch:
         assert isinstance(result, ContentPackage)
         assert result.date == "2026-04-26"
         assert len(result.items) == 0
+
+    def test_agent_fetch_reuses_locked_selection(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = _make_config()
+        fetcher = MagicMock(spec=ContentFetcher)
+        orch = Orchestrator(
+            config=config,
+            content_fetcher=fetcher,
+            llm_provider=MagicMock(spec=LLMProvider),
+            tts_provider=MagicMock(spec=TTSProvider),
+            renderer=MagicMock(spec=Renderer),
+            agent_mode=True,
+        )
+        content = ContentPackage(
+            date="2026-04-26",
+            items=[
+                ContentItem(
+                    source="hackernews",
+                    source_id="101",
+                    title="Locked story 1",
+                    url="https://example.com/1",
+                ),
+                ContentItem(
+                    source="hackernews",
+                    source_id="202",
+                    title="Locked story 2",
+                    url="https://example.com/2",
+                ),
+            ],
+        )
+        orch.content_preparer.save_content(content, content.date)
+        orch._write_selection_lock(content, content.date)
+
+        result = orch._step_fetch(content.date)
+
+        assert [item.source_id for item in result.items] == ["101", "202"]
+        fetcher.fetch.assert_not_called()
+
+    def test_agent_fetch_rejects_selection_mismatch(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = Orchestrator(
+            config=_make_config(),
+            content_fetcher=MagicMock(spec=ContentFetcher),
+            llm_provider=MagicMock(spec=LLMProvider),
+            tts_provider=MagicMock(spec=TTSProvider),
+            renderer=MagicMock(spec=Renderer),
+            agent_mode=True,
+        )
+        locked = ContentPackage(
+            date="2026-04-26",
+            items=[
+                ContentItem(
+                    source="hackernews",
+                    source_id="101",
+                    title="Locked story",
+                    url="https://example.com/1",
+                )
+            ],
+        )
+        changed = ContentPackage(
+            date=locked.date,
+            items=[
+                ContentItem(
+                    source="hackernews",
+                    source_id="999",
+                    title="Changed story",
+                    url="https://example.com/9",
+                )
+            ],
+        )
+        orch.content_preparer.save_content(locked, locked.date)
+        orch._write_selection_lock(locked, locked.date)
+        orch.content_preparer.save_content(changed, changed.date)
+
+        with pytest.raises(RuntimeError, match="Selection lock mismatch"):
+            orch._step_fetch(changed.date)
+
+
+class TestScriptLock:
+    def test_manual_script_change_blocks_script_regeneration(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        script = _make_script()
+        save_script(script, date)
+        path = Path(f"data/{date[:7]}/{date}/pipeline/script.json")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["segments"][0]["audio_text"] = "手工改过的旁白"
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+        orch = _make_orchestrator(dry_run=True)
+        with pytest.raises(RuntimeError, match="script.json changed"):
+            orch._step_write_script(_make_content(), date)
+
+    def test_legacy_script_without_lock_blocks_when_artifact_was_edited(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        script = _make_script()
+        path = Path(f"data/{date[:7]}/{date}/pipeline/script.json")
+        save_script_to_path(script, path, date=date)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["segments"][0]["audio_text"] = "旧稿被手工改过"
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+        orch = _make_orchestrator(dry_run=True)
+        with pytest.raises(RuntimeError, match="untracked editorial changes"):
+            orch._step_write_script(_make_content(), date)
 
 
 class TestStepPrefilter:
@@ -437,6 +567,7 @@ class TestRunDispatch:
             "_step_judge_comments",
             "_step_write_script",
             "_step_translate_comments",
+            "_step_prepare_subtitles",
             "_step_synthesize_audio",
             "_step_title",
             "_step_cover_image",
@@ -496,7 +627,7 @@ class TestRunDispatch:
         for name in steps_after:
             mocks[name].assert_not_called(), f"{name} should NOT have been called"
 
-    def test_agent_mode_writes_state_file(self, tmp_path, monkeypatch):
+    def test_agent_mode_dry_run_does_not_write_state_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         orch = _make_orchestrator(dry_run=True)
         orch.agent_mode = True
@@ -509,12 +640,103 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state.json"
+            / "pipeline_state_xhs.json"
         )
-        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert not state_path.exists()
+
+    def test_video_downstream_run_writes_runtime_artifacts_without_upstream_steps(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+
+        content = _make_content()
+        script = _make_script()
+        orch.content_preparer.save_content(content, date)
+        save_script(script, date)
+
+        def synthesize(current_script, _date, _content):
+            audio_path = (
+                tmp_path
+                / "data"
+                / date[:7]
+                / date
+                / "pipeline"
+                / "audio"
+                / "segment_00.mp3"
+            )
+            audio_path.parent.mkdir(parents=True, exist_ok=True)
+            audio_path.write_bytes(b"audio")
+            segment = current_script.segments[0]
+            segment.actual_duration = 1.0
+            segment.start_time = 0.0
+            segment.end_time = 1.0
+            segment.audio_path = str(audio_path)
+            return current_script
+
+        orch.tts_processor.process_audio = MagicMock(side_effect=synthesize)
+        props_path = tmp_path / "data" / date[:7] / date / "render" / "cli_props.json"
+
+        def write_props(_script, _audio_dir, _content, **kwargs):
+            props_path.parent.mkdir(parents=True, exist_ok=True)
+            props_path.write_text("{}", encoding="utf-8")
+            return props_path, "{}", {}
+
+        orch.renderer.write_props.side_effect = write_props
+
+        def render(_script, _audio_dir, output_path, _content, date=None):
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(output_path).write_bytes(b"video")
+
+        orch.renderer.render.side_effect = render
+
+        orch.run(
+            date,
+            steps=["synthesize_audio", "prepare_render", "render"],
+            force=False,
+        )
+
+        orch.content_fetcher.fetch.assert_not_called()
+        orch.tts_processor.process_audio.assert_called_once()
+        orch.renderer.write_props.assert_called_once()
+        orch.renderer.render.assert_called_once()
+        assert Path(f"data/{date[:7]}/{date}/pipeline/audio_manifest.json").exists()
+        assert Path(f"data/{date[:7]}/{date}/pipeline/subtitle_plan.json").exists()
+        assert Path(f"data/{date[:7]}/{date}/agent/script_lock.json").exists()
+        assert Path(f"data/{date[:7]}/{date}/publish/output.mp4.manifest.json").exists()
+        persisted_script = json.loads(
+            Path(f"data/{date[:7]}/{date}/pipeline/script.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert persisted_script["segments"][0]["audio_text"] == "hi"
+        assert not Path(
+            f"data/{date[:7]}/{date}/agent/pipeline_state_xhs.json"
+        ).exists()
+        state = json.loads(
+            Path(f"data/{date[:7]}/{date}/agent/pipeline_state_video.json").read_text(
+                encoding="utf-8"
+            )
+        )
         assert state["status"] == "complete"
-        assert state["completed_steps"] == ["fetch"]
-        assert state["artifacts"]["content"] is None
+
+    def test_explicit_video_flow_scopes_non_render_step_state_to_video(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False, flow="video")
+        orch.agent_mode = True
+        content = _make_content()
+        orch._step_fetch = MagicMock(return_value=content)
+
+        orch.run("2026-04-26", steps=["fetch"], force=False)
+
+        assert Path("data/2026-04/2026-04-26/agent/pipeline_state_video.json").exists()
+        assert not Path(
+            "data/2026-04/2026-04-26/agent/pipeline_state_xhs.json"
+        ).exists()
 
     def test_agent_mode_blocks_after_enrichment_failure(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -541,7 +763,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state.json"
+            / "pipeline_state_xhs.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
@@ -602,7 +824,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state.json"
+            / "pipeline_state_xhs.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "degraded"
@@ -656,7 +878,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state.json"
+            / "pipeline_state_xhs.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"

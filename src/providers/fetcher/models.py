@@ -22,3 +22,5 @@ class HNComment:
     time: int
     score: Optional[int] = None
     depth: Optional[int] = None
+    parent_id: Optional[int] = None
+    parent_text: Optional[str] = None

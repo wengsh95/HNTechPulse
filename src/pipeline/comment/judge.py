@@ -14,6 +14,7 @@ from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment.text import clean_comment_text
 from src.pipeline.comment.scoring import compute_comment_quality
 from src.pipeline.comment.selection import (
+    select_distribution_comments,
     select_discussion_profile_comments,
 )
 from src.pipeline.paths import pipeline_path
@@ -24,7 +25,7 @@ from src.utils.logger import setup_logger
 # ── Schema versions ────────────────────────────────────────────────────
 
 ANALYSIS_SCHEMA_VERSION = 3
-JUDGEMENT_SCHEMA_VERSION = 8
+JUDGEMENT_SCHEMA_VERSION = 10
 
 COLOR_PROMOTION_MAX_CHARS = 38
 QUOTE_SOFT_MAX_CHARS = 42
@@ -66,6 +67,17 @@ LAZY_QUOTE_TERMS = (
     "有趣的是",
 )
 
+STANCE_LABEL_ALIASES = {
+    "支持": "支持",
+    "support": "支持",
+    "赞成": "支持",
+    "质疑": "质疑",
+    "skeptic": "质疑",
+    "反对": "质疑",
+    "中立": "中立",
+    "neutral": "中立",
+}
+
 _save_lock = threading.Lock()
 
 
@@ -89,6 +101,15 @@ class CommentAnalyzer:
         )
         self.judge_candidate_similarity_threshold = analyze_cfg.get(
             "judge_candidate_similarity_threshold", 0.62
+        )
+        self.distribution_target_error_pp = float(
+            analyze_cfg.get("distribution_target_error_pp", 5.0)
+        )
+        self.distribution_max_comments = int(
+            analyze_cfg.get("distribution_max_comments", 385)
+        )
+        self.distribution_full_population_threshold = int(
+            analyze_cfg.get("distribution_full_population_threshold", 200)
         )
         self.embedding_enabled = analyze_cfg.get("embedding_enabled", True)
         log_level = config.get("logging", {}).get("level")
@@ -335,6 +356,18 @@ class CommentAnalyzer:
             similarity_threshold=float(self.judge_candidate_similarity_threshold),
         )
 
+    def get_distribution_candidates(
+        self, item: ContentItem, n: Optional[int] = None
+    ) -> List[ContentComment]:
+        return select_distribution_comments(
+            item,
+            max_n=n,
+            min_quality=float(self.judge_candidate_min_quality),
+            target_error_pp=self.distribution_target_error_pp,
+            max_sample=self.distribution_max_comments,
+            full_population_threshold=self.distribution_full_population_threshold,
+        )
+
     def _save_cache(self, content: ContentPackage, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         items_list: list[dict[str, object]] = []
@@ -412,6 +445,12 @@ class CommentJudge:
             "prompts/comment_analyze.md",
         )
         self.judge_candidate_count = analyze_cfg.get("max_comments_for_judge", 8)
+        self.distribution_batch_size = int(
+            analyze_cfg.get("distribution_batch_size", 40)
+        )
+        self.distribution_prompt_path = analyze_cfg.get(
+            "distribution_prompt", "prompts/comment_distribution.md"
+        )
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
@@ -422,7 +461,10 @@ class CommentJudge:
                 "the script step dependency on comment judge."
             )
 
-        stories = load_comment_judgements(date)
+        # The distribution workflow changed from one small mixed sample to
+        # independent batched sampling. Old judgements must be regenerated;
+        # renderer/translation callers still accept them for compatibility.
+        stories = load_comment_judgements(date, current_only=True)
         cached_count = 0
         for idx, item in enumerate(content.items):
             if comment_judgement_key(item) in stories:
@@ -474,6 +516,16 @@ class CommentJudge:
                     item, n=self.judge_candidate_count
                 )
 
+        distribution_candidates = []
+        if self.comment_analyzer and hasattr(
+            self.comment_analyzer, "get_distribution_candidates"
+        ):
+            distribution_candidates = self.comment_analyzer.get_distribution_candidates(
+                item
+            )
+        if not isinstance(distribution_candidates, list):
+            distribution_candidates = []
+
         # Optional: refine stance/quality/topic with cheap LLM
         if self.comment_refiner and pre_filtered:
             refinements = self.comment_refiner.refine(item, pre_filtered)
@@ -490,7 +542,49 @@ class CommentJudge:
             idx,
             self.prompt_template_path,
             candidates=pre_filtered,
+            distribution_candidates=[],
         )
+        stance_judge = getattr(self.llm_provider, "judge_story_comment_stances", None)
+        if distribution_candidates and callable(stance_judge):
+            batch_size = max(1, self.distribution_batch_size)
+            for batch_index, start in enumerate(
+                range(0, len(distribution_candidates), batch_size)
+            ):
+                batch = distribution_candidates[start : start + batch_size]
+                batch_result = stance_judge(
+                    item,
+                    idx,
+                    batch,
+                    self.distribution_prompt_path,
+                    batch_index=batch_index,
+                )
+                if not isinstance(batch_result, dict):
+                    continue
+                existing = {
+                    str(entry.get("comment_id"))
+                    for entry in result.get("stance_labels", []) or []
+                    if isinstance(entry, dict)
+                }
+                for entry in batch_result.get("stance_labels", []) or []:
+                    if not isinstance(entry, dict):
+                        continue
+                    comment_id = str(entry.get("comment_id") or "")
+                    if comment_id and comment_id not in existing:
+                        result.setdefault("stance_labels", []).append(entry)
+                        existing.add(comment_id)
+        elif distribution_candidates:
+            # Compatibility path for custom providers predating the batch API.
+            legacy_result = self.llm_provider.judge_story_comments(
+                item,
+                idx,
+                self.prompt_template_path,
+                candidates=pre_filtered,
+                distribution_candidates=distribution_candidates,
+            )
+            if isinstance(legacy_result, dict):
+                result.setdefault("stance_labels", []).extend(
+                    legacy_result.get("stance_labels", []) or []
+                )
         normalized = normalize_story_judgement(result, item)
         candidate_count = len(normalized.get("quote_candidates", []) or [])
         self.logger.info(f"  {label}: done, candidates={candidate_count}")
@@ -617,12 +711,39 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _normalize_candidate(raw: dict, valid_ids: set[str]) -> Optional[dict]:
-    comment_id = raw.get("comment_id") or raw.get("id") or raw.get("source_id")
-    if comment_id is None:
+def _resolve_comment_id(
+    value: Any,
+    valid_ids: set[str],
+    id_aliases: Optional[dict[str, str]] = None,
+) -> Optional[str]:
+    if value is None:
         return None
-    comment_id = str(comment_id)
-    if comment_id not in valid_ids:
+    comment_id = str(value)
+    if comment_id in valid_ids:
+        return comment_id
+    alias = (id_aliases or {}).get(comment_id.casefold())
+    return alias if alias in valid_ids else None
+
+
+def _comment_id_aliases(item: ContentItem) -> dict[str, str]:
+    authors: dict[str, list[str]] = {}
+    for comment in item.comments:
+        if comment.source_id is None or not comment.author:
+            continue
+        key = str(comment.author).strip().casefold()
+        if key:
+            authors.setdefault(key, []).append(str(comment.source_id))
+    return {author: ids[0] for author, ids in authors.items() if len(set(ids)) == 1}
+
+
+def _normalize_candidate(
+    raw: dict,
+    valid_ids: set[str],
+    id_aliases: Optional[dict[str, str]] = None,
+) -> Optional[dict]:
+    comment_id = raw.get("comment_id") or raw.get("id") or raw.get("source_id")
+    comment_id = _resolve_comment_id(comment_id, valid_ids, id_aliases)
+    if comment_id is None:
         return None
 
     reject = bool(raw.get("reject_for_quote", False))
@@ -664,7 +785,11 @@ def _validate_claim(value: Any, max_chars: int = 50) -> str:
     return text.strip("，。；：、,.!?！？;:）)]】")
 
 
-def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
+def _normalize_comment_lanes(
+    raw: dict,
+    valid_ids: set[str],
+    id_aliases: Optional[dict[str, str]] = None,
+) -> dict:
     lanes: dict[str, list[dict]] = {lane: [] for lane in COMMENT_LANES}
     raw_lanes = raw.get("comment_lanes", {}) or {}
     if not isinstance(raw_lanes, dict):
@@ -678,7 +803,7 @@ def _normalize_comment_lanes(raw: dict, valid_ids: set[str]) -> dict:
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            candidate = _normalize_candidate(entry, valid_ids)
+            candidate = _normalize_candidate(entry, valid_ids, id_aliases)
             if candidate is None:
                 continue
             if lane_key == "color" and (
@@ -702,6 +827,91 @@ def _has_overheated_claim(value: Any) -> bool:
 
 def _has_lazy_quote_claim(value: Any) -> bool:
     return any(term in str(value or "") for term in LAZY_QUOTE_TERMS)
+
+
+def _normalize_stance_label(value: Any) -> Optional[str]:
+    key = str(value or "").strip().lower()
+    return STANCE_LABEL_ALIASES.get(key) or STANCE_LABEL_ALIASES.get(
+        str(value or "").strip()
+    )
+
+
+def _normalize_stance_labels(
+    raw: dict,
+    item: ContentItem,
+    distribution_ids: Optional[set[str]],
+) -> list[dict]:
+    comments_by_id = {
+        str(comment.source_id): comment
+        for comment in item.comments
+        if comment.source_id is not None
+    }
+    id_aliases = _comment_id_aliases(item)
+    labels: list[dict] = []
+    seen: set[str] = set()
+    for entry in raw.get("stance_labels", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        comment_id = _resolve_comment_id(
+            entry.get("comment_id") or entry.get("id") or entry.get("source_id"),
+            set(comments_by_id),
+            id_aliases,
+        )
+        if not comment_id or comment_id in seen or comment_id not in comments_by_id:
+            continue
+        if distribution_ids is not None and comment_id not in distribution_ids:
+            continue
+        stance = _normalize_stance_label(entry.get("stance"))
+        if stance is None:
+            continue
+        comment = comments_by_id[comment_id]
+        context_sufficient = bool(entry.get("context_sufficient", True))
+        if comment.depth is not None and comment.depth > 1:
+            context_sufficient = context_sufficient and bool(
+                clean_comment_text(comment.parent_text or "")
+            )
+        try:
+            confidence = max(0.0, min(1.0, float(entry.get("confidence", 0.5))))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        labels.append(
+            {
+                "comment_id": comment_id,
+                "stance": stance,
+                "confidence": round(confidence, 4),
+                "context_sufficient": context_sufficient,
+                "evidence": str(entry.get("evidence") or "")[:160],
+            }
+        )
+        seen.add(comment_id)
+    return labels
+
+
+def _aggregate_stance_labels(labels: list[dict]) -> tuple[dict, dict]:
+    stance_names = ("支持", "质疑", "中立")
+    usable = [entry for entry in labels if entry.get("context_sufficient")]
+    totals = {stance: 1.0 for stance in stance_names}  # symmetric Dirichlet prior
+    total_weight = float(len(stance_names))
+    confidence_values = []
+    for entry in usable:
+        confidence = float(entry.get("confidence") or 0.5)
+        weight = 0.5 + (0.5 * confidence)
+        totals[entry["stance"]] += weight
+        total_weight += weight
+        confidence_values.append(confidence)
+    distribution = {
+        stance: round(totals[stance] / total_weight, 4) for stance in stance_names
+    }
+    metadata = {
+        "source": "llm_per_comment",
+        "labeled_count": len(labels),
+        "context_sufficient_count": len(usable),
+        "coverage": round(len(usable) / max(1, len(labels)), 4),
+        "mean_confidence": round(
+            sum(confidence_values) / max(1, len(confidence_values)), 4
+        ),
+    }
+    return distribution, metadata
 
 
 def _quote_candidate_sort_key(
@@ -743,9 +953,14 @@ def _apply_color_candidate_claims(candidates: list[dict], comment_lanes: dict) -
         )
 
 
-def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
+def normalize_story_judgement(
+    raw: dict,
+    item: ContentItem,
+    distribution_ids: Optional[set[str]] = None,
+) -> dict:
     """Normalize LLM comment judgement output into a canonical form."""
     valid_ids = {str(c.source_id) for c in item.comments if c.source_id is not None}
+    id_aliases = _comment_id_aliases(item)
     candidates = []
     seen = set()
 
@@ -754,7 +969,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         for entry in comment_lanes_raw.get(lane_key, []) or []:
             if not isinstance(entry, dict):
                 continue
-            candidate = _normalize_candidate(entry, valid_ids)
+            candidate = _normalize_candidate(entry, valid_ids, id_aliases)
             if candidate is None or candidate["comment_id"] in seen:
                 continue
             seen.add(candidate["comment_id"])
@@ -763,7 +978,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
     for entry in raw.get("quote_candidates", []) or []:
         if not isinstance(entry, dict):
             continue
-        candidate = _normalize_candidate(entry, valid_ids)
+        candidate = _normalize_candidate(entry, valid_ids, id_aliases)
         if candidate is None or candidate["comment_id"] in seen:
             continue
         seen.add(candidate["comment_id"])
@@ -774,6 +989,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         if isinstance(entry, str) and entry.strip():
             debate_focus.append(entry.strip())
 
+    stance_labels = _normalize_stance_labels(raw, item, distribution_ids)
     stance_distribution = {}
     raw_stance = raw.get("stance_distribution", {}) or {}
     if isinstance(raw_stance, dict):
@@ -789,6 +1005,12 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
                 if isinstance(v, (int, float)) and v > 0
             }
 
+    stance_distribution_meta = {"source": "legacy_llm"}
+    if stance_labels:
+        stance_distribution, stance_distribution_meta = _aggregate_stance_labels(
+            stance_labels
+        )
+
     stance_concerns = {}
     raw_concerns = raw.get("stance_concerns", {}) or {}
     if isinstance(raw_concerns, dict):
@@ -798,7 +1020,7 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
 
     discussion_mode = _normalize_discussion_mode(raw.get("discussion_mode"))
     discussion_summary = str(raw.get("discussion_summary") or "").strip()[:48]
-    comment_lanes = _normalize_comment_lanes(raw, valid_ids)
+    comment_lanes = _normalize_comment_lanes(raw, valid_ids, id_aliases)
     color_ids = {
         str(entry["comment_id"])
         for entry in comment_lanes.get("color", [])
@@ -815,17 +1037,35 @@ def normalize_story_judgement(raw: dict, item: ContentItem) -> dict:
         "quote_candidates": candidates,
         "debate_focus": debate_focus,
         "stance_distribution": stance_distribution,
+        "stance_distribution_meta": stance_distribution_meta,
+        "stance_labels": stance_labels,
         "stance_concerns": stance_concerns,
+        "discussion_target": str(
+            raw.get("discussion_target")
+            or item.editor_angle
+            or item.why_it_matters
+            or item.title
+            or ""
+        )[:280],
     }
 
 
-def load_comment_judgements(date: str) -> Dict[str, dict]:
+def load_comment_judgements(
+    date: str, *, current_only: bool = False
+) -> Dict[str, dict]:
     path = judgement_cache_path(date)
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    if data.get("schema_version") != JUDGEMENT_SCHEMA_VERSION:
+    schema_version = data.get("schema_version")
+    # Schema 10 adds batched distribution labels; older caches still contain
+    # valid quote_candidates and remain useful to translation/rendering.
+    # older caches still contain valid quote_candidates and remain useful to
+    # translation/rendering. Reject only malformed or future schemas.
+    if not isinstance(schema_version, int) or schema_version > JUDGEMENT_SCHEMA_VERSION:
+        return {}
+    if current_only and schema_version != JUDGEMENT_SCHEMA_VERSION:
         return {}
     stories = data.get("stories", {})
     return stories if isinstance(stories, dict) else {}

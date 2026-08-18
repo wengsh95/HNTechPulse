@@ -9,10 +9,22 @@ from math import ceil
 DEFAULT_MAX_CJK_WEIGHT = 24.0
 DEFAULT_MAX_CHARS = 52
 MIN_FRAGMENT_WEIGHT = 8.0
+MIN_SOFT_BREAK_WEIGHT = 12.0
+
+# Bump this when the local subtitle selection policy changes.  It is included
+# in the audio input hash so a policy fix cannot accidentally reuse old TTS
+# alignment artifacts.
+SUBTITLE_POLICY_VERSION = "local-agent-v2"
 
 _SENTENCE_BREAKERS = set("\u3002\uff01\uff1f.!?")
 _SOFT_BREAKERS = set("\uff0c\u3001\uff1b\uff1a,;:")
 _CLOSING_QUOTES = set("\u201d\u2019\u300b\u3009\u300f\u300d)")
+_JOIN_TRAILING_CONNECTORS = set("的在为以和与及将把对从向于由按跟")
+_NUMERIC_TOKEN_RE = re.compile(
+    r"(?:\d+(?:\.\d+)?|[零〇一二三四五六七八九十百千万亿兆两]+)"
+    r"(?:[万亿兆千百十点]*)"
+    r"(?:美元|人民币|港币|欧元|元|亿元|亿美元|万亿|倍|个|名|项|条|次|家|岁|年|月|日|轮|期|级|层)?"
+)
 
 
 def split_subtitle_texts(
@@ -23,7 +35,10 @@ def split_subtitle_texts(
 ) -> list[str]:
     """Split subtitles into one-line display cues while preserving word order."""
     result: list[str] = []
-    for text in texts:
+    # The script writer may have split a semantic token across two subtitle
+    # entries (for example ``七十`` / ``亿美元``).  Merge only those unsafe
+    # boundaries first; ordinary editorial boundaries remain independent.
+    for text in _merge_unsafe_boundaries(texts):
         for part in split_subtitle_text(
             text, max_cjk_weight=max_cjk_weight, max_chars=max_chars
         ):
@@ -58,6 +73,33 @@ def split_subtitle_text(
             )
         )
     return [p for p in out if p]
+
+
+def _merge_unsafe_boundaries(texts: list[str]) -> list[str]:
+    merged: list[str] = []
+    for raw in texts:
+        text = _normalize_spaces(raw)
+        if not text:
+            continue
+        if merged and _needs_boundary_merge(merged[-1], text):
+            merged[-1] = merged[-1].rstrip() + text.lstrip()
+        else:
+            merged.append(text)
+    return merged
+
+
+def _needs_boundary_merge(left: str, right: str) -> bool:
+    left = left.rstrip()
+    right = right.lstrip()
+    if not left or not right:
+        return False
+    if left[-1] in _SENTENCE_BREAKERS or left[-1] in _SOFT_BREAKERS:
+        return False
+    combined = left + right
+    boundary = len(left)
+    if _is_protected_token_boundary(combined, boundary):
+        return True
+    return left[-1] in _JOIN_TRAILING_CONNECTORS
 
 
 def subtitle_display_weight(text: str) -> float:
@@ -109,7 +151,9 @@ def _best_split_index(text: str, max_cjk_weight: float, max_chars: int) -> int:
     if limit_idx <= 0:
         return -1
 
-    min_idx = _index_at_weight(text, MIN_FRAGMENT_WEIGHT)
+    # Do not choose a short leading clause such as ``据 Bloomberg 报道，`` as
+    # the first cue when a fuller phrase can fit before the display limit.
+    min_idx = _index_at_weight(text, MIN_SOFT_BREAK_WEIGHT)
     search_start = max(1, min_idx)
     search_end = min(len(text) - 1, max(limit_idx + 1, search_start))
 
@@ -153,7 +197,10 @@ def _best_split_index(text: str, max_cjk_weight: float, max_chars: int) -> int:
     )
     target_idx = min(_index_at_weight(text, target_weight), len(text) - 1)
 
-    candidates = sorted(range(1, len(text)), key=lambda i: abs(i - target_idx))
+    candidates = sorted(
+        range(1, len(text)),
+        key=lambda i: _hard_split_score(text, i, target_idx),
+    )
     for hard_idx in candidates:
         if _valid_hard_split(text, hard_idx, max_cjk_weight=max_cjk_weight):
             return hard_idx
@@ -243,11 +290,43 @@ def _valid_hard_split(text: str, split_idx: int, *, max_cjk_weight: float) -> bo
         return False
     if subtitle_display_weight(right) < MIN_FRAGMENT_WEIGHT:
         return False
-    if _splits_ascii_token(text, split_idx):
+    if _is_protected_token_boundary(text, split_idx):
         return False
     if right[0] in _SENTENCE_BREAKERS or right[0] in _SOFT_BREAKERS:
         return False
     return True
+
+
+def _is_protected_token_boundary(text: str, split_idx: int) -> bool:
+    """Return whether a cut would break an English or numeric token."""
+    if _splits_ascii_token(text, split_idx):
+        return True
+    for match in _NUMERIC_TOKEN_RE.finditer(text):
+        if match.start() < split_idx < match.end():
+            return True
+    return False
+
+
+def subtitle_boundary_is_safe(left: str, right: str) -> bool:
+    """Check that two adjacent cues do not break a word or numeric token."""
+    left = str(left or "").rstrip()
+    right = str(right or "").lstrip()
+    if not left or not right:
+        return True
+    if right[0] in _SENTENCE_BREAKERS or right[0] in _SOFT_BREAKERS:
+        return False
+    return not _is_protected_token_boundary(left + right, len(left))
+
+
+def _hard_split_score(text: str, split_idx: int, target_idx: int) -> float:
+    """Prefer cuts after a complete numeric token over cuts before one."""
+    score = abs(split_idx - target_idx)
+    for match in _NUMERIC_TOKEN_RE.finditer(text):
+        if match.start() == split_idx:
+            score += 5
+        if match.end() == split_idx:
+            score -= 3
+    return score
 
 
 def _splits_ascii_token(text: str, split_idx: int) -> bool:

@@ -1,9 +1,7 @@
 import asyncio
-import base64
 import json
 import logging
 import os
-import mimetypes
 from pathlib import Path
 from typing import Dict, Optional, Any, cast
 from urllib.parse import urlparse
@@ -18,8 +16,8 @@ from src.providers.enricher.page_fetcher import (
     _parse_github_url,
 )
 from src.providers.enricher.image_handler import ImageHandler
+from src.providers.enricher.relevance import assess_article_relevance
 from src.pipeline.paths import (
-    date_root,
     media_images_dir,
     pipeline_path,
     raw_downloaded_pages_dir,
@@ -54,11 +52,17 @@ class ArticleEnricher:
         llm_provider: LLMProvider,
         config: dict,
         debug: bool = False,
+        agent_mode: bool = False,
     ):
         self.llm_provider = llm_provider
         self.llm_client = llm_provider.llm_client
         self.config = config
         self.debug = debug
+        # In managed agent runs the current agent is the image editor.  The
+        # pipeline may collect candidates, but it must not silently decide
+        # which image is semantically correct.
+        self.agent_mode = agent_mode
+        self.pending_image_selections: list[dict[str, Any]] = []
         enrich_cfg = config.get("enrich", {})
         self.logger = logging.getLogger("hn_techpulse.enricher")
 
@@ -80,6 +84,7 @@ class ArticleEnricher:
         self.bing_max_queries = enrich_cfg.get("bing_max_queries", 4)
         self.bing_entity_search = enrich_cfg.get("bing_entity_search", True)
         self.bing_entity_all_stories = enrich_cfg.get("bing_entity_all_stories", False)
+        self.bing_logo_fallback = enrich_cfg.get("bing_logo_fallback", True)
         self.screenshot_enabled = enrich_cfg.get("screenshot_enabled", True)
         self.save_fetched_html = enrich_cfg.get("save_fetched_html", True)
         self.headless_batch = enrich_cfg.get("headless_batch", True)
@@ -125,7 +130,6 @@ class ArticleEnricher:
         )
 
         self._enrich_prompt = self._load_prompt("prompts/article_enrich.md")
-        self._image_select_prompt = self._load_prompt("prompts/image_select.md")
         self._image_entities_prompt = self._load_prompt("prompts/image_entities.md")
 
     @staticmethod
@@ -144,12 +148,14 @@ class ArticleEnricher:
             return content
 
         self.logger.info(f"Enriching {len(content.items)} items...")
+        self.pending_image_selections = []
 
         self._load_image_selection(content, date)
 
         cache_path = pipeline_path(date, "enrichment.json")
         if cache_path.exists():
             self._load_from_cache(content, cache_path)
+        self._invalidate_cached_mismatches(content)
 
         pages_dir = self._pages_dir(date)
         pages_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +194,51 @@ class ArticleEnricher:
         if phase2_items:
             await self._phase2_extract_all(phase2_items, date)
 
+    @staticmethod
+    def _clear_enrichment(item, *, source: str, error: str) -> None:
+        item.article_text = None
+        item.article_images = []
+        item.article_summary = None
+        item.editor_angle = None
+        item.dek = None
+        item.key_points = None
+        item.keywords = None
+        item.category = None
+        item.why_it_matters = None
+        item.screenshot_image = None
+        item.enrichment_source = source
+        item.enrichment_error = error
+
+    def _mark_content_mismatch(self, item, article_text: str) -> bool:
+        relevance = assess_article_relevance(
+            item.title,
+            article_text,
+            url=item.url,
+        )
+        item.article_relevance_score = relevance.score
+        if relevance.accepted:
+            return True
+        self._clear_enrichment(
+            item,
+            source="content_mismatch",
+            error=(
+                f"{relevance.reason}; title_tokens={list(relevance.title_tokens)}; "
+                f"overlap={list(relevance.overlapping_tokens)}"
+            ),
+        )
+        self.logger.warning(
+            f"[content_mismatch] {item.title[:70]} — "
+            f"score={relevance.score:.3f} reason={relevance.reason}"
+        )
+        return False
+
+    def _invalidate_cached_mismatches(self, content: ContentPackage) -> None:
+        for item in content.items:
+            if not item.url or not item.article_text:
+                continue
+            if not self._mark_content_mismatch(item, item.article_text):
+                continue
+
     # ── Item Classification ────────────────────────────────────
 
     def _classify_items(self, content: ContentPackage, date: str) -> dict:
@@ -200,6 +251,9 @@ class ArticleEnricher:
         }
 
         for item in content.items:
+            if item.enrichment_source == "content_mismatch":
+                result["skipped"].append(item)
+                continue
             if item.article_text is not None or item.article_summary is not None:
                 result["done"].append(item)
                 continue
@@ -495,6 +549,9 @@ class ArticleEnricher:
                         self.logger.debug(f"PDF extraction empty: {item.title[:50]}")
                         return
 
+                    if not self._mark_content_mismatch(item, article_text):
+                        return
+
                     pdf_image_candidates = self._extract_pdf_images(
                         pdf_path, image_dir, str(item.source_id)
                     )
@@ -577,6 +634,9 @@ class ArticleEnricher:
                     self.logger.debug(f"Phase 2 extraction empty: {item.title[:50]}")
                     return
 
+                if not self._mark_content_mismatch(item, article_text):
+                    return
+
                 image_urls = self.image_handler.extract_images(html, item.url or "")
 
                 page_candidates = []
@@ -597,6 +657,7 @@ class ArticleEnricher:
                     )
 
                 bing_candidates = []
+                entity_queries: list[str] = []
                 # Skip Bing if page already has suitable images (≥640x360)
                 has_suitable_page_images = any(
                     self.image_handler.candidate_has_suitable_size(c)
@@ -659,6 +720,31 @@ class ArticleEnricher:
                             "height": 720,
                         }
                     )
+
+                # Last-resort visual coverage: if the article supplied no
+                # usable image and the page screenshot was unavailable, search
+                # for the relevant entity/concept logo.  This is still only a
+                # candidate; agent mode will ask the current agent to inspect
+                # it before accepting it as the final image.
+                if (
+                    not image_candidates
+                    and self.bing_image_search
+                    and self.bing_logo_fallback
+                ):
+                    logo_queries = self._logo_image_queries(item, entity_queries)
+                    if logo_queries:
+                        logo_candidates = await self.image_handler.search_bing_images(
+                            item.title,
+                            item.url or "",
+                            image_dir,
+                            str(item.source_id),
+                            self.fetcher,
+                            entity_queries=logo_queries,
+                            label="Bing logo fallback",
+                        )
+                        for candidate in logo_candidates:
+                            candidate["fallback_kind"] = "logo"
+                        image_candidates.extend(logo_candidates)
 
                 setattr(item, "_content_date", date)
                 selected_candidate = self._select_image_candidate(
@@ -853,6 +939,25 @@ class ArticleEnricher:
         ]
         return queries[:3]
 
+    @staticmethod
+    def _logo_image_queries(item: Any, entity_queries: list[str]) -> list[str]:
+        queries: list[str] = []
+        for value in [
+            *entity_queries,
+            *(item.keywords or []),
+            item.category or "",
+            item.title or "",
+        ]:
+            text = str(value).strip()
+            if not text:
+                continue
+            query = f"{text} logo"
+            if query not in queries:
+                queries.append(query)
+            if len(queries) >= 3:
+                break
+        return queries
+
     def _enrich_content(
         self, article_text: str, title: str
     ) -> Optional[Dict[str, Any]]:
@@ -975,233 +1080,73 @@ class ArticleEnricher:
 
     # ── Image Selection ────────────────────────────────────────
 
-    def _image_selection_context(
-        self,
-        item,
-        candidates: list[Dict[str, Any]],
-        article_summary: Optional[str] = None,
-    ) -> str:
-        rows: list[dict[str, Any]] = []
-        story_domain = (urlparse(item.url or "").hostname or "").lower().lstrip("www.")
-        for idx, candidate in enumerate(candidates):
-            path = candidate.get("path")
-            if not path:
-                continue
-            origin_domain = (
-                (urlparse(str(candidate.get("origin_url") or "")).hostname or "")
-                .lower()
-                .lstrip("www.")
-            )
-            rows.append(
-                {
-                    "index": idx,
-                    "path": path,
-                    "source": candidate.get("source", ""),
-                    "label": candidate.get("label", ""),
-                    "width": candidate.get("width"),
-                    "height": candidate.get("height"),
-                    "origin_url": candidate.get("origin_url", ""),
-                    "query": candidate.get("query", ""),
-                    "rank": candidate.get("rank"),
-                    "auto_selected": candidate.get("auto_selected", False),
-                    "previous_selection_reason": candidate.get("selection_reason", ""),
-                    "origin_domain": origin_domain,
-                    "same_domain_as_story": bool(
-                        story_domain
-                        and origin_domain
-                        and (
-                            origin_domain == story_domain
-                            or origin_domain.endswith("." + story_domain)
-                        )
-                    ),
-                    "suitable_size": self.image_handler.candidate_has_suitable_size(
-                        candidate
-                    ),
-                }
-            )
-        return json.dumps(
-            {
-                "title": item.title,
-                "title_cn": item.title_cn or "",
-                "editor_angle": item.editor_angle or "",
-                "article_summary": article_summary or item.article_summary or "",
-                "keywords": item.keywords or [],
-                "url": item.url or "",
-                "story_domain": story_domain,
-                "candidates": rows,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-
-    @staticmethod
-    def _candidate_image_path(
-        date: Optional[str], candidate_path: str
-    ) -> Optional[Path]:
-        path = Path(candidate_path)
-        if path.is_absolute():
-            return path if path.exists() else None
-        candidates = []
-        if date:
-            candidates.append(date_root(date) / candidate_path)
-        candidates.append(path)
-        for candidate in candidates:
-            if candidate.exists() and candidate.is_file():
-                return candidate
-        return None
-
-    def _image_content_block(self, path: Path) -> Optional[Dict[str, Any]]:
-        try:
-            raw = path.read_bytes()
-        except OSError as e:
-            self.logger.info(f"Failed to read image for LLM selection: {path}: {e}")
-            return None
-        if not raw:
-            return None
-        media_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
-        if media_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
-            media_type = "image/jpeg"
-        return {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": media_type,
-                "data": base64.b64encode(raw).decode("ascii"),
-            },
-        }
-
-    def _image_selection_user_content(
-        self,
-        item,
-        candidates: list[Dict[str, Any]],
-        prompt_user_text: str,
-    ) -> str | list[Dict[str, Any]]:
-        date = getattr(item, "_content_date", None)
-        blocks: list[Dict[str, Any]] = [{"type": "text", "text": prompt_user_text}]
-        attached = 0
-        for idx, candidate in enumerate(candidates):
-            path_value = candidate.get("path") if isinstance(candidate, dict) else None
-            if not path_value:
-                continue
-            local_path = self._candidate_image_path(date, str(path_value))
-            if local_path is None:
-                continue
-            block = self._image_content_block(local_path)
-            if block is None:
-                continue
-            blocks.append(
-                {
-                    "type": "text",
-                    "text": (
-                        f"候选图片 {idx}: path={path_value}, "
-                        f"source={candidate.get('source', '')}"
-                    ),
-                }
-            )
-            blocks.append(block)
-            attached += 1
-        if attached == 0:
-            return prompt_user_text
-        return blocks
-
-    def _select_image_candidate_with_llm(
-        self,
-        item,
-        candidates: list[Dict[str, Any]],
-        article_summary: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        valid_paths = {
-            str(candidate.get("path"))
-            for candidate in candidates
-            if isinstance(candidate, dict) and candidate.get("path")
-        }
-        if not valid_paths or not self._image_select_prompt:
-            return None
-
-        candidates_json = self._image_selection_context(
-            item, candidates, article_summary=article_summary
-        )
-        prompt = render_prompt(
-            self._image_select_prompt,
-            title=item.title or "",
-            title_cn=item.title_cn or "",
-            editor_angle=item.editor_angle or "",
-            article_summary=article_summary or item.article_summary or "",
-            keywords=", ".join(item.keywords or []),
-            url=item.url or "",
-            candidates_json=candidates_json,
-        )
-
-        if "<!-- SYSTEM_CUT -->" in prompt:
-            system_msg, user_msg = prompt.split("<!-- SYSTEM_CUT -->", 1)
-            messages = [
-                {"role": "system", "content": system_msg.strip()},
-                {
-                    "role": "user",
-                    "content": self._image_selection_user_content(
-                        item, candidates, user_msg.strip()
-                    ),
-                },
-            ]
-        else:
-            messages = [
-                {
-                    "role": "user",
-                    "content": self._image_selection_user_content(
-                        item, candidates, prompt
-                    ),
-                }
-            ]
-
-        def _validate(parsed: Any) -> None:
-            if not isinstance(parsed, dict):
-                raise ValueError("image selection result is not a JSON object")
-            selected_path = parsed.get("selected_path")
-            if selected_path not in valid_paths:
-                raise ValueError(
-                    f"selected_path must be one of candidate paths: {sorted(valid_paths)}"
-                )
-
-        try:
-            response_text = self.llm_client.call_llm_with_json_retry(
-                messages=messages,
-                label=f"image_select_{str(item.source_id)[:30]}",
-                max_tokens=512,
-                model=self.llm_client.fast_model,
-                temperature=self.llm_client.fast_temperature,
-                validator=_validate,
-            )
-            result = self.llm_client.extract_json(response_text)
-        except Exception as e:
-            self.logger.info(
-                f"LLM image selection failed for '{item.title[:50]}': {e}; "
-                "falling back to local image selector"
-            )
-            return None
-
-        selected_path = result.get("selected_path")
-        for candidate in candidates:
-            if candidate.get("path") == selected_path:
-                candidate["selection_reason"] = result.get("reason") or "llm_selected"
-                candidate["selection_source"] = "llm"
-                return candidate
-        return None
-
     def _select_image_candidate(
         self,
         item,
         candidates: list[Dict[str, Any]],
         article_summary: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        selected = self._select_image_candidate_with_llm(
-            item, candidates, article_summary=article_summary
-        )
-        if selected is not None:
-            return selected
+        if self.agent_mode:
+            return None
         selected = self.image_handler.choose_auto_image_candidate(candidates)
         if selected is not None:
             selected["selection_source"] = "heuristic"
+            selected["selection_reason"] = self.image_handler.selection_reason(selected)
         return selected
+
+    @staticmethod
+    def _is_confirmed_image_selection(
+        entry: dict[str, Any], candidate: Optional[dict[str, Any]]
+    ) -> bool:
+        """Return whether a persisted choice is an explicit human/agent choice.
+
+        ``llm`` and ``heuristic`` are legacy/runtime-generated decisions.  An
+        entry with no selection metadata remains compatible with older manual
+        selection files.
+        """
+        if not entry.get("selected_image") or candidate is None:
+            return False
+        sources = {
+            entry.get("selection_source"),
+            candidate.get("selection_source"),
+        }
+        if "llm" in sources or "heuristic" in sources:
+            return False
+        return True
+
+    @staticmethod
+    def _candidate_local_path(date: str, path: str) -> Path:
+        candidate_path = Path(path)
+        if candidate_path.is_absolute():
+            return candidate_path
+        if candidate_path.parts and candidate_path.parts[0].lower() == "images":
+            return media_images_dir(date) / Path(*candidate_path.parts[1:])
+        return candidate_path
+
+    def _image_selection_task(
+        self,
+        item: Any,
+        candidates: list[dict[str, Any]],
+        date: str,
+        selection_path: Path,
+    ) -> dict[str, Any]:
+        task_candidates = []
+        for candidate in candidates:
+            path = candidate.get("path")
+            if not path:
+                continue
+            task_candidate = dict(candidate)
+            task_candidate["local_path"] = str(
+                self._candidate_local_path(date, str(path)).resolve()
+            ).replace("\\", "/")
+            task_candidates.append(task_candidate)
+        return {
+            "story_id": str(item.source_id),
+            "title": item.title or "",
+            "url": item.url or "",
+            "selection_file": str(selection_path).replace("\\", "/"),
+            "candidates": task_candidates,
+        }
 
     def _load_image_selection(self, content: ContentPackage, date: str) -> set:
         sel_path = pipeline_path(date, "image_selection.json")
@@ -1215,6 +1160,18 @@ class ArticleEnricher:
                 entry = data.get("items", {}).get(str(item.source_id))
                 if entry and entry.get("selected_image"):
                     chosen = entry["selected_image"]
+                    selected_candidate = next(
+                        (
+                            candidate
+                            for candidate in entry.get("candidates", [])
+                            if candidate.get("path") == chosen
+                        ),
+                        None,
+                    )
+                    if self.agent_mode and not self._is_confirmed_image_selection(
+                        entry, selected_candidate
+                    ):
+                        continue
                     existing = [p for p in item.article_images if p != chosen]
                     item.article_images = [chosen] + existing
                     selected.add(str(item.source_id))
@@ -1227,6 +1184,7 @@ class ArticleEnricher:
             return set()
 
     def _generate_image_selection(self, content: ContentPackage, date: str):
+        self.pending_image_selections = []
         sel_path = pipeline_path(date, "image_selection.json")
         existed = sel_path.exists()
         data: Dict[str, Any] = {"date": date, "items": {}}
@@ -1253,8 +1211,32 @@ class ArticleEnricher:
                 item.image_candidates,
             )
             selected = existing_entry.get("selected_image")
+            existing_selected_candidate = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate.get("path") == selected
+                ),
+                None,
+            )
+            confirmed = self._is_confirmed_image_selection(
+                existing_entry, existing_selected_candidate
+            )
+            reselection_required = (
+                not selected
+                or (self.agent_mode and not confirmed)
+                or (
+                    not self.agent_mode
+                    and existing_selected_candidate is not None
+                    and existing_selected_candidate.get("selection_source") == "llm"
+                )
+            )
             selected_candidate = None
-            if not selected:
+            if reselection_required:
+                if existing_selected_candidate is not None and not self.agent_mode:
+                    for candidate in candidates:
+                        candidate.pop("selection_source", None)
+                        candidate.pop("selection_reason", None)
                 selected_candidate = self._select_image_candidate(item, candidates)
                 selected = (
                     selected_candidate.get("path") if selected_candidate else None
@@ -1270,7 +1252,9 @@ class ArticleEnricher:
                 )
             if selected:
                 for candidate in candidates:
-                    candidate["auto_selected"] = candidate.get("path") == selected
+                    candidate["auto_selected"] = (
+                        False if self.agent_mode else candidate.get("path") == selected
+                    )
                 if selected_candidate is not None:
                     selected_candidate.setdefault(
                         "selection_reason",
@@ -1278,12 +1262,21 @@ class ArticleEnricher:
                     )
                 existing = [p for p in item.article_images if p != selected]
                 item.article_images = [selected] + existing
+            elif self.agent_mode:
+                for candidate in candidates:
+                    candidate.pop("auto_selected", None)
+                self.pending_image_selections.append(
+                    self._image_selection_task(item, candidates, date, sel_path)
+                )
             new_entry = {
                 "title": item.title,
                 "url": item.url,
                 "candidates": candidates,
                 "selected_image": selected,
             }
+            for metadata_key in ("selection_source", "selection_reason"):
+                if metadata_key in existing_entry:
+                    new_entry[metadata_key] = existing_entry[metadata_key]
             if existing_entry != new_entry:
                 data["items"][key] = new_entry  # type: ignore[union-attr]
                 changed = True
@@ -1308,6 +1301,7 @@ class ArticleEnricher:
                     "article_text": item.article_text,
                     "article_images": item.article_images,
                     "article_summary": item.article_summary,
+                    "article_relevance_score": item.article_relevance_score,
                     "editor_angle": item.editor_angle,
                     "dek": item.dek,
                     "key_points": item.key_points,
@@ -1342,6 +1336,7 @@ class ArticleEnricher:
                     item.article_text = cached.get("article_text")
                     item.article_images = cached.get("article_images", [])
                     item.article_summary = cached.get("article_summary")
+                    item.article_relevance_score = cached.get("article_relevance_score")
                     item.editor_angle = cached.get("editor_angle")
                     item.dek = cached.get("dek")
                     item.key_points = cached.get("key_points")

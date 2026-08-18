@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.core.models import (
     ContentItem,
     ContentComment,
@@ -172,6 +174,27 @@ class TestScriptWriter:
             == config["pipeline"]["target_story_count"]
         )
         assert len(script.segments) >= 2  # at least opening + closing
+
+    def test_write_fails_closed_when_one_story_segment_is_missing(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        config = _make_config()
+        mock_llm = MagicMock()
+
+        def generate_segment(**kwargs):
+            if kwargs["story_index"] == 1:
+                raise RuntimeError("temporary LLM failure")
+            return _make_mock_story_segment(**kwargs)
+
+        mock_llm.generate_single_story_segment.side_effect = generate_segment
+        writer = ScriptWriter(config, mock_llm, debug=True)
+        content = _make_content_package()
+        for item in content.items:
+            item.title_cn = f"故事 {item.source_id}"
+
+        with pytest.raises(RuntimeError, match=r"missing story indices: \[1\]"):
+            writer.write(content)
 
     def test_write_passes_comment_judgement_to_story_generation(
         self, tmp_path, monkeypatch

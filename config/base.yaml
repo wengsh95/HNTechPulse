@@ -4,16 +4,29 @@ logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 pipeline:
-  target_story_count: 3        # 每日固定 3 条新闻（也是深讲条数）
+  target_story_count: 3        # 每日固定 3 条主内容（也是深讲条数）
   max_comments_for_r1_analyze: 80   # R1a 单条分析时每条 story 最多发多少条评论
 
 prefilter:
   enabled: true
   max_workers: 5               # 每条 story 独立评分的并发数
-  min_news_focus: 4            # 新闻类门槛（1-5），低于此分数视为观点/教程/资源帖，直接过滤
-  min_newsworthiness: 3        # 话题度门槛（1-5），低于此分数的故事直接过滤
+  min_news_focus: 4            # 明确新闻事件门槛（1-5）
+  min_newsworthiness: 3        # 明确新闻事件的话题度门槛（1-5）
+  allow_shareable_non_news: true  # 允许高分享价值的技术实践/复盘/工具/研究进入候选
+  min_non_news_audience_interest: 4
+  min_non_news_discussion_heat: 3
+  min_project_fit: 3
+  min_research_project_fit: 4
+  shareable_non_news_types:
+    - technical_experiment
+    - incident_postmortem
+    - tool_product
+    - research_science
+    - tech_culture
   audience_interest_weight: 1.8 # B站观众兴趣/视频钩子排序权重
   discussion_heat_weight: 1.2   # HN讨论热度排序权重
+  project_fit_weight: 1.5       # 对 HN TechPulse 核心主题的相关性排序权重
+  ai_relevance_weight: 1.5      # AI厂商/模型方向优先级排序权重
 
 hn:
   base_url: "https://hacker-news.firebaseio.com/v0"

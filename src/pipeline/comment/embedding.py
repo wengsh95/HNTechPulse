@@ -17,7 +17,7 @@ import numpy as np
 from src.pipeline.comment.text import clean_comment_text
 
 if TYPE_CHECKING:
-    from src.core.models import ContentComment, ContentItem, ContentPackage
+    from src.core.models import ContentItem, ContentPackage
 
 logger = logging.getLogger(__name__)
 

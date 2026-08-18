@@ -118,6 +118,62 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
     assert any(i["check"] == "selected_variant_promoted" for i in result["issues"])
 
 
+def test_agent_audit_skips_variant_promotion_for_downstream_video_run(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+    selected_dir = pipeline_variants_root(date) / "v01_balanced"
+    selected_dir.mkdir(parents=True)
+
+    atomic_write_json(
+        agent_path(date, "pipeline_state_video.json"),
+        {
+            "schema_version": 2,
+            "date": date,
+            "product": "video",
+            "status": "complete",
+            "steps": ["synthesize_audio", "prepare_render", "render"],
+        },
+    )
+    atomic_write_json(
+        agent_path(date, "agent_decision.json"),
+        {"schema_version": 1, "date": date, "status": "continue"},
+    )
+    atomic_write_json(
+        agent_path(date, "agent_variant_decision.json"),
+        {
+            "schema_version": 1,
+            "date": date,
+            "status": "continue",
+            "selected_variant": "v01_balanced",
+        },
+    )
+    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
+    atomic_write_json(
+        pipeline_path(date, "script.json"),
+        {
+            "title": "Manual script",
+            "segments": [{"segment_type": "story_scan", "audio_text": "MANUAL"}],
+        },
+    )
+    atomic_write_json(
+        selected_dir / "script.json",
+        {
+            "title": "Generated variant",
+            "segments": [{"segment_type": "story_scan", "audio_text": "VARIANT"}],
+        },
+    )
+    _write_manifest(pipeline_path(date, "content.json"))
+    _write_manifest(pipeline_path(date, "script.json"))
+
+    result = audit(date, flow="video")
+
+    assert not any(
+        issue["check"] == "selected_variant_promoted" for issue in result["issues"]
+    )
+
+
 def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-04-26"

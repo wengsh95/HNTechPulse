@@ -82,26 +82,27 @@ def normalize_story_cards(
             or item.title
             or item.editor_angle
         )
-        props.setdefault("source_title", item.title)
-        props.setdefault("title_cn", title_cn)
-        props.setdefault("editor_angle", item.editor_angle)
+        # These fields are authoritative content metadata.  Using setdefault
+        # here lets a failed/misaligned LLM segment retain another story's
+        # title while receiving this story's normalized fields.
+        props["source_title"] = item.title
+        props["title_cn"] = title_cn
+        props["editor_angle"] = item.editor_angle
         if item.key_points:
-            props.setdefault("key_points", item.key_points)
+            props["key_points"] = item.key_points
         if item.keywords:
-            props.setdefault("keywords", item.keywords)
+            props["keywords"] = item.keywords
         if item.category:
-            props.setdefault("category", item.category)
+            props["category"] = item.category
         if item.why_it_matters:
-            props.setdefault("why_it_matters", item.why_it_matters)
+            props["why_it_matters"] = item.why_it_matters
         if item.score is not None:
-            props.setdefault("score", item.score)
+            props["score"] = item.score
         if item.comment_count is not None:
-            props.setdefault("comment_count", item.comment_count)
+            props["comment_count"] = item.comment_count
         if judgement:
-            props.setdefault("discussion_mode", judgement.get("discussion_mode", ""))
-            props.setdefault(
-                "discussion_summary", judgement.get("discussion_summary", "")
-            )
+            props["discussion_mode"] = judgement.get("discussion_mode", "")
+            props["discussion_summary"] = judgement.get("discussion_summary", "")
         elem.props = props
 
 

@@ -137,3 +137,51 @@ class TestJudge:
         )
         mock_llm.judge_story_comments.assert_called_once()
         assert mock_llm.judge_story_comments.call_args.kwargs["candidates"] == [comment]
+
+    def test_distribution_comments_are_judged_in_batches(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        comments = [
+            _make_comment(source_id=f"c{i}", quality_score=0.5) for i in range(3)
+        ]
+        item = _make_item(comments=comments, source_id="100")
+        content = _make_content_package([item])
+
+        mock_llm = MagicMock(spec=LLMProvider)
+        mock_llm.judge_story_comments.return_value = {"quote_candidates": []}
+
+        def label_batch(_item, _index, batch, _prompt, batch_index=0):
+            return {
+                "stance_labels": [
+                    {
+                        "comment_id": comment.source_id,
+                        "stance": "支持",
+                        "confidence": 0.8,
+                        "context_sufficient": True,
+                    }
+                    for comment in batch
+                ]
+            }
+
+        mock_llm.judge_story_comment_stances.side_effect = label_batch
+        analyzer = MagicMock()
+        analyzer.get_judge_candidates.return_value = [comments[0]]
+        analyzer.get_distribution_candidates.return_value = comments
+
+        with patch("src.pipeline.comment.judge.setup_logger"):
+            judge = CommentJudge(
+                mock_llm,
+                _make_config(distribution_batch_size=2),
+                comment_analyzer=analyzer,
+            )
+
+        result = judge.judge(content, "2026-04-26")
+
+        assert mock_llm.judge_story_comment_stances.call_count == 2
+        labels = result[comment_judgement_key(item)]["stance_labels"]
+        assert [entry["comment_id"] for entry in labels] == ["c0", "c1", "c2"]
+        assert (
+            result[comment_judgement_key(item)]["stance_distribution_meta"][
+                "labeled_count"
+            ]
+            == 3
+        )

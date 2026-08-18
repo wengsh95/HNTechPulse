@@ -22,6 +22,7 @@ from src.pipeline.agent_io import (
     file_sha256,
     is_artifact_fresh,
     stable_hash,
+    utc_now,
     write_artifact_manifest,
 )
 from src.pipeline.agent_variants import (
@@ -48,8 +49,18 @@ from src.pipeline.paths import (
 )
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
+from src.pipeline.subtitle_planner import prepare_subtitles
 from src.providers.renderer.binary_finder import find_npx
 from src.pipeline.script import ScriptWriter, apply_subtitle_revisions
+from src.pipeline.script.io import (
+    apply_audio_manifest,
+    audio_manifest_is_usable,
+    load_audio_manifest,
+    save_audio_manifest,
+    load_script_lock,
+    script_audio_input_hash,
+    script_editorial_hash,
+)
 from src.pipeline.timing_engine import TimingEngine
 from src.pipeline.transcript_generator import save_transcript
 from src.pipeline.translation_manager import TranslationManager
@@ -166,8 +177,8 @@ def _format_mmss(seconds: float | int | None) -> str:
 
 
 # The default product is now a six-page Xiaohongshu card package. Video steps
-# remain addressable for old dates/manual maintenance, but are not part of the
-# managed/default chain.
+# remain addressable as an explicit, managed flow, but are not part of the
+# default chain.
 XHS_CARD_STEPS = [
     "fetch",
     "prefilter",
@@ -178,6 +189,26 @@ XHS_CARD_STEPS = [
     "judge_comments",
     "plan_xhs_cards",
     "render_xhs_cards",
+]
+
+VIDEO_PIPELINE_ORDER = [
+    "fetch",
+    "prefilter",
+    "fetch_comments",
+    "enrich_articles",
+    "translate_titles",
+    "analyze_comments",
+    "judge_comments",
+    "write_script",
+    "review_script",
+    "translate_comments",
+    "title",
+    "cover_image",
+    "cover_thumbnail",
+    "prepare_subtitles",
+    "synthesize_audio",
+    "prepare_render",
+    "render",
 ]
 
 PIPELINE_STEPS = [
@@ -193,6 +224,7 @@ PIPELINE_STEPS = [
     "write_script",
     "review_script",
     "translate_comments",
+    "prepare_subtitles",
     "synthesize_audio",
     "title",
     "cover_image",
@@ -213,6 +245,7 @@ OPTIONAL_PRODUCTION_STEPS = {
     "cover_thumbnail",
     "publish_guide",
     "xhs_guide",
+    "prepare_subtitles",
     # TTS is a render-side branch only (prepare_render needs audio_dir +
     # actual_duration); title/cover/publish/xhs do not depend on it, so it is
     # optional rather than a forced core prerequisite of write_script.
@@ -227,7 +260,6 @@ LEGACY_CORE_PIPELINE_STEPS = [
     "review_script",
     "translate_comments",
     "title",
-    "prepare_render",
 ]
 STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
@@ -241,6 +273,7 @@ SCRIPT_CONSUMING_STEPS = frozenset(
     {
         "review_script",
         "translate_comments",
+        "prepare_subtitles",
         "synthesize_audio",
         "title",
         "cover_image",
@@ -258,6 +291,7 @@ SCRIPT_MUTATING_STEPS = frozenset(
         "write_script",
         "review_script",
         "translate_comments",
+        "prepare_subtitles",
         "synthesize_audio",
         "title",
     }
@@ -291,11 +325,26 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     ):
         optional_requested = ["cover_image", *optional_requested]
 
-    # Legacy video maintenance: prepare_render needs audio.
-    # synthesize_audio so video flows stay correct without listing it by hand.
-    # prepare_render may enter via core expansion, so check the resolved set.
-    if "prepare_render" in resolved and "synthesize_audio" not in resolved:
+    # Legacy video maintenance: prepare_render needs audio synthesis, but it is
+    # itself a downstream step. Do not classify it as a legacy core step: an
+    # explicit prepare_render/render recovery must not expand back through the
+    # editorial chain and overwrite a manually edited script.
+    if (
+        "prepare_render" in optional_requested
+        and "synthesize_audio" not in optional_requested
+    ):
         optional_requested = ["synthesize_audio", *optional_requested]
+
+    # Subtitle selection is a local-agent prerequisite for every video-side
+    # audio/render recovery. It never expands into the editorial chain.
+    if (
+        any(
+            step in optional_requested
+            for step in ("synthesize_audio", "prepare_render")
+        )
+        and "prepare_subtitles" not in optional_requested
+    ):
+        optional_requested = ["prepare_subtitles", *optional_requested]
 
     for step in optional_requested:
         if step not in resolved:
@@ -304,7 +353,24 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     for step in standalone_requested:
         if step not in resolved:
             resolved.append(step)
-    return resolved
+
+    # Optional steps are appended above for compatibility with the historical
+    # resolver. Reorder the final set by the real pipeline order so a video run
+    # always synthesizes audio before prepare_render.
+    if any(
+        step in resolved
+        for step in (
+            "prepare_subtitles",
+            "synthesize_audio",
+            "prepare_render",
+            "render",
+        )
+    ):
+        ordered = [step for step in VIDEO_PIPELINE_ORDER if step in resolved]
+    else:
+        ordered = [step for step in PIPELINE_STEPS if step in resolved]
+    ordered.extend(step for step in standalone_requested if step not in ordered)
+    return ordered
 
 
 class Orchestrator:
@@ -322,6 +388,9 @@ class Orchestrator:
         agent_mode: bool = False,
         allow_degraded_enrichment: bool = False,
         refresh_variants: bool = False,
+        refresh_selection: bool = False,
+        refresh_script: bool = False,
+        flow: str | None = None,
     ):
         self.config = config
         self.content_fetcher = content_fetcher
@@ -335,6 +404,9 @@ class Orchestrator:
         self.agent_mode = agent_mode
         self.allow_degraded_enrichment = allow_degraded_enrichment
         self.refresh_variants = refresh_variants
+        self.refresh_selection = refresh_selection
+        self.refresh_script = refresh_script
+        self.flow = flow
         self._agent_state: Optional[AgentState] = None
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
@@ -390,12 +462,34 @@ class Orchestrator:
             steps = _resolve_steps(steps)
 
         self._progress = PipelineProgress(steps, date, self.config)
+        product = (
+            "video"
+            if self.flow == "video"
+            or any(
+                step
+                in {
+                    "prepare_subtitles",
+                    "synthesize_audio",
+                    "prepare_render",
+                    "render",
+                }
+                for step in steps
+            )
+            else "xhs_cards"
+        )
         self._agent_state = (
-            AgentState(date, steps, self.config) if self.agent_mode else None
+            AgentState(date, steps, self.config, product=product)
+            if self.agent_mode and not self.dry_run
+            else None
         )
         if self._agent_state:
             self._agent_state.start_run()
-        if self.agent_mode and self.refresh_variants and "write_script" in steps:
+        if (
+            self.agent_mode
+            and not self.dry_run
+            and (self.refresh_variants or self.refresh_selection or self.refresh_script)
+            and "write_script" in steps
+        ):
             self._refresh_variant_outputs(date)
         self._progress.print_execution_summary(force=force)
 
@@ -453,6 +547,20 @@ class Orchestrator:
             else:
                 self._print_enrich_failure_guidance(failed_items)
                 return
+
+        pending_image_selections = getattr(
+            self.article_enricher, "pending_image_selections", []
+        )
+        if pending_image_selections and self.agent_mode:
+            if self._agent_state:
+                self._agent_state.block_for_manual_image_selection(
+                    "enrich_articles", pending_image_selections
+                )
+            self.logger.warning(
+                "%d image selections need agent confirmation before continuing.",
+                len(pending_image_selections),
+            )
+            return
 
         # ── 5. translate_titles ───────────────────────────────────────────
         skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
@@ -518,7 +626,13 @@ class Orchestrator:
                     return
         elif SCRIPT_CONSUMING_STEPS & set(steps):
             try:
-                script = self.script_writer.load_script(date)
+                script = self.script_writer.load_script(
+                    date,
+                    with_audio=any(
+                        step in steps for step in ("prepare_render", "render")
+                    )
+                    and "synthesize_audio" not in steps,
+                )
             except FileNotFoundError:
                 self.logger.warning(
                     "Script not found on disk; downstream steps may fail"
@@ -534,12 +648,17 @@ class Orchestrator:
             with self._tracked_step("translate_comments"):
                 content, script = self._step_translate_comments(content, script, date)
 
-        # ── 11. synthesize_audio ──────────────────────────────────────────
+        # ── 11. prepare_subtitles ─────────────────────────────────────────
+        if "prepare_subtitles" in steps:
+            with self._tracked_step("prepare_subtitles"):
+                script = self._step_prepare_subtitles(script, date)
+
+        # ── 12. synthesize_audio ──────────────────────────────────────────
         if "synthesize_audio" in steps:
             with self._tracked_step("synthesize_audio"):
                 script = self._step_synthesize_audio(content, script, date)
 
-        # ── 12. title ─────────────────────────────────────────────────────
+        # ── 13. title ─────────────────────────────────────────────────────
         if "title" in steps:
             with self._tracked_step("title"):
                 script = self._step_title(content, script, date)
@@ -579,7 +698,7 @@ class Orchestrator:
             with self._tracked_step("preview"):
                 self._step_preview(script, date, content)
 
-        if script and SCRIPT_MUTATING_STEPS & set(steps):
+        if script and SCRIPT_MUTATING_STEPS & set(steps) and not self.dry_run:
             save_transcript(script, date, content, logger=self.logger)
 
         # report.md generation disabled
@@ -590,11 +709,101 @@ class Orchestrator:
 
     # ── Step implementations ─────────────────────────────────────────────
 
+    def _step_prepare_subtitles(
+        self, script: Optional[Script], date: str
+    ) -> Optional[Script]:
+        self.logger.info("Step: Prepare subtitles — local agent selection")
+        if script is None:
+            raise ValueError("Script not loaded; cannot prepare subtitles")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping subtitle selection")
+            return script
+
+        plan = prepare_subtitles(script, date, config=self.config)
+        self.script_writer.save_script(script, date)
+        self.logger.info(
+            "  Agent selected %d subtitle changes across %d entries",
+            plan["changed_count"],
+            len(plan["entries"]),
+        )
+        return script
+
+    @staticmethod
+    def _selection_ids(content: ContentPackage) -> list[str]:
+        return [str(item.source_id) for item in content.items]
+
+    def _load_selection_lock(self, date: str) -> dict[str, Any] | None:
+        path = agent_path(date, "selection_lock.json")
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Invalid selection lock: {path}") from exc
+        if not isinstance(payload, dict) or not isinstance(
+            payload.get("source_ids"), list
+        ):
+            raise RuntimeError(f"Invalid selection lock: {path}")
+        if payload.get("date") not in {None, date}:
+            raise RuntimeError(f"Selection lock date mismatch: {path}")
+        return payload
+
+    def _assert_selection_lock(
+        self, content: ContentPackage, date: str, lock: dict[str, Any]
+    ) -> None:
+        locked_ids = [str(source_id) for source_id in lock["source_ids"]]
+        current_ids = self._selection_ids(content)
+        if locked_ids != current_ids:
+            raise RuntimeError(
+                "Selection lock mismatch: the current content IDs differ from the "
+                f"locked selection ({locked_ids} != {current_ids}). "
+                "Use --refresh-selection explicitly to choose a new set."
+            )
+
+    def _write_selection_lock(self, content: ContentPackage, date: str) -> None:
+        path = agent_path(date, "selection_lock.json")
+        atomic_write_json(
+            path,
+            {
+                "schema_version": 1,
+                "date": date,
+                "source_ids": self._selection_ids(content),
+                "items": [
+                    {
+                        "source_id": str(item.source_id),
+                        "title": item.title or "",
+                        "url": item.url or "",
+                    }
+                    for item in content.items
+                ],
+                "created_at": utc_now(),
+            },
+        )
+        append_agent_event(
+            date,
+            "selection_locked",
+            source_ids=self._selection_ids(content),
+        )
+
     def _step_fetch(self, date: str) -> ContentPackage:
         self.logger.info("Step: Fetch content")
         if self.dry_run:
             self.logger.info("Dry run: skipping fetch")
             return ContentPackage(date=date, items=[])
+
+        if self.agent_mode and not self.refresh_selection:
+            lock = self._load_selection_lock(date)
+            if lock:
+                try:
+                    content = self.content_preparer.load_content(date)
+                except FileNotFoundError as exc:
+                    raise RuntimeError(
+                        "Selection is locked but pipeline/content.json is missing; "
+                        "restore the content artifact or use --refresh-selection."
+                    ) from exc
+                self._assert_selection_lock(content, date, lock)
+                self.logger.info("  Selection lock found; reusing locked content")
+                return content
 
         content = self.content_fetcher.fetch(date)
         self.content_preparer.save_content(content, date)
@@ -605,6 +814,13 @@ class Orchestrator:
         if self.dry_run:
             self.logger.info("Dry run: skipping prefilter")
             return content
+
+        if self.agent_mode and not self.refresh_selection:
+            lock = self._load_selection_lock(date)
+            if lock:
+                self._assert_selection_lock(content, date, lock)
+                self.logger.info("  Selection lock found; skipping prefilter refresh")
+                return content
 
         prefilter_cfg = self.config.get("prefilter", {})
         if prefilter_cfg.get("comment_preview_enabled", True):
@@ -618,6 +834,8 @@ class Orchestrator:
 
         content = self.prefilter.filter(content, date)
         self.content_preparer.save_content(content, date)
+        if self.agent_mode:
+            self._write_selection_lock(content, date)
         return content
 
     def _step_fetch_comments(
@@ -760,6 +978,35 @@ class Orchestrator:
         self.logger.info(f"  Rendered {len(rendered)} Xiaohongshu cards")
 
     def _step_write_script(self, content: ContentPackage, date: str) -> Script:
+        lock = load_script_lock(date)
+        if not (self.refresh_script or self.refresh_variants):
+            script_path = pipeline_path(date, "script.json")
+            if lock:
+                existing = self.script_writer.load_script(date)
+                expected_hash = lock.get("script_hash")
+                current_hash = script_editorial_hash(existing)
+                if expected_hash and expected_hash != current_hash:
+                    raise RuntimeError(
+                        "script.json changed after the last editorial lock. "
+                        "Continue from a downstream step, or pass --refresh-script "
+                        "to intentionally regenerate the script."
+                    )
+            elif script_path.exists():
+                manifest_path = script_path.with_suffix(
+                    script_path.suffix + ".manifest.json"
+                )
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    manifest = None
+                if not isinstance(manifest, dict) or manifest.get(
+                    "artifact_hash"
+                ) != file_sha256(script_path):
+                    raise RuntimeError(
+                        "Existing script.json has untracked editorial changes. "
+                        "Continue from a downstream step, or pass --refresh-script "
+                        "to intentionally regenerate the script."
+                    )
         self.logger.info("=" * 50)
         self.logger.info("Step: Write script — narration generation")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
@@ -857,16 +1104,33 @@ class Orchestrator:
             self.logger.warning("Script not loaded; skipping audio synthesis")
             return script
 
+        audio_manifest_path = pipeline_path(date, "audio_manifest.json")
+        audio_inputs = {
+            "audio_input_hash": script_audio_input_hash(script),
+            "segment_count": len(script.segments),
+        }
+
         if self.dry_run:
             self.logger.info("Dry run: skipping TTS")
             for seg in script.segments:
                 seg.actual_duration = seg.duration
                 seg.audio_path = ""
             self._timing.compute_timeline(script)
-            self.script_writer.save_script(script, date)
             return script
 
+        if is_artifact_fresh(audio_manifest_path, audio_inputs):
+            manifest = load_audio_manifest(date)
+            if manifest is not None and audio_manifest_is_usable(
+                manifest, expected_segment_count=len(script.segments)
+            ):
+                self.logger.info(
+                    "  Audio manifest matches current script; skipping TTS"
+                )
+                return apply_audio_manifest(script, manifest)
+            self.logger.info("  Audio manifest is incomplete; regenerating TTS")
+
         script = self.tts_processor.process_audio(script, date, content)
+        save_audio_manifest(script, date, config=self.config)
         self.script_writer.save_script(script, date)
         return script
 
@@ -1919,6 +2183,12 @@ class Orchestrator:
             self.logger.info("Dry run: skipping prepare_render")
             return
 
+        props_path = render_path(date, "cli_props.json")
+        render_inputs = self._render_inputs(script, content, date)
+        if is_artifact_fresh(props_path, render_inputs):
+            self.logger.info("  Render props match current inputs; skipping")
+            return
+
         audio_dir = str(pipeline_audio_dir(date))
         try:
             props_path, _, _ = self.renderer.write_props(
@@ -1938,13 +2208,24 @@ class Orchestrator:
             step="prepare_render",
             date=date,
             inputs={
-                "script_title": script.title,
-                "segment_count": len(script.segments),
+                **render_inputs,
                 "audio_dir": audio_dir,
-                "renderer": type(self.renderer).__name__,
             },
             config=self.config,
         )
+
+    def _render_inputs(
+        self, script: Script, content: Optional[ContentPackage], date: str
+    ) -> dict[str, Any]:
+        return {
+            "script_editorial_hash": script_editorial_hash(script),
+            "audio_manifest_hash": file_sha256(
+                pipeline_path(date, "audio_manifest.json")
+            ),
+            "content_hash": file_sha256(pipeline_path(date, "content.json")),
+            "renderer": type(self.renderer).__name__,
+            "content_item_count": len(content.items) if content is not None else 0,
+        }
 
     def _step_render(
         self,
@@ -1960,7 +2241,7 @@ class Orchestrator:
 
         if script is None:
             try:
-                script = self.script_writer.load_script(date)
+                script = self.script_writer.load_script(date, with_audio=True)
             except FileNotFoundError:
                 raise FileNotFoundError("Script not found; cannot render")
 
@@ -1972,17 +2253,37 @@ class Orchestrator:
                     "Content not found for render, scene elements may be incomplete"
                 )
 
+        output_path = Path(publish_path(date, "output.mp4"))
+        props_path = render_path(date, "cli_props.json")
+        render_inputs = {
+            **self._render_inputs(script, content, date),
+            "props_hash": file_sha256(props_path),
+        }
+        if not force and is_artifact_fresh(output_path, render_inputs):
+            self.logger.info("  Video output matches current inputs; skipping render")
+            return
+
         if force:
             self._clear_render_cache(date)
 
-        output_path = str(publish_path(date, "output.mp4"))
+        output_path_str = str(output_path)
         audio_dir = str(pipeline_audio_dir(date))
-        self.renderer.render(script, audio_dir, output_path, content, date=date)
-        rendered = Path(output_path)
+        self.renderer.render(script, audio_dir, output_path_str, content, date=date)
+        rendered = output_path
         if not rendered.exists() or rendered.stat().st_size <= 0:
             raise RuntimeError(
-                f"Renderer did not produce a valid output file: {output_path}"
+                f"Renderer did not produce a valid output file: {output_path_str}"
             )
+        write_artifact_manifest(
+            rendered,
+            step="render",
+            date=date,
+            inputs={
+                **self._render_inputs(script, content, date),
+                "props_hash": file_sha256(render_path(date, "cli_props.json")),
+            },
+            config=self.config,
+        )
 
     def _step_preview(
         self,
@@ -1997,7 +2298,7 @@ class Orchestrator:
 
         if script is None:
             try:
-                script = self.script_writer.load_script(date)
+                script = self.script_writer.load_script(date, with_audio=True)
             except FileNotFoundError:
                 self.logger.error("Script not found; cannot preview")
                 return
@@ -2063,6 +2364,7 @@ class Orchestrator:
             agent_path(date, "agent_decision.json"),
             agent_path(date, "agent_variant_decision.json"),
             agent_path(date, "selected_variant.json"),
+            agent_path(date, "script_lock.json"),
         ]
         for path in paths:
             if path.exists() and path.is_file():
@@ -2087,7 +2389,7 @@ class Orchestrator:
 
         if deleted:
             self.logger.info(
-                f"Refresh variants: deleted {len(deleted)} script/variant cache item(s)"
+                f"Refresh script/variant caches: deleted {len(deleted)} item(s)"
             )
             append_agent_event(
                 date,

@@ -501,6 +501,7 @@ class ImageHandler:
         source_id: str,
         fetcher,
         entity_queries: List[str] | None = None,
+        label: str = "Bing result",
     ) -> List[Dict[str, Any]]:
         """Search Bing Images and download top results.
 
@@ -547,7 +548,7 @@ class ImageHandler:
                 image_dir,
                 f"{source_id}_bing",
                 source="bing",
-                label="Bing result",
+                label=label,
             )
             for candidate in candidates:
                 idx = candidate.get("rank", 0)

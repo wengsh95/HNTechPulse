@@ -1,5 +1,5 @@
 from src.core.models import ContentComment, ContentItem, ScriptSegment, SceneElement
-from src.pipeline.script.cards import extract_subtitle_texts
+from src.pipeline.script.cards import extract_subtitle_texts, normalize_story_cards
 from src.pipeline.script import ScriptWriter
 
 
@@ -174,6 +174,41 @@ class TestAudioOnlyScriptHelpers:
         assert "progress" not in text.lower()
         assert "Bambu Lab" in text
         assert "TanStack" in text
+
+
+class TestNormalizeStoryCards:
+    def test_authoritative_story_metadata_replaces_stale_llm_props(self):
+        item = _make_item(
+            title_cn="正确的中文标题",
+            editor_angle="正确的编辑角度",
+            key_points=["正确要点"],
+        )
+        segment = ScriptSegment(
+            segment_type="story_scan_item",
+            audio_text="test",
+            duration=10.0,
+            scene_elements=[
+                SceneElement(
+                    element_type="event_card",
+                    start_time=0.0,
+                    end_time=5.0,
+                    props={
+                        "source_title": "另一篇文章",
+                        "title_cn": "另一篇标题",
+                        "editor_angle": "另一篇角度",
+                        "key_points": ["另一篇要点"],
+                    },
+                )
+            ],
+        )
+
+        normalize_story_cards(segment, item, {})
+
+        props = segment.scene_elements[0].props
+        assert props["source_title"] == item.title
+        assert props["title_cn"] == item.title_cn
+        assert props["editor_angle"] == item.editor_angle
+        assert props["key_points"] == item.key_points
 
 
 class TestSubtitleEditorialCleanup:

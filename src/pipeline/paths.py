@@ -10,12 +10,12 @@ Layout::
     data/{month}/{date}/
     ├── raw/         raw_stories.json, downloaded_pages/
     ├── pipeline/    prefilter, enrichment, content, comment_*, script,
-    │                segments/, variants/, audio/
+    │                audio_manifest, segments/, variants/, audio/
     ├── media/       images/
     ├── render/      remotion/{chunks,public}/, cli_props.json
     ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
     │                xhs_cards.json, xhs_cards/, cover_bg.png, cover.png
-    ├── agent/       pipeline_state.json, agent_decision.json,
+    ├── agent/       pipeline_state_video.json, pipeline_state_xhs.json,
     │                agent_events.jsonl, selected_variant.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
 
@@ -126,7 +126,9 @@ _PIPELINE_FILES: dict[str, str] = {
     "comment_judgement.json": "comment_judgement.json",
     "translations.json": "translations.json",
     "script.json": "script.json",
+    "subtitle_plan.json": "subtitle_plan.json",
     "script_review.json": "script_review.json",
+    "audio_manifest.json": "audio_manifest.json",
     "selected_variant.json": "script.json",  # legacy alias — see agent_variants.promote_variant_script
     "transcript.md": "transcript.md",
 }
@@ -156,9 +158,13 @@ _PUBLISH_FILES: dict[str, str] = {
 
 _AGENT_FILES: dict[str, str] = {
     "pipeline_state.json": "pipeline_state.json",
+    "pipeline_state_video.json": "pipeline_state_video.json",
+    "pipeline_state_xhs.json": "pipeline_state_xhs.json",
     "agent_decision.json": "agent_decision.json",
     "agent_events.jsonl": "agent_events.jsonl",
     "agent_tasks.json": "agent_tasks.json",
+    "selection_lock.json": "selection_lock.json",
+    "script_lock.json": "script_lock.json",
     "agent_variant_decision.json": "agent_variant_decision.json",
     "selected_variant.json": "selected_variant.json",
     "report.md": "report.md",
@@ -206,6 +212,19 @@ def pipeline_path(date: str, name: str) -> Path:
             f"Unknown pipeline artifact: {name!r}. Known: {sorted(_PIPELINE_FILES)}"
         )
     return pipeline_root(date) / _PIPELINE_FILES[name]
+
+
+def content_path_candidates(date: str) -> tuple[Path, ...]:
+    """Return canonical and legacy content paths for offline tooling.
+
+    Runs created before the month-bucket layout used ``data/YYYY-MM-DD``
+    directly.  The production pipeline only writes the canonical path, but
+    dataset/evaluation tools need to be able to read both layouts without
+    duplicating path construction logic.
+    """
+    canonical = pipeline_path(date, "content.json")
+    legacy = Path("data") / date / PIPELINE_DIR / "content.json"
+    return tuple(dict.fromkeys((canonical, legacy)))
 
 
 def media_path(date: str, name: str) -> Path:
@@ -289,6 +308,7 @@ LEGACY_FLAT_LAYOUT = {
     "variants",
     "segments",
     "manifest.json",
+    "audio_manifest.json",
 }
 
 
@@ -330,6 +350,7 @@ __all__ = [
     "media_images_dir",
     "render_remotion_dir",
     "pipeline_path",
+    "content_path_candidates",
     "media_path",
     "publish_path",
     "agent_path",

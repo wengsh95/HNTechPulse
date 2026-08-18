@@ -470,6 +470,7 @@ class LLMClient:
         config: dict,
         logger,
         candidates=None,
+        distribution_candidates=None,
     ) -> str:
         """Serialize a story's comments for the comment-judge LLM call.
 
@@ -484,29 +485,27 @@ class LLMClient:
             is_resource_pointer_comment,
         )
 
-        if candidates is not None:
-            comments_json = []
-            for c in candidates:
-                text = clean_comment_text(c.content or "")
-                if not text or c.source_id is None:
-                    continue
-                comments_json.append(
-                    {
-                        "id": c.source_id,
-                        "author": c.author,
-                        "text": text[:360],
-                        "depth": c.depth,
-                        "sentiment": c.sentiment,
-                        "quality_score": c.quality_score,
-                        "resource_pointer_hint": is_resource_pointer_comment(text),
-                    }
-                )
-            if logger is not None:
-                logger.debug(
-                    f"Story[{index}] judge using {len(comments_json)} "
-                    f"pre-filtered comments (from {len(candidates)} candidates)"
-                )
-        else:
+        def serialize_comment(c):
+            text = clean_comment_text(c.content or "")
+            if not text or c.source_id is None:
+                return None
+            parent_text = clean_comment_text(c.parent_text or "")
+            return {
+                "id": c.source_id,
+                "author": c.author,
+                "text": text[:360],
+                "depth": c.depth,
+                "parent_id": c.parent_id,
+                "parent_text": parent_text[:300] if parent_text else None,
+                "context_sufficient": c.depth is None
+                or c.depth <= 1
+                or bool(parent_text),
+                "sentiment": c.sentiment,
+                "quality_score": c.quality_score,
+                "resource_pointer_hint": is_resource_pointer_comment(text),
+            }
+
+        if candidates is None:
             analyze_cfg = config.get("analyze", {})
             max_comments = analyze_cfg.get("max_comments_for_judge", 15)
             min_quality = analyze_cfg.get("judge_min_quality_score", 0.05)
@@ -533,19 +532,36 @@ class LLMClient:
                 ),
                 reverse=True,
             )
-            comments_json = [
-                {
-                    "id": c.source_id,
-                    "author": c.author,
-                    "text": text[:360],
-                    "depth": c.depth,
-                    "sentiment": c.sentiment,
-                    "quality_score": quality_score,
-                    "resource_pointer_hint": is_resource_pointer_comment(text),
-                }
-                for quality_score, c, text in scored_comments[:max_comments]
-                if c.source_id is not None
-            ]
+            comments_json = []
+            for _quality_score, comment, _text in scored_comments[:max_comments]:
+                serialized = serialize_comment(comment)
+                if serialized is not None:
+                    comments_json.append(serialized)
+        else:
+            comments_json = []
+            for comment in candidates:
+                serialized = serialize_comment(comment)
+                if serialized is not None:
+                    comments_json.append(serialized)
+            if logger is not None:
+                logger.debug(
+                    f"Story[{index}] judge using {len(comments_json)} "
+                    f"pre-filtered quote comments (from {len(candidates)} candidates)"
+                )
+
+        if distribution_candidates is None:
+            distribution_json = list(comments_json)
+        else:
+            distribution_json = []
+            for comment in distribution_candidates:
+                serialized = serialize_comment(comment)
+                if serialized is not None:
+                    distribution_json.append(serialized)
+            if logger is not None:
+                logger.debug(
+                    f"Story[{index}] judge using {len(distribution_json)} "
+                    "unbiased distribution comments"
+                )
 
         story_dict = {
             "index": index,
@@ -557,6 +573,10 @@ class LLMClient:
             "total_comments_available": len(item.comments),
             "truncated_to": len(comments_json),
             "comments": comments_json,
+            "distribution_comments": distribution_json,
+            "discussion_target": (
+                item.editor_angle or item.why_it_matters or item.title
+            ),
         }
         if item.article_summary:
             story_dict["article_summary"] = item.article_summary

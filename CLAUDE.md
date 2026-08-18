@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**HN TechPulse** — Python CLI pipeline (not a web app) that turns one high-signal Hacker News story into a six-page Xiaohongshu card package. Entry point: [main.py](main.py) → [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py).
+**HN TechPulse** — Python CLI pipeline (not a web app) that turns high-signal Hacker News stories into a six-page Xiaohongshu card package or a narrated tech video. Entry point: [main.py](main.py) → [src/pipeline/orchestrator.py](src/pipeline/orchestrator.py).
 
 ## Commands
 
@@ -21,8 +21,10 @@ Agent mode - always use the managed wrapper:
 
 ```bash
 uv run python scripts/agent_run.py --date YYYY-MM-DD                # Preflight + status + safe pipeline run + audit
+uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video   # Managed TTS + video render flow
 uv run python scripts/agent_run.py --date YYYY-MM-DD --resume       # Continue after repair
-uv run python scripts/agent_status.py --date YYYY-MM-DD             # Inspect machine-readable state/artifacts
+uv run python scripts/agent_status.py --date YYYY-MM-DD             # Inspect card status
+uv run python scripts/agent_status.py --date YYYY-MM-DD --flow video # Inspect video status
 uv run python scripts/agent_audit.py --date YYYY-MM-DD              # Final publishability audit
 ```
 
@@ -60,7 +62,8 @@ fetch → prefilter → fetch_comments → enrich_articles → translate_titles
 
 `plan_xhs_cards` selects one story and writes a deterministic six-page JSON
 contract. `render_xhs_cards` can be repaired independently without another LLM
-call. Old video steps remain available only for manual maintenance of old dates.
+call. The independent video flow is selected with `scripts/agent_run.py --flow video`
+and runs script generation, TTS, cover generation, render props, and final MP4 render.
 
 ### Data Flow
 
@@ -87,11 +90,12 @@ data/{month}/{date}/
 ├── raw/         raw_stories.json, downloaded_pages/
 ├── pipeline/    prefilter, enrichment, content, comment_*; legacy video caches
 ├── media/       images/
-├── render/      legacy video render artifacts
+├── render/      cli_props.json and video renderer artifacts
 ├── publish/     xhs_cards.json, xhs_cards/{index.html,assets/,xhs-*.png,
-│                _contact-sheet.png}; legacy video artifacts may also exist
-├── agent/       pipeline_state.json, agent_decision.json, agent_tasks.json,
-│                agent_events.jsonl, selected_variant.json, report.md
+│                _contact-sheet.png}, or video output.mp4 and cover assets
+├── agent/       pipeline_state_video.json, pipeline_state_xhs.json,
+│                agent_decision.json, agent_tasks.json, agent_events.jsonl,
+│                script_lock.json, selected_variant.json, report.md
 └── outputs/     (organize_outputs.py mirror — unchanged)
 ```
 
@@ -133,7 +137,7 @@ runs status/audit checks. Always read JSON state files, never parse human logs.
 
 Full contract: [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md)
 
-**Managed flags**: `--resume` (continue from `pipeline_state.json`), `--steps`
+**Managed flags**: `--resume` (continue from the selected product state), `--steps`
 (explicit repair path), `--allow-degraded-enrichment` (continue past enrichment
 failures only with user approval), and `--dry-run` (show the selected command
 without mutating state).

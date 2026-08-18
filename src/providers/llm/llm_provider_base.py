@@ -592,9 +592,15 @@ class LLMProviderBase(LLMProvider):
         story_index: int,
         prompt_template_path: str = "prompts/comment_analyze.md",
         candidates=None,
+        distribution_candidates=None,
     ) -> dict:
         story_json = LLMClient.story_comments_for_judge(
-            item, story_index, self.config, self.logger, candidates=candidates
+            item,
+            story_index,
+            self.config,
+            self.logger,
+            candidates=candidates,
+            distribution_candidates=distribution_candidates,
         )
         prompt_path = Path(prompt_template_path)
         if prompt_path.exists():
@@ -614,7 +620,67 @@ class LLMProviderBase(LLMProvider):
             extra_body=self._comment_judge_extra_body(),
         )
         result = self._extract_json(response_text)
-        return normalize_story_judgement(result, item)
+        distribution_ids = {
+            str(comment.source_id)
+            for comment in (distribution_candidates or [])
+            if comment.source_id is not None
+        }
+        return normalize_story_judgement(
+            result,
+            item,
+            distribution_ids=(
+                distribution_ids if distribution_candidates is not None else None
+            ),
+        )
+
+    def judge_story_comment_stances(
+        self,
+        item: ContentItem,
+        story_index: int,
+        candidates,
+        prompt_template_path: str = "prompts/comment_distribution.md",
+        batch_index: int = 0,
+    ) -> dict:
+        """Classify a larger, unbiased batch for distribution estimation."""
+        candidates = list(candidates or [])
+        story_json = LLMClient.story_comments_for_judge(
+            item,
+            story_index,
+            self.config,
+            self.logger,
+            candidates=[],
+            distribution_candidates=candidates,
+        )
+        prompt_path = Path(prompt_template_path)
+        if prompt_path.exists():
+            prompt_template = _read_template_cached(str(prompt_path))
+        else:
+            prompt_template = prompt_template_path
+        prompt = render_prompt(prompt_template, story_json=story_json)
+        response_text = self._call_llm_with_json_retry(
+            messages=self._split_prompt(prompt),
+            label=f"comment_distribution_{story_index}_{batch_index}",
+            max_tokens=self.config.get("analyze", {}).get(
+                "comment_distribution_max_tokens",
+                self.config.get("analyze", {}).get("comment_judge_max_tokens", 4096),
+            ),
+            model=self.fast_model,
+            temperature=self.config.get("analyze", {}).get(
+                "comment_distribution_temperature", 0.1
+            ),
+            extra_body=self._comment_judge_extra_body(),
+        )
+        result = self._extract_json(response_text)
+        distribution_ids = {
+            str(comment.source_id)
+            for comment in candidates
+            if comment.source_id is not None
+        }
+        return normalize_story_judgement(
+            result,
+            item,
+            distribution_ids=distribution_ids,
+        )
 
     def _comment_judge_extra_body(self) -> Optional[Dict[str, Any]]:
         analyze_cfg = self.config.get("analyze", {})

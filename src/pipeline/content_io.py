@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.agent_io import write_artifact_manifest
@@ -45,6 +46,17 @@ class ContentPreparer:
         if not content_path.exists():
             raise FileNotFoundError(f"Content file not found: {content_path}")
 
+        return self.load_content_path(content_path)
+
+    def load_content_path(self, content_path: Path) -> ContentPackage:
+        """Load a content package from an explicit JSON path.
+
+        This is primarily used by offline evaluation tools that also read the
+        pre-month-bucket data layout.  Production callers should continue to
+        use :meth:`load_content` so the canonical path helper remains the
+        default.
+        """
+
         try:
             with open(content_path, "r", encoding="utf-8") as f:
                 content_dict = json.load(f)
@@ -64,6 +76,8 @@ class ContentPreparer:
                         source_id=c.get("source_id"),
                         upvotes=c.get("upvotes"),
                         depth=c.get("depth"),
+                        parent_id=c.get("parent_id"),
+                        parent_text=c.get("parent_text"),
                         published_at=c.get("published_at"),
                         sentiment=c.get("sentiment"),
                         quality_score=c.get("quality_score"),
@@ -99,6 +113,9 @@ class ContentPreparer:
                         logo_image=item_dict.get("logo_image"),
                         screenshot_image=item_dict.get("screenshot_image"),
                         enrichment_source=item_dict.get("enrichment_source"),
+                        article_relevance_score=item_dict.get(
+                            "article_relevance_score"
+                        ),
                         enrichment_error=item_dict.get("enrichment_error"),
                     )
                 )

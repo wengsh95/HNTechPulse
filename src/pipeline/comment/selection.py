@@ -1,5 +1,6 @@
 """Comment selection: stance classification, candidate picking, quote selection."""
 
+import math
 from typing import Iterable, List, Optional
 
 from src.core.models import ContentComment, ContentItem
@@ -28,6 +29,18 @@ def classify_comment_stance(comment: ContentComment) -> str:
     if sentiment < -0.3:
         return "质疑"
     return "中立"
+
+
+def _judged_comment_stance(comment: ContentComment, judgement: Optional[dict]) -> str:
+    """Prefer the judge's target-relative stance over VADER sentiment."""
+    comment_id = str(comment.source_id) if comment.source_id is not None else ""
+    for candidate in (judgement or {}).get("quote_candidates", []) or []:
+        if str(candidate.get("comment_id")) != comment_id:
+            continue
+        stance = str(candidate.get("stance") or "").strip()
+        if stance in {"支持", "质疑", "中立"}:
+            return stance
+    return classify_comment_stance(comment)
 
 
 def comment_key(
@@ -284,6 +297,95 @@ def select_discussion_profile_comments(
     return [row[1] for row in selected[:max_n]]
 
 
+def comment_context_sufficient(comment: ContentComment) -> bool:
+    """Return whether a comment can be judged without its missing parent."""
+    if comment.depth is None or comment.depth <= 1:
+        return True
+    return bool(clean_comment_text(comment.parent_text or ""))
+
+
+def distribution_sample_size(
+    population: int,
+    *,
+    target_error_pp: float = 5.0,
+    max_sample: int = 385,
+    full_population_threshold: int = 200,
+) -> int:
+    """Return a deterministic sample size for a proportion estimate.
+
+    The calculation uses a conservative p=0.5 assumption and a 95% normal
+    interval. Small threads are judged in full; larger threads target roughly
+    +/- ``target_error_pp`` percentage points before label/model error.
+    """
+    population = max(0, int(population))
+    if population == 0:
+        return 0
+    if population <= max(1, int(full_population_threshold)):
+        return population
+    error = max(0.001, float(target_error_pp) / 100.0)
+    z = 1.96
+    p = 0.5
+    unconstrained = (z * z * p * (1.0 - p)) / (error * error)
+    finite_population = math.ceil(
+        (population * unconstrained) / (population - 1 + unconstrained)
+    )
+    return min(population, max(1, int(max_sample)), finite_population)
+
+
+def select_distribution_comments(
+    item: ContentItem,
+    max_n: Optional[int] = None,
+    min_quality: float = 0.05,
+    *,
+    target_error_pp: float = 5.0,
+    max_sample: int = 385,
+    full_population_threshold: int = 200,
+) -> List[ContentComment]:
+    """Select an unbiased, deterministic sample for stance distribution.
+
+    This deliberately does not add sentiment, stance, color, or experience
+    slices. Those slices are useful for quote discovery but bias a percentage
+    estimate. Replies without parent text are excluded because their stance
+    target cannot be recovered reliably.
+    """
+    eligible: list[ContentComment] = []
+    for comment in item.comments:
+        if comment.source_id is None or not comment_context_sufficient(comment):
+            continue
+        text = clean_comment_text(comment.content or "")
+        if len(text) < 20 or is_resource_pointer_comment(text):
+            continue
+        quality = comment.quality_score
+        if quality is None:
+            quality = compute_comment_quality(comment, item)
+            comment.quality_score = quality
+        if float(quality or 0.0) < min_quality:
+            continue
+        eligible.append(comment)
+
+    if max_n is None:
+        max_n = distribution_sample_size(
+            len(eligible),
+            target_error_pp=target_error_pp,
+            max_sample=max_sample,
+            full_population_threshold=full_population_threshold,
+        )
+    if max_n <= 0:
+        return []
+
+    eligible.sort(key=lambda comment: str(comment.source_id))
+    if len(eligible) <= max_n:
+        return eligible
+
+    # Pick evenly spaced IDs so the result is stable and covers the whole
+    # thread instead of clustering around the highest-quality comments.
+    selected = []
+    for index in range(max_n):
+        position = int((index + 0.5) * len(eligible) / max_n)
+        selected.append(eligible[min(position, len(eligible) - 1)])
+    return selected
+
+
 def select_representative_comments(
     comments: Iterable[ContentComment],
     max_n: int = 3,
@@ -385,7 +487,7 @@ def select_quote_comments(
         min_quality=min_quality,
     )
     selected_object_ids = {id(c) for c in selected}
-    selected_stances = {classify_comment_stance(c) for c in selected}
+    selected_stances = {_judged_comment_stance(c, judgement) for c in selected}
 
     target_stances = ["支持", "质疑", "中立"]
     if len(selected) < max_n:
@@ -416,7 +518,7 @@ def select_quote_comments(
             for comment in judged_fillers:
                 if id(comment) in selected_object_ids:
                     continue
-                if classify_comment_stance(comment) == stance:
+                if _judged_comment_stance(comment, judgement) == stance:
                     selected.append(comment)
                     selected_object_ids.add(id(comment))
                     selected_stances.add(stance)
@@ -429,7 +531,7 @@ def select_quote_comments(
                 continue
             selected.append(comment)
             selected_object_ids.add(id(comment))
-            selected_stances.add(classify_comment_stance(comment))
+            selected_stances.add(_judged_comment_stance(comment, judgement))
             if len(selected) >= max_n:
                 return selected[:max_n]
 
@@ -445,10 +547,10 @@ def select_quote_comments(
         for comment in fillers:
             if id(comment) in selected_object_ids:
                 continue
-            if classify_comment_stance(comment) == stance:
+            if _judged_comment_stance(comment, judgement) == stance:
                 selected.append(comment)
                 selected_object_ids.add(id(comment))
-                selected_stances.add(stance)
+                selected_stances.add(_judged_comment_stance(comment, judgement))
                 break
         if len(selected) >= max_n:
             return selected[:max_n]

@@ -1,13 +1,12 @@
-"""End-to-end verification of the prefilter news-focus change.
+"""End-to-end verification of the prefilter editorial-selection policy.
 
 Creates a realistic pool of HN stories (mix of news, Show HN, Ask HN, tutorials)
 and runs the actual Prefilter with a smart keyword-based LLM mock. Prints the
-top-N selected stories so we can eyeball that news-type dominates.
+top-N selected stories so we can verify that news and high-value technical
+content dominate.
 """
 
-import json
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -209,9 +208,8 @@ STORIES = [
 
 
 def llm_decision(idx, item):
-    """Smart mock: judges news_focus/newsworthiness from title + comment text."""
+    """Smart mock: judges editorial value from title and story metadata."""
     title = (item.title or "").lower()
-    comments = " ".join(c.content for c in item.comments).lower()
 
     # News-type signals
     news_event_signals = [
@@ -245,6 +243,9 @@ def llm_decision(idx, item):
     if is_news_event:
         news_focus = 5
         newsworthiness = 5
+        content_type = "news_event"
+        audience_interest = 4
+        discussion_heat = 4
         category = (
             "ai_company"
             if "anthropic" in title or "openai" in title
@@ -259,26 +260,44 @@ def llm_decision(idx, item):
     elif is_ask_hn:
         news_focus = 1
         newsworthiness = 2
+        content_type = "opinion"
+        audience_interest = 3
+        discussion_heat = 4
         category = "other"
     elif is_show_hn:
         news_focus = 2
         newsworthiness = 3
+        content_type = "tool_product"
+        audience_interest = 5
+        discussion_heat = 4
         category = "developer_tools"
     elif is_tutorial:
         news_focus = 1
         newsworthiness = 2
+        content_type = "tutorial"
+        audience_interest = 5
+        discussion_heat = 4
         category = "developer_tools"
     elif is_resource:
         news_focus = 1
         newsworthiness = 1
+        content_type = "resource"
+        audience_interest = 2
+        discussion_heat = 2
         category = "other"
     elif is_opinion:
         news_focus = 1
         newsworthiness = 2
+        content_type = "opinion"
+        audience_interest = 4
+        discussion_heat = 3
         category = "culture"
     else:
         news_focus = 3
         newsworthiness = 3
+        content_type = "other"
+        audience_interest = 2
+        discussion_heat = 2
         category = "other"
 
     # Boost comment-heat for Ask HN (high discussion but not news)
@@ -289,9 +308,12 @@ def llm_decision(idx, item):
         "index": idx,
         "keep": True,
         "reason": f"simulated decision for {item.source_id}",
+        "content_type": content_type,
         "category": category,
         "news_focus": news_focus,
         "newsworthiness": newsworthiness,
+        "audience_interest": audience_interest,
+        "discussion_heat": discussion_heat,
     }
 
 
@@ -382,7 +404,7 @@ def main():
         1 for t in selected_types if t in ("tutorial", "resource", "opinion")
     )
 
-    print(f"\n=== Selection breakdown ===")
+    print("\n=== Selection breakdown ===")
     print(f"news:    {news_count}/{len(result.items)}")
     print(f"show:    {show_count}/{len(result.items)}")
     print(f"ask:     {ask_count}/{len(result.items)}")
@@ -394,7 +416,8 @@ def main():
         f"FAIL: expected at most 1 non-news non-ask, got {other_count}"
     )
     print(
-        f"\n[PASS] Selection prefers news-type: {news_count}/{len(result.items)} are news events"
+        f"\n[PASS] Selection prefers editorially valuable content: "
+        f"{news_count}/{len(result.items)} are news events"
     )
 
 

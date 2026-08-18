@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.pipeline.agent_io import append_agent_event, utc_now
-from src.pipeline.paths import agent_path, raw_downloaded_pages_dir
+from src.pipeline.agent_io import append_agent_event, pipeline_state_path, utc_now
+from src.pipeline.paths import agent_path, pipeline_path, raw_downloaded_pages_dir
 from src.utils.atomic_io import atomic_write_json
 
 BLOCK_MANUAL_DOWNLOAD = "manual_download_required"
+BLOCK_MANUAL_IMAGE_SELECTION = "manual_image_selection_required"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_INSUFFICIENT_CONTEXT = "insufficient_story_context"
@@ -17,11 +18,18 @@ BLOCK_INSUFFICIENT_CONTEXT = "insufficient_story_context"
 class AgentState:
     """Persist a compact run state that agents can inspect and resume from."""
 
-    def __init__(self, date: str, steps: list[str], config: dict[str, Any]):
+    def __init__(
+        self,
+        date: str,
+        steps: list[str],
+        config: dict[str, Any],
+        product: str = "xhs_cards",
+    ):
         self.date = date
         self.steps = list(steps)
         self.config = config
-        self.path = agent_path(date, "pipeline_state.json")
+        self.product = product
+        self.path = pipeline_state_path(date, product)
         self.task_path = agent_path(date, "agent_tasks.json")
         self.completed_steps: list[str] = []
         self.current_step: str | None = None
@@ -30,6 +38,7 @@ class AgentState:
         self.blocked_reason: str | None = None
         self.degraded_items: list[dict[str, Any]] = []
         self.missing_manual_files: list[dict[str, Any]] = []
+        self.manual_image_selections: list[dict[str, Any]] = []
         self.blocked_items: list[dict[str, Any]] = []
         self.last_error: dict[str, str] | None = None
 
@@ -147,6 +156,18 @@ class AgentState:
             write_tasks=True,
         )
 
+    def block_for_manual_image_selection(
+        self, step: str, items: list[dict[str, Any]]
+    ) -> None:
+        """Block until the current agent confirms one image per story."""
+        self.manual_image_selections = items
+        self.block(
+            step,
+            BLOCK_MANUAL_IMAGE_SELECTION,
+            items=self.manual_image_selections,
+            write_tasks=True,
+        )
+
     def block(
         self,
         step: str,
@@ -192,13 +213,23 @@ class AgentState:
         return None
 
     def _next_command(self) -> str | None:
+        flow_arg = " --flow video" if self.product == "video" else ""
         if self.status == "complete":
             return None
         if self.status == "blocked" and self.blocked_reason == BLOCK_MANUAL_DOWNLOAD:
             return (
                 "Fetch the missing article pages with browser/MCP, save them to "
                 f"{raw_downloaded_pages_dir(self.date)}/, then run: "
-                f"uv run python scripts/agent_run.py --date {self.date} --resume"
+                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
+            )
+        if (
+            self.status == "blocked"
+            and self.blocked_reason == BLOCK_MANUAL_IMAGE_SELECTION
+        ):
+            return (
+                "Inspect the candidate images with view_image, write one confirmed "
+                f"selection per story to {pipeline_path(self.date, 'image_selection.json')}, "
+                f"then run: uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
             )
         if (
             self.status == "blocked"
@@ -206,7 +237,7 @@ class AgentState:
         ):
             return (
                 "Gather more source context for the blocked stories, then run: "
-                f"uv run python scripts/agent_run.py --date {self.date} --resume"
+                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
             )
         if self.status == "blocked" and self.blocked_reason in {
             BLOCK_MISSING_CREDENTIALS,
@@ -215,14 +246,92 @@ class AgentState:
             return "Resolve the blocked environment issue, then rerun the command."
         next_step = self.failed_step or self.current_step or self._next_step()
         if next_step:
-            return f"uv run python scripts/agent_run.py --date {self.date} --steps {next_step}"
+            return (
+                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} "
+                f"--steps {next_step}"
+            )
         return None
 
     def _write_task_list(self) -> None:
         tasks = []
+        flow_arg = " --flow video" if self.product == "video" else ""
         resume_command = (
-            f"uv run python scripts/agent_run.py --date {self.date} --resume"
+            f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
         )
+        if self.blocked_reason == BLOCK_MANUAL_IMAGE_SELECTION:
+            for item in self.manual_image_selections:
+                selection_file = item.get(
+                    "selection_file",
+                    str(pipeline_path(self.date, "image_selection.json")).replace(
+                        "\\", "/"
+                    ),
+                )
+                tasks.append(
+                    {
+                        "schema_version": 2,
+                        "task_type": "select_image",
+                        "status": "pending",
+                        "story_id": item["story_id"],
+                        "title": item.get("title", ""),
+                        "url": item.get("url", ""),
+                        "candidates": item.get("candidates", []),
+                        "selection_file": selection_file,
+                        "save_as": {"image_selection": selection_file},
+                        "acceptable_outputs": ["image_selection"],
+                        "minimum_success_condition": (
+                            "The selected_image is one of the supplied candidate paths "
+                            "and the selected candidate is a relevant, viewable image."
+                        ),
+                        "agent_capabilities": [
+                            "view_image",
+                            "browser",
+                            "mcp",
+                            "web_search",
+                        ],
+                        "repair_steps": [
+                            "Inspect every candidate local_path with view_image.",
+                            "Reject error/interstitial pages, portraits, pure logos, and unrelated images unless the logo is the explicit final fallback.",
+                            "Choose the candidate whose visible content best matches the story subject.",
+                            "Write items[story_id].selected_image using the exact candidate path.",
+                            "Mark the selected candidate selection_source as agent (or set the entry selection_source to agent).",
+                            f"Resume with: {resume_command}",
+                        ],
+                        "failure_policy": (
+                            "Do not invent a new image path. If every candidate is unusable, "
+                            "leave the task pending and report the missing visual source."
+                        ),
+                        "resume_command": resume_command,
+                    }
+                )
+
+            atomic_write_json(
+                self.task_path,
+                {
+                    "schema_version": 2,
+                    "date": self.date,
+                    "created_at": utc_now(),
+                    "blocked_reason": self.blocked_reason,
+                    "repair_contract": {
+                        "owner": "agent",
+                        "allowed_tools": [
+                            "view_image",
+                            "browser",
+                            "mcp",
+                            "web_search",
+                        ],
+                        "acceptable_outputs": ["image_selection"],
+                        "minimum_success_condition": (
+                            "Every pending task has a selected_image that exactly "
+                            "matches one of its candidate paths and points to a local file."
+                        ),
+                        "resume_command": resume_command,
+                        "do_not_continue_without_image_selection": True,
+                    },
+                    "tasks": tasks,
+                },
+            )
+            return
+
         for item in self.missing_manual_files:
             # `synthesis_from` declares which source categories the agent may use
             # as fallbacks when the original URL is unreachable. The default `any`
@@ -331,19 +440,35 @@ class AgentState:
         )
 
     def _artifacts(self) -> dict[str, str | None]:
-        from src.pipeline.paths import (
-            pipeline_path,
-            publish_path,
-            publish_xhs_cards_dir,
-        )
+        from src.pipeline.paths import pipeline_audio_dir, pipeline_path, publish_path
 
-        artifacts = {
-            "content": pipeline_path(self.date, "content.json"),
-            "comment_judgement": pipeline_path(self.date, "comment_judgement.json"),
-            "xhs_cards": publish_path(self.date, "xhs_cards.json"),
-            "card_index": publish_xhs_cards_dir(self.date) / "index.html",
-            "contact_sheet": publish_xhs_cards_dir(self.date) / "_contact-sheet.png",
-        }
+        if self.product == "video":
+            from src.pipeline.paths import render_path
+
+            artifacts = {
+                "content": pipeline_path(self.date, "content.json"),
+                "script": pipeline_path(self.date, "script.json"),
+                "script_lock": agent_path(self.date, "script_lock.json"),
+                "subtitle_plan": pipeline_path(self.date, "subtitle_plan.json"),
+                "audio_manifest": pipeline_path(self.date, "audio_manifest.json"),
+                "audio_dir": pipeline_audio_dir(self.date),
+                "title": publish_path(self.date, "title.json"),
+                "cover": publish_path(self.date, "cover.png"),
+                "publish_guide": publish_path(self.date, "publish_guide.md"),
+                "render_props": render_path(self.date, "cli_props.json"),
+                "output": publish_path(self.date, "output.mp4"),
+            }
+        else:
+            from src.pipeline.paths import publish_xhs_cards_dir
+
+            artifacts = {
+                "content": pipeline_path(self.date, "content.json"),
+                "comment_judgement": pipeline_path(self.date, "comment_judgement.json"),
+                "xhs_cards": publish_path(self.date, "xhs_cards.json"),
+                "card_index": publish_xhs_cards_dir(self.date) / "index.html",
+                "contact_sheet": publish_xhs_cards_dir(self.date)
+                / "_contact-sheet.png",
+            }
         return {
             name: str(path).replace("\\", "/") if path.exists() else None
             for name, path in artifacts.items()
@@ -354,7 +479,7 @@ class AgentState:
             "schema_version": 2,
             "updated_at": utc_now(),
             "date": self.date,
-            "product": "xhs_cards",
+            "product": self.product,
             "status": self.status,
             "steps": self.steps,
             "current_step": self.current_step,
@@ -363,6 +488,7 @@ class AgentState:
             "blocked_reason": self.blocked_reason,
             "blocked_items": self.blocked_items,
             "missing_manual_files": self.missing_manual_files,
+            "manual_image_selections": self.manual_image_selections,
             "agent_task_file": (
                 str(self.task_path).replace("\\", "/")
                 if self.task_path.exists()

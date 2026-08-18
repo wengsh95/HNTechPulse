@@ -7,7 +7,7 @@ analyze:
   max_comments_for_llm: 10          # 每个 story 送入 LLM 的高质量评论数（按 quality_score 排序取 top-N）
 
   # ── Embedding 语义筛选 ──
-  embedding_enabled: true           # 启用 sentence-transformer embedding 做评论去重和相关性打分
+  embedding_enabled: false          # 关闭本地 sentence-transformer embedding，评论筛选只走规则/LLM
   # embedding_model: null           # 默认使用 data/models/huggingface 下的 all-MiniLM-L6-v2
 
   comment_judge_enabled: true       # 使用独立 LLM 评审每条 story 的上屏评论候选
@@ -20,3 +20,10 @@ analyze:
   comment_judge_max_tokens: 4096    # thinking 会消耗大量 tokens，需要留足空间
   comment_judge_thinking: "disabled" # DeepSeek v4 默认 thinking=enabled，会吃完 completion 导致 content 为空
   judge_min_quality_score: 0.05     # judge 初筛阈值，允许短但有态度的评论进入候选池
+  distribution_prompt: "prompts/comment_distribution.md"
+  distribution_target_error_pp: 5.0 # 分布估计目标抽样误差（约95%置信区间）
+  distribution_full_population_threshold: 200 # 不超过此规模时全量判断
+  distribution_max_comments: 385    # ±5pp 的理论上限
+  distribution_batch_size: 40       # 每次 LLM 处理的分布评论数
+  comment_distribution_max_tokens: 4096
+  comment_distribution_temperature: 0.0 # 立场标签需要稳定，避免同批复跑漂移

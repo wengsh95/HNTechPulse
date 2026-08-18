@@ -571,6 +571,16 @@ class PageFetcher:
                         timeout=self.request_timeout * 1000,
                     )
                     await asyncio.sleep(1.5)
+                    block_reason = await _wait_for_cloudflare(
+                        page, url, self.logger, max_wait=8
+                    )
+                    if not block_reason:
+                        block_reason = await check_anti_bot(page, url, self.logger)
+                    if block_reason:
+                        self.logger.info(
+                            f"Screenshot skipped for {url}: {block_reason}"
+                        )
+                        return None
                     await page.screenshot(path=str(dest), type="jpeg", quality=85)
                     self.logger.debug(f"Screenshot captured: {dest}")
                     return f"images/{filename}"

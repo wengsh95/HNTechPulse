@@ -2,9 +2,18 @@ from src.core.models import ContentComment, ContentItem
 from src.pipeline.comment import (
     candidate_ids_for_story,
     comment_judgement_key,
+    distribution_sample_size,
     normalize_story_judgement,
     select_quote_comments,
+    select_distribution_comments,
 )
+
+
+def test_distribution_sample_size_scales_with_population():
+    assert distribution_sample_size(200) == 200
+    assert distribution_sample_size(300) == 169
+    assert distribution_sample_size(1000) == 278
+    assert distribution_sample_size(10_000_000) == 385
 
 
 def test_comment_judgement_key_rejects_none_source_id():
@@ -72,6 +81,33 @@ def test_normalize_story_judgement_drops_unknown_ids_and_orders_by_score():
         item,
     )
     assert [c["comment_id"] for c in result["quote_candidates"]] == ["skeptic", "ops"]
+
+
+def test_normalize_story_judgement_recovers_unique_author_alias():
+    item = _item()
+    item.comments[1].author = "alice"
+    result = normalize_story_judgement(
+        {
+            "comment_lanes": {
+                "representative": [
+                    {
+                        "comment_id": "alice",
+                        "claim": "作者名误填时也应恢复真实评论",
+                        "quote_score": 0.8,
+                    }
+                ]
+            }
+        },
+        item,
+    )
+
+    assert result["quote_candidates"][0]["comment_id"] == "skeptic"
+
+
+def test_normalize_story_judgement_falls_back_to_story_title_target():
+    result = normalize_story_judgement({}, _item())
+
+    assert result["discussion_target"] == "Story"
 
 
 def test_normalize_story_judgement_promotes_strong_color_quote():
@@ -272,3 +308,49 @@ def test_normalize_story_judgement_rejects_overlong_lane_claim():
         assert "claim exceeds" in str(exc)
     else:
         raise AssertionError("expected overlong claim to fail")
+
+
+def test_normalize_story_judgement_aggregates_per_comment_stance_labels():
+    item = _item()
+    item.comments[2].depth = 2
+    item.comments[2].parent_text = "The parent comment gives context."
+    result = normalize_story_judgement(
+        {
+            "stance_labels": [
+                {
+                    "comment_id": "ops",
+                    "stance": "support",
+                    "confidence": 0.9,
+                    "context_sufficient": True,
+                },
+                {
+                    "comment_id": "support",
+                    "stance": "skeptic",
+                    "confidence": 0.8,
+                    "context_sufficient": True,
+                },
+            ]
+        },
+        item,
+        distribution_ids={"ops", "support"},
+    )
+
+    assert result["stance_distribution_meta"]["source"] == "llm_per_comment"
+    assert result["stance_distribution_meta"]["context_sufficient_count"] == 2
+    assert set(result["stance_distribution"]) == {"支持", "质疑", "中立"}
+
+
+def test_distribution_sample_is_stable_and_excludes_contextless_replies():
+    item = _item()
+    item.comments[0].depth = 2
+    item.comments[0].parent_text = None
+    item.comments[1].depth = 2
+    item.comments[1].parent_text = "The parent gives the missing context."
+
+    first = select_distribution_comments(item, max_n=2)
+    second = select_distribution_comments(item, max_n=2)
+
+    assert [comment.source_id for comment in first] == [
+        comment.source_id for comment in second
+    ]
+    assert "link" not in {comment.source_id for comment in first}

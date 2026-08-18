@@ -32,19 +32,42 @@ def append_agent_event(date: str, event: str, **payload: Any) -> None:
         f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def pipeline_state_path(date: str) -> Path:
-    return agent_path(date, "pipeline_state.json")
+def pipeline_state_path(date: str, product: str | None = None) -> Path:
+    """Return product-scoped state, falling back to the legacy state name."""
+    name = {
+        "video": "pipeline_state_video.json",
+        "xhs_cards": "pipeline_state_xhs.json",
+    }.get(product, "pipeline_state.json")
+    return agent_path(date, name)
 
 
-def load_pipeline_state(date: str) -> dict[str, Any] | None:
-    path = pipeline_state_path(date)
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data if isinstance(data, dict) else None
+def load_pipeline_state(date: str, product: str | None = None) -> dict[str, Any] | None:
+    path = pipeline_state_path(date, product)
+    candidates = [path]
+    if product in {"video", "xhs_cards"}:
+        candidates.append(pipeline_state_path(date))
+    elif product is None:
+        candidates.extend(
+            [
+                pipeline_state_path(date, "video"),
+                pipeline_state_path(date, "xhs_cards"),
+            ]
+        )
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        if product in {"video", "xhs_cards"}:
+            recorded_product = data.get("product")
+            if recorded_product not in {None, product}:
+                continue
+        return data
+    return None
 
 
 def file_sha256(path: Path) -> str | None:

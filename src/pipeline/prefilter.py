@@ -70,42 +70,22 @@ class Prefilter:
             f"Prefilter result: kept {len(content.items)}, removed {filtered_count}"
         )
 
-        # Filter by strict news-topic gates. HN discussion depth alone is not
-        # enough for the daily news brief; every selected item must look like a
-        # concrete news event.
-        prefilter_cfg = self.config.get("prefilter", {})
-        min_nw = prefilter_cfg.get("min_newsworthiness", 3)
-        min_nf = prefilter_cfg.get("min_news_focus", 4)
+        # Editorial eligibility is resolved above. News events remain the
+        # first choice, but high-value experiments, postmortems, tools,
+        # research, and tech-culture stories can also pass on shareability.
         target_count = self.config.get("pipeline", {}).get("target_story_count", 10)
-        before_nw = len(content.items)
-        content.items = [
-            item
-            for item in content.items
-            if self._passes_news_gate(
-                decisions.get(str(item.source_id), {}), min_nf, min_nw
-            )
-        ]
-        nw_filtered = before_nw - len(content.items)
-        if nw_filtered:
-            self.logger.info(
-                f"News-only filter (news_focus>={min_nf}, newsworthiness>={min_nw}): "
-                f"removed {nw_filtered}, "
-                f"remaining {len(content.items)}"
-            )
 
         if len(content.items) < target_count:
-            self._backfill_after_newsworthiness(
+            self._backfill_after_editorial_filter(
                 content,
                 decisions,
                 original_items=original_items,
                 target_count=target_count,
             )
 
-        # Sort by news-first editorial score; tiebreaker: HN score.
-        def _composite_key(item):
-            return (-(item.editorial_score or 0), -(item.score or 0))
-
-        content.items = sorted(content.items, key=_composite_key)
+        # Sort by editorial score, then HN score, then source ID. The final
+        # deterministic tiebreaker keeps repeated runs stable when scores tie.
+        content.items = sorted(content.items, key=self._editorial_sort_key)
 
         # Cap to target_story_count (items already sorted by priority then score)
         if len(content.items) > target_count:
@@ -122,11 +102,23 @@ class Prefilter:
         nw = decision.get("newsworthiness") or 0
         ai = decision.get("audience_interest") or 0
         dh = decision.get("discussion_heat") or 0
+        pf = decision.get("project_fit") or 0
+        ar = decision.get("ai_relevance") or 0
         return float(
             nf * weights.get("news_focus", 2.0)
             + nw * weights.get("newsworthiness", 1.5)
             + ai * weights.get("audience_interest", 1.8)
             + dh * weights.get("discussion_heat", 1.2)
+            + pf * weights.get("project_fit", 1.5)
+            + ar * weights.get("ai_relevance", 1.5)
+        )
+
+    @staticmethod
+    def _editorial_sort_key(item) -> tuple:
+        return (
+            -(item.editorial_score or 0),
+            -(item.score or 0),
+            str(item.source_id),
         )
 
     @staticmethod
@@ -138,6 +130,53 @@ class Prefilter:
         return (decision.get("news_focus") or 0) >= min_news_focus and (
             decision.get("newsworthiness") or 0
         ) >= min_newsworthiness
+
+    def _passes_editorial_gate(self, decision: dict) -> bool:
+        """Accept either a timely news event or a highly shareable tech story."""
+        cfg = self.config.get("prefilter", {})
+        project_fit = decision.get("project_fit")
+        if project_fit is None:
+            # Preserve compatibility with older cached/test decisions that
+            # predate the project-fit dimension; new prompt responses always
+            # provide an explicit score.
+            project_fit = 3
+        if project_fit < cfg.get("min_project_fit", 3):
+            return False
+
+        if self._passes_news_gate(
+            decision,
+            cfg.get("min_news_focus", 4),
+            cfg.get("min_newsworthiness", 3),
+        ):
+            return True
+
+        if not cfg.get("allow_shareable_non_news", True):
+            return False
+
+        shareable_types = set(
+            cfg.get(
+                "shareable_non_news_types",
+                [
+                    "technical_experiment",
+                    "incident_postmortem",
+                    "tool_product",
+                    "research_science",
+                    "tech_culture",
+                ],
+            )
+        )
+        if decision.get("content_type") == "research_science" and (
+            project_fit < cfg.get("min_research_project_fit", 4)
+        ):
+            return False
+        return (
+            bool(decision.get("keep"))
+            and decision.get("content_type") in shareable_types
+            and (decision.get("audience_interest") or 0)
+            >= cfg.get("min_non_news_audience_interest", 4)
+            and (decision.get("discussion_heat") or 0)
+            >= cfg.get("min_non_news_discussion_heat", 3)
+        )
 
     def _apply_editorial_signals(self, items, decisions: dict) -> None:
         weights = self._score_weights()
@@ -156,9 +195,11 @@ class Prefilter:
             "newsworthiness": cfg.get("newsworthiness_weight", 1.5),
             "audience_interest": cfg.get("audience_interest_weight", 1.8),
             "discussion_heat": cfg.get("discussion_heat_weight", 1.2),
+            "project_fit": cfg.get("project_fit_weight", 1.5),
+            "ai_relevance": cfg.get("ai_relevance_weight", 1.5),
         }
 
-    def _backfill_after_newsworthiness(
+    def _backfill_after_editorial_filter(
         self,
         content: ContentPackage,
         decisions: dict,
@@ -171,24 +212,19 @@ class Prefilter:
             if item.source_id in existing_ids:
                 continue
             decision = decisions.get(str(item.source_id), {})
-            if self._passes_news_gate(
-                decision,
-                self.config.get("prefilter", {}).get("min_news_focus", 4),
-                self.config.get("prefilter", {}).get("min_newsworthiness", 3),
-            ):
+            if self._passes_editorial_gate(decision):
                 candidates.append(item)
 
         candidates = sorted(
             candidates,
-            key=lambda item: (item.editorial_score or 0, item.score or 0),
-            reverse=True,
+            key=self._editorial_sort_key,
         )
         needed = max(0, target_count - len(content.items))
         if needed and candidates:
             additions = candidates[:needed]
             content.items.extend(additions)
             self.logger.info(
-                f"Backfilled {len(additions)} news-type stories after newsworthiness filter"
+                f"Backfilled {len(additions)} editorial candidates after filtering"
             )
 
     def _run_llm(self, items):
@@ -217,11 +253,14 @@ class Prefilter:
             decisions[str(item.source_id)] = {
                 "keep": bool(d.get("keep", True)),
                 "reason": d.get("reason", ""),
+                "content_type": d.get("content_type"),
                 "category": d.get("category"),
                 "news_focus": d.get("news_focus"),
                 "newsworthiness": d.get("newsworthiness"),
                 "audience_interest": d.get("audience_interest"),
                 "discussion_heat": d.get("discussion_heat"),
+                "project_fit": d.get("project_fit"),
+                "ai_relevance": d.get("ai_relevance"),
             }
         return decisions
 
@@ -244,21 +283,18 @@ class Prefilter:
         return comments
 
     def _resolve_keep_set(self, items, decisions):
-        cfg = self.config.get("prefilter", {})
-        min_nf = cfg.get("min_news_focus", 4)
-        min_nw = cfg.get("min_newsworthiness", 3)
         keep_ids = set()
         for item in items:
             sid = str(item.source_id)
             d = decisions.get(sid)
-            if d and self._passes_news_gate(d, min_nf, min_nw):
+            if d and self._passes_editorial_gate(d):
                 keep_ids.add(item.source_id)
 
-        # Safety valve: report shortages, but never backfill non-news stories.
+        # Safety valve: report shortages, but do not lower the editorial gate.
         if len(keep_ids) < self.min_keep:
             self.logger.warning(
-                f"Only {len(keep_ids)} stories passed strict news filter; "
-                f"min_keep={self.min_keep} will not backfill non-news stories"
+                f"Only {len(keep_ids)} stories passed the editorial filter; "
+                f"min_keep={self.min_keep} will not lower the quality gate"
             )
 
         return keep_ids
@@ -283,14 +319,39 @@ class Prefilter:
             "min_keep": prefilter_cfg.get("min_keep", self.min_keep),
             "min_newsworthiness": prefilter_cfg.get("min_newsworthiness", 3),
             "min_news_focus": prefilter_cfg.get("min_news_focus", 4),
+            "allow_shareable_non_news": prefilter_cfg.get(
+                "allow_shareable_non_news", True
+            ),
+            "min_non_news_audience_interest": prefilter_cfg.get(
+                "min_non_news_audience_interest", 4
+            ),
+            "min_non_news_discussion_heat": prefilter_cfg.get(
+                "min_non_news_discussion_heat", 3
+            ),
+            "min_project_fit": prefilter_cfg.get("min_project_fit", 3),
+            "min_research_project_fit": prefilter_cfg.get(
+                "min_research_project_fit", 4
+            ),
+            "shareable_non_news_types": prefilter_cfg.get(
+                "shareable_non_news_types",
+                [
+                    "technical_experiment",
+                    "incident_postmortem",
+                    "tool_product",
+                    "research_science",
+                    "tech_culture",
+                ],
+            ),
             "news_focus_weight": prefilter_cfg.get("news_focus_weight", 2.0),
             "newsworthiness_weight": prefilter_cfg.get("newsworthiness_weight", 1.5),
             "audience_interest_weight": prefilter_cfg.get(
                 "audience_interest_weight", 1.8
             ),
             "discussion_heat_weight": prefilter_cfg.get("discussion_heat_weight", 1.2),
+            "project_fit_weight": prefilter_cfg.get("project_fit_weight", 1.5),
+            "ai_relevance_weight": prefilter_cfg.get("ai_relevance_weight", 1.5),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
-            "scoring_strategy": "bilibili_news_editor_v1",
+            "scoring_strategy": "bilibili_shareability_editor_v2",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

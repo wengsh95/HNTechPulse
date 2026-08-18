@@ -19,6 +19,8 @@ class ContentComment:
     source_id: Optional[str] = None
     upvotes: Optional[int] = None
     depth: Optional[int] = None
+    parent_id: Optional[str] = None
+    parent_text: Optional[str] = None
     published_at: Optional[int] = None
     sentiment: Optional[float] = None
     quality_score: Optional[float] = None
@@ -63,6 +65,8 @@ class ContentItem:
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.
     enrichment_source: Optional[str] = None
+    # Lexical safety score comparing the HN title with extracted article text.
+    article_relevance_score: Optional[float] = None
     # Populated only when enrichment_source == "error". Short human-readable reason.
     enrichment_error: Optional[str] = None
 

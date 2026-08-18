@@ -26,6 +26,7 @@ from src.pipeline.agent_io import (  # noqa: E402
     file_sha256,
     is_artifact_fresh,
     load_pipeline_state,
+    pipeline_state_path,
     stable_hash,
 )
 from src.pipeline.paths import (  # noqa: E402
@@ -378,16 +379,23 @@ def _manifest_check(paths: list[Path]) -> list[dict[str, Any]]:
     return issues
 
 
-def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    state = load_pipeline_state(date)
+def _state_check(
+    date: str, flow: str = "xhs"
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    product = "video" if flow == "video" else "xhs_cards"
+    state_path = pipeline_state_path(date, product)
+    flow_arg = " --flow video" if flow == "video" else ""
+    state = load_pipeline_state(date, product=product)
     if not state:
         return None, [
             _issue(
                 "warning",
                 "pipeline_state_exists",
-                "pipeline_state.json is missing or unreadable.",
-                path=agent_path(date, "pipeline_state.json"),
-                recommendation=f"uv run python scripts/agent_run.py --date {date}",
+                "Product-scoped pipeline state is missing or unreadable.",
+                path=state_path,
+                recommendation=(
+                    f"uv run python scripts/agent_run.py --date {date}{flow_arg}"
+                ),
             )
         ]
 
@@ -435,7 +443,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "error",
                 "pipeline_state_status",
                 f"Pipeline state is {status} ({blocked_reason or 'no reason'}).",
-                path=agent_path(date, "pipeline_state.json"),
+                path=state_path,
                 recommendation=state.get("next_recommended_command"),
                 why=why_msg,
                 fixable_by_agent=is_fixable,
@@ -447,7 +455,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "warning",
                 "pipeline_state_status",
                 "Pipeline completed with degraded items.",
-                path=agent_path(date, "pipeline_state.json"),
+                path=state_path,
                 why=(
                     "Some items were enriched with degraded source context "
                     "(incomplete article body or missing images). Script was "
@@ -461,7 +469,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "warning",
                 "pipeline_state_status",
                 f"Pipeline state is {status or 'unknown'}.",
-                path=agent_path(date, "pipeline_state.json"),
+                path=state_path,
             )
         ]
     return state, []
@@ -494,7 +502,9 @@ def _decision_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, An
     return decision, issues
 
 
-def _variant_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+def _variant_check(
+    date: str, *, enforce_promotion: bool = True
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     from src.pipeline.paths import pipeline_path, pipeline_variants_root
 
     decision_path = agent_path(date, "agent_variant_decision.json")
@@ -524,7 +534,12 @@ def _variant_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any
                 recommendation=decision.get("blocked_reason"),
             )
         )
-    if selected and selected_script.exists() and promoted_script.exists():
+    if (
+        enforce_promotion
+        and selected
+        and selected_script.exists()
+        and promoted_script.exists()
+    ):
         if not _scripts_semantically_equal(selected_script, promoted_script):
             issues.append(
                 _issue(
@@ -538,7 +553,7 @@ def _variant_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any
                     ),
                 )
             )
-    elif selected:
+    elif enforce_promotion and selected:
         issues.append(
             _issue(
                 "warning",
@@ -550,7 +565,9 @@ def _variant_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any
     return decision, issues
 
 
-def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | None:
+def _next_command(
+    date: str, issues: list[dict[str, Any]], flow: str = "xhs"
+) -> dict[str, str] | None:
     """Pick the highest-priority next command and pair it with a `why`.
 
     Priority order:
@@ -559,6 +576,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
     3. Missing optional publish artifacts (title → cover → publish_guide).
     """
     candidates: list[tuple[str, str, str]] = []  # (priority_tag, cmd, why)
+    flow_arg = " --flow video" if flow == "video" else ""
 
     for issue in issues:
         rec = issue.get("recommendation")
@@ -575,8 +593,8 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
         candidates.append(
             (
                 "pipeline_state_error",
-                f"uv run python scripts/agent_run.py --date {date} --resume",
-                "An error in pipeline_state.json needs --resume to retry the failed step.",
+                f"uv run python scripts/agent_run.py --date {date}{flow_arg} --resume",
+                "A product-scoped pipeline state error needs --resume to retry the failed step.",
             )
         )
 
@@ -605,7 +623,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
             candidates.append(
                 (
                     check,
-                    f"uv run python scripts/agent_run.py --date {date} --steps {step}",
+                    f"uv run python scripts/agent_run.py --date {date}{flow_arg} --steps {step}",
                     why,
                 )
             )
@@ -643,11 +661,11 @@ def _summarize_blocks(issues: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def audit(date: str) -> dict[str, Any]:
+def audit(date: str, flow: str = "xhs") -> dict[str, Any]:
     base = date_root(date)
     issues: list[dict[str, Any]] = []
 
-    state, state_issues = _state_check(date)
+    state, state_issues = _state_check(date, flow)
     issues.extend(state_issues)
     decision, decision_issues = _decision_check(date)
     issues.extend(decision_issues)
@@ -671,7 +689,15 @@ def audit(date: str) -> dict[str, Any]:
         )
     else:
         # Backward-compatible audit for old video dates.
-        variant_decision, variant_issues = _variant_check(date)
+        # A downstream-only video run intentionally consumes the current
+        # editorial script and must not compare it with an older generated
+        # variant snapshot. Promotion is only an obligation when this run
+        # includes write_script (or when auditing a legacy state with no step
+        # scope, where the old full-run behavior is retained).
+        variant_decision, variant_issues = _variant_check(
+            date,
+            enforce_promotion=(not state_steps or "write_script" in state_steps),
+        )
         issues.extend(variant_issues)
         issues.extend(_artifact_check(date, base))
         issues.extend(
@@ -693,7 +719,7 @@ def audit(date: str) -> dict[str, Any]:
         "degraded",
     }
     status = "ok" if publishable else "blocked" if error_count else "warning"
-    next_cmd = _next_command(date, issues)
+    next_cmd = _next_command(date, issues, flow)
     return {
         "schema_version": 2,
         "date": date,
@@ -714,9 +740,10 @@ def audit(date: str) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agent final publishability audit")
     parser.add_argument("--date", default=_default_date())
+    parser.add_argument("--flow", choices=["xhs", "video"], default="xhs")
     args = parser.parse_args()
 
-    payload = audit(args.date)
+    payload = audit(args.date, args.flow)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if payload["publishable"] else 1
 

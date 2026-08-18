@@ -165,11 +165,17 @@ class ScriptWriter:
                     completed += 1
                     self.logger.info(f"  Script: {completed}/{len(story_specs)} done")
 
-        ordered = [
-            segments_by_index[idx] for idx in story_indices if idx in segments_by_index
-        ]
+        missing_indices = [idx for idx in story_indices if idx not in segments_by_index]
+        if missing_indices:
+            raise RuntimeError(
+                "Story script generation incomplete; missing story indices: "
+                f"{missing_indices}"
+            )
 
-        for story_idx, seg in zip(story_indices, ordered):
+        ordered_pairs = [(idx, segments_by_index[idx]) for idx in story_indices]
+        ordered = [seg for _, seg in ordered_pairs]
+
+        for story_idx, seg in ordered_pairs:
             spec = next(
                 (s for s in story_specs if s["story_index"] == story_idx),
                 {"presentation_mode": "deep"},
@@ -299,6 +305,9 @@ class ScriptWriter:
             meta={
                 "sub_segment_subtitle_texts": sub_segment_subtitle_texts,
                 "sub_segment_estimated_durations": sub_segment_estimated_durations,
+                "story_indices": [
+                    seg.meta.get("story_index") for seg in story_scan_segs
+                ],
             },
         )
 
@@ -500,8 +509,8 @@ class ScriptWriter:
     def save_script(self, script: Script, date: str) -> None:
         _save_script(script, date, logger=self.logger)
 
-    def load_script(self, date: str) -> Script:
-        return _load_script(date)
+    def load_script(self, date: str, *, with_audio: bool = False) -> Script:
+        return _load_script(date, with_audio=with_audio)
 
     # Backward-compat static method aliases (extracted to script/cards.py)
     _normalize_atmosphere_card = staticmethod(normalize_atmosphere_card)

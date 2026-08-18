@@ -146,6 +146,16 @@ class TestSelectTopStories:
         result = fetcher._select_top_stories(stories)
         assert len(result) == 1
 
+    def test_ties_use_story_id_as_stable_tiebreaker(self):
+        fetcher = _make_fetcher(target_stories_count=10)
+        stories = [
+            _make_story(story_id=30, score=100, descendants=10),
+            _make_story(story_id=10, score=100, descendants=10),
+            _make_story(story_id=20, score=100, descendants=10),
+        ]
+        result = fetcher._select_top_stories(stories)
+        assert [story.id for story in result] == [10, 20, 30]
+
 
 # ── _to_content_package ──────────────────────────────────────────────
 

@@ -105,6 +105,62 @@ def test_script_quality_blocks_weak_script(tmp_path, monkeypatch):
     assert result.blocked_reason == "low_decision_confidence"
 
 
+def test_script_quality_blocks_story_card_source_mismatch(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    content = ContentPackage(
+        date="2026-04-26",
+        items=[
+            _item(
+                source_id="1",
+                title="Story one",
+                title_cn="故事一",
+                editor_angle="角度一",
+            ),
+            _item(
+                source_id="2",
+                title="Story two",
+                title_cn="故事二",
+                editor_angle="角度二",
+            ),
+        ],
+    )
+    script = Script(
+        title="Strong title",
+        description="desc",
+        tags=[],
+        segments=[
+            ScriptSegment(segment_type="opening", audio_text="open", duration=1.0),
+            ScriptSegment(
+                segment_type="story_scan",
+                audio_text="story",
+                duration=1.0,
+                scene_elements=[
+                    SceneElement(
+                        element_type="event_card",
+                        start_time=0,
+                        end_time=1,
+                        props={
+                            "story_index": 1,
+                            "source_title": "Story one",
+                            "title_cn": "故事一",
+                            "editor_angle": "角度一",
+                        },
+                    )
+                ],
+            ),
+            ScriptSegment(segment_type="closing", audio_text="close", duration=1.0),
+        ],
+    )
+
+    result = AgentDecisionEngine(_config()).evaluate_script_quality(
+        content, script, content.date
+    )
+
+    assert result.status == "blocked"
+    assert result.blocked_items
+    assert "does not match story index" in result.blocked_items[0]["reason"]
+
+
 def test_select_script_variant_writes_decision_and_selection(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     content = ContentPackage(

@@ -17,6 +17,7 @@ from src.pipeline.agent_io import load_pipeline_state
 from src.pipeline.agent_state import (
     BLOCK_INSUFFICIENT_CONTEXT,
     BLOCK_MANUAL_DOWNLOAD,
+    BLOCK_MANUAL_IMAGE_SELECTION,
     AgentState,
 )
 from src.pipeline.paths import date_root
@@ -85,6 +86,31 @@ class TestStartRun:
         assert len(events) == 1
         assert events[0]["event"] == "run_started"
         assert events[0]["steps"] == ["fetch", "prefilter", "write_script"]
+
+    def test_video_and_xhs_states_use_separate_files(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        video = AgentState(
+            date="2026-06-08", steps=["render"], config={}, product="video"
+        )
+        xhs = AgentState(
+            date="2026-06-08",
+            steps=["render_xhs_cards"],
+            config={},
+            product="xhs_cards",
+        )
+
+        video.start_run()
+        xhs.start_run()
+
+        assert video.path.name == "pipeline_state_video.json"
+        assert xhs.path.name == "pipeline_state_xhs.json"
+        assert video.path.exists()
+        assert xhs.path.exists()
+        assert load_pipeline_state("2026-06-08", product="video")["product"] == "video"
+        assert (
+            load_pipeline_state("2026-06-08", product="xhs_cards")["product"]
+            == "xhs_cards"
+        )
 
 
 # ── start_step / complete_step / fail_step transitions ──────────────
@@ -332,6 +358,37 @@ class TestBlockForManualFiles:
         assert state.status == "blocked"
         assert state.blocked_reason == BLOCK_MANUAL_DOWNLOAD
         assert state.missing_manual_files[0]["expected_html"].endswith("1.html")
+
+
+class TestBlockForManualImageSelection:
+    def test_writes_candidate_review_task(self, state, tmp_path):
+        state.block_for_manual_image_selection(
+            "enrich_articles",
+            [
+                {
+                    "story_id": "42",
+                    "title": "Story",
+                    "url": "https://example.com/story",
+                    "selection_file": "data/2026-06/2026-06-08/pipeline/image_selection.json",
+                    "candidates": [
+                        {
+                            "path": "images/42_0.jpg",
+                            "local_path": "D:/code/HNTechPulse/data/2026-06/2026-06-08/media/images/42_0.jpg",
+                        }
+                    ],
+                }
+            ],
+        )
+
+        assert state.status == "blocked"
+        assert state.blocked_reason == BLOCK_MANUAL_IMAGE_SELECTION
+        task_path = tmp_path / date_root("2026-06-08") / "agent" / "agent_tasks.json"
+        payload = json.loads(task_path.read_text(encoding="utf-8"))
+        assert payload["tasks"][0]["task_type"] == "select_image"
+        assert payload["tasks"][0]["save_as"]["image_selection"].endswith(
+            "image_selection.json"
+        )
+        assert payload["repair_contract"]["do_not_continue_without_image_selection"]
 
 
 # ── add_degraded_items ───────────────────────────────────────────────

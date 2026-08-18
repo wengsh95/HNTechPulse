@@ -16,6 +16,7 @@ enrich:
   bing_max_queries: 4              # Bing image search queries（实体词 + title+domain + title）
   bing_entity_search: true         # 用 LLM 抽取实体关键词（OpenAI/Anthropic 等）拓宽 Bing 候选；关掉即回到 title-only
   bing_entity_all_stories: false   # true=即使页面已有合适图也跑实体搜索；false=仅页面无合适图时触发
+  bing_logo_fallback: true         # 页面、截图和普通概念图都没有时，追加主体/概念 logo 候选
   skip_domains:                    # 直接跳过这些域名的 enrich（反爬太重或抓不到正文）
   image_target_size: [1280, 720]   # 图片目标尺寸（超过则等比缩放）
   image_min_size: [640, 360]       # 自动选图的最小合适尺寸

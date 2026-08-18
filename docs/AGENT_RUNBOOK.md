@@ -17,7 +17,7 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD
 agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
 ```
 
-The managed product is a six-page Xiaohongshu card package:
+The default managed product is a six-page Xiaohongshu card package:
 
 ```text
 fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles
@@ -32,6 +32,23 @@ data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/index.html
 data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/xhs-01-cover.png ... xhs-06-closing.png
 data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/_contact-sheet.png
 ```
+
+The restored video flow is also managed and runs independently:
+
+```bash
+uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video
+uv run python scripts/agent_status.py --date YYYY-MM-DD --flow video
+```
+
+Its downstream chain is:
+
+```text
+write_script -> review_script -> translate_comments -> title -> cover_image
+  -> cover_thumbnail -> prepare_subtitles -> synthesize_audio -> prepare_render
+  -> render
+```
+
+The final video is written to `data/YYYY-MM/YYYY-MM-DD/publish/output.mp4`.
 
 Do not call `main.py --agent` directly. `main.py --agent` is guarded and will
 reject direct agent calls unless `--direct-agent-run` is passed for manual
@@ -52,7 +69,8 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
 If the pipeline blocks or fails, inspect JSON files:
 
 ```text
-data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state.json
+data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state_video.json
+data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state_xhs.json
 data/YYYY-MM/YYYY-MM-DD/agent/agent_events.jsonl
 data/YYYY-MM/YYYY-MM-DD/agent/agent_tasks.json
 ```
@@ -69,6 +87,17 @@ earlier steps unless the selected repair path requires it.
 `main.py --resume` also resumes from the failed/current step when used manually
 with `--direct-agent-run`; it no longer restores the full original step chain.
 
+For an intentional downstream rerun, use `--from STEP`. It resolves only that
+step and its downstream steps. For example, a manually edited video script
+should use:
+
+```bash
+uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video --from synthesize_audio
+```
+
+`--steps` remains an explicit step list and does not implicitly run the
+editorial chain.
+
 ## Agent Mode Flags
 
 ```bash
@@ -84,7 +113,7 @@ present for manual debugging.
 --resume
 ```
 
-On `scripts/agent_run.py`, resumes from `pipeline_state.json` after preflight
+On `scripts/agent_run.py`, resumes from the product-scoped state file after preflight
 and status checks. On `main.py`, resumes from the failed/current step and should
 only be used with `--direct-agent-run` for manual debugging.
 
@@ -112,9 +141,9 @@ regenerated.
 
 ## State Files
 
-### `pipeline_state.json`
+### `pipeline_state_video.json` / `pipeline_state_xhs.json`
 
-The primary state contract. Important fields:
+The product-scoped state contract. Important fields:
 
 ```json
 {
@@ -129,11 +158,16 @@ The primary state contract. Important fields:
   "agent_task_file": "data/YYYY-MM/YYYY-MM-DD/agent_tasks.json",
   "next_recommended_command": "uv run python scripts/agent_run.py --date YYYY-MM-DD --resume",
   "artifacts": {
-    "content": "data/YYYY-MM/YYYY-MM-DD/content.json",
-    "script": "data/YYYY-MM/YYYY-MM-DD/script.json"
+    "content": "data/YYYY-MM/YYYY-MM-DD/pipeline/content.json",
+    "script": "data/YYYY-MM/YYYY-MM-DD/pipeline/script.json",
+    "audio_manifest": "data/YYYY-MM/YYYY-MM-DD/pipeline/audio_manifest.json"
   }
 }
 ```
+
+Older `pipeline_state.json` files are accepted as a migration fallback. New
+runs write separate state for the video and XHS products so one flow cannot
+overwrite the other.
 
 ### `agent_events.jsonl`
 
@@ -154,7 +188,8 @@ Use this to reconstruct what happened without parsing regular logs.
 
 ### `agent_tasks.json`
 
-Created when the pipeline blocks on article fetching. Example task:
+Created when the pipeline blocks on article fetching or image review. Example
+article task:
 
 ```json
 {
@@ -173,6 +208,12 @@ Created when the pipeline blocks on article fetching. Example task:
 Use browser/MCP tools to fetch the URL. Save an HTML page when possible; save a
 PDF when the URL is a PDF. Then run `scripts/agent_run.py --resume`.
 
+For image review, a task has `task_type: "select_image"`, a `candidates` list,
+and a `selection_file`. Inspect each candidate's `local_path` with `view_image`,
+then set `items[{story_id}].selected_image` to an exact candidate `path` in the
+selection file. Mark the selected candidate (or the entry) with
+`selection_source: "agent"`, and resume the pipeline.
+
 ## Blocked Reasons
 
 ### `manual_download_required`
@@ -186,6 +227,27 @@ Agent action:
 2. Fetch each URL with browser/MCP.
 3. Save to the indicated `downloaded_pages/{source_id}.html` or `.pdf`.
 4. Run:
+
+   ```bash
+   uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+   ```
+
+### `manual_image_selection_required`
+
+The pipeline collected candidate images but intentionally did not make the
+semantic choice in agent mode. This prevents a screenshot, logo, or unrelated
+Bing result from silently becoming the story visual.
+
+Agent action:
+
+1. Read the `select_image` tasks in `agent_tasks.json`.
+2. Inspect every candidate `local_path` with `view_image`.
+3. Select the candidate that visibly matches the story. A subject/concept logo
+   is acceptable only when no better article image, screenshot, or concept
+   image exists.
+4. Write the exact candidate `path` to `image_selection.json` and mark it as
+   an agent selection.
+5. Resume:
 
    ```bash
    uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
@@ -265,12 +327,13 @@ Agent action:
 Key artifacts get adjacent manifests:
 
 ```text
-data/YYYY-MM/YYYY-MM-DD/content.json.manifest.json
-data/YYYY-MM/YYYY-MM-DD/script.json.manifest.json
-data/YYYY-MM/YYYY-MM-DD/title.json.manifest.json
-data/YYYY-MM/YYYY-MM-DD/cover_props.json.manifest.json
-data/YYYY-MM/YYYY-MM-DD/publish_guide.md.manifest.json
-data/YYYY-MM/YYYY-MM-DD/cli_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/pipeline/content.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/pipeline/script.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/publish/title.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/render/cover_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/publish/publish_guide.md.manifest.json
+data/YYYY-MM/YYYY-MM-DD/render/cli_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/pipeline/audio_manifest.json.manifest.json
 ```
 
 Manifests include:
@@ -287,6 +350,23 @@ model / fast model / target story count
 Use manifests to decide whether an artifact was produced from the current
 inputs. Do not delete caches or manifests casually; prefer rerunning the
 relevant step.
+
+### Editorial script and audio runtime
+
+`pipeline/script.json` is the human-editable editorial copy. Audio paths,
+durations, timing, and subtitle cues live in `pipeline/audio_manifest.json` and
+are hydrated only when a downstream renderer needs them. The agent records the
+current editorial hash in `agent/script_lock.json`.
+
+If the script changes after it was locked, the write-script step stops instead
+of silently overwriting the manual edit. Continue from audio with `--from
+synthesize_audio`, or pass `--refresh-script` only when regeneration is
+intentional.
+
+For older dates without `agent/script_lock.json`, the script artifact manifest
+is used to detect an untracked manual edit. If that evidence is missing or no
+longer matches, the write-script step also stops until you either continue from
+a downstream step or explicitly pass `--refresh-script`.
 
 ## Agent Decisions
 
@@ -380,6 +460,13 @@ To force a fresh variant run without refetching facts:
 ```bash
 uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
 ```
+
+```bash
+uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video --refresh-script
+```
+
+`--refresh-script` is the explicit opt-in for replacing a changed editorial
+script. It should not be used for a normal TTS or render retry.
 
 Read `variants/selection_brief.md` for a compact review of the selected variant,
 scores, and rejected candidates. This is for audit/tuning, not for routine
