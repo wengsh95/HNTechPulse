@@ -1,5 +1,3 @@
-import json
-
 from src.core.models import ContentComment, ContentItem, ContentPackage
 from src.pipeline.comment.stance_classifier import (
     StanceExample,

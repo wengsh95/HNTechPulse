@@ -118,25 +118,6 @@ class PipelineProgress:
             else:
                 entries.append((step, "-", f"will generate {label}"))
 
-        from src.pipeline.paths import publish_xhs_cards_dir, publish_path
-
-        card_plan = publish_path(date, "xhs_cards.json")
-        if card_plan.exists():
-            entries.append(("plan_xhs_cards", "✓", "six-page plan cached"))
-        else:
-            entries.append(("plan_xhs_cards", "-", "will plan six cards"))
-
-        card_dir = publish_xhs_cards_dir(date)
-        rendered_cards = (
-            list(card_dir.glob("xhs-??-*.png")) if card_dir.exists() else []
-        )
-        if len(rendered_cards) == 6:
-            entries.append(("render_xhs_cards", "✓", "six PNG cards cached"))
-        else:
-            entries.append(
-                ("render_xhs_cards", "-", f"{len(rendered_cards)}/6 cards rendered")
-            )
-
         # 9. translate_comments
         if pipeline_path(date, "translations.json").exists():
             entries.append(("translate_comments", "✓", "translations cached"))
@@ -146,6 +127,7 @@ class PipelineProgress:
         # 10. synthesize_audio
         from src.pipeline.paths import (
             pipeline_audio_dir,
+            publish_path,
             render_path,
         )
 
@@ -173,7 +155,16 @@ class PipelineProgress:
         else:
             entries.append(("cover_thumbnail", "-", "will render cover thumbnail"))
 
-        # 14. publish_guide
+        if pipeline_path(date, "storyboard.json").exists():
+            entries.append(("draft_storyboard", "✓", "storyboard cached"))
+            entries.append(("apply_storyboard", "✓", "storyboard cached"))
+        else:
+            entries.append(("draft_storyboard", "-", "will draft storyboard"))
+            entries.append(
+                ("apply_storyboard", "-", "no storyboard; keep generated templates")
+            )
+
+        # 15. publish_guide
         if publish_path(date, "publish_guide.md").exists():
             entries.append(("publish_guide", "✓", "publish guide cached"))
         else:

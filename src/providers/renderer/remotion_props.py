@@ -12,7 +12,12 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
-from src.pipeline.paths import date_root, render_path, render_remotion_dir
+from src.pipeline.paths import (
+    date_root,
+    pipeline_path,
+    render_path,
+    render_remotion_dir,
+)
 from src.pipeline.comment import (
     clean_comment_text,
     classify_comment_stance,
@@ -48,6 +53,23 @@ def _to_filename(path: str) -> str:
     if _is_remote_url(path):
         return Path(urlparse(path).path).name
     return Path(path).name
+
+
+def load_story_image_paths(date: str) -> list[str]:
+    """Load selected story-image paths, including quick-news stories."""
+
+    path = pipeline_path(date, "story_images.json")
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [
+        str(story["selected_image"])
+        for story in payload.get("stories", [])
+        if isinstance(story, dict) and story.get("selected_image")
+    ]
 
 
 def _validate_quote_claim(text: str, max_chars: int = 50) -> str:
@@ -738,6 +760,13 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
                     if not dest.exists():
                         shutil.copy2(src, dest)
                         copied += 1
+    for image_path in load_story_image_paths(date):
+        src = _resolve_local(image_path)
+        if src:
+            dest = image_subdir / src.name
+            if not dest.exists():
+                shutil.copy2(src, dest)
+                copied += 1
     if copied > 0:
         logger.info(f"Copied {copied} images to public/images/")
 

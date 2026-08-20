@@ -26,6 +26,19 @@ from src.providers.renderer.binary_finder import find_node  # noqa: E402
 
 REMOTION_DIR = Path("src/providers/renderer/remotion")
 COMPOSITION_ID = "HNTechPulseComposition"
+REVIEWABLE_ELEMENT_TYPES = {
+    "cover_card",
+    "headline_card",
+    "event_card",
+    "source_evidence_card",
+    "atmosphere_card",
+    "comment_card",
+    "comment_dual_card",
+    "data_number_card",
+    "quick_card",
+    "closing_card",
+    "signals_card",
+}
 
 
 def _default_date() -> str:
@@ -66,8 +79,7 @@ def _review_points(props: dict[str, Any], fps: int) -> list[dict[str, Any]]:
         typed = [
             elem
             for elem in elems
-            if elem.get("element_type")
-            in {"cover_card", "event_card", "atmosphere_card", "closing_card"}
+            if elem.get("element_type") in REVIEWABLE_ELEMENT_TYPES
         ]
         if typed:
             for elem_index, elem in enumerate(typed):

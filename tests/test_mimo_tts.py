@@ -62,7 +62,6 @@ class TestSynthesize:
                 MimoTTSProvider(_make_config())
 
         # Verify emotion map keys
-        from src.providers.tts.mimo_tts import _EMOTION_MAP
 
         assert "warm" in _EMOTION_MAP
         assert "upbeat" in _EMOTION_MAP
@@ -74,7 +73,6 @@ class TestSynthesize:
                 provider = MimoTTSProvider(_make_config())
 
         # Mock the client call chain with proper audio chunk
-        import base64
 
         audio_data = base64.b64encode(b"\x00\x00" * 100).decode()
 

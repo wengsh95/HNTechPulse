@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 import httpx
 from openai import OpenAI
 
-from src.utils.logger import setup_logger
 
 # hostname → env var holding the API key
 _HOST_KEY_MAP: dict[str, str] = {

@@ -40,6 +40,14 @@ _SUBTITLE_MAX_WIDTH = 76  # 38 汉字 (CJK=2, ASCII=1 per char)
 _SUBTITLE_MAX_COMMAS = 2
 _SUBTITLE_FORBIDDEN_WORDS = ("断网", "高管不在乎", "全落空", "士气崩", "翻脸")
 _SUBTITLE_REPEAT_THRESHOLD = 12  # adjacent subtitle max shared substring
+_GENERIC_COMMENT_OPENERS = (
+    "评论区",
+    "有评论",
+    "有人",
+    "另一批人",
+    "更多人",
+    "更深的落点",
+)
 
 
 def _with_sentence_punctuation(text: str) -> str:
@@ -52,6 +60,21 @@ def _with_sentence_punctuation(text: str) -> str:
 def _subtitle_width(text: str) -> int:
     """Visual width: CJK / full-width = 2, ASCII / half-width = 1."""
     return sum(2 if ord(ch) > 127 else 1 for ch in text)
+
+
+def _sentence_end_count(text: str) -> int:
+    """Count sentence-ending punctuation without treating decimals as periods."""
+    count = sum(text.count(p) for p in "。！？!?")
+    for index, char in enumerate(text):
+        if char != ".":
+            continue
+        previous = text[index - 1] if index > 0 else ""
+        following = text[index + 1] if index + 1 < len(text) else ""
+        if previous.isdigit() and following.isdigit():
+            continue
+        if not following or following.isspace():
+            count += 1
+    return count
 
 
 def _longest_common_substring_len(a: str, b: str) -> int:
@@ -94,7 +117,7 @@ def _check_subtitle_texts(card_index: int, texts: List[str]) -> List[str]:
         if w > _SUBTITLE_MAX_WIDTH:
             violations.append(f"{tag} 超长({w}宽>{_SUBTITLE_MAX_WIDTH})：{t}")
         # Multiple sentence-end punctuation in one element
-        end_count = sum(t.count(p) for p in _SUBTITLE_PUNCTUATION)
+        end_count = _sentence_end_count(t)
         if end_count > 1:
             violations.append(f"{tag} 一句多标点({end_count})：{t}")
         # Commas
@@ -118,6 +141,24 @@ def _check_subtitle_texts(card_index: int, texts: List[str]) -> List[str]:
             violations.append(
                 f"card[{card_index}] 相邻句复读(≥{_SUBTITLE_REPEAT_THRESHOLD}字)：「{ta}」→「{tb}」"
             )
+    return violations
+
+
+def _check_comment_openers(card_index: int, texts: List[str]) -> List[str]:
+    """Reject the stock narration openings that make comments sound scripted."""
+    if not texts:
+        return []
+    stripped = [str(text or "").lstrip("\"“‘'") for text in texts]
+    violations: List[str] = []
+    if stripped[0].startswith(_GENERIC_COMMENT_OPENERS):
+        violations.append(
+            f"card[{card_index}] 评论段首句使用泛化开头；请从具体评论、机制或反例切入"
+        )
+    generic_count = sum(text.startswith(_GENERIC_COMMENT_OPENERS) for text in stripped)
+    if generic_count >= 2:
+        violations.append(
+            f"card[{card_index}] 评论段有{generic_count}句泛化主语；请改用具体评论锚点"
+        )
     return violations
 
 
@@ -217,6 +258,8 @@ def _build_card_narration_validator(expected_card_types: List[str], logger):
                 texts = card.get("subtitle_texts") or []
                 if isinstance(texts, list):
                     all_violations.extend(_check_subtitle_texts(i, texts))
+                    if card.get("card_type") == "atmosphere_card":
+                        all_violations.extend(_check_comment_openers(i, texts))
         if all_violations:
             summary = "; ".join(all_violations[:6])
             if len(all_violations) > 6:
@@ -750,6 +793,19 @@ class LLMProviderBase(LLMProvider):
         analyze_cfg = self.config.get("analyze", {})
         min_quality = analyze_cfg.get("min_quality_score", 0.1)
 
+        judged_comments_by_id: Dict[str, dict] = {}
+        if comments_data:
+            judged_sources = list(comments_data.get("quote_candidates") or [])
+            comment_lanes = comments_data.get("comment_lanes") or {}
+            if isinstance(comment_lanes, dict):
+                for lane_entries in comment_lanes.values():
+                    if isinstance(lane_entries, list):
+                        judged_sources.extend(lane_entries)
+            for judged in judged_sources:
+                if not isinstance(judged, dict) or judged.get("comment_id") is None:
+                    continue
+                judged_comments_by_id.setdefault(str(judged["comment_id"]), judged)
+
         # When judge results are available, use quote_candidates to select comments.
         # Otherwise fall back to quality-score top-N selection.
         if comments_data and comments_data.get("quote_candidates"):
@@ -773,16 +829,29 @@ class LLMProviderBase(LLMProvider):
                 text = clean_comment_text(c.content)
                 if not text:
                     continue
-                comments_json.append(
-                    {
-                        "id": c.source_id,
-                        "author": c.author,
-                        "text": text,
-                        "depth": c.depth,
-                        "sentiment": c.sentiment,
-                        "quality_score": c.quality_score,
-                    }
-                )
+                entry = {
+                    "id": c.source_id,
+                    "author": c.author,
+                    "text": text,
+                    "depth": c.depth,
+                    "sentiment": c.sentiment,
+                    "quality_score": c.quality_score,
+                }
+                judged = judged_comments_by_id.get(str(c.source_id))
+                if judged:
+                    # Keep the original comment text for fidelity, but expose
+                    # the judge's concise claim and role so the script writer
+                    # can ground narration in a concrete technical detail.
+                    for source_key, prompt_key in (
+                        ("claim", "comment_claim"),
+                        ("role", "comment_role"),
+                        ("stance", "comment_stance"),
+                        ("quote_score", "quote_score"),
+                    ):
+                        value = judged.get(source_key)
+                        if value not in (None, ""):
+                            entry[prompt_key] = value
+                comments_json.append(entry)
             self.logger.debug(
                 f"Story[{index}] using {len(comments_json)} judge-selected comments "
                 f"(from {len(candidate_ids)} candidates)"

@@ -17,38 +17,28 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD
 agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
 ```
 
-The default managed product is a six-page Xiaohongshu card package:
+The managed product is a narrated video. The managed chain runs the upstream
+editorial steps, then continues through TTS and the configured renderer:
 
 ```text
 fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles
-  -> analyze_comments -> judge_comments -> plan_xhs_cards -> render_xhs_cards
+  -> analyze_comments -> judge_comments -> write_script -> draft_quick_news
+  -> normalize_video_structure -> prepare_story_images -> review_script
+  -> human_review -> translate_comments -> title -> cover_image
+  -> cover_thumbnail -> draft_storyboard -> apply_storyboard
+  -> prepare_subtitles -> synthesize_audio -> prepare_render -> render
 ```
+
+The renderer is selected with `--renderer {remotion,hyperframes}`.
 
 Successful output:
 
 ```text
-data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards.json
-data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/index.html
-data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/xhs-01-cover.png ... xhs-06-closing.png
-data/YYYY-MM/YYYY-MM-DD/publish/xhs_cards/_contact-sheet.png
+data/YYYY-MM/YYYY-MM-DD/publish/output.mp4
+data/YYYY-MM/YYYY-MM-DD/publish/title.json
+data/YYYY-MM/YYYY-MM-DD/publish/publish_guide.md
+data/YYYY-MM/YYYY-MM-DD/publish/cover.png
 ```
-
-The restored video flow is also managed and runs independently:
-
-```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video
-uv run python scripts/agent_status.py --date YYYY-MM-DD --flow video
-```
-
-Its downstream chain is:
-
-```text
-write_script -> review_script -> translate_comments -> title -> cover_image
-  -> cover_thumbnail -> prepare_subtitles -> synthesize_audio -> prepare_render
-  -> render
-```
-
-The final video is written to `data/YYYY-MM/YYYY-MM-DD/publish/output.mp4`.
 
 Do not call `main.py --agent` directly. `main.py --agent` is guarded and will
 reject direct agent calls unless `--direct-agent-run` is passed for manual
@@ -70,7 +60,6 @@ If the pipeline blocks or fails, inspect JSON files:
 
 ```text
 data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state_video.json
-data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state_xhs.json
 data/YYYY-MM/YYYY-MM-DD/agent/agent_events.jsonl
 data/YYYY-MM/YYYY-MM-DD/agent/agent_tasks.json
 ```
@@ -92,7 +81,7 @@ step and its downstream steps. For example, a manually edited video script
 should use:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video --from synthesize_audio
+uv run python scripts/agent_run.py --date YYYY-MM-DD --from synthesize_audio
 ```
 
 `--steps` remains an explicit step list and does not implicitly run the
@@ -113,9 +102,9 @@ present for manual debugging.
 --resume
 ```
 
-On `scripts/agent_run.py`, resumes from the product-scoped state file after preflight
-and status checks. On `main.py`, resumes from the failed/current step and should
-only be used with `--direct-agent-run` for manual debugging.
+On `scripts/agent_run.py`, resumes from `pipeline_state_video.json` after
+preflight and status checks. On `main.py`, resumes from the failed/current step
+and should only be used with `--direct-agent-run` for manual debugging.
 
 ```bash
 --direct-agent-run
@@ -141,9 +130,9 @@ regenerated.
 
 ## State Files
 
-### `pipeline_state_video.json` / `pipeline_state_xhs.json`
+### `pipeline_state_video.json`
 
-The product-scoped state contract. Important fields:
+The video pipeline state contract. Important fields:
 
 ```json
 {
@@ -165,9 +154,8 @@ The product-scoped state contract. Important fields:
 }
 ```
 
-Older `pipeline_state.json` files are accepted as a migration fallback. New
-runs write separate state for the video and XHS products so one flow cannot
-overwrite the other.
+Older `pipeline_state.json` files are accepted as a migration fallback when
+`pipeline_state_video.json` does not exist yet.
 
 ### `agent_events.jsonl`
 
@@ -462,7 +450,7 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refr
 ```
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --flow video --refresh-script
+uv run python scripts/agent_run.py --date YYYY-MM-DD --refresh-script
 ```
 
 `--refresh-script` is the explicit opt-in for replacing a changed editorial
@@ -483,8 +471,6 @@ fetch_comments
 translate_titles
 analyze_comments
 judge_comments
-plan_xhs_cards
-render_xhs_cards
 ```
 
 Agent should stop and repair source context:
@@ -493,9 +479,8 @@ Agent should stop and repair source context:
 enrich_articles
 ```
 
-The generated cards still require visual review for overflow, image crop,
-factual wording, and mobile readability. Video/TTS steps documented elsewhere
-are legacy manual paths and are not selected by `agent_run.py`.
+The rendered video still requires visual review for subtitle overflow, image
+crop, factual wording, and pacing.
 
 ## Common Recipes
 

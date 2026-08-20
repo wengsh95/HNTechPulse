@@ -87,30 +87,17 @@ class TestStartRun:
         assert events[0]["event"] == "run_started"
         assert events[0]["steps"] == ["fetch", "prefilter", "write_script"]
 
-    def test_video_and_xhs_states_use_separate_files(self, tmp_path, monkeypatch):
+    def test_default_state_uses_video_scoped_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         video = AgentState(
             date="2026-06-08", steps=["render"], config={}, product="video"
         )
-        xhs = AgentState(
-            date="2026-06-08",
-            steps=["render_xhs_cards"],
-            config={},
-            product="xhs_cards",
-        )
 
         video.start_run()
-        xhs.start_run()
 
         assert video.path.name == "pipeline_state_video.json"
-        assert xhs.path.name == "pipeline_state_xhs.json"
         assert video.path.exists()
-        assert xhs.path.exists()
         assert load_pipeline_state("2026-06-08", product="video")["product"] == "video"
-        assert (
-            load_pipeline_state("2026-06-08", product="xhs_cards")["product"]
-            == "xhs_cards"
-        )
 
 
 # ── start_step / complete_step / fail_step transitions ──────────────
@@ -522,10 +509,11 @@ class TestStateSchema:
         # All artifact keys present, even if the file is None
         for key in (
             "content",
-            "comment_judgement",
-            "xhs_cards",
-            "card_index",
-            "contact_sheet",
+            "script",
+            "subtitle_plan",
+            "audio_manifest",
+            "render_props",
+            "output",
         ):
             assert key in snapshot["artifacts"]
 
@@ -541,7 +529,7 @@ class TestStateSchema:
         state.start_run()
         snapshot = load_pipeline_state("2026-06-08")
         assert snapshot["schema_version"] == 2
-        assert snapshot["product"] == "xhs_cards"
+        assert snapshot["product"] == "video"
 
     def test_event_log_is_append_only(self, state, tmp_path):
         """A second AgentState on the same date appends to the same log."""

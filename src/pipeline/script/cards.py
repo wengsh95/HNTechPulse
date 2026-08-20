@@ -58,6 +58,15 @@ def normalize_atmosphere_card(
         props["selected_comment_ids"] = [
             str(c.source_id) for c in selected_comments if c.source_id is not None
         ]
+        props["quotes"] = [
+            {
+                "author": c.author or "HN community",
+                "text": c.content_cn or c.content,
+                "stance": classify_comment_stance(c),
+                "source_id": str(c.source_id) if c.source_id is not None else None,
+            }
+            for c in selected_comments
+        ]
 
         elem.props = props
 
@@ -207,6 +216,7 @@ def _ensure_punctuation(text: str) -> str:
 
 def _clean_subtitle_text(text: str) -> str:
     text = str(text or "").strip()
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", text)
     text = re.sub(
         r"(?<=[\u4e00-\u9fff])。\s*(?=[\u4e00-\u9fff]{2,10}(?:和|与|及|、))",
         "、",

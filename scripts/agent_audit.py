@@ -16,15 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.pipeline.agent_io import (  # noqa: E402
     file_sha256,
-    is_artifact_fresh,
     load_pipeline_state,
     pipeline_state_path,
     stable_hash,
@@ -34,16 +31,7 @@ from src.pipeline.paths import (  # noqa: E402
     date_root,
     pipeline_path,
     publish_path,
-    publish_xhs_cards_dir,
     raw_downloaded_pages_dir,
-)
-from src.pipeline.xhs_cards import (  # noqa: E402
-    CARD_HEIGHT,
-    CARD_ROLES,
-    CARD_WIDTH,
-    xhs_card_output_paths,
-    xhs_card_set_is_fresh,
-    xhs_cards_plan_inputs,
 )
 
 
@@ -241,112 +229,6 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     return issues
 
 
-def _xhs_card_artifact_check(date: str) -> list[dict[str, Any]]:
-    issues: list[dict[str, Any]] = []
-    content = pipeline_path(date, "content.json")
-    plan = publish_path(date, "xhs_cards.json")
-    card_dir = publish_xhs_cards_dir(date)
-    index = card_dir / "index.html"
-
-    if not content.exists():
-        issues.append(
-            _issue(
-                "error",
-                "content_exists",
-                f"Required content is missing: {content}",
-                path=content,
-                recommendation=f"uv run python scripts/agent_run.py --date {date}",
-                fixable_by_agent=True,
-            )
-        )
-    if not plan.exists():
-        issues.append(
-            _issue(
-                "error",
-                "xhs_card_plan_exists",
-                f"Xiaohongshu card plan is missing: {plan}",
-                path=plan,
-                recommendation=(
-                    f"uv run python scripts/agent_run.py --date {date} "
-                    "--steps plan_xhs_cards,render_xhs_cards"
-                ),
-                fixable_by_agent=True,
-            )
-        )
-        return issues
-
-    payload = _read_json(plan)
-    cards = payload.get("cards") if isinstance(payload, dict) else None
-    roles = [card.get("role") for card in cards or [] if isinstance(card, dict)]
-    if roles != list(CARD_ROLES):
-        issues.append(
-            _issue(
-                "error",
-                "xhs_card_contract",
-                f"Expected card roles {list(CARD_ROLES)}, got {roles}",
-                path=plan,
-                recommendation=(
-                    f"uv run python scripts/agent_run.py --date {date} "
-                    "--steps plan_xhs_cards,render_xhs_cards"
-                ),
-                fixable_by_agent=True,
-            )
-        )
-    if not is_artifact_fresh(plan, xhs_cards_plan_inputs(date)):
-        issues.append(
-            _issue(
-                "error",
-                "xhs_card_plan_fresh",
-                "Xiaohongshu card plan inputs changed.",
-                path=plan,
-                recommendation=(
-                    f"uv run python scripts/agent_run.py --date {date} "
-                    "--steps plan_xhs_cards,render_xhs_cards"
-                ),
-                fixable_by_agent=True,
-            )
-        )
-
-    if not index.exists() or not xhs_card_set_is_fresh(date):
-        issues.append(
-            _issue(
-                "error",
-                "xhs_card_renders_fresh",
-                "Six current Xiaohongshu PNG cards were not found.",
-                path=card_dir,
-                recommendation=(
-                    f"uv run python scripts/agent_run.py --date {date} "
-                    "--steps render_xhs_cards"
-                ),
-                fixable_by_agent=True,
-            )
-        )
-
-    for card_path in xhs_card_output_paths(date):
-        if not card_path.exists():
-            continue
-        try:
-            with Image.open(card_path) as image:
-                size = image.size
-        except OSError:
-            size = None
-        if size != (CARD_WIDTH, CARD_HEIGHT):
-            issues.append(
-                _issue(
-                    "error",
-                    "xhs_card_dimensions",
-                    f"Expected {CARD_WIDTH}x{CARD_HEIGHT}, got {size}: {card_path}",
-                    path=card_path,
-                    recommendation=(
-                        f"uv run python scripts/agent_run.py --date {date} "
-                        "--steps render_xhs_cards"
-                    ),
-                    fixable_by_agent=True,
-                )
-            )
-    return issues
-
-
 def _manifest_check(paths: list[Path]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     for artifact in paths:
@@ -379,12 +261,9 @@ def _manifest_check(paths: list[Path]) -> list[dict[str, Any]]:
     return issues
 
 
-def _state_check(
-    date: str, flow: str = "xhs"
-) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    product = "video" if flow == "video" else "xhs_cards"
+def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    product = "video"
     state_path = pipeline_state_path(date, product)
-    flow_arg = " --flow video" if flow == "video" else ""
     state = load_pipeline_state(date, product=product)
     if not state:
         return None, [
@@ -393,9 +272,7 @@ def _state_check(
                 "pipeline_state_exists",
                 "Product-scoped pipeline state is missing or unreadable.",
                 path=state_path,
-                recommendation=(
-                    f"uv run python scripts/agent_run.py --date {date}{flow_arg}"
-                ),
+                recommendation=f"uv run python scripts/agent_run.py --date {date}",
             )
         ]
 
@@ -565,9 +442,7 @@ def _variant_check(
     return decision, issues
 
 
-def _next_command(
-    date: str, issues: list[dict[str, Any]], flow: str = "xhs"
-) -> dict[str, str] | None:
+def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | None:
     """Pick the highest-priority next command and pair it with a `why`.
 
     Priority order:
@@ -576,7 +451,6 @@ def _next_command(
     3. Missing optional publish artifacts (title → cover → publish_guide).
     """
     candidates: list[tuple[str, str, str]] = []  # (priority_tag, cmd, why)
-    flow_arg = " --flow video" if flow == "video" else ""
 
     for issue in issues:
         rec = issue.get("recommendation")
@@ -593,7 +467,7 @@ def _next_command(
         candidates.append(
             (
                 "pipeline_state_error",
-                f"uv run python scripts/agent_run.py --date {date}{flow_arg} --resume",
+                f"uv run python scripts/agent_run.py --date {date} --resume",
                 "A product-scoped pipeline state error needs --resume to retry the failed step.",
             )
         )
@@ -619,11 +493,11 @@ def _next_command(
         ),
     }
     for check, (step, why) in publish_step_for_check.items():
-        if any(i["check"] == check for i in issues):
+        if any(i.get("check") == check for i in issues):
             candidates.append(
                 (
                     check,
-                    f"uv run python scripts/agent_run.py --date {date}{flow_arg} --steps {step}",
+                    f"uv run python scripts/agent_run.py --date {date} --steps {step}",
                     why,
                 )
             )
@@ -661,55 +535,48 @@ def _summarize_blocks(issues: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def audit(date: str, flow: str = "xhs") -> dict[str, Any]:
+def audit(date: str) -> dict[str, Any]:
     base = date_root(date)
     issues: list[dict[str, Any]] = []
 
-    state, state_issues = _state_check(date, flow)
+    state, state_issues = _state_check(date)
     issues.extend(state_issues)
     decision, decision_issues = _decision_check(date)
     issues.extend(decision_issues)
     state_steps = set((state or {}).get("steps") or [])
-    is_card_run = (
-        (state or {}).get("product") == "xhs_cards"
-        or "plan_xhs_cards" in state_steps
-        or publish_path(date, "xhs_cards.json").exists()
+    # A downstream-only video run intentionally consumes the current
+    # editorial script and must not compare it with an older generated
+    # variant snapshot. Promotion is only an obligation when this run
+    # includes write_script (or when auditing a legacy state with no step
+    # scope, where the old full-run behavior is retained).
+    variant_decision, variant_issues = _variant_check(
+        date,
+        enforce_promotion=(not state_steps or "write_script" in state_steps),
     )
-    variant_decision = None
-    if is_card_run:
-        issues.extend(_xhs_card_artifact_check(date))
-        issues.extend(
-            _manifest_check(
-                [
-                    pipeline_path(date, "content.json"),
-                    publish_path(date, "xhs_cards.json"),
-                    publish_xhs_cards_dir(date) / "index.html",
-                ]
-            )
+    issues.extend(variant_issues)
+    issues.extend(_artifact_check(date, base))
+    issues.extend(
+        _manifest_check(
+            [
+                pipeline_path(date, "content.json"),
+                pipeline_path(date, "script.json"),
+                publish_path(date, "title.json"),
+                publish_path(date, "cover.png"),
+                publish_path(date, "publish_guide.md"),
+            ]
         )
-    else:
-        # Backward-compatible audit for old video dates.
-        # A downstream-only video run intentionally consumes the current
-        # editorial script and must not compare it with an older generated
-        # variant snapshot. Promotion is only an obligation when this run
-        # includes write_script (or when auditing a legacy state with no step
-        # scope, where the old full-run behavior is retained).
-        variant_decision, variant_issues = _variant_check(
-            date,
-            enforce_promotion=(not state_steps or "write_script" in state_steps),
-        )
-        issues.extend(variant_issues)
-        issues.extend(_artifact_check(date, base))
-        issues.extend(
-            _manifest_check(
-                [
-                    pipeline_path(date, "content.json"),
-                    pipeline_path(date, "script.json"),
-                    publish_path(date, "title.json"),
-                    publish_path(date, "cover.png"),
-                    publish_path(date, "publish_guide.md"),
-                ]
-            )
+    )
+    from src.pipeline.storyboard_linter import lint_storyboard_and_script
+
+    for lint_issue in lint_storyboard_and_script(date):
+        issues.append(
+            {
+                "severity": lint_issue.level,
+                "category": f"storyboard_{lint_issue.category}",
+                "path": str(pipeline_path(date, "storyboard.json")),
+                "message": f"[{lint_issue.shot_id or 'general'}] {lint_issue.message}",
+                "detail": None,
+            }
         )
 
     error_count = sum(1 for i in issues if i["severity"] == "error")
@@ -719,7 +586,7 @@ def audit(date: str, flow: str = "xhs") -> dict[str, Any]:
         "degraded",
     }
     status = "ok" if publishable else "blocked" if error_count else "warning"
-    next_cmd = _next_command(date, issues, flow)
+    next_cmd = _next_command(date, issues)
     return {
         "schema_version": 2,
         "date": date,
@@ -740,10 +607,9 @@ def audit(date: str, flow: str = "xhs") -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agent final publishability audit")
     parser.add_argument("--date", default=_default_date())
-    parser.add_argument("--flow", choices=["xhs", "video"], default="xhs")
     args = parser.parse_args()
 
-    payload = audit(args.date, args.flow)
+    payload = audit(args.date)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if payload["publishable"] else 1
 

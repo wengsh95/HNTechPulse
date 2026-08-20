@@ -22,6 +22,7 @@ def generate_brief_transcript(
 
     opening_segment = None
     scan_segment = None
+    quick_segment = None
     closing_segment = None
 
     for seg in script.segments:
@@ -29,6 +30,8 @@ def generate_brief_transcript(
             opening_segment = seg
         elif seg.segment_type == "story_scan":
             scan_segment = seg
+        elif seg.segment_type == "quick_news":
+            quick_segment = seg
         elif seg.segment_type == "closing":
             closing_segment = seg
 
@@ -111,6 +114,9 @@ def generate_brief_transcript(
         card_idx = 0
         for i in sorted(story_elems.keys()):
             elems = story_elems[i]
+            story_card_elements = [
+                e for e in elems if not (e.props or {}).get("is_audio_marker")
+            ]
             story_item: ContentItem | None = (
                 content.items[i] if content and i < len(content.items) else None
             )
@@ -118,13 +124,26 @@ def generate_brief_transcript(
             event_elem = next(
                 (e for e in elems if e.element_type == "event_card"), None
             )
+            if event_elem is None and story_card_elements:
+                event_elem = story_card_elements[0]
             atmosphere_elem = next(
                 (e for e in elems if e.element_type == "atmosphere_card"), None
             )
+            if atmosphere_elem is None:
+                atmosphere_elem = next(
+                    (
+                        e
+                        for e in elems
+                        if e.element_type in {"comment_card", "comment_dual_card"}
+                    ),
+                    None,
+                )
 
             event_summary = (
                 event_elem.props.get("dek", "")
                 or event_elem.props.get("event_summary", "")
+                or event_elem.props.get("title", "")
+                or event_elem.props.get("headline", "")
                 if event_elem
                 else ""
             )
@@ -136,15 +155,7 @@ def generate_brief_transcript(
             lines.append("")
 
             # Card-by-card narration
-            for _ in range(
-                len(
-                    [
-                        e
-                        for e in elems
-                        if e.element_type in ("event_card", "atmosphere_card")
-                    ]
-                )
-            ):
+            for _ in range(len(story_card_elements)):
                 if card_idx < len(card_texts):
                     lines.append(card_texts[card_idx])
                     lines.append("")
@@ -196,6 +207,16 @@ def generate_brief_transcript(
             # Quotes from atmosphere_card
             if atmosphere_elem and atmosphere_elem.props:
                 quotes = atmosphere_elem.props.get("quotes", [])
+                if not quotes and atmosphere_elem.element_type == "comment_card":
+                    quote = atmosphere_elem.props.get("quote")
+                    if quote:
+                        quotes = [
+                            {
+                                "stance": atmosphere_elem.props.get("stance", ""),
+                                "author": atmosphere_elem.props.get("author", ""),
+                                "text": quote,
+                            }
+                        ]
                 if quotes:
                     for q in quotes:
                         stance = q.get("stance", "")
@@ -204,10 +225,42 @@ def generate_brief_transcript(
                         stance_str = f"**[{stance}]** " if stance else ""
                         lines.append(f'- {stance_str}{author}: "{text[:120]}"')
                     lines.append("")
+                if atmosphere_elem.element_type == "comment_dual_card":
+                    left = atmosphere_elem.props.get("left_summary", "")
+                    right = atmosphere_elem.props.get("right_summary", "")
+                    if left or right:
+                        lines.append("**社区对照**")
+                        if left:
+                            lines.append(
+                                f"- {atmosphere_elem.props.get('left_label', '支持')}: {left}"
+                            )
+                        if right:
+                            lines.append(
+                                f"- {atmosphere_elem.props.get('right_label', '质疑')}: {right}"
+                            )
+                        lines.append("")
         else:
             if not story_elems and scan_segment.audio_text:
                 lines.append(scan_segment.audio_text)
                 lines.append("")
+
+    # Quick news
+    if quick_segment:
+        lines.append("---")
+        lines.append("")
+        lines.append("## 速览")
+        lines.append("")
+        for index, element in enumerate(quick_segment.scene_elements, 1):
+            props = element.props or {}
+            title = props.get("title") or f"速览 {index}"
+            fact = props.get("fact") or ""
+            lines.append(f"{index}. **{title}**")
+            if fact:
+                lines.append(fact)
+            source_url = props.get("source_url") or ""
+            if source_url:
+                lines.append(f"[原文]({source_url})")
+            lines.append("")
 
     # Closing
     if closing_segment:

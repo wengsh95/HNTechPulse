@@ -14,6 +14,10 @@ from src.pipeline.orchestrator import (
     STANDALONE_STEPS,
     _resolve_steps,
 )
+from src.pipeline.human_review import (
+    approve_current_script,
+    generate_script_review_page,
+)
 from src.pipeline.script.io import save_script, save_script_to_path
 
 
@@ -28,7 +32,7 @@ def _make_config():
     }
 
 
-def _make_orchestrator(dry_run=True, flow=None):
+def _make_orchestrator(dry_run=True):
     config = _make_config()
     return Orchestrator(
         config=config,
@@ -38,7 +42,6 @@ def _make_orchestrator(dry_run=True, flow=None):
         renderer=MagicMock(spec=Renderer),
         debug=True,
         dry_run=dry_run,
-        flow=flow,
     )
 
 
@@ -92,18 +95,21 @@ class TestStepList:
             "translate_titles",
             "analyze_comments",
             "judge_comments",
-            "plan_xhs_cards",
-            "render_xhs_cards",
             "write_script",
+            "draft_quick_news",
+            "normalize_video_structure",
+            "prepare_story_images",
             "review_script",
+            "human_review",
             "translate_comments",
             "prepare_subtitles",
             "synthesize_audio",
             "title",
             "cover_image",
             "cover_thumbnail",
+            "draft_storyboard",
+            "apply_storyboard",
             "publish_guide",
-            "xhs_guide",
             "prepare_render",
         ]
         assert PIPELINE_STEPS == expected
@@ -111,18 +117,20 @@ class TestStepList:
     def test_standalone_is_render(self):
         assert STANDALONE_STEPS == {"render", "preview"}
 
-    def test_default_steps_are_xhs_cards_only(self):
-        assert DEFAULT_STEPS[-2:] == ["plan_xhs_cards", "render_xhs_cards"]
-        assert "write_script" not in DEFAULT_STEPS
-        assert "synthesize_audio" not in DEFAULT_STEPS
-        assert "render" not in DEFAULT_STEPS
+    def test_default_steps_are_full_video_chain(self):
+        assert DEFAULT_STEPS[-1] == "render"
+        assert "write_script" in DEFAULT_STEPS
+        assert "synthesize_audio" in DEFAULT_STEPS
+        for step in DEFAULT_STEPS:
+            assert "xhs" not in step
 
-    def test_card_chain_resolves_without_legacy_steps(self):
+    def test_default_chain_resolves_without_expansion(self):
         resolved = _resolve_steps(DEFAULT_STEPS)
         assert resolved == DEFAULT_STEPS
 
     def test_optional_cover_thumbnail_expands_to_cover_image_only(self):
         assert _resolve_steps(["cover_thumbnail"]) == [
+            "human_review",
             "cover_image",
             "cover_thumbnail",
         ]
@@ -138,6 +146,7 @@ class TestStepList:
     def test_video_downstream_recovery_does_not_expand_editorial_chain(self):
         resolved = _resolve_steps(["synthesize_audio", "prepare_render", "render"])
         assert resolved == [
+            "human_review",
             "prepare_subtitles",
             "synthesize_audio",
             "prepare_render",
@@ -147,11 +156,8 @@ class TestStepList:
         assert "review_script" not in resolved
         assert "fetch" not in resolved
 
-    def test_render_only_stays_render_only(self):
-        assert _resolve_steps(["render"]) == ["render"]
-
-    def test_card_render_can_be_repaired_without_replanning(self):
-        assert _resolve_steps(["render_xhs_cards"]) == ["render_xhs_cards"]
+    def test_render_only_still_requires_human_approval_gate(self):
+        assert _resolve_steps(["render"]) == ["human_review", "render"]
 
 
 # ── Per-step behaviour ──────────────────────────────────────────────────
@@ -573,7 +579,6 @@ class TestRunDispatch:
             "_step_cover_image",
             "_step_cover_thumbnail",
             "_step_publish_guide",
-            "_step_xhs_guide",
             "_step_prepare_render",
         ]
         mocks = {}
@@ -619,7 +624,6 @@ class TestRunDispatch:
             "_step_cover_image",
             "_step_cover_thumbnail",
             "_step_publish_guide",
-            "_step_xhs_guide",
             "_step_prepare_render",
         ]
         for name in steps_in_order:
@@ -640,7 +644,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state_xhs.json"
+            / "pipeline_state_video.json"
         )
         assert not state_path.exists()
 
@@ -656,6 +660,8 @@ class TestRunDispatch:
         script = _make_script()
         orch.content_preparer.save_content(content, date)
         save_script(script, date)
+        generate_script_review_page(script, date)
+        approve_current_script(date, reviewer="test")
 
         def synthesize(current_script, _date, _content):
             audio_path = (
@@ -712,9 +718,6 @@ class TestRunDispatch:
             )
         )
         assert persisted_script["segments"][0]["audio_text"] == "hi"
-        assert not Path(
-            f"data/{date[:7]}/{date}/agent/pipeline_state_xhs.json"
-        ).exists()
         state = json.loads(
             Path(f"data/{date[:7]}/{date}/agent/pipeline_state_video.json").read_text(
                 encoding="utf-8"
@@ -722,11 +725,11 @@ class TestRunDispatch:
         )
         assert state["status"] == "complete"
 
-    def test_explicit_video_flow_scopes_non_render_step_state_to_video(
+    def test_agent_mode_scopes_non_render_step_state_to_video(
         self, tmp_path, monkeypatch
     ):
         monkeypatch.chdir(tmp_path)
-        orch = _make_orchestrator(dry_run=False, flow="video")
+        orch = _make_orchestrator(dry_run=False)
         orch.agent_mode = True
         content = _make_content()
         orch._step_fetch = MagicMock(return_value=content)
@@ -734,9 +737,6 @@ class TestRunDispatch:
         orch.run("2026-04-26", steps=["fetch"], force=False)
 
         assert Path("data/2026-04/2026-04-26/agent/pipeline_state_video.json").exists()
-        assert not Path(
-            "data/2026-04/2026-04-26/agent/pipeline_state_xhs.json"
-        ).exists()
 
     def test_agent_mode_blocks_after_enrichment_failure(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -763,7 +763,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state_xhs.json"
+            / "pipeline_state_video.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"
@@ -824,7 +824,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state_xhs.json"
+            / "pipeline_state_video.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "degraded"
@@ -878,7 +878,7 @@ class TestRunDispatch:
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state_xhs.json"
+            / "pipeline_state_video.json"
         )
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert state["status"] == "blocked"

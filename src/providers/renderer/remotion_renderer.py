@@ -25,7 +25,10 @@ from typing import Dict
 from src.core.models import Script
 from src.core.interfaces import Renderer
 from src.pipeline.paths import date_root, render_path, render_remotion_dir
-from src.providers.renderer.remotion_props import script_to_props
+from src.providers.renderer.remotion_props import (
+    load_story_image_paths,
+    script_to_props,
+)
 from src.providers.renderer.binary_finder import (
     find_node,
     find_npm,
@@ -884,6 +887,10 @@ class RemotionRenderer(Renderer):
                 src = _resolve_local(item.screenshot_image)
                 if src and _copy(src):
                     copied += 1
+        for image_path in load_story_image_paths(date):
+            src = _resolve_local(image_path)
+            if src and _copy(src):
+                copied += 1
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
 

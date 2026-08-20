@@ -109,6 +109,9 @@ def _strip_noise(text: str) -> str:
     return text.strip()
 
 
+_DANGLING_CONNECTORS = "，。！？；：,.!?;: 在的把让被与和以及及为对从向按跟"
+
+
 def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
     text = _normalize(text)
     if len(text) <= max_len:
@@ -117,21 +120,23 @@ def _compact_copy(text: str, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:
         if sep in text:
             head = text.split(sep, 1)[0].strip()
             if 0 < len(head) <= max_len + 4:
-                return head
+                return head.rstrip(_DANGLING_CONNECTORS)
     for sep in ("，", "。", "、", "：", "；"):
         idx = text.find(sep)
         if 3 <= idx <= max_len + 4:
             candidate = text[:idx].strip()
             if candidate:
-                return candidate
-    clipped = text[:max_len].rstrip("，。！？；：,.!?;: ")
+                return candidate.rstrip(_DANGLING_CONNECTORS)
+    clipped = text[:max_len].rstrip(_DANGLING_CONNECTORS + " ")
     while clipped and clipped[-1].isascii() and clipped[-1].isalnum():
         next_char = text[len(clipped)] if len(clipped) < len(text) else ""
         if next_char and next_char.isascii() and next_char.isalnum():
             clipped = clipped[:-1]
         else:
             break
-    return clipped.strip() or text[: max_len + 4].rstrip("，。！？；：,.!?;: ")
+    return clipped.rstrip(_DANGLING_CONNECTORS + " ").strip() or text[
+        : max_len + 4
+    ].rstrip(_DANGLING_CONNECTORS + " ")
 
 
 def _entry_hook(entry: dict, max_len: int = DEFAULT_HOOK_MAX_LEN) -> str:

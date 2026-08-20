@@ -14,8 +14,8 @@ Layout::
     ├── media/       images/
     ├── render/      remotion/{chunks,public}/, cli_props.json
     ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
-    │                xhs_cards.json, xhs_cards/, cover_bg.png, cover.png
-    ├── agent/       pipeline_state_video.json, pipeline_state_xhs.json,
+    │                cover_bg.png, cover.png
+    ├── agent/       pipeline_state_video.json,
     │                agent_events.jsonl, selected_variant.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
 
@@ -75,11 +75,6 @@ def publish_root(date: str) -> Path:
     return date_root(date) / PUBLISH_DIR
 
 
-def publish_xhs_cards_dir(date: str) -> Path:
-    """Return the rendered Xiaohongshu card package directory."""
-    return publish_root(date) / "xhs_cards"
-
-
 def agent_root(date: str) -> Path:
     return date_root(date) / AGENT_DIR
 
@@ -126,6 +121,10 @@ _PIPELINE_FILES: dict[str, str] = {
     "comment_judgement.json": "comment_judgement.json",
     "translations.json": "translations.json",
     "script.json": "script.json",
+    "storyboard.json": "storyboard.json",
+    "quick_news.json": "quick_news.json",
+    "story_images.json": "story_images.json",
+    "video_structure.json": "video_structure.json",
     "subtitle_plan.json": "subtitle_plan.json",
     "script_review.json": "script_review.json",
     "audio_manifest.json": "audio_manifest.json",
@@ -139,8 +138,6 @@ _PUBLISH_FILES: dict[str, str] = {
     "output.mp4": "output.mp4",
     "title.json": "title.json",
     "publish_guide.md": "publish_guide.md",
-    "xhs_guide.md": "xhs_guide.md",
-    "xhs_cards.json": "xhs_cards.json",
     "cover.png": "cover.png",
     "cover_v1.png": "cover_v1.png",
     "cover_v2.png": "cover_v2.png",
@@ -159,12 +156,12 @@ _PUBLISH_FILES: dict[str, str] = {
 _AGENT_FILES: dict[str, str] = {
     "pipeline_state.json": "pipeline_state.json",
     "pipeline_state_video.json": "pipeline_state_video.json",
-    "pipeline_state_xhs.json": "pipeline_state_xhs.json",
     "agent_decision.json": "agent_decision.json",
     "agent_events.jsonl": "agent_events.jsonl",
     "agent_tasks.json": "agent_tasks.json",
     "selection_lock.json": "selection_lock.json",
     "script_lock.json": "script_lock.json",
+    "script_approval.json": "script_approval.json",
     "agent_variant_decision.json": "agent_variant_decision.json",
     "selected_variant.json": "selected_variant.json",
     "report.md": "report.md",
@@ -297,8 +294,6 @@ LEGACY_FLAT_LAYOUT = {
     "title.json",
     "transcript.md",
     "publish_guide.md",
-    "xhs_guide.md",
-    "xhs_cards.json",
     "pipeline_state.json",
     "agent_decision.json",
     "agent_events.jsonl",
@@ -341,7 +336,6 @@ __all__ = [
     "media_root",
     "render_root",
     "publish_root",
-    "publish_xhs_cards_dir",
     "agent_root",
     "pipeline_segments_dir",
     "pipeline_variants_root",

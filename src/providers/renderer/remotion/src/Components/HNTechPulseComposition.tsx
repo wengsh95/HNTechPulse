@@ -46,7 +46,13 @@ const asNumber = (value: unknown): number | undefined => {
 
 const titleFromProps = (props: Record<string, unknown>): string => {
   return String(
-    props.editor_angle ?? props.title_cn ?? props.story_title ?? props.source_title ?? "",
+    props.editor_angle ??
+      props.title_cn ??
+      props.title ??
+      props.headline ??
+      props.story_title ??
+      props.source_title ??
+      "",
   );
 };
 
@@ -147,7 +153,7 @@ const SegmentRenderer: React.FC<{
     if (segment.segment_type === "closing") return undefined;
     if (segment.segment_type === "story_scan") {
       // 找 segment 第一个 event_card 拿 category / editor_angle
-      const firstEvent = segment.scene_elements.find((e) => e.element_type === "event_card");
+      const firstEvent = segment.scene_elements.find(isStoryMarkerElement);
       const props = (firstEvent?.props ?? {}) as Record<string, unknown>;
       const storyIdx = typeof props.story_index === "number" ? props.story_index : null;
       const displayIdx = typeof props.display_index === "number" ? props.display_index : null;

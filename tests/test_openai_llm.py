@@ -240,6 +240,31 @@ class TestSingleStoryToJson:
         assert len(parsed["comments"]) == 2
         assert parsed["truncated_to"] == 2
 
+    def test_judged_comment_fields_are_exposed_to_story_prompt(self):
+        provider = _make_provider()
+        item = _make_content_item(0)
+        item.comments[0].source_id = "comment-1"
+        comments_data = {
+            "quote_candidates": [
+                {
+                    "comment_id": "comment-1",
+                    "claim": "空值不会让 GitHub Actions 主动报错",
+                    "role": "technical_detail",
+                    "stance": "质疑",
+                    "quote_score": 0.91,
+                }
+            ],
+            "comment_lanes": {},
+        }
+
+        result = provider._single_story_to_json(item, 0, comments_data)
+        comment = json.loads(result)["comments"][0]
+
+        assert comment["comment_claim"] == "空值不会让 GitHub Actions 主动报错"
+        assert comment["comment_role"] == "technical_detail"
+        assert comment["comment_stance"] == "质疑"
+        assert comment["quote_score"] == 0.91
+
     def test_article_summary_included(self):
         provider = _make_provider()
         item = _make_content_item(0)

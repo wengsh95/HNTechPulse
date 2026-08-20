@@ -16,7 +16,7 @@ from src.providers.factory import (  # noqa: E402
     create_renderer,
     create_image_generator,
 )
-from src.pipeline.orchestrator import Orchestrator  # noqa: E402
+from src.pipeline.orchestrator import DEFAULT_STEPS, Orchestrator  # noqa: E402
 from src.pipeline.agent_io import load_pipeline_state  # noqa: E402
 from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
 
@@ -37,7 +37,7 @@ def validate_date(value: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="HN TechPulse: Generate Xiaohongshu cards or tech video from Hacker News"
+        description="HN TechPulse: Generate a narrated tech video from Hacker News"
     )
     parser.add_argument(
         "--date",
@@ -46,12 +46,6 @@ def main():
         help="Date to process (YYYY-MM-DD)",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument(
-        "--flow",
-        choices=["xhs", "video"],
-        default="xhs",
-        help="Product flow; selects the product state and execution branch",
-    )
     parser.add_argument("--dry-run", action="store_true", help="Dry run (no API calls)")
     parser.add_argument(
         "--resume",
@@ -104,18 +98,13 @@ def main():
     parser.add_argument(
         "--steps",
         type=str,
-        default=(
-            "fetch,prefilter,fetch_comments,enrich_articles,translate_titles,"
-            "analyze_comments,judge_comments,plan_xhs_cards,render_xhs_cards"
-        ),
+        default=",".join(DEFAULT_STEPS),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, translate_titles, analyze_comments, judge_comments, "
-            "plan_xhs_cards, render_xhs_cards, write_script, review_script, "
-            "translate_comments, synthesize_audio, title, cover_image, "
-            "cover_thumbnail, publish_guide, xhs_guide, prepare_render, render, "
-            "preview). Default produces one six-page Xiaohongshu card package; "
-            "video steps can be run through scripts/agent_run.py --flow video."
+            "write_script, review_script, translate_comments, synthesize_audio, "
+            "title, cover_image, cover_thumbnail, publish_guide, prepare_render, "
+            "render, preview). Default runs the full managed video chain."
         ),
     )
     parser.add_argument(
@@ -136,13 +125,10 @@ def main():
 
     config = load_config(args.config)
     if args.resume:
-        state = load_pipeline_state(
-            args.date,
-            product="video" if args.flow == "video" else "xhs_cards",
-        )
+        state = load_pipeline_state(args.date, product="video")
         if not state:
             parser.error(
-                f"--resume requested but no {args.flow} pipeline state was found for {args.date}"
+                f"--resume requested but no pipeline state was found for {args.date}"
             )
         resume_step = (
             state.get("failed_step")
@@ -168,14 +154,7 @@ def main():
     else:
         steps = [s.strip() for s in args.steps.split(",")]
 
-    product = (
-        "video"
-        if args.flow == "video"
-        or any(
-            step in {"synthesize_audio", "prepare_render", "render"} for step in steps
-        )
-        else "xhs_cards"
-    )
+    product = "video"
 
     log_file = get_log_file_path(args.date) if not args.dry_run else None
     log_level = config.get("logging", {}).get("level", "INFO")
@@ -244,7 +223,6 @@ def main():
             refresh_variants=args.refresh_variants,
             refresh_selection=args.refresh_selection,
             refresh_script=args.refresh_script,
-            flow=args.flow,
         )
 
         orchestrator.run(

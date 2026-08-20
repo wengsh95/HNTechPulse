@@ -512,6 +512,8 @@ class TTSProcessor:
         manifest = self._load_manifest(audio_path)
         if manifest is None:
             return None
+        if not self._manifest_audio_duration_matches(audio_path, manifest):
+            return None
         if manifest.get("text_hash") != text_hash:
             return None
         if (
@@ -534,7 +536,31 @@ class TTSProcessor:
 
     def _manifest_text_hash_matches(self, audio_path: str, text_hash: str) -> bool:
         manifest = self._load_manifest(audio_path)
-        return manifest is not None and manifest.get("text_hash") == text_hash
+        return (
+            manifest is not None
+            and self._manifest_audio_duration_matches(audio_path, manifest)
+            and manifest.get("text_hash") == text_hash
+        )
+
+    @staticmethod
+    def _manifest_audio_duration_matches(audio_path: str, manifest: dict) -> bool:
+        """Reject an alignment cache when the audio is shorter than its cues.
+
+        A stale or truncated MP3 can keep the correct text hash while its JSON
+        alignment still describes the original, longer file.  Reusing that
+        pair compresses an entire simple segment to the truncated duration.
+        """
+        segments = manifest.get("segments") or []
+        try:
+            expected_end = max(float(item.get("end_time", 0.0)) for item in segments)
+            actual_duration = get_audio_duration(audio_path)
+        except (TypeError, ValueError, OSError, subprocess.SubprocessError):
+            return False
+        if expected_end <= 0.0 or actual_duration <= 0.0:
+            return False
+        return actual_duration + 0.75 >= expected_end and actual_duration >= (
+            expected_end * 0.7
+        )
 
     def _load_manifest(self, audio_path: str) -> dict | None:
         if not Path(audio_path).exists():

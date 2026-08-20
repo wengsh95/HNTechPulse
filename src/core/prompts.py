@@ -37,6 +37,8 @@ PH_DATE_DISPLAY = "date_display"
 PH_OTHER_STORIES_JSON = "other_stories_json"
 PH_SUBSEGMENTS_JSON = "subsegments_json"
 PH_QUOTES_JSON = "quotes_json"
+PH_SCRIPT_JSON = "script_json"
+PH_TEMPLATE_CATALOG_JSON = "template_catalog_json"
 
 _KNOWN_PLACEHOLDERS = frozenset(
     {
@@ -66,6 +68,8 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_OTHER_STORIES_JSON,
         PH_SUBSEGMENTS_JSON,
         PH_QUOTES_JSON,
+        PH_SCRIPT_JSON,
+        PH_TEMPLATE_CATALOG_JSON,
     }
 )
 

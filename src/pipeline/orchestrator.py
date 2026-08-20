@@ -31,11 +31,17 @@ from src.pipeline.agent_variants import (
     write_variants_index,
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
-from src.pipeline.xhs_guide_inputs import xhs_guide_manifest_inputs
-from src.pipeline.xhs_cards import plan_xhs_cards, render_xhs_cards
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
-from src.pipeline.agent_state import AgentState, BLOCK_INSUFFICIENT_CONTEXT
+from src.pipeline.agent_state import (
+    AgentState,
+    BLOCK_INSUFFICIENT_CONTEXT,
+    BLOCK_MANUAL_SCRIPT_REVIEW,
+)
 from src.pipeline.content_io import ContentPreparer
+from src.pipeline.human_review import (
+    generate_script_review_page,
+    script_approval_is_current,
+)
 from src.pipeline.paths import (
     agent_path,
     date_root,
@@ -50,6 +56,11 @@ from src.pipeline.paths import (
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
 from src.pipeline.subtitle_planner import prepare_subtitles
+from src.pipeline.storyboard import apply_storyboard
+from src.pipeline.storyboard_draft import draft_storyboard
+from src.pipeline.quick_news import draft_quick_news
+from src.pipeline.story_images import prepare_story_images, require_story_images
+from src.pipeline.video_structure import prepare_video_structure
 from src.providers.renderer.binary_finder import find_npx
 from src.pipeline.script import ScriptWriter, apply_subtitle_revisions
 from src.pipeline.script.io import (
@@ -176,21 +187,6 @@ def _format_mmss(seconds: float | int | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-# The default product is now a six-page Xiaohongshu card package. Video steps
-# remain addressable as an explicit, managed flow, but are not part of the
-# default chain.
-XHS_CARD_STEPS = [
-    "fetch",
-    "prefilter",
-    "fetch_comments",
-    "enrich_articles",
-    "translate_titles",
-    "analyze_comments",
-    "judge_comments",
-    "plan_xhs_cards",
-    "render_xhs_cards",
-]
-
 VIDEO_PIPELINE_ORDER = [
     "fetch",
     "prefilter",
@@ -200,11 +196,17 @@ VIDEO_PIPELINE_ORDER = [
     "analyze_comments",
     "judge_comments",
     "write_script",
+    "draft_quick_news",
+    "normalize_video_structure",
+    "prepare_story_images",
     "review_script",
+    "human_review",
     "translate_comments",
     "title",
     "cover_image",
     "cover_thumbnail",
+    "draft_storyboard",
+    "apply_storyboard",
     "prepare_subtitles",
     "synthesize_audio",
     "prepare_render",
@@ -219,35 +221,41 @@ PIPELINE_STEPS = [
     "translate_titles",
     "analyze_comments",
     "judge_comments",
-    "plan_xhs_cards",
-    "render_xhs_cards",
     "write_script",
+    "draft_quick_news",
+    "normalize_video_structure",
+    "prepare_story_images",
     "review_script",
+    "human_review",
     "translate_comments",
     "prepare_subtitles",
     "synthesize_audio",
     "title",
     "cover_image",
     "cover_thumbnail",
+    "draft_storyboard",
+    "apply_storyboard",
     "publish_guide",
-    "xhs_guide",
     "prepare_render",
 ]
 OPTIONAL_PRODUCTION_STEPS = {
-    "plan_xhs_cards",
-    "render_xhs_cards",
     "write_script",
+    "draft_quick_news",
+    "normalize_video_structure",
+    "prepare_story_images",
     "review_script",
+    "human_review",
     "translate_comments",
     "title",
     "prepare_render",
     "cover_image",
     "cover_thumbnail",
+    "draft_storyboard",
+    "apply_storyboard",
     "publish_guide",
-    "xhs_guide",
     "prepare_subtitles",
     # TTS is a render-side branch only (prepare_render needs audio_dir +
-    # actual_duration); title/cover/publish/xhs do not depend on it, so it is
+    # actual_duration); title/cover/publish do not depend on it, so it is
     # optional rather than a forced core prerequisite of write_script.
     "synthesize_audio",
 }
@@ -258,12 +266,13 @@ LEGACY_CORE_PIPELINE_STEPS = [
     *CORE_PIPELINE_STEPS,
     "write_script",
     "review_script",
+    "human_review",
     "translate_comments",
     "title",
 ]
 STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
-DEFAULT_STEPS = XHS_CARD_STEPS
+DEFAULT_STEPS = list(VIDEO_PIPELINE_ORDER)
 
 # Number of cover text variants generated for manual selection (shared background).
 COVER_VARIANT_COUNT = 3
@@ -272,14 +281,19 @@ COVER_VARIANT_COUNT = 3
 SCRIPT_CONSUMING_STEPS = frozenset(
     {
         "review_script",
+        "human_review",
+        "draft_quick_news",
+        "normalize_video_structure",
+        "prepare_story_images",
         "translate_comments",
         "prepare_subtitles",
         "synthesize_audio",
         "title",
         "cover_image",
         "cover_thumbnail",
+        "draft_storyboard",
+        "apply_storyboard",
         "publish_guide",
-        "xhs_guide",
         "prepare_render",
         "render",
     }
@@ -289,11 +303,35 @@ SCRIPT_CONSUMING_STEPS = frozenset(
 SCRIPT_MUTATING_STEPS = frozenset(
     {
         "write_script",
+        "draft_quick_news",
+        "normalize_video_structure",
+        "prepare_story_images",
         "review_script",
         "translate_comments",
         "prepare_subtitles",
         "synthesize_audio",
         "title",
+        "apply_storyboard",
+    }
+)
+
+# Any production work after copy review must use the exact script version a
+# human approved. The resolver injects ``human_review`` even for a direct
+# render recovery, so manually edited copy cannot bypass the checkpoint.
+HUMAN_REVIEW_PROTECTED_STEPS = frozenset(
+    {
+        "translate_comments",
+        "title",
+        "cover_image",
+        "cover_thumbnail",
+        "draft_storyboard",
+        "apply_storyboard",
+        "prepare_subtitles",
+        "synthesize_audio",
+        "publish_guide",
+        "prepare_render",
+        "render",
+        "preview",
     }
 )
 
@@ -354,6 +392,12 @@ def _resolve_steps(requested: List[str]) -> List[str]:
         if step not in resolved:
             resolved.append(step)
 
+    if (
+        HUMAN_REVIEW_PROTECTED_STEPS.intersection(resolved)
+        and "human_review" not in resolved
+    ):
+        resolved.append("human_review")
+
     # Optional steps are appended above for compatibility with the historical
     # resolver. Reorder the final set by the real pipeline order so a video run
     # always synthesizes audio before prepare_render.
@@ -390,7 +434,6 @@ class Orchestrator:
         refresh_variants: bool = False,
         refresh_selection: bool = False,
         refresh_script: bool = False,
-        flow: str | None = None,
     ):
         self.config = config
         self.content_fetcher = content_fetcher
@@ -406,7 +449,6 @@ class Orchestrator:
         self.refresh_variants = refresh_variants
         self.refresh_selection = refresh_selection
         self.refresh_script = refresh_script
-        self.flow = flow
         self._agent_state: Optional[AgentState] = None
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
@@ -462,23 +504,8 @@ class Orchestrator:
             steps = _resolve_steps(steps)
 
         self._progress = PipelineProgress(steps, date, self.config)
-        product = (
-            "video"
-            if self.flow == "video"
-            or any(
-                step
-                in {
-                    "prepare_subtitles",
-                    "synthesize_audio",
-                    "prepare_render",
-                    "render",
-                }
-                for step in steps
-            )
-            else "xhs_cards"
-        )
         self._agent_state = (
-            AgentState(date, steps, self.config, product=product)
+            AgentState(date, steps, self.config, product="video")
             if self.agent_mode and not self.dry_run
             else None
         )
@@ -594,15 +621,6 @@ class Orchestrator:
             with self._tracked_step("judge_comments"):
                 content = self._step_judge_comments(content, date)
 
-        # ── Xiaohongshu card product ─────────────────────────────────────
-        if "plan_xhs_cards" in steps:
-            with self._tracked_step("plan_xhs_cards"):
-                self._step_plan_xhs_cards(content, date)
-
-        if "render_xhs_cards" in steps:
-            with self._tracked_step("render_xhs_cards"):
-                self._step_render_xhs_cards(date)
-
         # ── 8. write_script ───────────────────────────────────────────────
         if "write_script" in steps:
             with self._tracked_step("write_script"):
@@ -639,11 +657,64 @@ class Orchestrator:
                 )
 
         # ── 9. review_script ──────────────────────────────────────────────
+        if "draft_quick_news" in steps:
+            with self._tracked_step("draft_quick_news"):
+                script = self._step_draft_quick_news(script, date)
+
+        # ── 10. normalize_video_structure ────────────────────────────────
+        if "normalize_video_structure" in steps:
+            with self._tracked_step("normalize_video_structure"):
+                script = self._step_normalize_video_structure(script, date)
+
+        # ── 11. prepare_story_images ──────────────────────────────────────
+        if "prepare_story_images" in steps:
+            with self._tracked_step("prepare_story_images"):
+                image_result = self._step_prepare_story_images(script, content, date)
+            if image_result.pending and self.agent_mode:
+                if self._agent_state:
+                    self._agent_state.block_for_manual_image_selection(
+                        "prepare_story_images", image_result.pending
+                    )
+                self.logger.warning(
+                    "%d stories need confirmed images before continuing.",
+                    len(image_result.pending),
+                )
+                return
+
+        # ── 10. review_script ─────────────────────────────────────────────
         if "review_script" in steps:
             with self._tracked_step("review_script"):
                 script = self._step_review_script(content, script, date)
 
-        # ── 10. translate_comments ────────────────────────────────────────
+        # ── 11. human_review ──────────────────────────────────────────────
+        if "human_review" in steps:
+            with self._tracked_step("human_review"):
+                approved, review_page = self._step_human_review(script, date)
+            if not approved:
+                if self._agent_state:
+                    self._agent_state.block(
+                        "human_review",
+                        BLOCK_MANUAL_SCRIPT_REVIEW,
+                        items=[
+                            {
+                                "review_page": str(review_page).replace("\\", "/"),
+                                "approval_file": str(
+                                    agent_path(date, "script_approval.json")
+                                ).replace("\\", "/"),
+                                "approve_command": (
+                                    "uv run python scripts/agent_run.py "
+                                    f"--date {date} --approve-script"
+                                ),
+                            }
+                        ],
+                    )
+                self.logger.warning(
+                    "Human script review required before downstream production: %s",
+                    review_page,
+                )
+                return
+
+        # ── 12. translate_comments ────────────────────────────────────────
         if "translate_comments" in steps:
             with self._tracked_step("translate_comments"):
                 content, script = self._step_translate_comments(content, script, date)
@@ -673,17 +744,22 @@ class Orchestrator:
             with self._tracked_step("cover_thumbnail"):
                 self._step_cover_thumbnail(content, script, date)
 
-        # ── 15. publish_guide ─────────────────────────────────────────────
+        # ── 15. draft_storyboard ─────────────────────────────────────────
+        if "draft_storyboard" in steps:
+            with self._tracked_step("draft_storyboard"):
+                self._step_draft_storyboard(script, date)
+
+        # ── 16. apply_storyboard ─────────────────────────────────────────
+        if "apply_storyboard" in steps:
+            with self._tracked_step("apply_storyboard"):
+                script = self._step_apply_storyboard(script, date)
+
+        # ── 17. publish_guide ─────────────────────────────────────────────
         if "publish_guide" in steps:
             with self._tracked_step("publish_guide"):
                 self._step_publish_guide(content, script, date)
 
-        # ── 16. xhs_guide ───────────────────────────────────────────────
-        if "xhs_guide" in steps:
-            with self._tracked_step("xhs_guide"):
-                self._step_xhs_guide(content, script, date)
-
-        # ── 17. prepare_render ────────────────────────────────────────────
+        # ── 18. prepare_render ────────────────────────────────────────────
         if "prepare_render" in steps:
             with self._tracked_step("prepare_render"):
                 self._step_prepare_render(content, script, date)
@@ -726,6 +802,118 @@ class Orchestrator:
             plan["changed_count"],
             len(plan["entries"]),
         )
+        return script
+
+    def _step_human_review(
+        self, script: Optional[Script], date: str
+    ) -> tuple[bool, Path]:
+        self.logger.info("Step: Human review — require approval for current script")
+        if script is None:
+            raise ValueError("Script not loaded; cannot prepare human review")
+
+        review_page = date_root(date) / "review" / "script_review.html"
+        if self.dry_run:
+            self.logger.info("Dry run: skipping human review gate")
+            return True, review_page
+
+        review_page = generate_script_review_page(
+            script,
+            date,
+            config=self.config,
+        )
+        approved = script_approval_is_current(date, script)
+        if approved:
+            self.logger.info("  Current script has human approval")
+        else:
+            self.logger.info("  Review page ready: %s", review_page)
+        return approved, review_page
+
+    def _step_apply_storyboard(
+        self, script: Optional[Script], date: str
+    ) -> Optional[Script]:
+        self.logger.info("Step: Apply storyboard — select Remotion shot templates")
+        if script is None:
+            raise ValueError("Script not loaded; cannot apply storyboard")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping storyboard application")
+            return script
+
+        script, application = apply_storyboard(script, date, logger=self.logger)
+        if application is not None and application.changed_count:
+            self.script_writer.save_script(script, date)
+        return script
+
+    def _step_draft_storyboard(self, script: Optional[Script], date: str) -> None:
+        self.logger.info("Step: Draft storyboard — agent shot selection")
+        if script is None:
+            raise ValueError("Script not loaded; cannot draft storyboard")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping storyboard draft")
+            return
+        draft_storyboard(
+            script,
+            date,
+            llm_provider=self.llm_provider,
+            config=self.config,
+            logger=self.logger,
+        )
+
+    def _step_draft_quick_news(
+        self, script: Optional[Script], date: str
+    ) -> Optional[Script]:
+        self.logger.info("Step: Draft quick news — agent selection")
+        if script is None:
+            raise ValueError("Script not loaded; cannot draft quick news")
+        if self.dry_run:
+            self.logger.info("Dry run: skipping quick-news draft")
+            return script
+        draft_quick_news(
+            script,
+            date,
+            llm_provider=self.llm_provider,
+            config=self.config,
+            logger=self.logger,
+        )
+        self.script_writer.save_script(script, date)
+        return script
+
+    def _step_prepare_story_images(
+        self,
+        script: Optional[Script],
+        content: Optional[ContentPackage],
+        date: str,
+    ):
+        self.logger.info("Step: Prepare story images — one image per story")
+        if script is None:
+            raise ValueError("Script not loaded; cannot prepare story images")
+        if self.dry_run:
+            return prepare_story_images(script, content, date, agent_mode=False)
+        result = prepare_story_images(
+            script,
+            content,
+            date,
+            fetcher=getattr(self.article_enricher, "fetcher", None),
+            agent_mode=self.agent_mode,
+            config=self.config,
+            logger=self.logger,
+        )
+        if result.changed:
+            self.script_writer.save_script(script, date)
+        return result
+
+    def _step_normalize_video_structure(
+        self, script: Optional[Script], date: str
+    ) -> Optional[Script]:
+        self.logger.info("Step: Normalize video structure — headline/focus/quick roles")
+        if script is None:
+            raise ValueError("Script not loaded; cannot normalize video structure")
+        if self.dry_run:
+            return script
+        result = prepare_video_structure(
+            script, date, config=self.config, logger=self.logger
+        )
+        if result.changed:
+            self.script_writer.save_script(script, date)
         return script
 
     @staticmethod
@@ -961,21 +1149,6 @@ class Orchestrator:
         self.comment_judge.judge(content, date)
         self.content_preparer.save_content(content, date)
         return content
-
-    def _step_plan_xhs_cards(self, content: ContentPackage, date: str) -> None:
-        self.logger.info("Step: Plan Xiaohongshu cards — one story, six pages")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping Xiaohongshu card planning")
-            return
-        plan_xhs_cards(content, date, self.llm_provider, self.config)
-
-    def _step_render_xhs_cards(self, date: str) -> None:
-        self.logger.info("Step: Render Xiaohongshu cards — 1080x1440 PNG")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping Xiaohongshu card rendering")
-            return
-        rendered = render_xhs_cards(date, self.config)
-        self.logger.info(f"  Rendered {len(rendered)} Xiaohongshu cards")
 
     def _step_write_script(self, content: ContentPackage, date: str) -> Script:
         lock = load_script_lock(date)
@@ -2034,144 +2207,6 @@ class Orchestrator:
         )
         self.logger.info(f"  Publish guide written to {guide_path}")
 
-    def _step_xhs_guide(
-        self, content: ContentPackage, script: Optional[Script], date: str
-    ) -> None:
-        self.logger.info("Step: XHS guide - generate Xiaohongshu image-text post copy")
-        guide_path = publish_path(date, "xhs_guide.md")
-        title_path = publish_path(date, "title.json")
-        title_payload = {}
-        if title_path.exists():
-            try:
-                loaded_title = json.loads(title_path.read_text(encoding="utf-8"))
-                if isinstance(loaded_title, dict):
-                    title_payload = loaded_title
-            except (OSError, json.JSONDecodeError):
-                title_payload = {}
-        items_payload = [
-            {
-                "title_cn": item.title_cn or item.title,
-                "title": item.title,
-                "editor_angle": item.editor_angle or item.dek or "",
-                "category": item.category or "",
-            }
-            for item in content.items
-        ]
-        # Pull quotable comments (with Chinese translations where available) as
-        # opening hooks. comment_judgement.json keys stories by source_id;
-        # translations.json keys comments as "comment_{source_id}_{comment_id}".
-        quotes_payload = self._collect_xhs_quotes(date)
-        context = {
-            "script_title": title_payload.get("title")
-            or (script.title if script else "HN每日观察"),
-            "script_description": title_payload.get("description")
-            or (script.description if script else ""),
-            "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
-            "quotes_json": json.dumps(quotes_payload, ensure_ascii=False, indent=2),
-            "date": date,
-        }
-        # Freshness inputs are computed from disk via a shared helper so the
-        # publishability audit derives an identical hash (mirrors
-        # publish_guide: writer skips, audit complains -> stale forever).
-        manifest_context = xhs_guide_manifest_inputs(date)
-        if is_artifact_fresh(guide_path, manifest_context):
-            self.logger.info(f"  XHS guide already exists at {guide_path}")
-            return
-
-        if self.dry_run:
-            self.logger.info("Dry run: skipping XHS guide generation")
-            return
-
-        text = self.llm_provider.complete_prompt(
-            "prompts/xhs_guide.md",
-            context,
-            label="xhs_guide",
-            expect_json=False,
-            model=self.llm_provider.fast_model,
-            temperature=self.llm_provider.fast_temperature,
-        )
-
-        atomic_write_text(guide_path, text)
-        write_artifact_manifest(
-            guide_path,
-            step="xhs_guide",
-            date=date,
-            inputs=manifest_context,
-            config=self.config,
-        )
-        self.logger.info(f"  XHS guide written to {guide_path}")
-
-    @staticmethod
-    def _collect_xhs_quotes(date: str) -> list[dict[str, Any]]:
-        """Collect quotable comments + Chinese translations for the XHS guide.
-
-        Reads comment_judgement.json (quote_candidates per story, keyed by
-        source_id) and translations.json (keyed
-        ``comment_{source_id}_{comment_id}``). Falls back to the original
-        ``claim`` when no translation is cached. Returns at most 3 highest-scoring
-        quotes per story, each tagged with the story's source_id and title so
-        the prompt can attribute the hook.
-        """
-        judgement_path = pipeline_path(date, "comment_judgement.json")
-        translations_path = pipeline_path(date, "translations.json")
-        content_path = pipeline_path(date, "content.json")
-        try:
-            judgement = json.loads(judgement_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return []
-        if not isinstance(judgement, dict):
-            return []
-        stories = judgement.get("stories") or {}
-        if not isinstance(stories, dict):
-            return []
-        try:
-            translations = json.loads(translations_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            translations = {}
-        if not isinstance(translations, dict):
-            translations = {}
-        title_cn_by_source: dict[str, str] = {}
-        try:
-            content_data = json.loads(content_path.read_text(encoding="utf-8"))
-            if isinstance(content_data, dict):
-                for item in content_data.get("items") or []:
-                    if isinstance(item, dict) and item.get("source_id"):
-                        title_cn_by_source[str(item["source_id"])] = (
-                            item.get("title_cn") or item.get("title") or ""
-                        )
-        except (OSError, json.JSONDecodeError):
-            pass
-
-        quotes: list[dict[str, Any]] = []
-        for source_id, story in stories.items():
-            if not isinstance(story, dict):
-                continue
-            candidates = story.get("quote_candidates") or []
-            if not isinstance(candidates, list):
-                continue
-            ranked = sorted(
-                (c for c in candidates if isinstance(c, dict)),
-                key=lambda c: c.get("quote_score", 0) or 0,
-                reverse=True,
-            )[:3]
-            for cand in ranked:
-                comment_id = str(cand.get("comment_id") or "")
-                trans_key = f"comment_{source_id}_{comment_id}"
-                quote_text = translations.get(trans_key) or cand.get("claim") or ""
-                if not quote_text:
-                    continue
-                quotes.append(
-                    {
-                        "source_id": source_id,
-                        "story_title_cn": title_cn_by_source.get(str(source_id), ""),
-                        "comment_id": comment_id,
-                        "stance": cand.get("stance", ""),
-                        "quote_score": cand.get("quote_score", 0),
-                        "quote_cn": quote_text,
-                    }
-                )
-        return quotes
-
     def _step_prepare_render(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
@@ -2182,6 +2217,8 @@ class Orchestrator:
         if self.dry_run:
             self.logger.info("Dry run: skipping prepare_render")
             return
+
+        require_story_images(script, date)
 
         props_path = render_path(date, "cli_props.json")
         render_inputs = self._render_inputs(script, content, date)

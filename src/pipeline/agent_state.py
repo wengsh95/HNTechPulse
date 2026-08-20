@@ -5,11 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 from src.pipeline.agent_io import append_agent_event, pipeline_state_path, utc_now
-from src.pipeline.paths import agent_path, pipeline_path, raw_downloaded_pages_dir
+from src.pipeline.paths import (
+    agent_path,
+    date_root,
+    pipeline_path,
+    raw_downloaded_pages_dir,
+)
 from src.utils.atomic_io import atomic_write_json
 
 BLOCK_MANUAL_DOWNLOAD = "manual_download_required"
 BLOCK_MANUAL_IMAGE_SELECTION = "manual_image_selection_required"
+BLOCK_MANUAL_SCRIPT_REVIEW = "manual_script_review_required"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_INSUFFICIENT_CONTEXT = "insufficient_story_context"
@@ -23,7 +29,7 @@ class AgentState:
         date: str,
         steps: list[str],
         config: dict[str, Any],
-        product: str = "xhs_cards",
+        product: str = "video",
     ):
         self.date = date
         self.steps = list(steps)
@@ -213,14 +219,13 @@ class AgentState:
         return None
 
     def _next_command(self) -> str | None:
-        flow_arg = " --flow video" if self.product == "video" else ""
         if self.status == "complete":
             return None
         if self.status == "blocked" and self.blocked_reason == BLOCK_MANUAL_DOWNLOAD:
             return (
                 "Fetch the missing article pages with browser/MCP, save them to "
                 f"{raw_downloaded_pages_dir(self.date)}/, then run: "
-                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
+                f"uv run python scripts/agent_run.py --date {self.date} --resume"
             )
         if (
             self.status == "blocked"
@@ -229,7 +234,16 @@ class AgentState:
             return (
                 "Inspect the candidate images with view_image, write one confirmed "
                 f"selection per story to {pipeline_path(self.date, 'image_selection.json')}, "
-                f"then run: uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
+                f"then run: uv run python scripts/agent_run.py --date {self.date} --resume"
+            )
+        if (
+            self.status == "blocked"
+            and self.blocked_reason == BLOCK_MANUAL_SCRIPT_REVIEW
+        ):
+            return (
+                f"Open {date_root(self.date) / 'review' / 'script_review.html'}, "
+                "then approve the current script with: "
+                f"uv run python scripts/agent_run.py --date {self.date} --approve-script"
             )
         if (
             self.status == "blocked"
@@ -237,7 +251,7 @@ class AgentState:
         ):
             return (
                 "Gather more source context for the blocked stories, then run: "
-                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
+                f"uv run python scripts/agent_run.py --date {self.date} --resume"
             )
         if self.status == "blocked" and self.blocked_reason in {
             BLOCK_MISSING_CREDENTIALS,
@@ -247,16 +261,15 @@ class AgentState:
         next_step = self.failed_step or self.current_step or self._next_step()
         if next_step:
             return (
-                f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} "
+                f"uv run python scripts/agent_run.py --date {self.date} "
                 f"--steps {next_step}"
             )
         return None
 
     def _write_task_list(self) -> None:
         tasks = []
-        flow_arg = " --flow video" if self.product == "video" else ""
         resume_command = (
-            f"uv run python scripts/agent_run.py --date {self.date}{flow_arg} --resume"
+            f"uv run python scripts/agent_run.py --date {self.date} --resume"
         )
         if self.blocked_reason == BLOCK_MANUAL_IMAGE_SELECTION:
             for item in self.manual_image_selections:
@@ -440,35 +453,31 @@ class AgentState:
         )
 
     def _artifacts(self) -> dict[str, str | None]:
-        from src.pipeline.paths import pipeline_audio_dir, pipeline_path, publish_path
+        from src.pipeline.paths import (
+            pipeline_audio_dir,
+            pipeline_path,
+            publish_path,
+            render_path,
+        )
 
-        if self.product == "video":
-            from src.pipeline.paths import render_path
-
-            artifacts = {
-                "content": pipeline_path(self.date, "content.json"),
-                "script": pipeline_path(self.date, "script.json"),
-                "script_lock": agent_path(self.date, "script_lock.json"),
-                "subtitle_plan": pipeline_path(self.date, "subtitle_plan.json"),
-                "audio_manifest": pipeline_path(self.date, "audio_manifest.json"),
-                "audio_dir": pipeline_audio_dir(self.date),
-                "title": publish_path(self.date, "title.json"),
-                "cover": publish_path(self.date, "cover.png"),
-                "publish_guide": publish_path(self.date, "publish_guide.md"),
-                "render_props": render_path(self.date, "cli_props.json"),
-                "output": publish_path(self.date, "output.mp4"),
-            }
-        else:
-            from src.pipeline.paths import publish_xhs_cards_dir
-
-            artifacts = {
-                "content": pipeline_path(self.date, "content.json"),
-                "comment_judgement": pipeline_path(self.date, "comment_judgement.json"),
-                "xhs_cards": publish_path(self.date, "xhs_cards.json"),
-                "card_index": publish_xhs_cards_dir(self.date) / "index.html",
-                "contact_sheet": publish_xhs_cards_dir(self.date)
-                / "_contact-sheet.png",
-            }
+        artifacts = {
+            "content": pipeline_path(self.date, "content.json"),
+            "script": pipeline_path(self.date, "script.json"),
+            "script_review": pipeline_path(self.date, "script_review.json"),
+            "script_review_page": date_root(self.date)
+            / "review"
+            / "script_review.html",
+            "script_lock": agent_path(self.date, "script_lock.json"),
+            "script_approval": agent_path(self.date, "script_approval.json"),
+            "subtitle_plan": pipeline_path(self.date, "subtitle_plan.json"),
+            "audio_manifest": pipeline_path(self.date, "audio_manifest.json"),
+            "audio_dir": pipeline_audio_dir(self.date),
+            "title": publish_path(self.date, "title.json"),
+            "cover": publish_path(self.date, "cover.png"),
+            "publish_guide": publish_path(self.date, "publish_guide.md"),
+            "render_props": render_path(self.date, "cli_props.json"),
+            "output": publish_path(self.date, "output.mp4"),
+        }
         return {
             name: str(path).replace("\\", "/") if path.exists() else None
             for name, path in artifacts.items()

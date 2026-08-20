@@ -1,8 +1,20 @@
 # Project Structure
 
 HN TechPulse is a Python pipeline, not a web app. The managed workflow pulls
-Hacker News stories, enriches source context, analyzes comments, selects one
-focus story, and renders a six-page Xiaohongshu PNG card package.
+Hacker News stories, enriches source context, analyzes comments, writes a
+narration script, then runs TTS and the configured renderer to produce an MP4
+video.
+
+The managed step chain is:
+
+```text
+fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles ->
+analyze_comments -> judge_comments -> write_script -> draft_quick_news ->
+normalize_video_structure -> prepare_story_images -> review_script ->
+human_review -> translate_comments -> title -> cover_image -> cover_thumbnail ->
+draft_storyboard -> apply_storyboard -> prepare_subtitles -> synthesize_audio ->
+prepare_render -> render
+```
 
 ## Top-Level Layout
 
@@ -36,7 +48,7 @@ Important CLI patterns:
 ```bash
 uv run python main.py
 uv run python main.py --date YYYY-MM-DD
-uv run python main.py --steps render_xhs_cards
+uv run python main.py --steps render
 uv run python scripts/agent_run.py --date YYYY-MM-DD
 uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 uv run python scripts/agent_status.py --date YYYY-MM-DD
@@ -115,6 +127,13 @@ src/pipeline/
 |-- timing_engine.py
 |-- tts_processor.py
 |-- transcript_generator.py
+|-- quick_news.py
+|-- video_structure.py
+|-- story_images.py
+|-- storyboard.py
+|-- storyboard_draft.py
+|-- storyboard_linter.py
+|-- human_review.py
 |-- agent_io.py
 |-- agent_state.py
 |-- agent_decision.py
@@ -140,6 +159,7 @@ src/pipeline/script/
 |-- composer.py
 |-- io.py
 |-- cards.py
+|-- markdown_importer.py
 `-- templates.py
 ```
 
@@ -168,7 +188,7 @@ src/pipeline/comment/
 The intended flow is:
 
 ```text
-CommentAnalyzer -> CommentJudge -> quote_candidates -> ScriptWriter
+analyze_comments -> judge_comments -> quote_candidates -> write_script
 ```
 
 Downstream script generation consumes `quote_candidates` directly. It should
@@ -206,15 +226,21 @@ Provider factory pattern:
 LLM usage is split between the main model and a faster model. The fast model is
 used for lower-cost tasks such as translation and comment judging.
 
-## Remotion Renderer
+## Renderers
+
+The video renderer is `remotion` (default) or `hyperframes`, selected via the
+`--renderer` CLI flag.
 
 ```text
 src/providers/renderer/
 |-- remotion_renderer.py
 |-- remotion_props.py
+|-- hyperframes_renderer.py
+|-- hyperframes_props.py
 |-- cue_builder.py
 |-- chunk_planner.py
-`-- remotion/
+|-- remotion/
+`-- hyperframes/
 ```
 
 The Remotion app lives at:
@@ -291,14 +317,14 @@ buckets. All path literals go through [src/pipeline/paths.py](../src/pipeline/pa
 ```text
 data/{month}/{date}/
 |-- raw/         raw_stories.json, downloaded_pages/
-|-- pipeline/    prefilter, enrichment, content, comment_*; legacy video caches
+|-- pipeline/    prefilter, enrichment, content, comment_*, script,
+|                audio_manifest, segments/, variants/, audio/
 |-- media/       images/
-|-- render/      legacy video render artifacts
-|-- publish/     xhs_cards.json, xhs_cards/{index.html,assets/,xhs-*.png,
-|                _contact-sheet.png}
-|-- agent/       pipeline_state_video.json, pipeline_state_xhs.json,
-|                agent_decision.json, agent_tasks.json, agent_events.jsonl,
-|                script_lock.json, selected_variant.json, report.md
+|-- render/      remotion/{chunks,public}/, cli_props.json
+|-- publish/     output.mp4, title.json, transcript.md, publish_guide.md,
+|                cover_bg.png, cover.png
+|-- agent/       pipeline_state_video.json,
+|                agent_events.jsonl, selected_variant.json, report.md
 `-- outputs/     (organize_outputs.py mirror — unchanged)
 ```
 
@@ -307,16 +333,16 @@ Common pipeline artifacts:
 ```text
 pipeline/content.json
 pipeline/comment_judgement.json
-publish/xhs_cards.json
-publish/xhs_cards/index.html
-publish/xhs_cards/xhs-01-cover.png
-publish/xhs_cards/_contact-sheet.png
+pipeline/script.json
+pipeline/audio_manifest.json
+publish/output.mp4
+publish/title.json
 ```
 
 Agent artifacts:
 
 ```text
-agent/pipeline_state_video.json or agent/pipeline_state_xhs.json
+agent/pipeline_state_video.json
 agent/agent_events.jsonl
 agent/agent_tasks.json
 agent/agent_decision.json

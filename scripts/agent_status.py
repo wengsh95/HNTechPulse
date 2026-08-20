@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Machine-readable status for the Xiaohongshu card pipeline."""
+"""Machine-readable status for the video pipeline."""
 
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ from src.pipeline.paths import (  # noqa: E402
     pipeline_audio_dir,
     pipeline_path,
     publish_path,
-    publish_xhs_cards_dir,
     render_path,
     render_remotion_dir,
 )
@@ -38,10 +37,9 @@ from src.pipeline.script.io import (  # noqa: E402
     script_audio_input_hash,
     script_editorial_hash,
 )
-from src.pipeline.xhs_cards import (  # noqa: E402
-    xhs_card_output_paths,
-    xhs_card_set_is_fresh,
-    xhs_cards_plan_inputs,
+from src.pipeline.human_review import (  # noqa: E402
+    script_approval_is_current,
+    script_review_page_path,
 )
 
 
@@ -149,24 +147,6 @@ def _pending_tasks(date: str) -> dict[str, Any]:
     }
 
 
-def _stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
-    reasons = {item.get("reason") for item in stale}
-    if any(reason and "card plan" in reason for reason in reasons):
-        return {
-            "command": (
-                f"uv run python scripts/agent_run.py --date {date} "
-                "--steps plan_xhs_cards,render_xhs_cards"
-            ),
-            "why": "Card source inputs changed or the card plan is missing.",
-        }
-    return {
-        "command": (
-            f"uv run python scripts/agent_run.py --date {date} --steps render_xhs_cards"
-        ),
-        "why": "The card plan is current but PNG renders are missing or stale.",
-    }
-
-
 def _prepare_render_renderer(date: str) -> str:
     manifest_path = render_path(date, "cli_props.json").with_suffix(
         render_path(date, "cli_props.json").suffix + ".manifest.json"
@@ -239,17 +219,29 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
     if any("script.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} --flow video "
-                "--steps write_script,review_script,translate_comments,title,"
-                "cover_image,cover_thumbnail,prepare_subtitles,synthesize_audio,"
-                "prepare_render,render"
+                f"uv run python scripts/agent_run.py --date {date} --refresh-script"
             ),
             "why": "Content changed after script generation; regenerate video artifacts.",
+        }
+    if any("script_approval.json" in artifact for artifact in artifacts):
+        return {
+            "command": (
+                f"uv run python scripts/agent_run.py --date {date} --from human_review"
+            ),
+            "why": "The current editorial script has not passed the human checkpoint.",
+        }
+    if any("storyboard.json" in artifact for artifact in artifacts):
+        return {
+            "command": (
+                f"uv run python scripts/agent_run.py --date {date} "
+                "--from apply_storyboard"
+            ),
+            "why": "storyboard.json changed after script application; rebuild video visuals.",
         }
     if any("subtitle_plan.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} --flow video "
+                f"uv run python scripts/agent_run.py --date {date} "
                 "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
             ),
             "why": "The local subtitle plan is missing or does not match script.json.",
@@ -257,14 +249,14 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
     if any("audio_manifest.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} --flow video "
+                f"uv run python scripts/agent_run.py --date {date} "
                 "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
             ),
             "why": "The editorial script changed; regenerate audio and downstream video artifacts.",
         }
     return {
         "command": (
-            f"uv run python scripts/agent_run.py --date {date} --flow video "
+            f"uv run python scripts/agent_run.py --date {date} "
             "--steps prepare_subtitles,prepare_render,render"
         ),
         "why": "Render props/output look stale or incomplete.",
@@ -276,6 +268,11 @@ def _build_video_status(date: str) -> dict[str, Any]:
     state = load_pipeline_state(date, product="video")
     content = pipeline_path(date, "content.json")
     script = pipeline_path(date, "script.json")
+    script_review = pipeline_path(date, "script_review.json")
+    script_review_page = script_review_page_path(date)
+    script_approval = agent_path(date, "script_approval.json")
+    storyboard = pipeline_path(date, "storyboard.json")
+    story_images = pipeline_path(date, "story_images.json")
     subtitle_plan = pipeline_path(date, "subtitle_plan.json")
     audio_manifest = pipeline_path(date, "audio_manifest.json")
     cli_props = render_path(date, "cli_props.json")
@@ -294,9 +291,39 @@ def _build_video_status(date: str) -> dict[str, Any]:
                 "reason": "content.json is newer than script.json",
             }
         )
+    if _is_newer(storyboard, script):
+        stale.append(
+            {
+                "artifact": str(storyboard).replace("\\", "/"),
+                "reason": "storyboard.json is newer than script.json",
+            }
+        )
+    if (
+        script.exists()
+        and not story_images.exists()
+        and (state or cli_props.exists() or output.exists())
+    ):
+        stale.append(
+            {
+                "artifact": str(story_images).replace("\\", "/"),
+                "reason": "story_images.json is missing; every story needs a local image",
+            }
+        )
+    approval_current = False
     if script.exists():
         try:
             loaded_script = load_script(date)
+            approval_current = script_approval_is_current(date, loaded_script)
+            if not approval_current:
+                stale.append(
+                    {
+                        "artifact": str(script_approval).replace("\\", "/"),
+                        "reason": (
+                            "script_approval.json is missing or does not match "
+                            "script.json"
+                        ),
+                    }
+                )
             render_manifest = _read_json(
                 cli_props.with_suffix(cli_props.suffix + ".manifest.json")
             )
@@ -442,14 +469,26 @@ def _build_video_status(date: str) -> dict[str, Any]:
     if not state:
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_run.py --date {date} --flow video",
+                "command": f"uv run python scripts/agent_run.py --date {date}",
                 "why": "No product-scoped pipeline state exists for this date.",
+            }
+        )
+    elif (
+        status == "blocked"
+        and (state or {}).get("blocked_reason") == "manual_script_review_required"
+    ):
+        safe_next_commands.append(
+            {
+                "command": (
+                    f"uv run python scripts/agent_run.py --date {date} --approve-script"
+                ),
+                "why": "Review script_review.html, then approve this exact script version.",
             }
         )
     elif status in {"blocked", "failed", "running"}:
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_run.py --date {date} --flow video --resume",
+                "command": f"uv run python scripts/agent_run.py --date {date} --resume",
                 "why": f"Pipeline state is {status}.",
             }
         )
@@ -465,7 +504,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
     if output.exists():
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_audit.py --date {date} --flow video",
+                "command": f"uv run python scripts/agent_audit.py --date {date}",
                 "why": "Final video exists; run publishability audit.",
             }
         )
@@ -481,9 +520,15 @@ def _build_video_status(date: str) -> dict[str, Any]:
         "completed_steps": (state or {}).get("completed_steps") or [],
         "next_recommended_command": (state or {}).get("next_recommended_command"),
         "pipeline_state": state or {},
+        "script_approval_current": approval_current,
         "artifacts": {
             "content": _artifact(content),
             "script": _artifact(script),
+            "script_review": _artifact(script_review),
+            "script_review_page": _artifact(script_review_page),
+            "script_approval": _artifact(script_approval),
+            "storyboard": _artifact(storyboard),
+            "story_images": _artifact(story_images),
             "subtitle_plan": _artifact(subtitle_plan),
             "audio_manifest": _artifact(audio_manifest),
             "audio_dir": _artifact(pipeline_audio_dir(date)),
@@ -501,92 +546,8 @@ def _build_video_status(date: str) -> dict[str, Any]:
     }
 
 
-def build_status(date: str, flow: str = "xhs") -> dict[str, Any]:
-    if flow == "video":
-        return _build_video_status(date)
-    base = date_root(date)
-    state = load_pipeline_state(date, product="xhs_cards")
-    content = pipeline_path(date, "content.json")
-    judgement = pipeline_path(date, "comment_judgement.json")
-    plan = publish_path(date, "xhs_cards.json")
-    card_dir = publish_xhs_cards_dir(date)
-    card_index = card_dir / "index.html"
-    contact_sheet = card_dir / "_contact-sheet.png"
-    card_paths = xhs_card_output_paths(date)
-
-    stale: list[dict[str, str]] = []
-    plan_fresh = plan.exists() and is_artifact_fresh(plan, xhs_cards_plan_inputs(date))
-    if state and state.get("status") in {"complete", "degraded"} and not plan.exists():
-        stale.append(
-            {
-                "artifact": str(plan).replace("\\", "/"),
-                "reason": "Xiaohongshu card plan is missing",
-            }
-        )
-    elif plan.exists() and not plan_fresh:
-        stale.append(
-            {
-                "artifact": str(plan).replace("\\", "/"),
-                "reason": "Xiaohongshu card plan inputs changed",
-            }
-        )
-    elif plan_fresh and not xhs_card_set_is_fresh(date):
-        stale.append(
-            {
-                "artifact": str(card_dir).replace("\\", "/"),
-                "reason": "Xiaohongshu card renders are stale or incomplete",
-            }
-        )
-
-    status = state.get("status") if state else "not_started"
-    safe_next_commands: list[dict[str, str]] = []
-    if not state:
-        safe_next_commands.append(
-            {
-                "command": f"uv run python scripts/agent_run.py --date {date}",
-                "why": "No product-scoped pipeline state exists for this date.",
-            }
-        )
-    elif status in {"blocked", "failed", "running"}:
-        safe_next_commands.append(
-            {
-                "command": f"uv run python scripts/agent_run.py --date {date} --resume",
-                "why": f"Pipeline state is {status}.",
-            }
-        )
-    elif stale:
-        safe_next_commands.append(_stale_command(date, stale))
-    elif card_index.exists():
-        safe_next_commands.append(
-            {
-                "command": f"uv run python scripts/agent_audit.py --date {date} --flow xhs",
-                "why": "The card package exists; run the final publishability audit.",
-            }
-        )
-
-    return {
-        "schema_version": 2,
-        "date": date,
-        "base_dir": str(base).replace("\\", "/"),
-        "pipeline_status": status,
-        "failed_step": (state or {}).get("failed_step"),
-        "blocked_reason": (state or {}).get("blocked_reason"),
-        "current_step": (state or {}).get("current_step"),
-        "completed_steps": (state or {}).get("completed_steps") or [],
-        "next_recommended_command": (state or {}).get("next_recommended_command"),
-        "pipeline_state": state or {},
-        "artifacts": {
-            "content": _artifact(content),
-            "comment_judgement": _artifact(judgement),
-            "card_plan": _artifact(plan),
-            "card_index": _artifact(card_index),
-            "contact_sheet": _artifact(contact_sheet),
-            "cards": [_artifact(path) for path in card_paths],
-        },
-        "stale_artifacts": stale,
-        "agent_tasks": _pending_tasks(date),
-        "safe_next_commands": safe_next_commands,
-    }
+def build_status(date: str) -> dict[str, Any]:
+    return _build_video_status(date)
 
 
 def main() -> int:
@@ -594,13 +555,8 @@ def main() -> int:
         description="Summarize HN TechPulse pipeline status"
     )
     parser.add_argument("--date", default=_default_date())
-    parser.add_argument("--flow", choices=["xhs", "video"], default="xhs")
     args = parser.parse_args()
-    print(
-        json.dumps(
-            build_status(args.date, flow=args.flow), ensure_ascii=False, indent=2
-        )
-    )
+    print(json.dumps(build_status(args.date), ensure_ascii=False, indent=2))
     return 0
 
 

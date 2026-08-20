@@ -23,6 +23,23 @@ def _write_manifest(path: Path) -> None:
     )
 
 
+def _write_minimal_storyboard(date: str) -> None:
+    """A lint-clean storyboard so audit() sees no storyboard errors."""
+    atomic_write_json(
+        pipeline_path(date, "storyboard.json"),
+        {
+            "schema_version": 1,
+            "shots": [
+                {
+                    "shot_id": "shot_01",
+                    "template_id": "cover_v1",
+                    "props": {"headline": "测试标题"},
+                }
+            ],
+        },
+    )
+
+
 def test_agent_audit_passes_complete_selected_variant(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-04-26"
@@ -55,6 +72,7 @@ def test_agent_audit_passes_complete_selected_variant(tmp_path, monkeypatch):
     script_payload = {"title": "Script", "segments": []}
     atomic_write_json(pipeline_path(date, "script.json"), script_payload)
     atomic_write_json(selected_dir / "script.json", script_payload)
+    _write_minimal_storyboard(date)
 
     for path in [
         pipeline_path(date, "content.json"),
@@ -115,7 +133,7 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
 
     assert result["publishable"] is False
     assert result["status"] == "blocked"
-    assert any(i["check"] == "selected_variant_promoted" for i in result["issues"])
+    assert any(i.get("check") == "selected_variant_promoted" for i in result["issues"])
 
 
 def test_agent_audit_skips_variant_promotion_for_downstream_video_run(
@@ -167,10 +185,10 @@ def test_agent_audit_skips_variant_promotion_for_downstream_video_run(
     _write_manifest(pipeline_path(date, "content.json"))
     _write_manifest(pipeline_path(date, "script.json"))
 
-    result = audit(date, flow="video")
+    result = audit(date)
 
     assert not any(
-        issue["check"] == "selected_variant_promoted" for issue in result["issues"]
+        issue.get("check") == "selected_variant_promoted" for issue in result["issues"]
     )
 
 
@@ -192,6 +210,7 @@ def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
     atomic_write_json(
         pipeline_path(date, "script.json"), {"title": "Script", "segments": []}
     )
+    _write_minimal_storyboard(date)
     guide = publish_path(date, "publish_guide.md")
     guide.parent.mkdir(parents=True, exist_ok=True)
     guide.write_text("old guide", encoding="utf-8")
@@ -199,7 +218,7 @@ def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
     result = audit(date)
 
     assert result["publishable"] is True
-    assert any(i["check"] == "publish_guide_fresh" for i in result["issues"])
+    assert any(i.get("check") == "publish_guide_fresh" for i in result["issues"])
 
 
 def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monkeypatch):
@@ -248,11 +267,12 @@ def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monke
     assert context["script_title"] == "Published title"
     assert context["script_description"] == "Published desc"
     write_artifact_manifest(guide, step="publish_guide", date=date, inputs=context)
+    _write_minimal_storyboard(date)
 
     result = audit(date)
 
     assert result["publishable"] is True
-    assert not any(i["check"] == "publish_guide_fresh" for i in result["issues"])
+    assert not any(i.get("check") == "publish_guide_fresh" for i in result["issues"])
 
 
 def test_agent_audit_tolerates_subtitle_rechunking(tmp_path, monkeypatch):
@@ -309,6 +329,7 @@ def test_agent_audit_tolerates_subtitle_rechunking(tmp_path, monkeypatch):
         selected_dir / "script.json",
         {"title": "Variant", "segments": [seg_variant]},
     )
+    _write_minimal_storyboard(date)
 
     for path in [
         pipeline_path(date, "content.json"),
@@ -384,6 +405,7 @@ def test_agent_audit_tolerates_subtitle_rechunking_english(tmp_path, monkeypatch
         selected_dir / "script.json",
         {"title": "Variant", "segments": [seg_variant]},
     )
+    _write_minimal_storyboard(date)
 
     for path in [
         pipeline_path(date, "content.json"),
@@ -456,45 +478,4 @@ def test_agent_audit_blocks_on_real_subtitle_drift(tmp_path, monkeypatch):
 
     assert result["publishable"] is False
     assert result["status"] == "blocked"
-    assert any(i["check"] == "selected_variant_promoted" for i in result["issues"])
-
-
-def test_agent_audit_blocks_incomplete_xhs_card_package(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    date = "2026-07-27"
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {
-            "schema_version": 2,
-            "date": date,
-            "status": "complete",
-            "product": "xhs_cards",
-            "steps": ["plan_xhs_cards", "render_xhs_cards"],
-        },
-    )
-    atomic_write_json(
-        agent_path(date, "agent_decision.json"),
-        {"schema_version": 1, "date": date, "status": "continue"},
-    )
-    atomic_write_json(pipeline_path(date, "content.json"), {"items": []})
-    atomic_write_json(
-        publish_path(date, "xhs_cards.json"),
-        {
-            "cards": [
-                {"role": role}
-                for role in (
-                    "cover",
-                    "evidence",
-                    "breakdown",
-                    "debate",
-                    "quotes",
-                    "closing",
-                )
-            ]
-        },
-    )
-
-    result = audit(date)
-
-    assert result["publishable"] is False
-    assert any(i["check"] == "xhs_card_renders_fresh" for i in result["issues"])
+    assert any(i.get("check") == "selected_variant_promoted" for i in result["issues"])

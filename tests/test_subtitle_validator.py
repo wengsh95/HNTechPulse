@@ -9,6 +9,7 @@ import logging
 
 from src.providers.llm.llm_provider_base import (
     _build_card_narration_validator,
+    _check_comment_openers,
     _check_subtitle_texts,
     _subtitle_width,
     _longest_common_substring_len,
@@ -85,6 +86,10 @@ def test_check_detects_multiple_punctuation():
     assert any("多标点" in v for v in viols)
 
 
+def test_check_ignores_decimal_periods():
+    assert _check_subtitle_texts(0, ["GPT-5.6 Sol降价50%。"]) == []
+
+
 def test_check_detects_forbidden_words():
     for word in ("断网", "高管不在乎", "全落空", "士气崩", "翻脸"):
         viols = _check_subtitle_texts(0, [f"出现了{word}这个词。"])
@@ -103,6 +108,25 @@ def test_check_detects_adjacent_repetition():
 def test_check_no_repetition_under_threshold():
     texts = ["短句一。", "完全不同的短句二。"]
     assert _check_subtitle_texts(0, texts) == []
+
+
+def test_comment_openers_reject_generic_first_sentence():
+    violations = _check_comment_openers(
+        1,
+        ["评论区很快指出标题有误导。", "有人认为这个价格仍然太高。"],
+    )
+    assert any("首句使用泛化开头" in item for item in violations)
+    assert any("泛化主语" in item for item in violations)
+
+
+def test_comment_openers_accept_concrete_mechanism():
+    assert (
+        _check_comment_openers(
+            1,
+            ["GitHub Actions 的空值策略不会主动报错。", "这会掩盖脚本拼接风险。"],
+        )
+        == []
+    )
 
 
 # ── _build_card_narration_validator ────────────────────────────

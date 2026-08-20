@@ -178,13 +178,31 @@ def audio_manifest_audio_paths(manifest: dict[str, Any]) -> list[Path]:
 def audio_manifest_is_usable(
     manifest: dict[str, Any], expected_segment_count: int | None = None
 ) -> bool:
-    """Return whether a manifest is structurally complete and files still exist."""
+    """Return whether a manifest is complete, coherent, and files still exist."""
     segments = manifest.get("segments")
     if not isinstance(segments, list):
         return False
     if expected_segment_count is not None and len(segments) != expected_segment_count:
         return False
-    return all(path.is_file() for path in audio_manifest_audio_paths(manifest))
+    if not all(path.is_file() for path in audio_manifest_audio_paths(manifest)):
+        return False
+    for entry in segments:
+        if not isinstance(entry, dict):
+            return False
+        cues = entry.get("cues") or []
+        if not cues:
+            continue
+        try:
+            actual_duration = float(entry.get("actual_duration") or 0.0)
+            cue_end = max(float(cue.get("end_time", 0.0)) for cue in cues)
+        except (AttributeError, TypeError, ValueError):
+            return False
+        # A truncated MP3 can leave a valid-looking manifest behind. Allow a
+        # small encoder tail, but never accept cues that extend far beyond the
+        # media file's recorded duration.
+        if actual_duration <= 0.0 or cue_end > actual_duration + 0.75:
+            return False
+    return True
 
 
 def apply_audio_manifest(script: Script, manifest: dict[str, Any]) -> Script:
