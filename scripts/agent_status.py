@@ -40,8 +40,7 @@ from src.pipeline.human_review import (  # noqa: E402
     script_approval_is_current,
     script_review_page_path,
 )
-from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
-from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
+from src.workflow import load_workflow_report  # noqa: E402
 
 
 def _default_date() -> str:
@@ -58,21 +57,8 @@ def _read_json(path: Path) -> Any:
 
 
 def _workflow_status(date: str) -> dict[str, Any] | None:
-    """Read the native five-stage workflow without mutating it."""
-    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
-    if not machine.path.exists():
-        return None
-    try:
-        machine.load()
-    except (WorkflowCorruptError, OSError, ValueError) as exc:
-        return {
-            "status": "corrupt",
-            "date": date,
-            "product": "video",
-            "workflow_file": str(machine.path).replace("\\", "/"),
-            "error": str(exc),
-        }
-    return machine.status_report()
+    """Read the native workflow without mutating it."""
+    return load_workflow_report(date)
 
 
 def _artifact(path: Path) -> dict[str, Any]:

@@ -23,8 +23,7 @@ if str(ROOT) not in sys.path:
 from src.pipeline.orchestrator import ALL_STEPS  # noqa: E402
 from src.pipeline.paths import agent_path  # noqa: E402
 from src.utils.config import load_config  # noqa: E402
-from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
-from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
+from src.workflow import load_workflow_report  # noqa: E402
 
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
@@ -102,20 +101,17 @@ def _tool_checks() -> list[dict]:
 
 def _state_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     issues = []
-    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
-    if not machine.path.exists():
+    state = load_workflow_report(date)
+    if state is None:
         return None, issues
-    try:
-        machine.load()
-    except (WorkflowCorruptError, OSError, ValueError) as exc:
+    if state.get("status") == "corrupt":
         return None, [
             {
                 "severity": "fatal",
                 "check": "workflow_state",
-                "message": str(exc),
+                "message": state.get("error", "workflow state is corrupt"),
             }
         ]
-    state = machine.status_report()
     if state.get("status") == "blocked":
         current = state.get("current_state") or "unknown"
         record = (state.get("states") or {}).get(current) or {}

@@ -31,8 +31,7 @@ from src.pipeline.paths import (  # noqa: E402
     publish_path,
     raw_downloaded_pages_dir,
 )
-from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
-from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
+from src.workflow import load_workflow_report  # noqa: E402
 
 
 def _default_date() -> str:
@@ -262,9 +261,9 @@ def _manifest_check(paths: list[Path]) -> list[dict[str, Any]]:
 
 
 def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
-    state_path = machine.path
-    if not state_path.exists():
+    state_path = agent_path(date, "workflow_video.json")
+    state = load_workflow_report(date)
+    if state is None:
         return None, [
             _issue(
                 "warning",
@@ -274,14 +273,15 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 recommendation=f"uv run python scripts/agent_run.py --date {date}",
             )
         ]
-    try:
-        machine.load()
-    except (WorkflowCorruptError, OSError, ValueError) as exc:
+    if state.get("status") == "corrupt":
         return None, [
-            _issue("error", "workflow_state_valid", str(exc), path=state_path)
+            _issue(
+                "error",
+                "workflow_state_valid",
+                state.get("error", "workflow state is corrupt"),
+                path=state_path,
+            )
         ]
-
-    state = machine.status_report()
 
     status = state.get("status")
     if status in {"blocked", "failed"}:

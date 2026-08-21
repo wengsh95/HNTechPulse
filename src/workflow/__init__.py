@@ -22,6 +22,7 @@ from src.workflow.runtime import (
     write_image_selection_tasks,
     write_manual_download_tasks,
 )
+from src.workflow.reporting import load_workflow_report
 
 __all__ = [
     "FailureType",
@@ -40,4 +41,5 @@ __all__ = [
     "BLOCK_MISSING_CREDENTIALS",
     "write_image_selection_tasks",
     "write_manual_download_tasks",
+    "load_workflow_report",
 ]
