@@ -5,6 +5,7 @@ from src.pipeline.stages.editorial import EditorialStageMixin
 from src.pipeline.stages.production import ProductionStageMixin
 from src.pipeline.stages.research import ResearchStageMixin
 from src.pipeline.stages.script import ScriptStageMixin
+from src.pipeline.stages.support import SupportStageMixin
 from src.pipeline.stages.workflow import WorkflowLifecycleMixin
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "COVER_VARIANT_COUNT",
     "ResearchStageMixin",
     "ScriptStageMixin",
+    "SupportStageMixin",
     "WorkflowLifecycleMixin",
 ]
