@@ -140,9 +140,11 @@ def _pending_tasks(date: str) -> dict[str, Any]:
                     pending.append(task)
                 continue
             save_as = task.get("save_as") or {}
-            html_path = Path(save_as.get("html") or "")
-            pdf_path = Path(save_as.get("pdf") or "")
-            if not html_path.exists() and not pdf_path.exists():
+            html_value = save_as.get("html")
+            pdf_value = save_as.get("pdf")
+            html_exists = bool(html_value and Path(str(html_value)).exists())
+            pdf_exists = bool(pdf_value and Path(str(pdf_value)).exists())
+            if not html_exists and not pdf_exists:
                 pending.append(task)
     return {
         "path": str(tasks_path).replace("\\", "/"),

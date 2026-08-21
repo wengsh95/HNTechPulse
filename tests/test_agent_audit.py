@@ -1,6 +1,18 @@
 from pathlib import Path
+import json
 
-from scripts.agent_audit import audit
+from scripts.agent_audit import (
+    _artifact_check,
+    _decision_check,
+    _format_mmss,
+    _issue,
+    _manifest_check,
+    _next_command,
+    _scripts_semantically_equal,
+    _state_check,
+    _summarize_blocks,
+    audit,
+)
 from src.pipeline.agent_io import file_sha256, write_artifact_manifest
 from src.pipeline.paths import (
     agent_path,
@@ -12,6 +24,133 @@ from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.utils.atomic_io import atomic_write_json
 from src.workflow.machine import WorkflowMachine
 from src.workflow.video import VIDEO_WORKFLOW_STEPS
+
+
+def test_audit_helpers_format_and_normalize_issue_payload(tmp_path):
+    assert _format_mmss(61.6) == "01:02"
+    assert _format_mmss(None) == "00:00"
+
+    issue = _issue(
+        "warning",
+        "demo",
+        "A message",
+        path=tmp_path / "artifact.json",
+        recommendation="uv run python scripts/agent_run.py",
+        why="because",
+        fixable_by_agent=True,
+    )
+
+    assert issue == {
+        "severity": "warning",
+        "check": "demo",
+        "message": "A message",
+        "path": str(tmp_path / "artifact.json").replace("\\", "/"),
+        "recommendation": "uv run python scripts/agent_run.py",
+        "why": "because",
+        "fixable_by_agent": True,
+    }
+
+
+def test_scripts_semantically_equal_handles_missing_and_invalid_inputs(tmp_path):
+    variant = tmp_path / "variant.json"
+    promoted = tmp_path / "promoted.json"
+    variant.write_text("not json", encoding="utf-8")
+    promoted.write_text("{}", encoding="utf-8")
+    assert _scripts_semantically_equal(variant, promoted) is False
+    assert _scripts_semantically_equal(tmp_path / "missing.json", promoted) is False
+
+
+def test_artifact_check_reports_required_and_publish_tail_gaps(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+
+    issues = _artifact_check(date, tmp_path)
+
+    checks = {issue["check"] for issue in issues}
+    assert {"content_exists", "script_exists"} <= checks
+    assert {"title_exists", "cover_exists", "publish_guide_exists"} <= checks
+
+
+def test_manifest_check_reports_missing_and_mismatched_manifests(tmp_path):
+    missing = tmp_path / "missing.json"
+    missing.write_text("{}", encoding="utf-8")
+    mismatch = tmp_path / "mismatch.json"
+    mismatch.write_text("{}", encoding="utf-8")
+    mismatch.with_suffix(".json.manifest.json").write_text(
+        json.dumps({"artifact_hash": "wrong"}), encoding="utf-8"
+    )
+
+    issues = _manifest_check([missing, mismatch])
+
+    assert any(issue["check"] == "manifest_exists" for issue in issues)
+    assert any(issue["check"] == "manifest_hash_matches" for issue in issues)
+
+
+def test_state_check_explains_human_review_block(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "scripts.agent_audit.load_workflow_report",
+        lambda date: {
+            "status": "blocked",
+            "current_state": "human_review",
+            "states": {"human_review": {"last_error": "human_review_required"}},
+        },
+    )
+
+    state, issues = _state_check("2026-04-26")
+
+    assert state["status"] == "blocked"
+    assert issues[0]["fixable_by_agent"] is False
+    assert "Do not auto-resume" in issues[0]["why"]
+
+
+def test_decision_check_reports_missing_and_invalid_decisions(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-04-26"
+
+    decision, issues = _decision_check(date)
+    assert decision is None
+    assert issues[0]["check"] == "agent_decision_exists"
+
+    decision_path = agent_path(date, "agent_decision.json")
+    decision_path.parent.mkdir(parents=True)
+    decision_path.write_text(json.dumps({"status": "blocked"}), encoding="utf-8")
+    decision, issues = _decision_check(date)
+    assert decision["status"] == "blocked"
+    assert issues[0]["check"] == "agent_decision_status"
+
+
+def test_next_command_prioritizes_explicit_recommendation_and_publish_tail():
+    issues = [
+        {"severity": "error", "check": "workflow_state_status"},
+        {
+            "severity": "warning",
+            "check": "title_exists",
+            "recommendation": "uv run python scripts/agent_run.py --date 2026-04-26 --resume",
+        },
+    ]
+    next_command = _next_command("2026-04-26", issues)
+    assert next_command["command"].endswith("--resume")
+
+    publish_command = _next_command(
+        "2026-04-26", [{"severity": "warning", "check": "publish_guide_exists"}]
+    )
+    assert publish_command["command"].endswith("--steps prepare_render")
+
+
+def test_summarize_blocks_separates_agent_human_and_unknown_issues():
+    summary = _summarize_blocks(
+        [
+            {"check": "agent", "message": "repair", "fixable_by_agent": True},
+            {"check": "human", "message": "approve", "fixable_by_agent": False},
+            {"check": "unknown", "message": "inspect", "severity": "warning"},
+            {"check": "info", "message": "ignore", "severity": "info"},
+        ]
+    )
+
+    assert summary["agent_fixable_count"] == 1
+    assert summary["needs_human_count"] == 1
+    assert summary["unknown_count"] == 1
 
 
 def _write_manifest(path: Path) -> None:
