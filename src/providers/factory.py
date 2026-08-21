@@ -4,7 +4,6 @@ from src.utils.logger import setup_logger
 _FETCHER_REGISTRY: dict[str, type] = {}
 _LLM_REGISTRY: dict[str, type] = {}
 _TTS_REGISTRY: dict[str, type] = {}
-_RENDERER_REGISTRY: dict[str, type] = {}
 _IMAGE_GENERATOR_REGISTRY: dict[str, type] = {}
 
 _logger = setup_logger(__name__)
@@ -20,10 +19,6 @@ def register_llm(name: str, cls):
 
 def register_tts(name: str, cls):
     _TTS_REGISTRY[name] = cls
-
-
-def register_renderer(name: str, cls):
-    _RENDERER_REGISTRY[name] = cls
 
 
 def register_image_generator(name: str, cls):
@@ -67,13 +62,6 @@ def _auto_register():
             "src.providers.tts.minimax_tts",
             "MinimaxTTSProvider",
             register_tts,
-        ),
-        (
-            "renderer",
-            "remotion",
-            "src.providers.renderer.remotion_renderer",
-            "RemotionRenderer",
-            register_renderer,
         ),
         (
             "image_generator",
@@ -131,14 +119,6 @@ def create_tts_provider(name: str, config: dict, **kwargs):
             f"Unknown TTS provider: {name}. Available: {list(_TTS_REGISTRY.keys())}"
         )
     return _TTS_REGISTRY[name](config, **kwargs)
-
-
-def create_renderer(name: str, config: dict, **kwargs):
-    if name not in _RENDERER_REGISTRY:
-        raise ValueError(
-            f"Unknown renderer: {name}. Available: {list(_RENDERER_REGISTRY.keys())}"
-        )
-    return _RENDERER_REGISTRY[name](config, **kwargs)
 
 
 def create_image_generator(name: str, config: dict, **kwargs):

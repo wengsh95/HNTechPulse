@@ -15,7 +15,6 @@ from main import (
     create_fetcher,
     create_image_generator,
     create_llm_provider,
-    create_renderer,
     create_tts_provider,
 )
 from src.pipeline.content_io import ContentPreparer
@@ -23,6 +22,7 @@ from src.pipeline.orchestrator import Orchestrator
 from src.pipeline.paths import publish_path
 from src.pipeline.script import ScriptWriter
 from src.providers.enricher.article_enricher import ArticleEnricher
+from src.providers.renderer.remotion_renderer import RemotionRenderer
 from src.utils.config import load_config
 
 
@@ -48,7 +48,7 @@ def main() -> int:
     tts_provider = create_tts_provider(
         config.get("tts", {}).get("provider", "edge-tts"), config, debug=False
     )
-    renderer = create_renderer("remotion", config, debug=False)
+    renderer = RemotionRenderer(config, debug=False)
     image_generator = None
     img_cfg = config.get("image_generator", {})
     if img_cfg.get("enabled", False):

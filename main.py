@@ -13,11 +13,11 @@ from src.providers.factory import (  # noqa: E402
     create_fetcher,
     create_llm_provider,
     create_tts_provider,
-    create_renderer,
     create_image_generator,
 )
 from src.pipeline.orchestrator import Orchestrator  # noqa: E402
 from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
+from src.providers.renderer.remotion_renderer import RemotionRenderer  # noqa: E402
 from src.workflow import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
 from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 
@@ -182,7 +182,7 @@ def main():
         tts_provider_name = config.get("tts", {}).get("provider", "edge-tts")
         tts_provider = create_tts_provider(tts_provider_name, config, debug=args.debug)
 
-        renderer = create_renderer("remotion", config, debug=args.debug)
+        renderer = RemotionRenderer(config, debug=args.debug)
         logger.info("Using renderer: remotion")
 
         article_enricher = None

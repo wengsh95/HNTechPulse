@@ -21,14 +21,12 @@ from src.providers import factory as factory_mod
 from src.providers.factory import (
     _IMAGE_GENERATOR_REGISTRY,
     _LLM_REGISTRY,
-    _RENDERER_REGISTRY,
     _TTS_REGISTRY,
     _FETCHER_REGISTRY,
     _auto_register,
     create_fetcher,
     create_image_generator,
     create_llm_provider,
-    create_renderer,
     create_tts_provider,
 )
 
@@ -61,12 +59,6 @@ class TestRegistryPopulated:
         assert _TTS_REGISTRY["edge-tts"] is EdgeTTSProvider
         assert _TTS_REGISTRY["mimo"] is MimoTTSProvider
         assert _TTS_REGISTRY["minimax"] is MinimaxTTSProvider
-
-    def test_renderer_registry_has_remotion(self):
-        from src.providers.renderer.remotion_renderer import RemotionRenderer
-
-        assert _RENDERER_REGISTRY["remotion"] is RemotionRenderer
-        assert set(_RENDERER_REGISTRY) == {"remotion"}
 
     def test_image_generator_registry_has_noop_and_minimax(self):
         from src.providers.image_generator.minimax import MinimaxImageGenerator
@@ -108,13 +100,6 @@ class TestUnknownNameErrors:
         assert "mimo" in msg
         assert "minimax" in msg
 
-    def test_renderer_unknown_lists_available(self):
-        with pytest.raises(ValueError) as exc:
-            create_renderer("nonexistent", {})
-        msg = str(exc.value)
-        assert "Unknown renderer" in msg
-        assert "Available: ['remotion']" in msg
-
     def test_image_generator_unknown_lists_available(self):
         with pytest.raises(ValueError) as exc:
             create_image_generator("nonexistent", {})
@@ -142,17 +127,6 @@ class TestCreateHappyPath:
 
         assert isinstance(tts, EdgeTTSProvider)
 
-    def test_create_renderer_instantiates(self):
-        config = {
-            "logging": {"level": "WARNING"},
-            "video": {"resolution": (1280, 720), "fps": 24, "bg_color": "#000"},
-            "remotion": {},
-        }
-        renderer = create_renderer("remotion", config)
-        from src.providers.renderer.remotion_renderer import RemotionRenderer
-
-        assert isinstance(renderer, RemotionRenderer)
-
     def test_create_image_generator_instantiates(self):
         config = {"logging": {"level": "WARNING"}}
         gen = create_image_generator("noop", config)
@@ -176,7 +150,6 @@ class TestAutoRegisterResilience:
             "fetcher": dict(_FETCHER_REGISTRY),
             "llm": dict(_LLM_REGISTRY),
             "tts": dict(_TTS_REGISTRY),
-            "renderer": dict(_RENDERER_REGISTRY),
             "image_generator": dict(_IMAGE_GENERATOR_REGISTRY),
         }
 
@@ -214,7 +187,6 @@ class TestAutoRegisterResilience:
         assert _FETCHER_REGISTRY == snapshot["fetcher"]
         assert _LLM_REGISTRY == snapshot["llm"]
         assert _TTS_REGISTRY == snapshot["tts"]
-        assert _RENDERER_REGISTRY == snapshot["renderer"]
         assert _IMAGE_GENERATOR_REGISTRY == snapshot["image_generator"]
 
     def test_attribute_error_is_logged_at_error(self):
