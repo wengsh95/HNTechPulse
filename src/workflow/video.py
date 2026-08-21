@@ -109,6 +109,17 @@ VIDEO_PIPELINE_STEPS: tuple[str, ...] = tuple(
     for pipeline_step in workflow_step.pipeline_steps
 )
 
+# The CLI exposes two kinds of steps in addition to the managed workflow
+# chain: ``render`` can be requested as a downstream-only operation, and
+# ``preview`` is a renderer-only action that is not part of the persisted
+# product workflow. Keep these views beside the registry so callers do not
+# rebuild a second step list by hand.
+VIDEO_STANDALONE_STEPS: frozenset[str] = frozenset({"render", "preview"})
+VIDEO_PIPELINE_EXECUTION_STEPS: tuple[str, ...] = tuple(
+    step for step in VIDEO_PIPELINE_STEPS if step not in VIDEO_STANDALONE_STEPS
+)
+VIDEO_ALL_STEPS: tuple[str, ...] = (*VIDEO_PIPELINE_STEPS, "preview")
+
 # Phase aliases are intentionally derived from the same registry.  They give
 # operators a compact command surface without introducing a second execution
 # plan: ``agent_run --phase research`` still expands through the native

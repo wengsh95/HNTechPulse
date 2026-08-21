@@ -16,7 +16,10 @@ from src.workflow import (
     BLOCK_MANUAL_IMAGE_SELECTION,
     BLOCK_INSUFFICIENT_CONTEXT,
     BLOCK_MANUAL_SCRIPT_REVIEW,
+    VIDEO_ALL_STEPS,
+    VIDEO_PIPELINE_EXECUTION_STEPS,
     VIDEO_PIPELINE_STEPS,
+    VIDEO_STANDALONE_STEPS,
     WorkflowMachine,
     write_image_selection_tasks,
     write_manual_download_tasks,
@@ -52,9 +55,10 @@ def _format_mmss(seconds: float | int | None) -> str:
 
 # The workflow registry is the single source of truth for the order and the
 # default managed chain.
-VIDEO_PIPELINE_ORDER = list(VIDEO_PIPELINE_STEPS)
-STANDALONE_STEPS = {"render", "preview"}
-PIPELINE_STEPS = [step for step in VIDEO_PIPELINE_STEPS if step not in STANDALONE_STEPS]
+# These list/set aliases remain for the native CLI and external callers, but
+# their values are derived from the registry rather than maintained separately.
+STANDALONE_STEPS = set(VIDEO_STANDALONE_STEPS)
+PIPELINE_STEPS = list(VIDEO_PIPELINE_EXECUTION_STEPS)
 OPTIONAL_PRODUCTION_STEPS = {
     "write_script",
     "draft_quick_news",
@@ -75,7 +79,7 @@ OPTIONAL_PRODUCTION_STEPS = {
 CORE_PIPELINE_STEPS = [
     step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
 ]
-ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
+ALL_STEPS = list(VIDEO_ALL_STEPS)
 _VALID_STEPS = set(ALL_STEPS)
 DEFAULT_STEPS = list(VIDEO_PIPELINE_STEPS)
 
@@ -203,7 +207,7 @@ def _resolve_steps(requested: List[str]) -> List[str]:
             "render",
         )
     ):
-        ordered = [step for step in VIDEO_PIPELINE_ORDER if step in resolved]
+        ordered = [step for step in VIDEO_PIPELINE_STEPS if step in resolved]
     else:
         ordered = [step for step in PIPELINE_STEPS if step in resolved]
     ordered.extend(step for step in standalone_requested if step not in ordered)

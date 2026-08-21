@@ -8,6 +8,7 @@ from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Render
 from src.core.models import ContentPackage, Script
 from src.core.models import ContentItem
 from src.pipeline.orchestrator import (
+    ALL_STEPS,
     DEFAULT_STEPS,
     Orchestrator,
     PIPELINE_STEPS,
@@ -28,7 +29,7 @@ from tests.stage_fixtures import (
     make_script as _make_script,
 )
 from src.workflow.machine import WorkflowMachine
-from src.workflow.video import VIDEO_WORKFLOW_STEPS
+from src.workflow.video import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -71,6 +72,14 @@ class TestStepList:
     def test_default_chain_resolves_without_expansion(self):
         resolved = _resolve_steps(DEFAULT_STEPS)
         assert resolved == DEFAULT_STEPS
+
+    def test_orchestrator_step_views_are_derived_from_workflow_registry(self):
+        assert tuple(DEFAULT_STEPS) == VIDEO_PIPELINE_STEPS
+        assert tuple(ALL_STEPS) == VIDEO_PIPELINE_STEPS + ("preview",)
+        assert tuple(PIPELINE_STEPS) == tuple(
+            step for step in VIDEO_PIPELINE_STEPS if step != "render"
+        )
+        assert STANDALONE_STEPS == {"render", "preview"}
 
     def test_removed_compatibility_steps_are_rejected(self):
         with pytest.raises(ValueError, match="Unknown pipeline step"):
