@@ -1,12 +1,12 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from pathlib import Path
 
 import pytest
 
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
-from src.core.models import ContentPackage, Script, ScriptSegment
-from src.core.models import ContentComment, ContentItem
+from src.core.models import ContentPackage, Script
+from src.core.models import ContentItem
 from src.pipeline.orchestrator import (
     DEFAULT_STEPS,
     Orchestrator,
@@ -19,69 +19,19 @@ from src.pipeline.human_review import (
     generate_script_review_page,
 )
 from src.pipeline.script.io import save_script, save_script_to_path
+from tests.stage_fixtures import (
+    make_config as _make_config,
+    make_content as _make_content,
+    make_failed_content as _make_failed_content,
+    make_failed_content_with_comments as _make_failed_content_with_comments,
+    make_orchestrator as _make_orchestrator,
+    make_script as _make_script,
+)
 from src.workflow.machine import WorkflowMachine
 from src.workflow.video import VIDEO_WORKFLOW_STEPS
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
-
-
-def _make_config():
-    return {
-        "logging": {"level": "WARNING"},
-        "pipeline": {"target_story_count": 3},
-        "llm": {"model": "test-model", "fast_model": "test-fast"},
-    }
-
-
-def _make_orchestrator(dry_run=True):
-    config = _make_config()
-    return Orchestrator(
-        config=config,
-        content_fetcher=MagicMock(spec=ContentFetcher),
-        llm_provider=MagicMock(spec=LLMProvider),
-        tts_provider=MagicMock(spec=TTSProvider),
-        renderer=MagicMock(spec=Renderer),
-        debug=True,
-        dry_run=dry_run,
-    )
-
-
-def _make_content():
-    return ContentPackage(date="2026-04-26", items=[])
-
-
-def _make_failed_content():
-    return ContentPackage(
-        date="2026-04-26",
-        items=[
-            ContentItem(
-                source="hackernews",
-                source_id="123",
-                title="Failed Story",
-                url="https://example.com/failed",
-                enrichment_source="fetch_failed",
-            )
-        ],
-    )
-
-
-def _make_failed_content_with_comments():
-    content = _make_failed_content()
-    content.items[0].comments = [
-        ContentComment(author=f"u{i}", content=f"substantial comment {i}")
-        for i in range(5)
-    ]
-    return content
-
-
-def _make_script():
-    return Script(
-        title="T",
-        description="D",
-        tags=[],
-        segments=[ScriptSegment(segment_type="opening", audio_text="hi", duration=1.0)],
-    )
 
 
 # ── Step list constants ─────────────────────────────────────────────────
@@ -451,39 +401,6 @@ class TestStepWriteScript:
         assert result.segments[0].segment_type == "opening"
 
 
-class TestStepQuickNews:
-    def test_quick_news_persists_video_structure_in_same_step(self):
-        orch = _make_orchestrator(dry_run=False)
-        script = _make_script()
-        orch._normalize_video_structure = MagicMock(return_value=script)
-        orch.script_writer.save_script = MagicMock()
-
-        with patch("src.pipeline.stages.editorial.draft_quick_news") as draft:
-            draft.return_value = MagicMock()
-            result = orch._step_draft_quick_news(script, "2026-04-26")
-
-        assert result is script
-        orch._normalize_video_structure.assert_called_once_with(script, "2026-04-26")
-        orch.script_writer.save_script.assert_called_once_with(script, "2026-04-26")
-
-    def test_quick_news_applies_comment_translation_after_structure(self):
-        orch = _make_orchestrator(dry_run=False)
-        script = _make_script()
-        content = _make_content()
-        orch._normalize_video_structure = MagicMock(return_value=script)
-        orch._apply_comment_translations = MagicMock(return_value=(content, script))
-        orch.script_writer.save_script = MagicMock()
-
-        with patch("src.pipeline.stages.editorial.draft_quick_news"):
-            result = orch._step_draft_quick_news(script, "2026-04-26", content=content)
-
-        assert result is script
-        orch._normalize_video_structure.assert_called_once_with(script, "2026-04-26")
-        orch._apply_comment_translations.assert_called_once_with(
-            content, script, "2026-04-26", save_script=False
-        )
-
-
 class TestStepCommentTranslations:
     def test_dry_run_returns_content_unchanged(self):
         orch = _make_orchestrator(dry_run=True)
@@ -517,306 +434,6 @@ class TestStepSynthesizeAudio:
         result = orch._step_synthesize_audio(_make_content(), None, "2026-04-26")
         assert result is None
         orch.tts_processor.process_audio.assert_not_called()
-
-
-class TestStepTitle:
-    def test_dry_run_returns_script_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        script = _make_script()
-        result = orch._step_title(_make_content(), script, "2026-04-26")
-        assert result is script
-
-    def test_no_script_returns_none(self):
-        orch = _make_orchestrator(dry_run=False)
-        result = orch._step_title(_make_content(), None, "2026-04-26")
-        assert result is None
-
-    def test_title_caches_cover_variants_for_downstream_cover_step(
-        self, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        date = "2026-04-26"
-        content = ContentPackage(
-            date=date,
-            items=[
-                ContentItem(
-                    source="hackernews",
-                    source_id="1",
-                    title="A story",
-                    url="https://example.com/story",
-                    title_cn="一个故事",
-                    editor_angle="影响开发者",
-                )
-            ],
-        )
-        orch = _make_orchestrator(dry_run=False)
-        orch.llm_provider.complete_prompt = MagicMock(
-            return_value={
-                "title": "【HN日报】一个故事：影响开发者",
-                "description": "简介",
-                "title_candidates": ["主推", "备选一", "备选二"],
-                "cover_title": "一个故事\n影响开发者",
-                "cover_subtitle": "— 对象\n— 代价\n— 人群",
-                "cover_tags": ["开发者"],
-                "cover_highlights": ["影响"],
-                "cover_prompt": "Asymmetric 16:9 editorial illustration of a technology conflict on the right, clean negative space on the left.",
-                "cover_variants": [
-                    {
-                        "angle": "争议·支持方",
-                        "cover_title": "一个故事\n方向仍需验证",
-                        "cover_subtitle": "— 对象\n— 进展\n— 长期投入",
-                        "cover_tags": ["支持角度"],
-                        "cover_highlights": ["验证"],
-                    },
-                    {
-                        "angle": "争议·反对方",
-                        "cover_title": "一个故事\n风险暴露",
-                        "cover_subtitle": "— 对象\n— 成本\n— 受影响人群",
-                        "cover_tags": ["风险角度"],
-                        "cover_highlights": ["风险"],
-                    },
-                    {
-                        "angle": "争议·中立方",
-                        "cover_title": "一个故事\n争议未解",
-                        "cover_subtitle": "— 对象\n— 分歧\n— 待验证结果",
-                        "cover_tags": ["观察角度"],
-                        "cover_highlights": ["争议"],
-                    },
-                ],
-                "tags": ["AI"],
-            }
-        )
-        orch.llm_provider.fast_model = "test-fast"
-        orch.llm_provider.fast_temperature = 0.1
-
-        orch._step_title(content, _make_script(), date)
-
-        title_payload = json.loads(
-            (tmp_path / "data" / "2026-04" / date / "publish" / "title.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        assert len(title_payload["cover_variants"]) == 3
-        assert title_payload["cover_variants"][1]["title"] == "一个故事\n风险暴露"
-        assert title_payload["cover_prompt"].endswith("no footer bars.")
-        assert orch.llm_provider.complete_prompt.call_count == 1
-
-
-class TestStepCoverImage:
-    def test_dry_run_returns_none(self):
-        orch = _make_orchestrator(dry_run=True)
-        result = orch._step_cover_image(_make_content(), _make_script(), "2026-04-26")
-        assert result is None
-        orch.image_generator = None
-
-    def test_uses_title_cached_variants_without_cover_variants_llm_call(
-        self, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        date = "2026-04-26"
-        render_dir = tmp_path / "data" / "2026-04" / date / "render"
-        render_dir.mkdir(parents=True)
-        (render_dir / "cover_bg.png").write_bytes(b"png")
-        title_path = tmp_path / "data" / "2026-04" / date / "publish" / "title.json"
-        title_path.parent.mkdir(parents=True)
-        title_path.write_text(
-            json.dumps(
-                {
-                    "cover_variants": [
-                        {
-                            "cover_title": "主体\n支持角度",
-                            "cover_subtitle": "— 对象\n— 进展\n— 长期投入",
-                            "cover_tags": ["支持"],
-                            "cover_highlights": ["支持"],
-                        },
-                        {
-                            "cover_title": "主体\n风险角度",
-                            "cover_subtitle": "— 对象\n— 成本\n— 受影响人群",
-                            "cover_tags": ["风险"],
-                            "cover_highlights": ["风险"],
-                        },
-                    ]
-                },
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        orch = _make_orchestrator(dry_run=False)
-        orch.llm_provider.complete_prompt = MagicMock()
-
-        orch._step_cover_image(_make_content(), _make_script(), date)
-
-        orch.llm_provider.complete_prompt.assert_not_called()
-        props = json.loads(
-            (render_dir / "cover_props_v2.json").read_text(encoding="utf-8")
-        )
-        assert props["title"] == "主体\n风险角度"
-
-        title_payload = json.loads(title_path.read_text(encoding="utf-8"))
-        title_payload["cover_variants"][1]["cover_title"] = "主体\n更新后的风险"
-        title_path.write_text(
-            json.dumps(title_payload, ensure_ascii=False), encoding="utf-8"
-        )
-        orch._step_cover_image(_make_content(), _make_script(), date)
-
-        refreshed = json.loads(
-            (render_dir / "cover_props_v2.json").read_text(encoding="utf-8")
-        )
-        assert refreshed["title"] == "主体\n更新后的风险"
-        orch.llm_provider.complete_prompt.assert_not_called()
-
-    def test_uses_title_cached_visual_prompt_without_cover_prompt_llm_call(
-        self, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        date = "2026-04-26"
-        title_path = tmp_path / "data" / "2026-04" / date / "publish" / "title.json"
-        title_path.parent.mkdir(parents=True)
-        title_path.write_text(
-            json.dumps(
-                {"cover_prompt": "cached visual prompt for today's conflict"},
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        prompts = []
-        image_generator = MagicMock()
-
-        def generate(prompt, output_path, **kwargs):
-            prompts.append(prompt)
-            output = Path(output_path)
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_bytes(b"png")
-
-        image_generator.generate.side_effect = generate
-        orch = _make_orchestrator(dry_run=False)
-        orch.image_generator = image_generator
-        orch.config["image_generator"] = {"candidate_count": 1}
-        orch.llm_provider.complete_prompt = MagicMock()
-
-        orch._step_cover_image(_make_content(), _make_script(), date)
-
-        assert len(prompts) == 1
-        assert prompts[0].startswith("cached visual prompt")
-        assert "No logos" in prompts[0]
-        orch.llm_provider.complete_prompt.assert_not_called()
-
-        title_path.write_text(
-            json.dumps(
-                {"cover_prompt": "updated visual prompt for the same conflict"},
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        orch._step_cover_image(_make_content(), _make_script(), date)
-
-        assert len(prompts) == 2
-        assert prompts[1].startswith("updated visual prompt")
-        orch.llm_provider.complete_prompt.assert_not_called()
-
-
-class TestStepCoverThumbnail:
-    def test_dry_run_returns_none(self):
-        orch = _make_orchestrator(dry_run=True)
-        with patch.object(Path, "exists", return_value=True):
-            result = orch._step_cover_thumbnail(
-                _make_content(), _make_script(), "2026-04-26"
-            )
-        assert result is None
-
-
-class TestWritePublishGuide:
-    def test_dry_run_returns_none(self):
-        orch = _make_orchestrator(dry_run=True)
-        result = orch._write_publish_guide(
-            _make_content(), _make_script(), "2026-04-26"
-        )
-        assert result is None
-
-    def test_regenerates_when_manifest_input_hash_is_missing(
-        self, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        date = "2026-04-26"
-        base = tmp_path / "data" / date[:7] / date / "publish"
-        base.mkdir(parents=True)
-        guide_path = base / "publish_guide.md"
-        guide_path.write_text("old", encoding="utf-8")
-
-        orch = _make_orchestrator(dry_run=False)
-        orch.llm_provider.complete_prompt = MagicMock()
-        orch.llm_provider.complete_prompt.return_value = "new guide"
-        orch.llm_provider.fast_model = "test-fast"
-        orch.llm_provider.fast_temperature = 0.1
-
-        orch._write_publish_guide(_make_content(), _make_script(), date)
-
-        assert guide_path.read_text(encoding="utf-8") == "new guide"
-        orch.llm_provider.complete_prompt.assert_called_once()
-
-    def test_uses_title_json_for_publish_metadata_context(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        date = "2026-04-26"
-        base = tmp_path / "data" / date[:7] / date / "publish"
-        base.mkdir(parents=True)
-        (base / "title.json").write_text(
-            json.dumps(
-                {
-                    "title": "Published Title",
-                    "description": "Published description",
-                },
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-
-        orch = _make_orchestrator(dry_run=False)
-        orch.llm_provider.complete_prompt = MagicMock(return_value="guide")
-        orch.llm_provider.fast_model = "test-fast"
-        orch.llm_provider.fast_temperature = 0.1
-
-        orch._write_publish_guide(_make_content(), _make_script(), date)
-
-        context = orch.llm_provider.complete_prompt.call_args.args[1]
-        assert context["script_title"] == "Published Title"
-        assert context["script_description"] == "Published description"
-        assert "prompt_hash" not in context
-
-
-class TestStepPrepareRender:
-    def test_dry_run_does_not_call_renderer(self):
-        orch = _make_orchestrator(dry_run=True)
-        orch._step_prepare_render(_make_content(), _make_script(), "2026-04-26")
-        orch.renderer.write_props.assert_not_called()
-
-    def test_no_script_raises(self):
-        orch = _make_orchestrator(dry_run=False)
-        with pytest.raises(ValueError, match="Script not loaded"):
-            orch._step_prepare_render(_make_content(), None, "2026-04-26")
-        orch.renderer.write_props.assert_not_called()
-
-    def test_invokes_renderer_write_props(self, tmp_path):
-        orch = _make_orchestrator(dry_run=False)
-        script = _make_script()
-        content = _make_content()
-        orch._write_publish_guide = MagicMock()
-        # write_props contract: returns (props_path, props_json, scenes_payload).
-        # The mock would otherwise return a bare MagicMock, which can't be
-        # unpacked into 3 values.
-        props_path = tmp_path / "props.json"
-        props_path.write_text("{}", encoding="utf-8")
-        orch.renderer.write_props.return_value = (props_path, "{}", {})
-        orch._step_prepare_render(content, script, "2026-04-26")
-        orch.renderer.write_props.assert_called_once()
-        orch._write_publish_guide.assert_called_once_with(content, script, "2026-04-26")
-
-
-class TestStepRender:
-    def test_dry_run_returns_none(self):
-        orch = _make_orchestrator(dry_run=True)
-        result = orch._step_render(_make_script(), "2026-04-26")
-        assert result is None
-        orch.renderer.render.assert_not_called()
 
 
 # ── run() dispatch ──────────────────────────────────────────────────────

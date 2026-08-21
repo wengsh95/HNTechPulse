@@ -349,6 +349,11 @@ reading Chinese logs or docs if console output is garbled.
 tests/
 ```
 
+Stage behavior is covered in `test_editorial_stage.py`,
+`test_title_cover_stage.py`, `test_packaging_stage.py`, and
+`test_production_stage.py`; `test_orchestrator_steps.py` focuses on step
+resolution, research boundaries, and run-time dispatch.
+
 Useful focused checks:
 
 ```bash
