@@ -12,7 +12,6 @@ export const VIDEO_DEFAULTS = {
   fps: 24,
   durationInFrames: 240,
   fallbackDurationSeconds: 10,
-  demoDurationInFrames: 60,
   stillDurationInFrames: 1,
   bgColor: "#fbf4e8",
 } as const;

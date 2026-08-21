@@ -152,7 +152,11 @@ export const HeadlineShot: React.FC<ElementProps> = ({
               ...fadeUp(frame, ANIM_PRESETS.meta, 5),
             }}
           >
-            <img src={imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img
+              src={imageUrl}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </Panel>
         )}
       </div>
@@ -534,7 +538,11 @@ export const DataNumberShot: React.FC<ElementProps> = ({
               ...fadeUp(frame, ANIM_PRESETS.meta, 3),
             }}
           >
-            <img src={imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img
+              src={imageUrl}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </Panel>
         )}
       </div>
@@ -667,7 +675,11 @@ export const QuickNewsShot: React.FC<ElementProps> = ({
               ...fadeUp(frame, ANIM_PRESETS.meta, 2),
             }}
           >
-            <img src={imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img
+              src={imageUrl}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </Panel>
         )}
         {commentFocus && (
@@ -762,14 +774,4 @@ export const SignalsShot: React.FC<ElementProps> = ({
       <TemplateFooter label="HN DAILY · END" />
     </CardShell>
   );
-};
-
-export const ShotTemplatePrimitives = {
-  HeadlineShot,
-  SourceEvidenceShot,
-  CommentShot,
-  CommentDualShot,
-  DataNumberShot,
-  QuickNewsShot,
-  SignalsShot,
 };

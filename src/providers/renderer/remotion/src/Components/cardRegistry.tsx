@@ -15,24 +15,24 @@ import {
   SourceEvidenceShot,
 } from "./Elements";
 import type { ChapterName } from "./design";
-import { SHOT_TEMPLATE_CATALOG, type ShotTemplateElementType } from "./templateCatalog";
+import type { ShotTemplateElementType } from "./templateCatalog";
 
-export type CardRendererProps = {
+type CardRendererProps = {
   elementProps: Record<string, unknown>;
   duration: number;
   width: number;
   height: number;
 };
 
-export type CardElementType = ShotTemplateElementType;
+type CardElementType = ShotTemplateElementType;
 
-export type CardRegistryEntry = {
+type CardRegistryEntry = {
   component: React.FC<CardRendererProps>;
   chapter: ChapterName;
   marksStory?: boolean;
 };
 
-export const CARD_REGISTRY = {
+const CARD_REGISTRY = {
   cover_card: {
     component: (props) => <CoverCard {...props} />,
     chapter: "cover",
@@ -103,6 +103,3 @@ export const isStoryMarkerElement = (element: SceneElementData): boolean => {
 
 export const cardChapterForElementType = (elementType: string): ChapterName =>
   getCardRegistryEntry(elementType)?.chapter ?? "focus";
-
-export const getShotTemplate = (elementType: string) =>
-  SHOT_TEMPLATE_CATALOG[elementType as CardElementType];

@@ -3,7 +3,6 @@ import { cancelRender, Composition, continueRender, delayRender, staticFile } fr
 
 import { HNTechPulseComposition } from "./Components/HNTechPulseComposition";
 import { CoverThumbnail } from "./Components/CoverThumbnail";
-import { CardShellDemo } from "./Components/CardShellDemo";
 import { VIDEO_DEFAULTS } from "./Components/design";
 import { ScriptProps } from "./types";
 
@@ -110,17 +109,13 @@ const ValidatedComposition: React.FC<Record<string, unknown>> = (rawProps) => {
 
 /**
  * Remotion v4 要求 Composition.component 接受 `Record<string, unknown>` 类型,
- * 而我们的具体组件 (CoverThumbnail / CardShellDemo) 都有强类型 props.
+ * 而我们的具体组件 (CoverThumbnail) 有强类型 props.
  * 这里用最小包装层把强类型组件适配成宽类型, 既保类型安全又不影响运行时.
  */
 const CoverThumbnailWrapper: React.FC<Record<string, unknown>> = (rawProps) => {
   return (
     <CoverThumbnail {...(rawProps as unknown as React.ComponentProps<typeof CoverThumbnail>)} />
   );
-};
-
-const CardShellDemoWrapper: React.FC<Record<string, unknown>> = (rawProps) => {
-  return <CardShellDemo {...(rawProps as unknown as React.ComponentProps<typeof CardShellDemo>)} />;
 };
 
 /** 根组件：Remotion registerRoot 要求无参数函数组件，props 通过 Composition 机制传递 */
@@ -149,45 +144,6 @@ export const Root: React.FC = () => {
           title: "开源、隐私、和一行没写的代码",
           subtitle: "Liquid AI 发布 1.5B MoE 模型，但许可证争议不断",
           dateLabel: "2026-05-31",
-        }}
-      />
-      <Composition
-        id="CardShellDemo-Fill"
-        component={CardShellDemoWrapper}
-        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
-        fps={VIDEO_DEFAULTS.fps}
-        width={VIDEO_DEFAULTS.width}
-        height={VIDEO_DEFAULTS.height}
-        defaultProps={{
-          mode: "start",
-          title: "今日回顾 · 2026-06-02",
-          itemCount: 6,
-        }}
-      />
-      <Composition
-        id="CardShellDemo-Center"
-        component={CardShellDemoWrapper}
-        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
-        fps={VIDEO_DEFAULTS.fps}
-        width={VIDEO_DEFAULTS.width}
-        height={VIDEO_DEFAULTS.height}
-        defaultProps={{
-          mode: "center",
-          title: "今日回顾 · 2026-06-02",
-          itemCount: 1,
-        }}
-      />
-      <Composition
-        id="CardShellDemo-Evenly"
-        component={CardShellDemoWrapper}
-        durationInFrames={VIDEO_DEFAULTS.demoDurationInFrames}
-        fps={VIDEO_DEFAULTS.fps}
-        width={VIDEO_DEFAULTS.width}
-        height={VIDEO_DEFAULTS.height}
-        defaultProps={{
-          mode: "evenly",
-          title: "今日回顾 · 2026-06-02",
-          itemCount: 3,
         }}
       />
     </>

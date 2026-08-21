@@ -1,4 +1,4 @@
-export type ShotTemplateMetadata = {
+type ShotTemplateMetadata = {
   template_id: string;
   label: string;
   intent: string;
@@ -125,6 +125,3 @@ export const SHOT_TEMPLATE_CATALOG = {
 } as const satisfies Record<string, ShotTemplateMetadata>;
 
 export type ShotTemplateElementType = keyof typeof SHOT_TEMPLATE_CATALOG;
-
-export const getShotTemplateMetadata = (elementType: string): ShotTemplateMetadata | undefined =>
-  SHOT_TEMPLATE_CATALOG[elementType as ShotTemplateElementType];
