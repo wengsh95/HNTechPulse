@@ -80,15 +80,6 @@ CORE_PIPELINE_STEPS = [
 ]
 _VALID_STEPS = set(VIDEO_ALL_STEPS)
 
-# Compatibility views for callers that imported the old orchestrator-level
-# constants. New code should import the canonical registry from
-# ``src.workflow`` directly; these values intentionally contain no separate
-# workflow definition.
-STANDALONE_STEPS = set(VIDEO_STANDALONE_STEPS)
-PIPELINE_STEPS = list(VIDEO_PIPELINE_EXECUTION_STEPS)
-ALL_STEPS = list(VIDEO_ALL_STEPS)
-DEFAULT_STEPS = list(VIDEO_PIPELINE_STEPS)
-
 # Steps that need `script` in memory (consume from `write_script` or disk).
 SCRIPT_CONSUMING_STEPS = frozenset(
     {

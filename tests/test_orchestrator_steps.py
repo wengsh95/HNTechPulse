@@ -8,11 +8,7 @@ from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Render
 from src.core.models import ContentPackage, Script
 from src.core.models import ContentItem
 from src.pipeline.orchestrator import (
-    ALL_STEPS,
-    DEFAULT_STEPS,
     Orchestrator,
-    PIPELINE_STEPS,
-    STANDALONE_STEPS,
     _resolve_steps,
 )
 from src.pipeline.human_review import (
@@ -85,12 +81,6 @@ class TestStepList:
             step for step in VIDEO_PIPELINE_STEPS if step != "render"
         )
         assert VIDEO_STANDALONE_STEPS == {"render", "preview"}
-
-    def test_legacy_orchestrator_views_remain_derived_compatibility_aliases(self):
-        assert tuple(DEFAULT_STEPS) == VIDEO_PIPELINE_STEPS
-        assert tuple(ALL_STEPS) == VIDEO_ALL_STEPS
-        assert tuple(PIPELINE_STEPS) == VIDEO_PIPELINE_EXECUTION_STEPS
-        assert STANDALONE_STEPS == set(VIDEO_STANDALONE_STEPS)
 
     def test_removed_compatibility_steps_are_rejected(self):
         with pytest.raises(ValueError, match="Unknown pipeline step"):
