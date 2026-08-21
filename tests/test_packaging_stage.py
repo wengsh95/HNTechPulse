@@ -1,8 +1,10 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pathlib import Path
 
+from src.pipeline.paths import render_path, render_root
 from tests.stage_fixtures import make_content, make_orchestrator, make_script
 
 
@@ -15,6 +17,30 @@ class TestCoverThumbnailStage:
                 orch._step_cover_thumbnail(make_content(), make_script(), "2026-04-26")
                 is None
             )
+
+    def test_missing_background_or_text_props_fails_with_recovery_hint(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        orch = make_orchestrator(dry_run=False)
+
+        with pytest.raises(FileNotFoundError, match="run --steps cover_image first"):
+            orch._step_cover_thumbnail(make_content(), make_script(), "2026-04-26")
+
+    def test_missing_npx_is_reported_after_cover_inputs_exist(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        render_root(date).mkdir(parents=True)
+        (render_root(date) / "cover_bg.png").write_bytes(b"png")
+        props_path = render_path(date, "cover_props_v1.json")
+        props_path.write_text(json.dumps({"title": "Test"}), encoding="utf-8")
+        orch = make_orchestrator(dry_run=False)
+
+        with patch("src.pipeline.stages.packaging.find_npx", return_value=None):
+            with pytest.raises(FileNotFoundError, match="npx not found"):
+                orch._step_cover_thumbnail(make_content(), make_script(), date)
 
 
 class TestPublishGuideStage:
