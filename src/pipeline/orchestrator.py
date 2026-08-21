@@ -62,6 +62,7 @@ from src.pipeline.paths import (
 )
 from src.pipeline.pipeline_progress import PipelineProgress
 from src.pipeline.prefilter import Prefilter
+from src.pipeline.render_inputs import build_render_inputs
 from src.pipeline.subtitle_planner import prepare_subtitles
 from src.pipeline.storyboard import apply_storyboard
 from src.pipeline.storyboard_draft import draft_storyboard
@@ -2278,7 +2279,9 @@ class Orchestrator:
         self._write_publish_guide(content, script, date)
 
         props_path = render_path(date, "cli_props.json")
-        render_inputs = self._render_inputs(script, content, date)
+        render_inputs = build_render_inputs(
+            script, content, date, type(self.renderer).__name__
+        )
         if is_artifact_fresh(props_path, render_inputs):
             self.logger.info("  Render props match current inputs; skipping")
             return
@@ -2307,19 +2310,6 @@ class Orchestrator:
             },
             config=self.config,
         )
-
-    def _render_inputs(
-        self, script: Script, content: Optional[ContentPackage], date: str
-    ) -> dict[str, Any]:
-        return {
-            "script_editorial_hash": script_editorial_hash(script),
-            "audio_manifest_hash": file_sha256(
-                pipeline_path(date, "audio_manifest.json")
-            ),
-            "content_hash": file_sha256(pipeline_path(date, "content.json")),
-            "renderer": type(self.renderer).__name__,
-            "content_item_count": len(content.items) if content is not None else 0,
-        }
 
     def _step_render(
         self,
@@ -2350,7 +2340,7 @@ class Orchestrator:
         output_path = Path(publish_path(date, "output.mp4"))
         props_path = render_path(date, "cli_props.json")
         render_inputs = {
-            **self._render_inputs(script, content, date),
+            **build_render_inputs(script, content, date, type(self.renderer).__name__),
             "props_hash": file_sha256(props_path),
         }
         if not force and is_artifact_fresh(output_path, render_inputs):
@@ -2373,7 +2363,9 @@ class Orchestrator:
             step="render",
             date=date,
             inputs={
-                **self._render_inputs(script, content, date),
+                **build_render_inputs(
+                    script, content, date, type(self.renderer).__name__
+                ),
                 "props_hash": file_sha256(render_path(date, "cli_props.json")),
             },
             config=self.config,
