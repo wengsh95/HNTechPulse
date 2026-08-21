@@ -86,7 +86,7 @@ def main() -> int:
     orchestrator._timing.compute_timeline(script)
     script = orchestrator._step_title(content, script, args.date)
     orchestrator.script_writer.save_script(script, args.date)
-    orchestrator._step_publish_guide(content, script, args.date)
+    orchestrator._write_publish_guide(content, script, args.date)
     print(f"Regenerated text-only artifacts for {args.date}")
     return 0
 

@@ -31,7 +31,7 @@ steps before invoking the pipeline.
 Prefer these machine-readable files over human-readable logs:
 
 ```text
-data/{month}/{date}/agent/pipeline_state_video.json
+data/{month}/{date}/agent/workflow_video.json
 data/{month}/{date}/agent/agent_events.jsonl
 data/{month}/{date}/agent/agent_tasks.json
 data/{month}/{date}/agent/agent_decision.json

@@ -136,10 +136,7 @@ class Prefilter:
         cfg = self.config.get("prefilter", {})
         project_fit = decision.get("project_fit")
         if project_fit is None:
-            # Preserve compatibility with older cached/test decisions that
-            # predate the project-fit dimension; new prompt responses always
-            # provide an explicit score.
-            project_fit = 3
+            return False
         if project_fit < cfg.get("min_project_fit", 3):
             return False
 

@@ -9,6 +9,7 @@ from src.core.models import (
     ScriptSegment,
 )
 from src.pipeline.translation_manager import TranslationManager
+from src.pipeline.comment.judge import JUDGEMENT_SCHEMA_VERSION
 
 
 def _make_manager():
@@ -132,7 +133,7 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
     judgement_path.write_text(
         """
 {
-  "schema_version": 8,
+  "schema_version": %d,
   "stories": {
     "story": {
       "comment_lanes": {
@@ -157,7 +158,8 @@ def test_apply_translations_to_script_uses_judgement_selection(tmp_path, monkeyp
     }
   }
 }
-""".strip(),
+    """.strip()
+        % JUDGEMENT_SCHEMA_VERSION,
         encoding="utf-8",
     )
     script = Script(

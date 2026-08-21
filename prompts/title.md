@@ -38,9 +38,43 @@
   "cover_tags": ["短标签一", "短标签二"],
   "cover_highlights": ["高亮词一", "高亮词二", "高亮词三"],
   "cover_subtitle": "— 短语一\n— 短语二\n— 短语三",
+  "cover_variants": [
+    {
+      "angle": "争议·支持方",
+      "cover_title": "主体\n解释角度",
+      "cover_subtitle": "— 对象短语\n— 冲突短语\n— 影响短语",
+      "cover_highlights": ["核心判断"],
+      "cover_tags": ["角度标签"]
+    },
+    {
+      "angle": "争议·反对方",
+      "cover_title": "主体\n风险角度",
+      "cover_subtitle": "— 对象短语\n— 代价短语\n— 受影响人群",
+      "cover_highlights": ["风险判断"],
+      "cover_tags": ["风险标签"]
+    },
+    {
+      "angle": "争议·中立方",
+      "cover_title": "主体\n观察角度",
+      "cover_subtitle": "— 对象短语\n— 分歧短语\n— 待验证结果",
+      "cover_highlights": ["争议焦点"],
+      "cover_tags": ["观察标签"]
+    }
+  ],
+  "cover_prompt": "Asymmetric 16:9 editorial illustration. Main subject on the right two-thirds, completely clean negative space on the left, one visual metaphor for the core conflict, flat warm palette, no logos, no text, no watermarks, no brand references, no horizontal bars, no vertical bars, no UI elements, no header bars, no footer bars.",
   "tags": ["AI", "开发者工具", "开源", "基础设施", "科技资讯"]
 }
 ```
+
+`cover_variants` 必须恰好输出 3 个版本，依次为支持、反对、中立三种角度。它们与上面的
+`cover_title` 使用同一焦点故事和评论事实，只改变判断角度，不能虚构新数字或主体。每个版本
+都遵守封面标题的宽度、两行、克制用词和高亮词规则。封面版本与标题一起生成，供后续封面步骤
+直接读取，不要另起一轮生成相同上下文的文案。
+
+`cover_prompt` 使用英文输出，长度 200-400 个字符。它只表达焦点故事的核心矛盾和抽象视觉
+隐喻，不出现真实品牌、Logo、人物、文字、UI 或水印。主体放在画面右侧，左侧保持干净负空间，
+并以 `No logos, no text, no watermarks, no brand references, no horizontal bars, no vertical bars,
+no UI elements, no header bars, no footer bars.` 结尾。它与标题一起生成，供图像阶段直接读取。
 
 ## 标题生成规则
 

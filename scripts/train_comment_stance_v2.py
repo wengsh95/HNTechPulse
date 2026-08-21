@@ -1,6 +1,6 @@
 """Train a V2 stance model after grouped evaluation has passed.
 
-This command intentionally does not touch the legacy stance model.  Use the
+This command intentionally does not touch the previous stance model.  Use the
 evaluation script first to choose backend and hyperparameters.
 """
 

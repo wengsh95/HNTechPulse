@@ -260,8 +260,7 @@ export const HNTechPulseComposition: React.FC<ScriptProps> = ({
       .flatMap((seg) => seg.scene_elements)
       .find((elem) => elem.element_type === "cover_card");
     const firstTitleProps = (firstTitle?.props ?? {}) as Record<string, unknown>;
-    // chrome 优先读 date_label (纯日期), fallback 到 subtitle (兼容旧数据)
-    const label = String(firstTitleProps.date_label ?? firstTitleProps.subtitle ?? "");
+    const label = String(firstTitleProps.date_label ?? "");
     return { storyBoundaries: boundaries, storyChapters: chapters, dateLabel: label };
   }, [segments]);
   const currentTime = frame / fps;

@@ -421,7 +421,9 @@ class TestImageSelection:
         assert selected[0]["selection_reason"] == "article_image_suitable"
         provider.llm_client.call_llm_with_json_retry.assert_not_called()
 
-    def test_generate_selection_replaces_legacy_llm_choice(self, tmp_path, monkeypatch):
+    def test_generate_selection_rejects_automatic_llm_choice(
+        self, tmp_path, monkeypatch
+    ):
         provider = _make_llm_provider()
         enricher = ArticleEnricher(provider, _make_config())
         monkeypatch.chdir(tmp_path)

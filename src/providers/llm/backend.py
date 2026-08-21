@@ -70,8 +70,7 @@ class LLMBackend:
         1. Explicit ``api_key_env`` in config — read that env var.
         2. Hostname match against ``_HOST_KEY_MAP``.
         3. Derived guess from hostname (e.g. ``api.foo.com`` → ``FOO_API_KEY``).
-        4. Fallback: ``OPENAI_API_KEY`` → ``DEEPSEEK_API_KEY``.
-        5. Raise ``ValueError`` with a helpful message.
+        4. Raise ``ValueError`` with a helpful message.
         """
         # 1. explicit override
         explicit_env = llm_cfg.get("api_key_env")
@@ -104,13 +103,7 @@ class LLMBackend:
                 if key:
                     return key
 
-        # 4. historical fallbacks
-        for env_var in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
-            key = os.getenv(env_var)
-            if key:
-                return key
-
-        # 5. give up
+        # No implicit cross-provider credential fallback.
         host_info = f" (host: {hostname})" if hostname else ""
         raise ValueError(
             f"No API key found for LLM base_url{host_info}. "

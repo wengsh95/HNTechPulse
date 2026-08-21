@@ -235,15 +235,15 @@ def test_select_script_variant_writes_decision_and_selection(tmp_path, monkeypat
 
     assert decision["status"] == "continue"
     assert decision["selected_variant"] == "v02_strong"
-    selected_path = (
+    decision_path = (
         tmp_path
         / "data"
         / content.date[:7]
         / content.date
         / "agent"
-        / "selected_variant.json"
+        / "agent_variant_decision.json"
     )
-    selected = json.loads(selected_path.read_text(encoding="utf-8"))
+    selected = json.loads(decision_path.read_text(encoding="utf-8"))
     assert selected["selected_variant"] == "v02_strong"
     brief_path = (
         tmp_path

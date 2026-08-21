@@ -1,6 +1,7 @@
 from scripts.agent_status import _video_stale_command, build_status
 from src.pipeline.paths import agent_path
-from src.utils.atomic_io import atomic_write_json
+from src.workflow.machine import WorkflowMachine
+from src.workflow.video import VIDEO_WORKFLOW_STEPS
 
 
 def test_status_reports_not_started_without_state(tmp_path, monkeypatch):
@@ -14,22 +15,41 @@ def test_status_reports_not_started_without_state(tmp_path, monkeypatch):
     assert status["artifacts"]["output"]["exists"] is False
 
 
-def test_status_reads_video_scoped_state(tmp_path, monkeypatch):
+def test_status_reads_native_workflow_without_writing_it(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-06-09"
-    atomic_write_json(
-        agent_path(date, "pipeline_state_video.json"),
-        {
-            "schema_version": 2,
-            "date": date,
-            "status": "complete",
-            "product": "video",
-        },
-    )
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    machine.ensure()
+    machine.mark_running("ingest")
+    workflow_path = agent_path(date, "workflow_video.json")
+    before = workflow_path.read_text(encoding="utf-8")
 
     status = build_status(date)
 
-    assert status["pipeline_status"] == "complete"
+    assert status["workflow"]["status"] == "running"
+    assert status["workflow"]["states"]["ingest"]["status"] == "running"
+    assert workflow_path.read_text(encoding="utf-8") == before
+
+
+def test_status_exposes_native_execution_metadata(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-06-09"
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    machine.ensure(
+        metadata={
+            "failed_pipeline_step": "fetch",
+            "blocked_reason": "manual_download_required",
+            "completed_pipeline_steps": ["prefilter"],
+        }
+    )
+    machine.mark_running("ingest")
+
+    status = build_status(date)
+
+    assert status["pipeline_status"] == "running"
+    assert status["failed_step"] == "fetch"
+    assert status["blocked_reason"] == "manual_download_required"
+    assert status["completed_steps"] == ["prefilter"]
 
 
 def test_stale_script_command_refreshes_script():

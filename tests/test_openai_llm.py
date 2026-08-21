@@ -14,7 +14,11 @@ from src.core.models import ContentItem, ContentComment
 def _make_config():
     return {
         "logging": {"level": "WARNING"},
-        "llm": {"model": "test-model", "max_tokens": 1024},
+        "llm": {
+            "model": "test-model",
+            "max_tokens": 1024,
+            "api_key_env": "OPENAI_API_KEY",
+        },
         "pipeline": {"max_comments_for_r1_analyze": 80},
     }
 

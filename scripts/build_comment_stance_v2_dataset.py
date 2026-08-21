@@ -30,7 +30,7 @@ from src.pipeline.comment.stance_v2 import (  # noqa: E402
     save_records,
 )
 from src.pipeline.content_io import ContentPreparer  # noqa: E402
-from src.pipeline.paths import content_path_candidates  # noqa: E402
+from src.pipeline.paths import pipeline_path  # noqa: E402
 from src.providers.factory import create_llm_provider  # noqa: E402
 from src.providers.enricher.relevance import (  # noqa: E402
     assess_article_relevance,
@@ -39,7 +39,6 @@ from src.utils.config import load_config  # noqa: E402
 
 
 DEFAULT_OUTPUT = Path("data/models/comment_stance_v2_dataset.json")
-DEFAULT_LEGACY_LABELS = Path("data/models/comment_stance_labels.jsonl")
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dates",
         required=True,
-        help="Comma-separated dates to read from the canonical or legacy data layout",
+        help="Comma-separated dates to read from the canonical data layout",
     )
     parser.add_argument("--sample-per-story", type=int, default=25)
     parser.add_argument("--max-stories", type=int, default=40)
@@ -60,7 +59,6 @@ def parse_args() -> argparse.Namespace:
         help="Use the configured LLM to label records; otherwise build an unlabeled dataset",
     )
     parser.add_argument("--batch-size", type=int, default=24)
-    parser.add_argument("--include-legacy-stories", action="store_true")
     parser.add_argument(
         "--require-context",
         action="store_true",
@@ -70,30 +68,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def _load_content(preparer: ContentPreparer, date: str):
-    for path in content_path_candidates(date):
-        if path.exists():
-            return preparer.load_content_path(path)
-    raise FileNotFoundError(
-        f"Content file not found for {date}; checked: "
-        + ", ".join(str(path) for path in content_path_candidates(date))
-    )
-
-
-def _legacy_story_ids(path: Path) -> set[str]:
+    path = pipeline_path(date, "content.json")
     if not path.exists():
-        return set()
-    story_ids: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        story_id = str(row.get("story_id") or "").strip()
-        if story_id:
-            story_ids.add(story_id)
-    return story_ids
+        raise FileNotFoundError(f"Content file not found for {date}: {path}")
+    return preparer.load_content_path(path)
 
 
 def _chunks(rows: list[StanceV2Record], size: int):
@@ -202,9 +180,6 @@ def main() -> None:
 
     config = load_config()
     preparer = ContentPreparer(config)
-    legacy_ids = set()
-    if not args.include_legacy_stories:
-        legacy_ids = _legacy_story_ids(DEFAULT_LEGACY_LABELS)
 
     all_records: list[StanceV2Record] = []
     story_sizes: dict[str, int] = {}
@@ -213,7 +188,7 @@ def main() -> None:
         content = _load_content(preparer, date)
         for item in content.items:
             story_id = str(item.source_id or "")
-            if not story_id or story_id in legacy_ids or not _item_is_usable(item):
+            if not story_id or not _item_is_usable(item):
                 continue
             rows = list(
                 iter_story_records(

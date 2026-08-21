@@ -61,7 +61,7 @@ class ContentItem:
     keywords: Optional[List[str]] = None
     category: Optional[str] = None
     why_it_matters: Optional[str] = None
-    # Where article_text came from: "aiohttp" | "headless" | "headed" | "pdf" | "github_api" | "manual_override" | "downloaded_page" | "none" | "skipped" | "error" | "legacy".
+    # Where article_text came from: "aiohttp" | "headless" | "headed" | "pdf" | "github_api" | "manual_override" | "downloaded_page" | "none" | "skipped" | "error".
     # "error" means enrichment threw an exception; see enrichment_error for reason.
     # "none" means no exception but no content was extracted.
     enrichment_source: Optional[str] = None

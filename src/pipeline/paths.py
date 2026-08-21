@@ -15,8 +15,8 @@ Layout::
     ├── render/      remotion/{chunks,public}/, cli_props.json
     ├── publish/     output.mp4, title.json, transcript.md, publish_guide.md,
     │                cover_bg.png, cover.png
-    ├── agent/       pipeline_state_video.json,
-    │                agent_events.jsonl, selected_variant.json, report.md
+    ├── agent/       workflow_video.json, agent_events.jsonl,
+    │                agent_tasks.json, report.md
     └── outputs/     (organize_outputs.py mirror — unchanged)
 
 The helpers return ``pathlib.Path`` so callers can ``.parent.mkdir`` /
@@ -128,7 +128,6 @@ _PIPELINE_FILES: dict[str, str] = {
     "subtitle_plan.json": "subtitle_plan.json",
     "script_review.json": "script_review.json",
     "audio_manifest.json": "audio_manifest.json",
-    "selected_variant.json": "script.json",  # legacy alias — see agent_variants.promote_variant_script
     "transcript.md": "transcript.md",
 }
 
@@ -139,9 +138,6 @@ _PUBLISH_FILES: dict[str, str] = {
     "title.json": "title.json",
     "publish_guide.md": "publish_guide.md",
     "cover.png": "cover.png",
-    "cover_v1.png": "cover_v1.png",
-    "cover_v2.png": "cover_v2.png",
-    "cover_v3.png": "cover_v3.png",
     "cover_b1_t1.png": "cover_b1_t1.png",
     "cover_b1_t2.png": "cover_b1_t2.png",
     "cover_b1_t3.png": "cover_b1_t3.png",
@@ -154,8 +150,7 @@ _PUBLISH_FILES: dict[str, str] = {
 }
 
 _AGENT_FILES: dict[str, str] = {
-    "pipeline_state.json": "pipeline_state.json",
-    "pipeline_state_video.json": "pipeline_state_video.json",
+    "workflow_video.json": "workflow_video.json",
     "agent_decision.json": "agent_decision.json",
     "agent_events.jsonl": "agent_events.jsonl",
     "agent_tasks.json": "agent_tasks.json",
@@ -163,7 +158,6 @@ _AGENT_FILES: dict[str, str] = {
     "script_lock.json": "script_lock.json",
     "script_approval.json": "script_approval.json",
     "agent_variant_decision.json": "agent_variant_decision.json",
-    "selected_variant.json": "selected_variant.json",
     "report.md": "report.md",
 }
 
@@ -177,7 +171,6 @@ _RENDER_FILES: dict[str, str] = {
     "cover_bg_v2.png": "cover_bg_v2.png",
     "cover_bg_v3.png": "cover_bg_v3.png",
     "cover_bg_v4.png": "cover_bg_v4.png",
-    "cover_props.json": "cover_props.json",
     "cover_props_v1.json": "cover_props_v1.json",
     "cover_props_v2.json": "cover_props_v2.json",
     "cover_props_v3.json": "cover_props_v3.json",
@@ -209,19 +202,6 @@ def pipeline_path(date: str, name: str) -> Path:
             f"Unknown pipeline artifact: {name!r}. Known: {sorted(_PIPELINE_FILES)}"
         )
     return pipeline_root(date) / _PIPELINE_FILES[name]
-
-
-def content_path_candidates(date: str) -> tuple[Path, ...]:
-    """Return canonical and legacy content paths for offline tooling.
-
-    Runs created before the month-bucket layout used ``data/YYYY-MM-DD``
-    directly.  The production pipeline only writes the canonical path, but
-    dataset/evaluation tools need to be able to read both layouts without
-    duplicating path construction logic.
-    """
-    canonical = pipeline_path(date, "content.json")
-    legacy = Path("data") / date / PIPELINE_DIR / "content.json"
-    return tuple(dict.fromkeys((canonical, legacy)))
 
 
 def media_path(date: str, name: str) -> Path:
@@ -267,46 +247,6 @@ def render_path(date: str, name: str) -> Path:
     return render_root(date) / _RENDER_FILES[name]
 
 
-# Backwards-compatibility aliases for the pre-refactor flat layout.
-# These are the file names the pipeline used to write at data/{month}/{date}/<name>
-# before this refactor. New code should call the typed helpers above; these
-# constants exist so tests and migration logic can reference the old paths.
-LEGACY_FLAT_LAYOUT = {
-    "raw_stories.json",
-    "agent_tasks.json",
-    "prefilter.json",
-    "enrichment.json",
-    "image_selection.json",
-    "content.json",
-    "comment_analysis.json",
-    "comment_judgement.json",
-    "translations.json",
-    "script.json",
-    "audio",
-    "downloaded_pages",
-    "images",
-    "cover_bg.png",
-    "cover.png",
-    "cover_props.json",
-    "remotion",
-    "cli_props.json",
-    "output.mp4",
-    "title.json",
-    "transcript.md",
-    "publish_guide.md",
-    "pipeline_state.json",
-    "agent_decision.json",
-    "agent_events.jsonl",
-    "selected_variant.json",
-    "agent_variant_decision.json",
-    "report.md",
-    "variants",
-    "segments",
-    "manifest.json",
-    "audio_manifest.json",
-}
-
-
 def ensure_date_dirs(date: str) -> None:
     """Create the full per-date directory tree. Idempotent."""
     for d in (
@@ -344,12 +284,10 @@ __all__ = [
     "media_images_dir",
     "render_remotion_dir",
     "pipeline_path",
-    "content_path_candidates",
     "media_path",
     "publish_path",
     "agent_path",
     "raw_path",
     "render_path",
     "ensure_date_dirs",
-    "LEGACY_FLAT_LAYOUT",
 ]

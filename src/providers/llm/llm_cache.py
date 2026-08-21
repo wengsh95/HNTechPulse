@@ -36,7 +36,7 @@ class LLMCache:
             with open(cache_path, "r", encoding="utf-8") as f:
                 seg_dict = json.load(f)
             cache_meta = seg_dict.get("_cache")
-            if expected_cache_meta is not None and cache_meta != expected_cache_meta:
+            if expected_cache_meta is None or cache_meta != expected_cache_meta:
                 self.logger.info(
                     f"    [{segment_type}_{story_index}] Cached segment metadata changed; regenerating"
                 )
@@ -145,7 +145,7 @@ class LLMCache:
             with open(cache_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             cache_meta = data.get("_cache")
-            if expected_cache_meta is not None and cache_meta != expected_cache_meta:
+            if expected_cache_meta is None or cache_meta != expected_cache_meta:
                 self.logger.info(
                     f"    [translation_{kind}] Cache metadata changed; regenerating"
                 )

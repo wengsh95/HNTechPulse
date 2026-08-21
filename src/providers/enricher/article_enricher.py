@@ -1100,9 +1100,7 @@ class ArticleEnricher:
     ) -> bool:
         """Return whether a persisted choice is an explicit human/agent choice.
 
-        ``llm`` and ``heuristic`` are legacy/runtime-generated decisions.  An
-        entry with no selection metadata remains compatible with older manual
-        selection files.
+        Automatic selections are not accepted as confirmed manual choices.
         """
         if not entry.get("selected_image") or candidate is None:
             return False
@@ -1110,9 +1108,7 @@ class ArticleEnricher:
             entry.get("selection_source"),
             candidate.get("selection_source"),
         }
-        if "llm" in sources or "heuristic" in sources:
-            return False
-        return True
+        return bool(sources & {"agent", "human"})
 
     @staticmethod
     def _candidate_local_path(date: str, path: str) -> Path:
@@ -1352,7 +1348,7 @@ class ArticleEnricher:
                             item.title,
                         ],
                     )
-                    source = cached.get("enrichment_source") or "legacy"
+                    source = cached.get("enrichment_source")
                     if source == "manual_override":
                         source = "downloaded_page"
                     elif source == "none" and not cached.get("article_text"):

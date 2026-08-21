@@ -17,8 +17,9 @@ from src.providers.factory import (  # noqa: E402
     create_image_generator,
 )
 from src.pipeline.orchestrator import DEFAULT_STEPS, Orchestrator  # noqa: E402
-from src.pipeline.agent_io import load_pipeline_state  # noqa: E402
 from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
+from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 
 
 def get_default_date() -> str:
@@ -101,10 +102,11 @@ def main():
         default=",".join(DEFAULT_STEPS),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
-            "enrich_articles, translate_titles, analyze_comments, judge_comments, "
-            "write_script, review_script, translate_comments, synthesize_audio, "
-            "title, cover_image, cover_thumbnail, publish_guide, prepare_render, "
-            "render, preview). Default runs the full managed video chain."
+            "enrich_articles, judge_comments, write_script, draft_quick_news, "
+            "prepare_story_images, title, cover_image, cover_thumbnail, "
+            "draft_storyboard, human_review, apply_storyboard, prepare_subtitles, "
+            "synthesize_audio, prepare_render, render, preview). Default runs "
+            "the full managed video chain."
         ),
     )
     parser.add_argument(
@@ -125,19 +127,27 @@ def main():
 
     config = load_config(args.config)
     if args.resume:
-        state = load_pipeline_state(args.date, product="video")
-        if not state:
+        workflow = WorkflowMachine(args.date, VIDEO_WORKFLOW_STEPS)
+        if not workflow.path.exists():
             parser.error(
-                f"--resume requested but no pipeline state was found for {args.date}"
+                f"--resume requested but no workflow state was found for {args.date}"
             )
+        try:
+            workflow.load()
+        except (WorkflowCorruptError, OSError, ValueError) as exc:
+            parser.error(f"--resume cannot read native workflow state: {exc}")
+        report = workflow.status_report()
+        metadata = report.get("metadata", {})
+        requested_steps = [str(step) for step in metadata.get("requested_steps", [])]
+        completed_steps = set(metadata.get("completed_pipeline_steps", []))
         resume_step = (
-            state.get("failed_step")
-            or state.get("current_step")
+            metadata.get("failed_pipeline_step")
+            or metadata.get("current_pipeline_step")
             or next(
                 (
                     step
-                    for step in state.get("steps", [])
-                    if step not in set(state.get("completed_steps", []))
+                    for step in requested_steps
+                    if step not in completed_steps
                 ),
                 None,
             )
@@ -146,9 +156,8 @@ def main():
             parser.error(
                 "--resume requested but the selected product state has no pending step"
             )
-        state_steps = [str(step) for step in state.get("steps", []) if step]
-        if state_steps and str(resume_step) in state_steps:
-            steps = state_steps[state_steps.index(str(resume_step)) :]
+        if requested_steps and str(resume_step) in requested_steps:
+            steps = requested_steps[requested_steps.index(str(resume_step)) :]
         else:
             steps = [str(resume_step)]
     else:

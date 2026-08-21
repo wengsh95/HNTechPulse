@@ -118,27 +118,6 @@ def write_scorecard(
     return path
 
 
-def write_selected_variant(
-    date: str,
-    variant_id: str,
-    *,
-    decision: dict[str, Any] | None = None,
-) -> Path:
-    path = agent_path(date, "selected_variant.json")
-    atomic_write_json(
-        path,
-        {
-            "schema_version": 1,
-            "date": date,
-            "selected_variant": variant_id,
-            "decision": decision or {},
-            "updated_at": utc_now(),
-        },
-    )
-    append_agent_event(date, "variant_selected", variant_id=variant_id)
-    return path
-
-
 def write_selection_brief(date: str, decision: dict[str, Any]) -> Path:
     path = variants_root(date) / "selection_brief.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,11 +212,7 @@ def promote_variant_script(date: str, variant_id: str) -> Script:
 
 
 def selected_variant_id(date: str) -> str | None:
-    """Return the variant id chosen by the agent for ``date``, or None.
-
-    Reads ``agent_variant_decision.json`` (written by the agent decision layer);
-    falls back to the ``selected_variant.json`` sidecar.
-    """
+    """Return the variant id chosen by the agent for ``date``, or None."""
 
     def _read(path: Path) -> dict[str, Any] | None:
         if not path.exists():
@@ -253,9 +228,6 @@ def selected_variant_id(date: str) -> str | None:
     decision = _read(agent_path(date, "agent_variant_decision.json"))
     if decision and decision.get("selected_variant"):
         return str(decision["selected_variant"])
-    sidecar = _read(agent_path(date, "selected_variant.json"))
-    if sidecar and sidecar.get("selected_variant"):
-        return str(sidecar["selected_variant"])
     return None
 
 
@@ -263,7 +235,7 @@ def sync_selected_variant_snapshot(date: str, script: Script) -> Path | None:
     """Re-save ``script`` into the selected variant's frozen snapshot.
 
     The variant snapshot at ``variants/{selected}/script.json`` is written at
-    write_script time, but ``review_script`` later rewrites the promoted
+    write_script time, but the automatic human-review pass later rewrites the promoted
     ``script.json`` in place. Without this sync the snapshot and the promoted
     script diverge, and the publishability audit's ``selected_variant_promoted``
     check fails on a script that is in fact the chosen one. Mirroring the
@@ -282,7 +254,7 @@ def sync_selected_variant_snapshot(date: str, script: Script) -> Path | None:
         script,
         snapshot,
         date=date,
-        step="review_script_resync",
+        step="human_review_resync",
         inputs={"variant_id": variant_id},
     )
     append_agent_event(

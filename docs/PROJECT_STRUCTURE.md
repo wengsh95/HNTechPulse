@@ -8,13 +8,24 @@ video.
 The managed step chain is:
 
 ```text
-fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles ->
-analyze_comments -> judge_comments -> write_script -> draft_quick_news ->
-normalize_video_structure -> prepare_story_images -> review_script ->
-human_review -> translate_comments -> title -> cover_image -> cover_thumbnail ->
-draft_storyboard -> apply_storyboard -> prepare_subtitles -> synthesize_audio ->
-prepare_render -> render
+fetch -> prefilter -> fetch_comments -> enrich_articles -> judge_comments ->
+write_script -> draft_quick_news -> prepare_story_images ->
+title -> cover_image -> cover_thumbnail ->
+draft_storyboard -> human_review -> apply_storyboard -> prepare_subtitles ->
+synthesize_audio -> prepare_render -> render
 ```
+
+Enrichment also fills `title_cn`; `judge_comments` first hydrates the local
+comment analysis cache before selecting its LLM candidates. Automatic script
+review runs while preparing the human-review page. The `title` prompt emits
+the three cover-copy angles and visual image prompt into `publish/title.json`;
+`cover_image` reuses them and only calls the image provider. The opening
+narration is assembled locally from selected story hooks rather than using a
+one-line LLM call. `draft_quick_news` also persists the deterministic video
+structure normalization and applies the final selected-comment translations;
+these are internal operations rather than standalone pipeline steps.
+`prepare_render` also writes the final `publish_guide.md` as part of render
+packaging.
 
 ## Top-Level Layout
 
@@ -188,7 +199,7 @@ src/pipeline/comment/
 The intended flow is:
 
 ```text
-analyze_comments -> judge_comments -> quote_candidates -> write_script
+judge_comments (ensures local comment analysis) -> quote_candidates -> write_script
 ```
 
 Downstream script generation consumes `quote_candidates` directly. It should
@@ -323,8 +334,8 @@ data/{month}/{date}/
 |-- render/      remotion/{chunks,public}/, cli_props.json
 |-- publish/     output.mp4, title.json, transcript.md, publish_guide.md,
 |                cover_bg.png, cover.png
-|-- agent/       pipeline_state_video.json,
-|                agent_events.jsonl, selected_variant.json, report.md
+|-- agent/       workflow_video.json,
+|                agent_events.jsonl, report.md
 `-- outputs/     (organize_outputs.py mirror — unchanged)
 ```
 
@@ -342,12 +353,11 @@ publish/title.json
 Agent artifacts:
 
 ```text
-agent/pipeline_state_video.json
+agent/workflow_video.json
 agent/agent_events.jsonl
 agent/agent_tasks.json
 agent/agent_decision.json
 agent/agent_variant_decision.json
-agent/selected_variant.json
 pipeline/variants/
 ```
 
@@ -367,7 +377,7 @@ pipeline/content.json.manifest.json
 pipeline/script.json.manifest.json
 pipeline/audio_manifest.json
 publish/title.json.manifest.json
-media/cover_props.json.manifest.json
+render/cover_props_v1.json.manifest.json
 publish/publish_guide.md.manifest.json
 ```
 

@@ -34,8 +34,6 @@ from src.pipeline.script.templates import (
     build_highlight_entries,
     generate_fixed_closing,
     generate_fixed_opening,
-    highlight_audio_text,
-    story_angle_from_segment,
 )
 from src.utils.logger import setup_logger
 
@@ -395,7 +393,6 @@ class ScriptWriter:
                 content,
                 story_scan_segs,
                 highlight_entries=highlight_entries,
-                llm_provider=self.llm_provider,
             )
         )
 
@@ -511,16 +508,3 @@ class ScriptWriter:
 
     def load_script(self, date: str, *, with_audio: bool = False) -> Script:
         return _load_script(date, with_audio=with_audio)
-
-    # Backward-compat static method aliases (extracted to script/cards.py)
-    _normalize_atmosphere_card = staticmethod(normalize_atmosphere_card)
-    _normalize_story_cards = staticmethod(normalize_story_cards)
-    _coerce_card_narrations_for_mode = staticmethod(coerce_card_narrations_for_mode)
-    _extract_subtitle_texts = staticmethod(extract_subtitle_texts)
-
-    # Backward-compat method aliases (extracted to script/templates.py)
-    _generate_fixed_opening = staticmethod(generate_fixed_opening)
-    _generate_fixed_closing = staticmethod(generate_fixed_closing)
-    _build_highlight_entries = staticmethod(build_highlight_entries)
-    _story_angle_from_segment = staticmethod(story_angle_from_segment)
-    _highlight_audio_text = staticmethod(highlight_audio_text)

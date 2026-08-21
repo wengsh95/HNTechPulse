@@ -267,8 +267,7 @@ def _image_targets(ref: dict[str, Any]) -> list[Any]:
     ]
     if explicit:
         return explicit[:1]
-    # Backward compatibility for scripts created before video_structure.json.
-    return elements[:1]
+    return []
 
 
 def _capture_missing_screenshots(

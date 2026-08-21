@@ -17,17 +17,65 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD
 agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
 ```
 
+For routine operation, the wrapper exposes the five high-level phases directly.
+Use `--phase` when an upstream phase is already complete and only one phase
+needs to be retried:
+
+```bash
+uv run python scripts/agent_run.py --date YYYY-MM-DD --phase ingest
+uv run python scripts/agent_run.py --date YYYY-MM-DD --phase research
+uv run python scripts/agent_run.py --date YYYY-MM-DD --phase editorial
+uv run python scripts/agent_run.py --date YYYY-MM-DD --phase human_review
+uv run python scripts/agent_run.py --date YYYY-MM-DD --phase produce
+```
+
+`--phase` is an alias for the registered step slice in
+`src/workflow/video.py`; it does not create a second execution plan. The native
+workflow state machine still enforces phase dependencies, and `--dry-run` can
+be used to inspect the expanded command first. Use `--from STEP` for a narrow
+artifact recovery that crosses phase boundaries.
+
 The managed product is a narrated video. The managed chain runs the upstream
 editorial steps, then continues through TTS and the configured renderer:
 
 ```text
-fetch -> prefilter -> fetch_comments -> enrich_articles -> translate_titles
-  -> analyze_comments -> judge_comments -> write_script -> draft_quick_news
-  -> normalize_video_structure -> prepare_story_images -> review_script
-  -> human_review -> translate_comments -> title -> cover_image
-  -> cover_thumbnail -> draft_storyboard -> apply_storyboard
+fetch -> prefilter -> fetch_comments -> enrich_articles -> judge_comments
+  -> write_script -> draft_quick_news -> prepare_story_images
+  -> title -> cover_image -> cover_thumbnail -> draft_storyboard
+  -> human_review -> apply_storyboard
   -> prepare_subtitles -> synthesize_audio -> prepare_render -> render
 ```
+
+Title translation is performed inside `enrich_articles`, and local comment
+scoring/cache hydration is performed by `judge_comments` before its LLM calls.
+Automatic script review is prepared inside `human_review` immediately before
+the approval page is generated.
+The opening line is assembled locally from selected story hooks; the managed
+chain no longer spends a separate one-line LLM call for it.
+`draft_quick_news` also persists the deterministic `video_structure.json`
+normalization in the same tracked step; structure normalization is not a
+standalone pipeline step.
+After that structure pass, the same tracked step translates the exact
+atmosphere-card comments selected for rendering. Comment translation is an
+internal operation of the quick-news step.
+`prepare_render` also writes the final `publish_guide.md` before producing
+`cli_props.json`; guide generation is an internal operation of render
+preparation.
+The `title` call also returns the three cover-copy angles and the visual image
+prompt cached in `publish/title.json`; `cover_image` only sends that prompt to
+the image provider, so it does not repeat the editorial LLM call.
+Title translation, comment scoring and automatic script review are internal
+operations of their owning phase and are not standalone pipeline steps.
+
+The agent-facing workflow has five states:
+
+```text
+ingest -> research -> editorial -> human_review -> produce
+```
+
+`workflow_video.json` is the only execution state record. Step-level events are
+append-only in `agent_events.jsonl`; blocked repair work is described in
+`agent_tasks.json`.
 
 The renderer is selected with `--renderer {remotion,hyperframes}`.
 
@@ -59,7 +107,7 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
 If the pipeline blocks or fails, inspect JSON files:
 
 ```text
-data/YYYY-MM/YYYY-MM-DD/agent/pipeline_state_video.json
+data/YYYY-MM/YYYY-MM-DD/agent/workflow_video.json
 data/YYYY-MM/YYYY-MM-DD/agent/agent_events.jsonl
 data/YYYY-MM/YYYY-MM-DD/agent/agent_tasks.json
 ```
@@ -70,8 +118,8 @@ After repairing the issue, resume:
 uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 ```
 
-The managed wrapper resumes from the failed/current step. It does not rerun
-earlier steps unless the selected repair path requires it.
+The managed wrapper resumes from the current native workflow metadata and
+does not rerun earlier states unless the selected repair path requires it.
 
 `main.py --resume` also resumes from the failed/current step when used manually
 with `--direct-agent-run`; it no longer restores the full original step chain.
@@ -102,7 +150,7 @@ present for manual debugging.
 --resume
 ```
 
-On `scripts/agent_run.py`, resumes from `pipeline_state_video.json` after
+On `scripts/agent_run.py`, resumes from the native workflow state after
 preflight and status checks. On `main.py`, resumes from the failed/current step
 and should only be used with `--direct-agent-run` for manual debugging.
 
@@ -130,32 +178,13 @@ regenerated.
 
 ## State Files
 
-### `pipeline_state_video.json`
+### `workflow_video.json`
 
-The video pipeline state contract. Important fields:
-
-```json
-{
-  "status": "running | complete | degraded | blocked | failed",
-  "steps": ["fetch", "prefilter"],
-  "current_step": "enrich_articles",
-  "completed_steps": ["fetch", "prefilter"],
-  "failed_step": "enrich_articles",
-  "blocked_reason": "manual_download_required",
-  "blocked_items": [],
-  "missing_manual_files": [],
-  "agent_task_file": "data/YYYY-MM/YYYY-MM-DD/agent_tasks.json",
-  "next_recommended_command": "uv run python scripts/agent_run.py --date YYYY-MM-DD --resume",
-  "artifacts": {
-    "content": "data/YYYY-MM/YYYY-MM-DD/pipeline/content.json",
-    "script": "data/YYYY-MM/YYYY-MM-DD/pipeline/script.json",
-    "audio_manifest": "data/YYYY-MM/YYYY-MM-DD/pipeline/audio_manifest.json"
-  }
-}
-```
-
-Older `pipeline_state.json` files are accepted as a migration fallback when
-`pipeline_state_video.json` does not exist yet.
+The authoritative five-state workflow contract. It records the status of
+`ingest`, `research`, `editorial`, `human_review`, and `produce`, including
+dependencies, blocking errors, and the artifacts produced by each state. A
+schema or state-model mismatch is reported as corrupt and is not silently
+converted.
 
 ### `agent_events.jsonl`
 
@@ -318,7 +347,7 @@ Key artifacts get adjacent manifests:
 data/YYYY-MM/YYYY-MM-DD/pipeline/content.json.manifest.json
 data/YYYY-MM/YYYY-MM-DD/pipeline/script.json.manifest.json
 data/YYYY-MM/YYYY-MM-DD/publish/title.json.manifest.json
-data/YYYY-MM/YYYY-MM-DD/render/cover_props.json.manifest.json
+data/YYYY-MM/YYYY-MM-DD/render/cover_props_v1.json.manifest.json
 data/YYYY-MM/YYYY-MM-DD/publish/publish_guide.md.manifest.json
 data/YYYY-MM/YYYY-MM-DD/render/cli_props.json.manifest.json
 data/YYYY-MM/YYYY-MM-DD/pipeline/audio_manifest.json.manifest.json
@@ -351,10 +380,9 @@ of silently overwriting the manual edit. Continue from audio with `--from
 synthesize_audio`, or pass `--refresh-script` only when regeneration is
 intentional.
 
-For older dates without `agent/script_lock.json`, the script artifact manifest
-is used to detect an untracked manual edit. If that evidence is missing or no
-longer matches, the write-script step also stops until you either continue from
-a downstream step or explicitly pass `--refresh-script`.
+If `agent/script_lock.json` is missing, the write-script step stops. Continue
+from a downstream step or explicitly pass `--refresh-script` to regenerate the
+canonical script and lock it again.
 
 ## Agent Decisions
 
@@ -410,6 +438,10 @@ that may have incomplete source context.
 
 ## Script Variants
 
+The default configuration uses one canonical script (`enabled=false`,
+`count=1`). Variant generation is an explicit experiment or recovery option;
+it is not part of the normal daily run.
+
 When `config/agent.yaml` has `agent.variants.enabled=true` and `count > 1`,
 agent mode generates multiple script candidates during `write_script`.
 
@@ -431,7 +463,6 @@ data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/variant.json
 data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/script.json
 data/YYYY-MM/YYYY-MM-DD/variants/{variant_id}/scorecard.json
 data/YYYY-MM/YYYY-MM-DD/variants/selection_brief.md
-data/YYYY-MM/YYYY-MM-DD/selected_variant.json
 data/YYYY-MM/YYYY-MM-DD/agent_variant_decision.json
 ```
 
@@ -468,8 +499,6 @@ Agent can usually repair or rerun:
 fetch
 prefilter
 fetch_comments
-translate_titles
-analyze_comments
 judge_comments
 ```
 

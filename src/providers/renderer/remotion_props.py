@@ -408,8 +408,7 @@ def _expand_atmosphere_card(props, content, logger=None):
     result["quotes"] = quotes
 
     # Only accept distributions built from the separate, unbiased per-comment
-    # labels. Legacy LLM percentages were based on the quote sampler and are
-    # intentionally hidden after the judgement schema upgrade.
+    # labels.
     if judgement.get("stance_distribution"):
         meta = judgement.get("stance_distribution_meta") or {}
         usable = int(meta.get("context_sufficient_count") or 0)
@@ -421,16 +420,6 @@ def _expand_atmosphere_card(props, content, logger=None):
             and coverage >= 0.7
             and mean_confidence >= 0.6
         ):
-            result["stance_distribution"] = judgement["stance_distribution"]
-        elif meta.get("source") == "legacy_llm":
-            result["stance_distribution"] = {}
-            logger.info(
-                "atmosphere_card: hiding legacy stance distribution for %s",
-                item.source_id,
-            )
-        elif not meta:
-            # Backward-compatible input for direct callers/tests. Persisted
-            # schema-v9 judgements always include metadata and are gated above.
             result["stance_distribution"] = judgement["stance_distribution"]
         result["stance_distribution_meta"] = meta
     if judgement.get("debate_focus"):

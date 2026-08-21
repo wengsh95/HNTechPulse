@@ -3,6 +3,8 @@ import sys
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
+import pytest
+
 from src.core.models import Script, ScriptSegment, SceneElement
 from src.providers.renderer.remotion_renderer import RemotionRenderer
 from src.providers.renderer.binary_finder import (
@@ -204,15 +206,10 @@ class TestWritePropsFile:
                     )
                     assert "cli_props.json" in result
 
-    def test_without_date(self, tmp_path):
+    def test_without_date_is_rejected(self, tmp_path):
         renderer = _make_renderer()
-        with patch.object(Path, "mkdir"):
-            with patch.object(Path, "write_text"):
-                with patch.object(
-                    Path, "resolve", return_value=Path("/data/cli_props.json")
-                ):
-                    result = renderer._write_props_file('{"key": "val"}')
-                    assert "cli_props.json" in result
+        with pytest.raises(TypeError):
+            renderer._write_props_file('{"key": "val"}')
 
 
 class TestPreview:

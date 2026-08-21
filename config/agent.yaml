@@ -1,7 +1,9 @@
 agent:
   variants:
-    enabled: true
-    count: 2
+    # One canonical script is the default. Generate alternatives only when a
+    # user explicitly enables them for an editorial experiment.
+    enabled: false
+    count: 1
     strategies:
       - id: balanced
         label: Balanced daily brief

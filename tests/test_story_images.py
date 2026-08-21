@@ -21,7 +21,11 @@ def _script() -> Script:
                         "event_card",
                         0,
                         1,
-                        {"story_index": 0, "source_title": "故事标题"},
+                        {
+                            "story_index": 0,
+                            "source_title": "故事标题",
+                            "image_target": True,
+                        },
                     ),
                     SceneElement(
                         "atmosphere_card",

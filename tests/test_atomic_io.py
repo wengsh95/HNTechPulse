@@ -1,7 +1,7 @@
 """Tests for src/utils/atomic_io.py
 
 ``atomic_write_text`` and ``atomic_write_json`` are the foundation for
-crash-safety across the pipeline (content.json, pipeline_state.json,
+crash-safety across the pipeline (content.json, workflow_video.json,
 task files, segment cache). If a partial file ever lands at the
 destination after a crash, every downstream step sees corrupt data with
 no error. These tests pin the contract:

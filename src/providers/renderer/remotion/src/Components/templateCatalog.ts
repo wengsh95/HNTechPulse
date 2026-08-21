@@ -38,7 +38,7 @@ export const SHOT_TEMPLATE_CATALOG = {
   event_card: {
     template_id: "event_v1",
     label: "事件卡",
-    intent: "legacy event summary",
+    intent: "event summary",
     chapter: "focus",
     required_props: [],
     optional_props: ["editor_angle", "key_points", "image_src"],
@@ -57,7 +57,7 @@ export const SHOT_TEMPLATE_CATALOG = {
   atmosphere_card: {
     template_id: "discussion_v1",
     label: "讨论气氛",
-    intent: "legacy discussion summary",
+    intent: "discussion summary",
     chapter: "atmosphere",
     required_props: [],
     optional_props: ["discussion_summary", "quotes", "stance_distribution"],
@@ -106,7 +106,7 @@ export const SHOT_TEMPLATE_CATALOG = {
   closing_card: {
     template_id: "closing_v1",
     label: "结尾",
-    intent: "legacy closing summary",
+    intent: "closing summary",
     chapter: "closing",
     required_props: [],
     optional_props: ["takeaways", "summary_items", "signal"],

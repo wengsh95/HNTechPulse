@@ -71,7 +71,6 @@ def _targets(date: str, scope: str) -> list[Path]:
             script_path,
             script_path.with_suffix(script_path.suffix + ".manifest.json"),
             pipeline_variants_root(date),
-            agent_path(date, "selected_variant.json"),
             agent_path(date, "agent_variant_decision.json"),
         ]
     if scope == "tts":

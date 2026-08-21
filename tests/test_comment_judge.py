@@ -132,6 +132,7 @@ class TestJudge:
 
         judge.judge(content, "2026-04-26")
 
+        analyzer.analyze.assert_called_once_with(content, "2026-04-26")
         analyzer.get_judge_candidates.assert_called_once_with(
             item, n=judge.judge_candidate_count
         )

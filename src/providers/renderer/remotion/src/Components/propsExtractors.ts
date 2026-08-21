@@ -48,8 +48,7 @@ function obj(val: unknown): Record<string, unknown> {
 
 export function extractCoverProps(elementProps: Record<string, unknown>): CoverCardProps {
   const headline = str(elementProps.headline, "HN每日观察");
-  // chrome 优先读 date_label (纯日期), fallback 到 subtitle (兼容旧数据)
-  const dateLabel = str(elementProps.date_label, str(elementProps.subtitle, ""));
+  const dateLabel = str(elementProps.date_label, "");
 
   // categories from section_counts
   const sectionCounts = obj(elementProps.section_counts);

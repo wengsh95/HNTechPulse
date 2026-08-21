@@ -8,7 +8,7 @@ and source IDs** that are no longer valid.
 
 - `check_content.py` — Inspect enrichment status of two specific items (`48295679`, `48293080`) on date `2026-05-28`
 - `fix_content.py` — Force-mark those same items as `downloaded_page` in `content.json`
-- `force_continue.py` — Manually continue past failed enrichment (legacy `brief_indices` filter)
+- `force_continue.py` — Manually continue past failed enrichment (historical utility)
 - `remove_failed.py` — Same content-mutation pattern as `fix_content.py`
 - `remove_failed_items.py` — Remove failed items from `brief_indices` (pre-2026 schema)
 

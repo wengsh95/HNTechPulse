@@ -461,10 +461,16 @@ class CommentJudge:
                 "the script step dependency on comment judge."
             )
 
-        # The distribution workflow changed from one small mixed sample to
-        # independent batched sampling. Old judgements must be regenerated;
-        # renderer/translation callers still accept them for compatibility.
-        stories = load_comment_judgements(date, current_only=True)
+        # Local scoring is a cache-aware prerequisite rather than a separate
+        # agent-facing state.  Even when all judgement entries already exist,
+        # old content artifacts may not have the in-memory quality fields needed
+        # by downstream quote rendering.
+        if self.comment_analyzer and hasattr(self.comment_analyzer, "analyze"):
+            self.comment_analyzer.analyze(content, date)
+
+        # The distribution workflow uses independent batched sampling. Existing
+        # cache entries are accepted only when they have the current schema.
+        stories = load_comment_judgements(date)
         cached_count = 0
         for idx, item in enumerate(content.items):
             if comment_judgement_key(item) in stories:
@@ -573,18 +579,10 @@ class CommentJudge:
                         result.setdefault("stance_labels", []).append(entry)
                         existing.add(comment_id)
         elif distribution_candidates:
-            # Compatibility path for custom providers predating the batch API.
-            legacy_result = self.llm_provider.judge_story_comments(
-                item,
-                idx,
-                self.prompt_template_path,
-                candidates=pre_filtered,
-                distribution_candidates=distribution_candidates,
+            raise RuntimeError(
+                "LLM provider must implement judge_story_comment_stances for "
+                "distribution candidates"
             )
-            if isinstance(legacy_result, dict):
-                result.setdefault("stance_labels", []).extend(
-                    legacy_result.get("stance_labels", []) or []
-                )
         normalized = normalize_story_judgement(result, item)
         candidate_count = len(normalized.get("quote_candidates", []) or [])
         self.logger.info(f"  {label}: done, candidates={candidate_count}")
@@ -991,21 +989,7 @@ def normalize_story_judgement(
 
     stance_labels = _normalize_stance_labels(raw, item, distribution_ids)
     stance_distribution = {}
-    raw_stance = raw.get("stance_distribution", {}) or {}
-    if isinstance(raw_stance, dict):
-        total = sum(
-            float(v)
-            for v in raw_stance.values()
-            if isinstance(v, (int, float)) and v > 0
-        )
-        if total > 0:
-            stance_distribution = {
-                str(k): round(float(v) / total, 4)
-                for k, v in raw_stance.items()
-                if isinstance(v, (int, float)) and v > 0
-            }
-
-    stance_distribution_meta = {"source": "legacy_llm"}
+    stance_distribution_meta = {}
     if stance_labels:
         stance_distribution, stance_distribution_meta = _aggregate_stance_labels(
             stance_labels
@@ -1050,22 +1034,13 @@ def normalize_story_judgement(
     }
 
 
-def load_comment_judgements(
-    date: str, *, current_only: bool = False
-) -> Dict[str, dict]:
+def load_comment_judgements(date: str) -> Dict[str, dict]:
     path = judgement_cache_path(date)
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    schema_version = data.get("schema_version")
-    # Schema 10 adds batched distribution labels; older caches still contain
-    # valid quote_candidates and remain useful to translation/rendering.
-    # older caches still contain valid quote_candidates and remain useful to
-    # translation/rendering. Reject only malformed or future schemas.
-    if not isinstance(schema_version, int) or schema_version > JUDGEMENT_SCHEMA_VERSION:
-        return {}
-    if current_only and schema_version != JUDGEMENT_SCHEMA_VERSION:
+    if data.get("schema_version") != JUDGEMENT_SCHEMA_VERSION:
         return {}
     stories = data.get("stories", {})
     return stories if isinstance(stories, dict) else {}

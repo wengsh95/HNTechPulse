@@ -129,13 +129,13 @@ def prepare_video_structure(
     )
     write_artifact_manifest(
         artifact,
-        step="normalize_video_structure",
+        step="draft_quick_news",
         date=date,
         config=config,
         inputs={"script_editorial_hash": script_editorial_hash(script)},
     )
     if changed:
-        save_script_lock(script, date, source="normalize_video_structure")
+        save_script_lock(script, date, source="draft_quick_news")
         if logger:
             logger.info(
                 "  Video structure normalized: headline=1 focus=%d quick=%d",

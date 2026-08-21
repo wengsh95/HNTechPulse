@@ -22,8 +22,6 @@ if str(ROOT) not in sys.path:
 
 from src.pipeline.agent_io import (  # noqa: E402
     file_sha256,
-    load_pipeline_state,
-    pipeline_state_path,
     stable_hash,
 )
 from src.pipeline.paths import (  # noqa: E402
@@ -33,6 +31,8 @@ from src.pipeline.paths import (  # noqa: E402
     publish_path,
     raw_downloaded_pages_dir,
 )
+from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 
 
 def _default_date() -> str:
@@ -190,9 +190,9 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     f"Publish artifact is missing: {path}",
                     path=path,
                     why=(
-                        f"{name} is an opt-in publish step (not part of the default "
-                        f"12-step chain). Run it explicitly with --steps if you want "
-                        f"to publish this date; otherwise it's expected to be absent."
+                        f"{name} is produced by the managed publishing tail. The "
+                        f"artifact may be absent when the run stopped before its "
+                        f"packaging step. Resume the managed tail to regenerate it."
                     ),
                     fixable_by_agent=True,
                 )
@@ -217,7 +217,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     path=publish_guide,
                     recommendation=(
                         f"uv run python scripts/agent_run.py --date {date} "
-                        "--steps title,publish_guide"
+                        "--steps prepare_render"
                     ),
                     why=(
                         "Publish copy depends on the selected content and script. "
@@ -262,23 +262,32 @@ def _manifest_check(paths: list[Path]) -> list[dict[str, Any]]:
 
 
 def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    product = "video"
-    state_path = pipeline_state_path(date, product)
-    state = load_pipeline_state(date, product=product)
-    if not state:
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    state_path = machine.path
+    if not state_path.exists():
         return None, [
             _issue(
                 "warning",
-                "pipeline_state_exists",
-                "Product-scoped pipeline state is missing or unreadable.",
+                "workflow_state_exists",
+                "Native workflow state is missing or unreadable.",
                 path=state_path,
                 recommendation=f"uv run python scripts/agent_run.py --date {date}",
             )
         ]
+    try:
+        machine.load()
+    except (WorkflowCorruptError, OSError, ValueError) as exc:
+        return None, [
+            _issue("error", "workflow_state_valid", str(exc), path=state_path)
+        ]
+
+    state = machine.status_report()
 
     status = state.get("status")
     if status in {"blocked", "failed"}:
-        blocked_reason = state.get("blocked_reason")
+        current = state.get("current_state") or "unknown"
+        record = (state.get("states") or {}).get(current) or {}
+        blocked_reason = record.get("last_error")
         why_msg = {
             "manual_download_required": (
                 f"Pipeline is waiting on article source files in {raw_downloaded_pages_dir(date)}/. "
@@ -318,8 +327,8 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
         return state, [
             _issue(
                 "error",
-                "pipeline_state_status",
-                f"Pipeline state is {status} ({blocked_reason or 'no reason'}).",
+                "workflow_state_status",
+                f"Workflow state is {status} ({blocked_reason or 'no reason'}).",
                 path=state_path,
                 recommendation=state.get("next_recommended_command"),
                 why=why_msg,
@@ -330,8 +339,8 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
         return state, [
             _issue(
                 "warning",
-                "pipeline_state_status",
-                "Pipeline completed with degraded items.",
+                "workflow_state_status",
+                "Workflow completed with degraded items.",
                 path=state_path,
                 why=(
                     "Some items were enriched with degraded source context "
@@ -344,8 +353,8 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
         return state, [
             _issue(
                 "warning",
-                "pipeline_state_status",
-                f"Pipeline state is {status or 'unknown'}.",
+                "workflow_state_status",
+                f"Workflow state is {status or 'unknown'}.",
                 path=state_path,
             )
         ]
@@ -448,7 +457,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
     Priority order:
     1. Any issue whose recommendation is itself a `uv run ...` command.
     2. Pipeline-state error → `--resume`.
-    3. Missing optional publish artifacts (title → cover → publish_guide).
+    3. Missing publish artifacts (title → cover → prepare_render).
     """
     candidates: list[tuple[str, str, str]] = []  # (priority_tag, cmd, why)
 
@@ -466,14 +475,14 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
     if any(i["severity"] == "error" for i in issues):
         candidates.append(
             (
-                "pipeline_state_error",
+                "workflow_state_error",
                 f"uv run python scripts/agent_run.py --date {date} --resume",
                 "A product-scoped pipeline state error needs --resume to retry the failed step.",
             )
         )
 
-    # Optional-publish step ordering: title depends on the script; cover depends
-    # on title; publish_guide depends on title. Run them in this order.
+    # Publish-tail ordering: title depends on the script; cover depends on
+    # title; prepare_render also writes publish_guide.md.
     publish_step_for_check = {
         "title_exists": (
             "title",
@@ -488,8 +497,8 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
             "Cover thumbnail (title overlay) is missing — run after cover_image.",
         ),
         "publish_guide_exists": (
-            "publish_guide",
-            "Publish guide not yet generated — needs the title/description.",
+            "prepare_render",
+            "Publish guide not yet generated — prepare_render will write it.",
         ),
     }
     for check, (step, why) in publish_step_for_check.items():
@@ -543,12 +552,13 @@ def audit(date: str) -> dict[str, Any]:
     issues.extend(state_issues)
     decision, decision_issues = _decision_check(date)
     issues.extend(decision_issues)
-    state_steps = set((state or {}).get("steps") or [])
+    state_steps = set(
+        ((state or {}).get("metadata") or {}).get("requested_steps") or []
+    )
     # A downstream-only video run intentionally consumes the current
     # editorial script and must not compare it with an older generated
     # variant snapshot. Promotion is only an obligation when this run
-    # includes write_script (or when auditing a legacy state with no step
-    # scope, where the old full-run behavior is retained).
+    # includes write_script.
     variant_decision, variant_issues = _variant_check(
         date,
         enforce_promotion=(not state_steps or "write_script" in state_steps),
@@ -596,7 +606,7 @@ def audit(date: str) -> dict[str, Any]:
         "warning_count": warning_count,
         "what_blocks_me": _summarize_blocks(issues),
         "issues": issues,
-        "pipeline_state": state,
+        "workflow_state": state,
         "agent_decision": decision,
         "agent_variant_decision": variant_decision,
         "next_command": next_cmd["command"] if next_cmd else None,

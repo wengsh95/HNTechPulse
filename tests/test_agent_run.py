@@ -1,8 +1,11 @@
 import sys
 
+import pytest
+
 import scripts.agent_run as agent_run
 from scripts.agent_run import (
     VIDEO_CHAIN,
+    VIDEO_PHASES,
     _choose_steps,
     _failed_recovery_steps,
     _is_explicit_downstream_request,
@@ -12,8 +15,8 @@ from scripts.agent_run import (
 
 def test_video_chain_restores_storyboard_tts_and_render_steps():
     assert VIDEO_CHAIN[-7:] == [
-        "cover_thumbnail",
         "draft_storyboard",
+        "human_review",
         "apply_storyboard",
         "prepare_subtitles",
         "synthesize_audio",
@@ -22,9 +25,24 @@ def test_video_chain_restores_storyboard_tts_and_render_steps():
     ]
 
 
-def test_video_chain_keeps_editorial_and_card_free_steps():
-    for step in VIDEO_CHAIN:
-        assert "xhs" not in step
+def test_phase_alias_selects_only_the_registered_phase_steps():
+    steps = _choose_steps(
+        status={"pipeline_status": "pending"},
+        requested_steps=None,
+        force_resume=False,
+        phase="research",
+    )
+    assert steps == [
+        "enrich_articles",
+        "judge_comments",
+    ]
+    assert set(VIDEO_PHASES) == {
+        "ingest",
+        "research",
+        "editorial",
+        "human_review",
+        "produce",
+    }
 
 
 def test_video_failure_recovery_is_scoped_to_video_chain():
@@ -32,6 +50,21 @@ def test_video_failure_recovery_is_scoped_to_video_chain():
         "prepare_render",
         "render",
     ]
+
+
+def test_removed_compatibility_from_steps_are_rejected():
+    for step in (
+        "normalize_video_structure",
+        "translate_comments",
+        "publish_guide",
+    ):
+        with pytest.raises(ValueError, match="Unknown --from step"):
+            _choose_steps(
+                status={"pipeline_status": "pending"},
+                requested_steps=None,
+                force_resume=False,
+                from_step=step,
+            )
 
 
 def test_video_stale_render_recovery_skips_llm_and_tts():
@@ -54,6 +87,17 @@ def test_video_stale_audio_manifest_recovers_from_tts_downstream():
         "prepare_render",
         "render",
     ]
+
+
+def test_video_stale_publish_guide_recovers_from_render_preparation():
+    steps = _stale_recovery_steps(
+        {
+            "stale_artifacts": [
+                {"reason": "publish_guide inputs changed: publish_guide.md"}
+            ]
+        }
+    )
+    assert steps == ["prepare_render", "render"]
 
 
 def test_video_stale_storyboard_recovers_from_storyboard_downstream():

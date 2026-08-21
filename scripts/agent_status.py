@@ -17,7 +17,6 @@ if str(ROOT) not in sys.path:
 from src.pipeline.agent_io import (  # noqa: E402
     file_sha256,
     is_artifact_fresh,
-    load_pipeline_state,
     stable_hash,
 )
 from src.pipeline.paths import (  # noqa: E402
@@ -41,6 +40,8 @@ from src.pipeline.human_review import (  # noqa: E402
     script_approval_is_current,
     script_review_page_path,
 )
+from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 
 
 def _default_date() -> str:
@@ -54,6 +55,24 @@ def _read_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def _workflow_status(date: str) -> dict[str, Any] | None:
+    """Read the native five-stage workflow without mutating it."""
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    if not machine.path.exists():
+        return None
+    try:
+        machine.load()
+    except (WorkflowCorruptError, OSError, ValueError) as exc:
+        return {
+            "status": "corrupt",
+            "date": date,
+            "product": "video",
+            "workflow_file": str(machine.path).replace("\\", "/"),
+            "error": str(exc),
+        }
+    return machine.status_report()
 
 
 def _artifact(path: Path) -> dict[str, Any]:
@@ -265,7 +284,12 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
 
 def _build_video_status(date: str) -> dict[str, Any]:
     base = date_root(date)
-    state = load_pipeline_state(date, product="video")
+    workflow = _workflow_status(date)
+    execution = (
+        workflow.get("metadata", {})
+        if isinstance(workflow, dict)
+        else {}
+    )
     content = pipeline_path(date, "content.json")
     script = pipeline_path(date, "script.json")
     script_review = pipeline_path(date, "script_review.json")
@@ -301,7 +325,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
     if (
         script.exists()
         and not story_images.exists()
-        and (state or cli_props.exists() or output.exists())
+        and (workflow is not None or cli_props.exists() or output.exists())
     ):
         stale.append(
             {
@@ -349,7 +373,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
                     )
             subtitle_plan_data = _read_json(subtitle_plan)
             if not subtitle_plan.exists():
-                if state or cli_props.exists() or output.exists():
+                if workflow is not None or cli_props.exists() or output.exists():
                     stale.append(
                         {
                             "artifact": str(subtitle_plan).replace("\\", "/"),
@@ -464,18 +488,43 @@ def _build_video_status(date: str) -> dict[str, Any]:
             }
         )
 
-    status = state.get("status") if state else "not_started"
+    if workflow is None:
+        status = "not_started"
+    else:
+        workflow_state = workflow.get("status")
+        if workflow_state == "corrupt":
+            status = "failed"
+        elif workflow_state == "pending":
+            workflow_states = workflow.get("states") or {}
+            status = (
+                "not_started"
+                if workflow_states
+                and all(
+                    record.get("status") == "pending"
+                    for record in workflow_states.values()
+                )
+                else "running"
+            )
+        else:
+            status = workflow_state or "not_started"
     safe_next_commands: list[dict[str, str]] = []
-    if not state:
+    if workflow is not None and workflow.get("status") == "corrupt":
+        safe_next_commands.append(
+            {
+                "command": "Create a new workflow state file after inspecting the corrupt file.",
+                "why": "The native workflow state cannot be trusted and is not auto-converted.",
+            }
+        )
+    elif workflow is None:
         safe_next_commands.append(
             {
                 "command": f"uv run python scripts/agent_run.py --date {date}",
-                "why": "No product-scoped pipeline state exists for this date.",
+                "why": "No native workflow state exists for this date.",
             }
         )
     elif (
         status == "blocked"
-        and (state or {}).get("blocked_reason") == "manual_script_review_required"
+        and execution.get("blocked_reason") == "manual_script_review_required"
     ):
         safe_next_commands.append(
             {
@@ -514,12 +563,14 @@ def _build_video_status(date: str) -> dict[str, Any]:
         "date": date,
         "base_dir": str(base).replace("\\", "/"),
         "pipeline_status": status,
-        "failed_step": (state or {}).get("failed_step"),
-        "blocked_reason": (state or {}).get("blocked_reason"),
-        "current_step": (state or {}).get("current_step"),
-        "completed_steps": (state or {}).get("completed_steps") or [],
-        "next_recommended_command": (state or {}).get("next_recommended_command"),
-        "pipeline_state": state or {},
+        "failed_step": execution.get("failed_pipeline_step"),
+        "blocked_reason": execution.get("blocked_reason"),
+        "current_step": execution.get("current_pipeline_step"),
+        "completed_steps": execution.get("completed_pipeline_steps") or [],
+        "next_recommended_command": (
+            safe_next_commands[0].get("command") if safe_next_commands else None
+        ),
+        "workflow": workflow,
         "script_approval_current": approval_current,
         "artifacts": {
             "content": _artifact(content),

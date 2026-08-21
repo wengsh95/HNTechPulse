@@ -86,15 +86,14 @@ class TestCacheMetaInvalidation:
 
         assert loaded is None  # signals "regenerate"
 
-    def test_no_expected_meta_means_accept_anything(self, cache, tmp_path):
-        """Backward-compat: callers without cache_meta still get cached results."""
+    def test_missing_expected_meta_invalidates_cache(self, cache, tmp_path):
         seg = _make_segment()
         cache.save_segment_cache(
             "2026-06-03", "story_scan_item", 0, seg, cache_meta={"v": 1}
         )
 
         loaded = cache.load_cached_segment("2026-06-03", "story_scan_item", 0)
-        assert loaded is not None
+        assert loaded is None
 
     def test_schema_version_bump_invalidates_old_cache(self, cache, tmp_path):
         """Bumping cache_schema_version forces regeneration (regression for #5)."""
@@ -321,13 +320,12 @@ class TestDictCacheInvalidation:
 
         assert loaded is None
 
-    def test_no_expected_meta_means_accept_anything(self, dict_cache):
-        """Backward-compat: callers without cache_meta get the cached result."""
+    def test_missing_expected_meta_invalidates_cache(self, dict_cache):
         dict_cache.save_dict_cache(
             "2026-06-08", "titles", {"k": "v"}, cache_meta={"v": 1}
         )
         loaded = dict_cache.load_dict_cache("2026-06-08", "titles")
-        assert loaded == {"k": "v"}
+        assert loaded is None
 
     def test_schema_version_bump_invalidates(self, dict_cache):
         old_meta = {"schema_version": 3, "model": "m"}

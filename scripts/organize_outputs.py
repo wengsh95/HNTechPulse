@@ -48,8 +48,6 @@ OUTPUT_GROUPS: dict[str, list[tuple[str, Callable[[str], Path]]]] = {
     "script": [
         ("script.json", lambda date: pipeline_path(date, "script.json")),
         (
-            "selected_variant.json",
-            lambda date: agent_path(date, "selected_variant.json"),
         ),
         ("agent_decision.json", lambda date: agent_path(date, "agent_decision.json")),
         (

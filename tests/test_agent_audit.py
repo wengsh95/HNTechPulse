@@ -10,6 +10,8 @@ from src.pipeline.paths import (
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.utils.atomic_io import atomic_write_json
+from src.workflow.machine import WorkflowMachine
+from src.workflow.video import VIDEO_WORKFLOW_STEPS
 
 
 def _write_manifest(path: Path) -> None:
@@ -40,21 +42,23 @@ def _write_minimal_storyboard(date: str) -> None:
     )
 
 
+def _write_complete_workflow(
+    date: str, requested_steps: list[str] | None = None
+) -> None:
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    machine.ensure(metadata={"requested_steps": requested_steps or ["write_script"]})
+    for state in ("ingest", "research", "editorial", "human_review", "produce"):
+        machine.mark_running(state)
+        machine.mark_done(state)
+
+
 def test_agent_audit_passes_complete_selected_variant(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     date = "2026-04-26"
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {
-            "schema_version": 1,
-            "date": date,
-            "status": "complete",
-            "next_recommended_command": None,
-        },
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -93,10 +97,7 @@ def test_agent_audit_blocks_when_selected_variant_not_promoted(tmp_path, monkeyp
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {"schema_version": 1, "date": date, "status": "complete"},
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -144,15 +145,15 @@ def test_agent_audit_skips_variant_promotion_for_downstream_video_run(
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state_video.json"),
-        {
-            "schema_version": 2,
-            "date": date,
-            "product": "video",
-            "status": "complete",
-            "steps": ["synthesize_audio", "prepare_render", "render"],
-        },
+    _write_complete_workflow(
+        date,
+        [
+            "human_review",
+            "prepare_subtitles",
+            "synthesize_audio",
+            "prepare_render",
+            "render",
+        ],
     )
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
@@ -198,10 +199,7 @@ def test_agent_audit_warns_when_publish_guide_is_stale(tmp_path, monkeypatch):
     base = tmp_path / "data" / date[:7] / date
     base.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {"schema_version": 1, "date": date, "status": "complete"},
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -227,10 +225,7 @@ def test_agent_audit_accepts_publish_guide_manifest_with_runtime(tmp_path, monke
     base = tmp_path / "data" / date[:7] / date
     base.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {"schema_version": 1, "date": date, "status": "complete"},
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -284,15 +279,7 @@ def test_agent_audit_tolerates_subtitle_rechunking(tmp_path, monkeypatch):
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {
-            "schema_version": 1,
-            "date": date,
-            "status": "complete",
-            "next_recommended_command": None,
-        },
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -355,15 +342,7 @@ def test_agent_audit_tolerates_subtitle_rechunking_english(tmp_path, monkeypatch
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {
-            "schema_version": 1,
-            "date": date,
-            "status": "complete",
-            "next_recommended_command": None,
-        },
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},
@@ -429,15 +408,7 @@ def test_agent_audit_blocks_on_real_subtitle_drift(tmp_path, monkeypatch):
     selected_dir = pipeline_variants_root(date) / "v01_balanced"
     selected_dir.mkdir(parents=True)
 
-    atomic_write_json(
-        agent_path(date, "pipeline_state.json"),
-        {
-            "schema_version": 1,
-            "date": date,
-            "status": "complete",
-            "next_recommended_command": None,
-        },
-    )
+    _write_complete_workflow(date)
     atomic_write_json(
         agent_path(date, "agent_decision.json"),
         {"schema_version": 1, "date": date, "status": "continue"},

@@ -19,6 +19,8 @@ from src.pipeline.human_review import (
     generate_script_review_page,
 )
 from src.pipeline.script.io import save_script, save_script_to_path
+from src.workflow.machine import WorkflowMachine
+from src.workflow.video import VIDEO_WORKFLOW_STEPS
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -92,24 +94,18 @@ class TestStepList:
             "prefilter",
             "fetch_comments",
             "enrich_articles",
-            "translate_titles",
-            "analyze_comments",
             "judge_comments",
             "write_script",
             "draft_quick_news",
-            "normalize_video_structure",
             "prepare_story_images",
-            "review_script",
-            "human_review",
-            "translate_comments",
-            "prepare_subtitles",
-            "synthesize_audio",
             "title",
             "cover_image",
             "cover_thumbnail",
             "draft_storyboard",
+            "human_review",
             "apply_storyboard",
-            "publish_guide",
+            "prepare_subtitles",
+            "synthesize_audio",
             "prepare_render",
         ]
         assert PIPELINE_STEPS == expected
@@ -121,18 +117,28 @@ class TestStepList:
         assert DEFAULT_STEPS[-1] == "render"
         assert "write_script" in DEFAULT_STEPS
         assert "synthesize_audio" in DEFAULT_STEPS
-        for step in DEFAULT_STEPS:
-            assert "xhs" not in step
 
     def test_default_chain_resolves_without_expansion(self):
         resolved = _resolve_steps(DEFAULT_STEPS)
         assert resolved == DEFAULT_STEPS
 
+    def test_removed_compatibility_steps_are_rejected(self):
+        with pytest.raises(ValueError, match="Unknown pipeline step"):
+            _resolve_steps(["translate_titles"])
+        with pytest.raises(ValueError, match="Unknown pipeline step"):
+            _resolve_steps(["analyze_comments"])
+        with pytest.raises(ValueError, match="Unknown pipeline step"):
+            _resolve_steps(["normalize_video_structure"])
+        with pytest.raises(ValueError, match="Unknown pipeline step"):
+            _resolve_steps(["translate_comments"])
+        with pytest.raises(ValueError, match="Unknown pipeline step"):
+            _resolve_steps(["publish_guide"])
+
     def test_optional_cover_thumbnail_expands_to_cover_image_only(self):
         assert _resolve_steps(["cover_thumbnail"]) == [
-            "human_review",
             "cover_image",
             "cover_thumbnail",
+            "human_review",
         ]
 
     def test_prepare_render_auto_pulls_synthesize_audio(self):
@@ -265,20 +271,15 @@ class TestScriptLock:
         with pytest.raises(RuntimeError, match="script.json changed"):
             orch._step_write_script(_make_content(), date)
 
-    def test_legacy_script_without_lock_blocks_when_artifact_was_edited(
-        self, tmp_path, monkeypatch
-    ):
+    def test_script_without_lock_blocks_regeneration(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         date = "2026-04-26"
         script = _make_script()
         path = Path(f"data/{date[:7]}/{date}/pipeline/script.json")
         save_script_to_path(script, path, date=date)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["segments"][0]["audio_text"] = "旧稿被手工改过"
-        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-
         orch = _make_orchestrator(dry_run=True)
-        with pytest.raises(RuntimeError, match="untracked editorial changes"):
+        orch.agent_mode = True
+        with pytest.raises(RuntimeError, match="no script_lock.json"):
             orch._step_write_script(_make_content(), date)
 
 
@@ -368,19 +369,54 @@ class TestStepEnrichArticles:
         assert out is content
         assert failed == []
 
+    def test_successful_enrichment_owns_title_translation(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        item = ContentItem(
+            source="hackernews",
+            source_id="100",
+            title="An English title",
+            url="https://example.com",
+            enrichment_source="downloaded_page",
+        )
+        content = ContentPackage(date="2026-04-26", items=[item])
+        enricher = MagicMock()
+        enricher.enrich.return_value = content
+        orch.article_enricher = enricher
+        orch.llm_provider.translate_titles.return_value = content
 
-class TestStepTranslateTitles:
-    def test_dry_run_returns_content_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        content = _make_content()
-        assert orch._step_translate_titles(content, "2026-04-26") is content
+        out, failed = orch._step_enrich_articles(content, "2026-04-26")
 
+        assert out is content
+        assert failed == []
+        orch.llm_provider.translate_titles.assert_called_once_with(
+            content, "translate.md", "2026-04-26"
+        )
 
-class TestStepAnalyzeComments:
-    def test_dry_run_returns_content_unchanged(self):
-        orch = _make_orchestrator(dry_run=True)
-        content = _make_content()
-        assert orch._step_analyze_comments(content, "2026-04-26") is content
+    def test_degraded_enrichment_still_translates_titles(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.allow_degraded_enrichment = True
+        item = ContentItem(
+            source="hackernews",
+            source_id="100",
+            title="An English title",
+            url="https://example.com",
+            enrichment_source="fetch_failed",
+        )
+        content = ContentPackage(date="2026-04-26", items=[item])
+        enricher = MagicMock()
+        enricher.enrich.return_value = content
+        orch.article_enricher = enricher
+        orch.llm_provider.translate_titles.return_value = content
+
+        out, failed = orch._step_enrich_articles(content, "2026-04-26")
+
+        assert out is content
+        assert [item.source_id for item in failed] == ["100"]
+        orch.llm_provider.translate_titles.assert_called_once()
 
 
 class TestStepJudgeComments:
@@ -388,6 +424,23 @@ class TestStepJudgeComments:
         orch = _make_orchestrator(dry_run=True)
         content = _make_content()
         assert orch._step_judge_comments(content, "2026-04-26") is content
+
+
+class TestStepHumanReview:
+    def test_human_review_prepares_automatic_copy_review(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        script = _make_script()
+        content = _make_content()
+        orch._auto_review_script = MagicMock(return_value=script)
+
+        approved, review_page = orch._step_human_review(
+            script, "2026-04-26", content=content
+        )
+
+        assert approved is False
+        assert review_page.exists()
+        orch._auto_review_script.assert_called_once_with(content, script, "2026-04-26")
 
 
 class TestStepWriteScript:
@@ -400,12 +453,50 @@ class TestStepWriteScript:
         assert result.segments[0].segment_type == "opening"
 
 
-class TestStepTranslateComments:
+class TestStepQuickNews:
+    def test_quick_news_persists_video_structure_in_same_step(self):
+        orch = _make_orchestrator(dry_run=False)
+        script = _make_script()
+        orch._normalize_video_structure = MagicMock(return_value=script)
+        orch.script_writer.save_script = MagicMock()
+
+        with patch("src.pipeline.orchestrator.draft_quick_news") as draft:
+            draft.return_value = MagicMock()
+            result = orch._step_draft_quick_news(script, "2026-04-26")
+
+        assert result is script
+        orch._normalize_video_structure.assert_called_once_with(
+            script, "2026-04-26"
+        )
+        orch.script_writer.save_script.assert_called_once_with(script, "2026-04-26")
+
+    def test_quick_news_applies_comment_translation_after_structure(self):
+        orch = _make_orchestrator(dry_run=False)
+        script = _make_script()
+        content = _make_content()
+        orch._normalize_video_structure = MagicMock(return_value=script)
+        orch._apply_comment_translations = MagicMock(return_value=(content, script))
+        orch.script_writer.save_script = MagicMock()
+
+        with patch("src.pipeline.orchestrator.draft_quick_news"):
+            result = orch._step_draft_quick_news(
+                script, "2026-04-26", content=content
+            )
+
+        assert result is script
+        orch._normalize_video_structure.assert_called_once_with(
+            script, "2026-04-26"
+        )
+        orch._apply_comment_translations.assert_called_once_with(
+            content, script, "2026-04-26", save_script=False
+        )
+
+class TestStepCommentTranslations:
     def test_dry_run_returns_content_unchanged(self):
         orch = _make_orchestrator(dry_run=True)
         content = _make_content()
         script = _make_script()
-        out_c, out_s = orch._step_translate_comments(content, script, "2026-04-26")
+        out_c, out_s = orch._apply_comment_translations(content, script, "2026-04-26")
         assert out_c is content
         assert out_s is script
 
@@ -413,7 +504,7 @@ class TestStepTranslateComments:
         orch = _make_orchestrator(dry_run=False)
         orch.translation_manager = MagicMock()
         content = _make_content()
-        out_c, out_s = orch._step_translate_comments(content, None, "2026-04-26")
+        out_c, out_s = orch._apply_comment_translations(content, None, "2026-04-26")
         assert out_c is content
         assert out_s is None
         orch.translation_manager.translate.assert_not_called()
@@ -447,6 +538,76 @@ class TestStepTitle:
         result = orch._step_title(_make_content(), None, "2026-04-26")
         assert result is None
 
+    def test_title_caches_cover_variants_for_downstream_cover_step(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        content = ContentPackage(
+            date=date,
+            items=[
+                ContentItem(
+                    source="hackernews",
+                    source_id="1",
+                    title="A story",
+                    url="https://example.com/story",
+                    title_cn="一个故事",
+                    editor_angle="影响开发者",
+                )
+            ],
+        )
+        orch = _make_orchestrator(dry_run=False)
+        orch.llm_provider.complete_prompt = MagicMock(
+            return_value={
+                "title": "【HN日报】一个故事：影响开发者",
+                "description": "简介",
+                "title_candidates": ["主推", "备选一", "备选二"],
+                "cover_title": "一个故事\n影响开发者",
+                "cover_subtitle": "— 对象\n— 代价\n— 人群",
+                "cover_tags": ["开发者"],
+                "cover_highlights": ["影响"],
+                "cover_prompt": "Asymmetric 16:9 editorial illustration of a technology conflict on the right, clean negative space on the left.",
+                "cover_variants": [
+                    {
+                        "angle": "争议·支持方",
+                        "cover_title": "一个故事\n方向仍需验证",
+                        "cover_subtitle": "— 对象\n— 进展\n— 长期投入",
+                        "cover_tags": ["支持角度"],
+                        "cover_highlights": ["验证"],
+                    },
+                    {
+                        "angle": "争议·反对方",
+                        "cover_title": "一个故事\n风险暴露",
+                        "cover_subtitle": "— 对象\n— 成本\n— 受影响人群",
+                        "cover_tags": ["风险角度"],
+                        "cover_highlights": ["风险"],
+                    },
+                    {
+                        "angle": "争议·中立方",
+                        "cover_title": "一个故事\n争议未解",
+                        "cover_subtitle": "— 对象\n— 分歧\n— 待验证结果",
+                        "cover_tags": ["观察角度"],
+                        "cover_highlights": ["争议"],
+                    },
+                ],
+                "tags": ["AI"],
+            }
+        )
+        orch.llm_provider.fast_model = "test-fast"
+        orch.llm_provider.fast_temperature = 0.1
+
+        orch._step_title(content, _make_script(), date)
+
+        title_payload = json.loads(
+            (tmp_path / "data" / "2026-04" / date / "publish" / "title.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert len(title_payload["cover_variants"]) == 3
+        assert title_payload["cover_variants"][1]["title"] == "一个故事\n风险暴露"
+        assert title_payload["cover_prompt"].endswith("no footer bars.")
+        assert orch.llm_provider.complete_prompt.call_count == 1
+
 
 class TestStepCoverImage:
     def test_dry_run_returns_none(self):
@@ -454,6 +615,113 @@ class TestStepCoverImage:
         result = orch._step_cover_image(_make_content(), _make_script(), "2026-04-26")
         assert result is None
         orch.image_generator = None
+
+    def test_uses_title_cached_variants_without_cover_variants_llm_call(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        render_dir = tmp_path / "data" / "2026-04" / date / "render"
+        render_dir.mkdir(parents=True)
+        (render_dir / "cover_bg.png").write_bytes(b"png")
+        title_path = tmp_path / "data" / "2026-04" / date / "publish" / "title.json"
+        title_path.parent.mkdir(parents=True)
+        title_path.write_text(
+            json.dumps(
+                {
+                    "cover_variants": [
+                        {
+                            "cover_title": "主体\n支持角度",
+                            "cover_subtitle": "— 对象\n— 进展\n— 长期投入",
+                            "cover_tags": ["支持"],
+                            "cover_highlights": ["支持"],
+                        },
+                        {
+                            "cover_title": "主体\n风险角度",
+                            "cover_subtitle": "— 对象\n— 成本\n— 受影响人群",
+                            "cover_tags": ["风险"],
+                            "cover_highlights": ["风险"],
+                        },
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        orch = _make_orchestrator(dry_run=False)
+        orch.llm_provider.complete_prompt = MagicMock()
+
+        orch._step_cover_image(_make_content(), _make_script(), date)
+
+        orch.llm_provider.complete_prompt.assert_not_called()
+        props = json.loads(
+            (render_dir / "cover_props_v2.json").read_text(encoding="utf-8")
+        )
+        assert props["title"] == "主体\n风险角度"
+
+        title_payload = json.loads(title_path.read_text(encoding="utf-8"))
+        title_payload["cover_variants"][1]["cover_title"] = "主体\n更新后的风险"
+        title_path.write_text(
+            json.dumps(title_payload, ensure_ascii=False), encoding="utf-8"
+        )
+        orch._step_cover_image(_make_content(), _make_script(), date)
+
+        refreshed = json.loads(
+            (render_dir / "cover_props_v2.json").read_text(encoding="utf-8")
+        )
+        assert refreshed["title"] == "主体\n更新后的风险"
+        orch.llm_provider.complete_prompt.assert_not_called()
+
+    def test_uses_title_cached_visual_prompt_without_cover_prompt_llm_call(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        title_path = tmp_path / "data" / "2026-04" / date / "publish" / "title.json"
+        title_path.parent.mkdir(parents=True)
+        title_path.write_text(
+            json.dumps(
+                {
+                    "cover_prompt": "cached visual prompt for today's conflict"
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        prompts = []
+        image_generator = MagicMock()
+
+        def generate(prompt, output_path, **kwargs):
+            prompts.append(prompt)
+            output = Path(output_path)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"png")
+
+        image_generator.generate.side_effect = generate
+        orch = _make_orchestrator(dry_run=False)
+        orch.image_generator = image_generator
+        orch.config["image_generator"] = {"candidate_count": 1}
+        orch.llm_provider.complete_prompt = MagicMock()
+
+        orch._step_cover_image(_make_content(), _make_script(), date)
+
+        assert len(prompts) == 1
+        assert prompts[0].startswith("cached visual prompt")
+        assert "No logos" in prompts[0]
+        orch.llm_provider.complete_prompt.assert_not_called()
+
+        title_path.write_text(
+            json.dumps(
+                {"cover_prompt": "updated visual prompt for the same conflict"},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        orch._step_cover_image(_make_content(), _make_script(), date)
+
+        assert len(prompts) == 2
+        assert prompts[1].startswith("updated visual prompt")
+        orch.llm_provider.complete_prompt.assert_not_called()
 
 
 class TestStepCoverThumbnail:
@@ -466,10 +734,10 @@ class TestStepCoverThumbnail:
         assert result is None
 
 
-class TestStepPublishGuide:
+class TestWritePublishGuide:
     def test_dry_run_returns_none(self):
         orch = _make_orchestrator(dry_run=True)
-        result = orch._step_publish_guide(_make_content(), _make_script(), "2026-04-26")
+        result = orch._write_publish_guide(_make_content(), _make_script(), "2026-04-26")
         assert result is None
 
     def test_regenerates_when_manifest_input_hash_is_missing(
@@ -488,7 +756,7 @@ class TestStepPublishGuide:
         orch.llm_provider.fast_model = "test-fast"
         orch.llm_provider.fast_temperature = 0.1
 
-        orch._step_publish_guide(_make_content(), _make_script(), date)
+        orch._write_publish_guide(_make_content(), _make_script(), date)
 
         assert guide_path.read_text(encoding="utf-8") == "new guide"
         orch.llm_provider.complete_prompt.assert_called_once()
@@ -514,7 +782,7 @@ class TestStepPublishGuide:
         orch.llm_provider.fast_model = "test-fast"
         orch.llm_provider.fast_temperature = 0.1
 
-        orch._step_publish_guide(_make_content(), _make_script(), date)
+        orch._write_publish_guide(_make_content(), _make_script(), date)
 
         context = orch.llm_provider.complete_prompt.call_args.args[1]
         assert context["script_title"] == "Published Title"
@@ -538,6 +806,7 @@ class TestStepPrepareRender:
         orch = _make_orchestrator(dry_run=False)
         script = _make_script()
         content = _make_content()
+        orch._write_publish_guide = MagicMock()
         # write_props contract: returns (props_path, props_json, scenes_payload).
         # The mock would otherwise return a bare MagicMock, which can't be
         # unpacked into 3 values.
@@ -546,6 +815,7 @@ class TestStepPrepareRender:
         orch.renderer.write_props.return_value = (props_path, "{}", {})
         orch._step_prepare_render(content, script, "2026-04-26")
         orch.renderer.write_props.assert_called_once()
+        orch._write_publish_guide.assert_called_once_with(content, script, "2026-04-26")
 
 
 class TestStepRender:
@@ -560,7 +830,8 @@ class TestStepRender:
 
 
 class TestRunDispatch:
-    def test_runs_only_requested_step_chain(self):
+    def test_runs_only_requested_step_chain(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         orch = _make_orchestrator(dry_run=True)
         # Patch all _step_* methods to detect which get called
         step_names = [
@@ -568,17 +839,13 @@ class TestRunDispatch:
             "_step_prefilter",
             "_step_fetch_comments",
             "_step_enrich_articles",
-            "_step_translate_titles",
-            "_step_analyze_comments",
             "_step_judge_comments",
             "_step_write_script",
-            "_step_translate_comments",
             "_step_prepare_subtitles",
             "_step_synthesize_audio",
             "_step_title",
             "_step_cover_image",
             "_step_cover_thumbnail",
-            "_step_publish_guide",
             "_step_prepare_render",
         ]
         mocks = {}
@@ -586,8 +853,6 @@ class TestRunDispatch:
             m = MagicMock()
             if name == "_step_enrich_articles":
                 m.return_value = (_make_content(), [])
-            elif name in ("_step_translate_comments",):
-                m.return_value = (_make_content(), _make_script())
             elif name in (
                 "_step_synthesize_audio",
                 "_step_title",
@@ -601,29 +866,20 @@ class TestRunDispatch:
             setattr(orch, name, m)
             mocks[name] = m
 
-        # Request only "title" — should expand to all core steps up to "title"
-        # (synthesize_audio is now optional, so it is NOT pulled in by "title")
+        # Request only "title" — do not replay the full editorial chain.
+        # A missing content artifact may still trigger the fetch fallback, and
+        # protected production output always passes through human review.
         orch.run("2026-04-26", steps=["title"], force=False)
 
-        # Steps before and including "title" should have been called;
-        # steps after should not.
+        # Only the requested step, its data fallback, and the review gate run.
         steps_in_order = [
             "_step_fetch",
-            "_step_prefilter",
-            "_step_fetch_comments",
-            "_step_enrich_articles",
-            "_step_translate_titles",
-            "_step_analyze_comments",
-            "_step_judge_comments",
-            "_step_write_script",
-            "_step_translate_comments",
             "_step_title",
         ]
         steps_after = [
             "_step_synthesize_audio",
             "_step_cover_image",
             "_step_cover_thumbnail",
-            "_step_publish_guide",
             "_step_prepare_render",
         ]
         for name in steps_in_order:
@@ -638,15 +894,15 @@ class TestRunDispatch:
 
         orch.run("2026-04-26", steps=["fetch"], force=False)
 
-        state_path = (
+        workflow_path = (
             tmp_path
             / "data"
             / "2026-04"
             / "2026-04-26"
             / "agent"
-            / "pipeline_state_video.json"
+            / "workflow_video.json"
         )
-        assert not state_path.exists()
+        assert not workflow_path.exists()
 
     def test_video_downstream_run_writes_runtime_artifacts_without_upstream_steps(
         self, tmp_path, monkeypatch
@@ -655,6 +911,7 @@ class TestRunDispatch:
         date = "2026-04-26"
         orch = _make_orchestrator(dry_run=False)
         orch.agent_mode = True
+        orch._write_publish_guide = MagicMock()
 
         content = _make_content()
         script = _make_script()
@@ -662,6 +919,11 @@ class TestRunDispatch:
         save_script(script, date)
         generate_script_review_page(script, date)
         approve_current_script(date, reviewer="test")
+        workflow = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+        workflow.ensure()
+        for state_name in ("ingest", "research", "editorial", "human_review"):
+            workflow.mark_running(state_name)
+            workflow.mark_done(state_name)
 
         def synthesize(current_script, _date, _content):
             audio_path = (
@@ -718,12 +980,14 @@ class TestRunDispatch:
             )
         )
         assert persisted_script["segments"][0]["audio_text"] == "hi"
-        state = json.loads(
-            Path(f"data/{date[:7]}/{date}/agent/pipeline_state_video.json").read_text(
+        workflow_state = json.loads(
+            Path(f"data/{date[:7]}/{date}/agent/workflow_video.json").read_text(
                 encoding="utf-8"
             )
         )
-        assert state["status"] == "complete"
+        assert workflow_state["metadata"]["execution_mode"] == "native_orchestrator"
+        assert workflow_state["metadata"]["execution_status"] == "complete"
+        assert workflow_state["states"]["produce"]["status"] == "done"
 
     def test_agent_mode_scopes_non_render_step_state_to_video(
         self, tmp_path, monkeypatch
@@ -736,7 +1000,7 @@ class TestRunDispatch:
 
         orch.run("2026-04-26", steps=["fetch"], force=False)
 
-        assert Path("data/2026-04/2026-04-26/agent/pipeline_state_video.json").exists()
+        assert Path("data/2026-04/2026-04-26/agent/workflow_video.json").exists()
 
     def test_agent_mode_blocks_after_enrichment_failure(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -748,34 +1012,36 @@ class TestRunDispatch:
         orch._step_prefilter = MagicMock(return_value=content)
         orch._step_fetch_comments = MagicMock(return_value=content)
         orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
-        orch._step_translate_titles = MagicMock(return_value=content)
-        orch._step_analyze_comments = MagicMock(return_value=content)
         orch._step_judge_comments = MagicMock(return_value=content)
         orch._step_write_script = MagicMock(return_value=script)
 
-        orch.run("2026-04-26", steps=["write_script"], force=False)
-
-        orch._step_translate_titles.assert_not_called()
-        orch._step_write_script.assert_not_called()
-        state_path = (
-            tmp_path
-            / "data"
-            / "2026-04"
-            / "2026-04-26"
-            / "agent"
-            / "pipeline_state_video.json"
+        orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
         )
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        assert state["status"] == "blocked"
-        assert state["blocked_reason"] == "manual_download_required"
-        assert state["missing_manual_files"][0]["story_id"] == "123"
+
+        orch._step_write_script.assert_not_called()
+        workflow_state = json.loads(
+            Path("data/2026-04/2026-04-26/agent/workflow_video.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert workflow_state["states"]["research"]["status"] == "blocked"
+        assert (
+            workflow_state["metadata"]["blocked_reason"] == "manual_download_required"
+        )
+        assert workflow_state["metadata"]["blocked_items"][0]["story_id"] == "123"
         task_path = (
             tmp_path / "data" / "2026-04" / "2026-04-26" / "agent" / "agent_tasks.json"
         )
         tasks = json.loads(task_path.read_text(encoding="utf-8"))
         assert tasks["schema_version"] == 2
         assert tasks["repair_contract"]["owner"] == "agent"
-        assert tasks["repair_contract"]["do_not_continue_without_source_context"]
+        assert (
+            "reliable HTML or PDF source"
+            in tasks["repair_contract"]["minimum_success_condition"]
+        )
         assert tasks["tasks"][0]["task_type"] == "fetch_article"
         assert tasks["tasks"][0]["save_as"]["html"].endswith("123.html")
         assert tasks["tasks"][0]["acceptable_outputs"] == [
@@ -783,8 +1049,9 @@ class TestRunDispatch:
             "pdf",
             "synthesis_html",
         ]
-        assert tasks["tasks"][0]["resume_command"].endswith(
-            "scripts/agent_run.py --date 2026-04-26 --resume"
+        assert any(
+            line.endswith("scripts/agent_run.py --date 2026-04-26 --resume")
+            for line in tasks["tasks"][0]["repair_steps"]
         )
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]
         events_path = (
@@ -796,7 +1063,9 @@ class TestRunDispatch:
             / "agent_events.jsonl"
         )
         assert "run_blocked" in events_path.read_text(encoding="utf-8")
-        assert "downloaded_pages" in state["next_recommended_command"]
+        assert workflow_state["metadata"]["agent_task_file"].endswith(
+            "agent_tasks.json"
+        )
 
     def test_agent_mode_can_allow_degraded_enrichment(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -809,27 +1078,24 @@ class TestRunDispatch:
         orch._step_prefilter = MagicMock(return_value=content)
         orch._step_fetch_comments = MagicMock(return_value=content)
         orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
-        orch._step_translate_titles = MagicMock(return_value=content)
-        orch._step_analyze_comments = MagicMock(return_value=content)
         orch._step_judge_comments = MagicMock(return_value=content)
         orch._step_write_script = MagicMock(return_value=script)
 
-        orch.run("2026-04-26", steps=["write_script"], force=False)
-
-        orch._step_translate_titles.assert_called_once()
-        orch._step_write_script.assert_called_once()
-        state_path = (
-            tmp_path
-            / "data"
-            / "2026-04"
-            / "2026-04-26"
-            / "agent"
-            / "pipeline_state_video.json"
+        orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
         )
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        assert state["status"] == "degraded"
-        assert state["degraded_items"][0]["story_id"] == "123"
-        assert state["degraded_items"][0]["continued"] is True
+
+        orch._step_write_script.assert_called_once()
+        workflow_state = json.loads(
+            Path("data/2026-04/2026-04-26/agent/workflow_video.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert workflow_state["metadata"]["execution_status"] == "complete"
+        assert workflow_state["metadata"]["degraded_items"][0]["story_id"] == "123"
+        assert workflow_state["metadata"]["degraded_items"][0]["continued"] is True
 
     def test_refresh_variants_clears_script_outputs_only(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -840,10 +1106,6 @@ class TestRunDispatch:
         variants.mkdir(parents=True)
         (base / "pipeline" / "content.json").write_text("{}", encoding="utf-8")
         (base / "pipeline" / "script.json").write_text("{}", encoding="utf-8")
-        (base / "agent" / "selected_variant.json").parent.mkdir(
-            parents=True, exist_ok=True
-        )
-        (base / "agent" / "selected_variant.json").write_text("{}", encoding="utf-8")
         (variants / "index.json").write_text("{}", encoding="utf-8")
         (segments / "story_scan_item_0.json").write_text("{}", encoding="utf-8")
         (segments / "translation_titles.json").write_text("{}", encoding="utf-8")
@@ -853,7 +1115,6 @@ class TestRunDispatch:
 
         assert (base / "pipeline" / "content.json").exists()
         assert not (base / "pipeline" / "script.json").exists()
-        assert not (base / "agent" / "selected_variant.json").exists()
         assert not variants.exists()
         assert not (segments / "story_scan_item_0.json").exists()
         assert (segments / "translation_titles.json").exists()
@@ -867,20 +1128,19 @@ class TestRunDispatch:
         orch._step_prefilter = MagicMock(return_value=content)
         orch._step_fetch_comments = MagicMock(return_value=content)
         orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
-        orch._step_translate_titles = MagicMock(return_value=content)
-
-        orch.run("2026-04-26", steps=["translate_titles"], force=False)
-
-        orch._step_translate_titles.assert_not_called()
-        state_path = (
-            tmp_path
-            / "data"
-            / "2026-04"
-            / "2026-04-26"
-            / "agent"
-            / "pipeline_state_video.json"
+        orch.run(
+            "2026-04-26",
+            steps=["enrich_articles"],
+            force=False,
         )
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        assert state["status"] == "blocked"
-        assert state["blocked_reason"] == "insufficient_story_context"
-        assert state["blocked_items"][0]["comment_count"] == 0
+
+        workflow_state = json.loads(
+            Path("data/2026-04/2026-04-26/agent/workflow_video.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert workflow_state["states"]["research"]["status"] == "blocked"
+        assert (
+            workflow_state["metadata"]["blocked_reason"] == "insufficient_story_context"
+        )
+        assert workflow_state["metadata"]["blocked_items"][0]["comment_count"] == 0

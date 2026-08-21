@@ -1,6 +1,10 @@
 from src.core.models import ContentComment, ContentItem, ScriptSegment, SceneElement
-from src.pipeline.script.cards import extract_subtitle_texts, normalize_story_cards
-from src.pipeline.script import ScriptWriter
+from src.pipeline.script.cards import (
+    extract_subtitle_texts,
+    normalize_atmosphere_card,
+    normalize_story_cards,
+)
+from src.pipeline.script.templates import highlight_audio_text
 
 
 def _make_comment(**kwargs):
@@ -57,7 +61,7 @@ class TestNormalizeAtmosphereCard:
             "stance_distribution": {"支持": 0.6, "质疑": 0.4},
         }
 
-        ScriptWriter._normalize_atmosphere_card(segment, item, judgement)
+        normalize_atmosphere_card(segment, item, judgement)
 
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["API design", "performance"]
@@ -83,7 +87,7 @@ class TestNormalizeAtmosphereCard:
             ],
         )
 
-        ScriptWriter._normalize_atmosphere_card(segment, item, {})
+        normalize_atmosphere_card(segment, item, {})
 
         # Props should be unchanged (no debate_focus or stance_distribution injected)
         assert "debate_focus" not in segment.scene_elements[0].props
@@ -110,7 +114,7 @@ class TestNormalizeAtmosphereCard:
 
         judgement = {"debate_focus": ["security"], "stance_distribution": {}}
 
-        ScriptWriter._normalize_atmosphere_card(segment, item, judgement)
+        normalize_atmosphere_card(segment, item, judgement)
 
         props = segment.scene_elements[0].props
         assert props["debate_focus"] == ["security"]
@@ -155,7 +159,7 @@ class TestNormalizeAtmosphereCard:
             ]
         }
 
-        ScriptWriter._normalize_atmosphere_card(segment, item, judgement)
+        normalize_atmosphere_card(segment, item, judgement)
 
         selected_ids = segment.scene_elements[0].props["selected_comment_ids"]
         assert selected_ids[0] == "judged"
@@ -163,7 +167,7 @@ class TestNormalizeAtmosphereCard:
 
 class TestAudioOnlyScriptHelpers:
     def test_highlight_audio_text_lists_topics_without_visual_navigation(self):
-        text = ScriptWriter._highlight_audio_text(
+        text = highlight_audio_text(
             [
                 {"title_translation": "Bambu Lab open source contract"},
                 {"title_translation": "TanStack NPM supply chain"},

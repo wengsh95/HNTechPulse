@@ -66,8 +66,7 @@ Do not keep model assets in the repository root or in the user-level Hugging
 Face cache. `scripts/train_comment_stance.py` calls
 `configure_local_ai_environment()` so `HF_HOME`, `HF_HUB_CACHE`, and
 `SENTENCE_TRANSFORMERS_HOME` point under `data/models/`.
-There is no compatibility path for the old repository-root `whisper/`
-directory; move model files into `data/models/whisper/`.
+The supported model location is `data/models/whisper/`.
 
 Whisper alignment is configured with:
 
@@ -317,5 +316,5 @@ but they should still be treated as a model estimate, not ground truth.
        use comment_judgement.stance_distribution
    ```
 
-   This keeps existing artifacts compatible and allows local stance reports to
+   This keeps the artifact contract consistent and allows local stance reports to
    be generated or regenerated independently.

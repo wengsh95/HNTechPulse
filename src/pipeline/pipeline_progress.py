@@ -94,22 +94,16 @@ class PipelineProgress:
                     )
                 )
 
-            if items and all(i.get("title_cn") for i in items):
-                entries.append(("translate_titles", "✓", "titles translated"))
-            else:
-                entries.append(("translate_titles", "-", "will translate titles"))
         else:
             for step in (
                 "prefilter",
                 "fetch_comments",
                 "enrich_articles",
-                "translate_titles",
             ):
                 entries.append((step, "-", "fetch first"))
 
-        # Comment analysis + judgement
+        # Comment judgement + script
         for step, filename, label in [
-            ("analyze_comments", "comment_analysis.json", "comment analysis"),
             ("judge_comments", "comment_judgement.json", "comment judgement"),
             ("write_script", "script.json", "script"),
         ]:
@@ -118,13 +112,7 @@ class PipelineProgress:
             else:
                 entries.append((step, "-", f"will generate {label}"))
 
-        # 9. translate_comments
-        if pipeline_path(date, "translations.json").exists():
-            entries.append(("translate_comments", "✓", "translations cached"))
-        else:
-            entries.append(("translate_comments", "-", "will translate"))
-
-        # 10. synthesize_audio
+        # 9. synthesize_audio
         from src.pipeline.paths import (
             pipeline_audio_dir,
             publish_path,
@@ -164,18 +152,22 @@ class PipelineProgress:
                 ("apply_storyboard", "-", "no storyboard; keep generated templates")
             )
 
-        # 15. publish_guide
-        if publish_path(date, "publish_guide.md").exists():
-            entries.append(("publish_guide", "✓", "publish guide cached"))
-        else:
-            entries.append(("publish_guide", "-", "will generate guide"))
-
-        # 15. prepare_render
+        # 15. prepare_render (also writes publish_guide.md)
         props_file = render_path(date, "cli_props.json")
+        guide_file = publish_path(date, "publish_guide.md")
         if props_file.exists():
-            entries.append(("prepare_render", "✓", "props.json cached"))
+            detail = "props.json cached"
+            if guide_file.exists():
+                detail += "; publish guide cached"
+            entries.append(("prepare_render", "✓", detail))
         else:
-            entries.append(("prepare_render", "-", "will write props.json"))
+            entries.append(
+                (
+                    "prepare_render",
+                    "-",
+                    "will write props.json + publish guide",
+                )
+            )
 
         return entries
 

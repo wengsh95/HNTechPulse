@@ -432,7 +432,13 @@ class TestExpandAtmosphereCard:
                         }
                     ],
                     "debate_focus": ["deployment boundary"],
-                    "stance_distribution": {"neutral": 1.0},
+                    "stance_distribution": {"支持": 0.2, "质疑": 0.3, "中立": 0.5},
+                    "stance_distribution_meta": {
+                        "source": "llm_per_comment",
+                        "context_sufficient_count": 5,
+                        "coverage": 1.0,
+                        "mean_confidence": 0.8,
+                    },
                 }
             },
         )
@@ -445,7 +451,11 @@ class TestExpandAtmosphereCard:
         assert result["controversy_score"] >= 0
         assert result["quotes"][0]["display_text"] == "good claim"
         assert result["debate_focus"] == ["deployment boundary"]
-        assert result["stance_distribution"] == {"neutral": 1.0}
+        assert result["stance_distribution"] == {
+            "支持": 0.2,
+            "质疑": 0.3,
+            "中立": 0.5,
+        }
 
 
 # ── expand_element_props ───────────────────────────────────────────────

@@ -20,14 +20,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import load_pipeline_state  # noqa: E402
-from src.pipeline.agent_state import (  # noqa: E402
-    BLOCK_EXTERNAL_TOOL_MISSING,
-    BLOCK_MISSING_CREDENTIALS,
-)
 from src.pipeline.orchestrator import ALL_STEPS  # noqa: E402
 from src.pipeline.paths import agent_path  # noqa: E402
 from src.utils.config import load_config  # noqa: E402
+from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
+
+BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
+BLOCK_MISSING_CREDENTIALS = "missing_credentials"
 
 
 def _default_date() -> str:
@@ -102,26 +102,38 @@ def _tool_checks() -> list[dict]:
 
 def _state_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     issues = []
-    state = load_pipeline_state(date, product="video")
-    if not state:
+    machine = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+    if not machine.path.exists():
         return None, issues
+    try:
+        machine.load()
+    except (WorkflowCorruptError, OSError, ValueError) as exc:
+        return None, [
+            {
+                "severity": "fatal",
+                "check": "workflow_state",
+                "message": str(exc),
+            }
+        ]
+    state = machine.status_report()
     if state.get("status") == "blocked":
+        current = state.get("current_state") or "unknown"
+        record = (state.get("states") or {}).get(current) or {}
         issues.append(
             {
                 "severity": "blocked",
-                "check": "pipeline_state",
-                "blocked_reason": state.get("blocked_reason"),
-                "message": state.get("blocked_reason") or "pipeline is blocked",
-                "task_file": state.get("agent_task_file"),
+                "check": "workflow_state",
+                "blocked_reason": record.get("last_error"),
+                "message": record.get("last_error") or "workflow is blocked",
+                "task_file": str(agent_path(date, "agent_tasks.json")),
             }
         )
     elif state.get("status") == "failed":
         issues.append(
             {
                 "severity": "failed",
-                "check": "pipeline_state",
-                "message": state.get("failed_step") or "pipeline failed",
-                "next_recommended_command": state.get("next_recommended_command"),
+                "check": "workflow_state",
+                "message": "workflow failed",
             }
         )
     return state, issues
@@ -135,20 +147,18 @@ def _last_run_summary(date: str) -> dict[str, Any] | None:
     without re-running the full audit. Saves a full audit call when the
     agent's only question is "did I already do this date?".
     """
-    state = load_pipeline_state(date, product="video")
-    if not state or state.get("status") not in {"complete", "degraded"}:
+    state, _ = _state_checks(date)
+    if not state or state.get("status") != "complete":
         return None
     summary: dict[str, Any] = {
         "completed_at": state.get("updated_at"),
         "status": state.get("status"),
-        "completed_steps": state.get("completed_steps") or [],
-        "blocked_reason": state.get("blocked_reason"),
-        "degraded_items": state.get("degraded_items") or [],
+        "states": state.get("states") or {},
     }
     # Pull a few more useful fields from the artifacts when present.
     report = agent_path(date, "report.md")
     if report.exists():
-        # Cheap parse of the optional legacy report.
+        # Cheap parse of the optional run report.
         try:
             txt = report.read_text(encoding="utf-8")
         except OSError:
@@ -186,6 +196,8 @@ def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
 
     pending = []
     for task in data.get("tasks", []):
+        if task.get("task_type") != "fetch_article":
+            continue
         save_as = task.get("save_as", {})
         html_path = Path(save_as.get("html", ""))
         pdf_path = Path(save_as.get("pdf", ""))
@@ -228,7 +240,7 @@ def main() -> int:
         "date": args.date,
         "status": status,
         "issues": issues,
-        "pipeline_state": state,
+        "workflow_state": state,
         "agent_tasks": tasks,
         "last_run_summary": last_run,
         "known_steps": list(ALL_STEPS),

@@ -19,54 +19,17 @@ if str(ROOT) not in sys.path:
 from scripts.agent_preflight import main as preflight_main  # noqa: E402
 from scripts.agent_status import build_status  # noqa: E402
 from src.pipeline.human_review import approve_current_script  # noqa: E402
+from src.workflow import VIDEO_PHASE_PIPELINE_STEPS, VIDEO_PIPELINE_STEPS  # noqa: E402
 
 
 # The managed chain runs upstream editorial steps, then continues through TTS
 # and the configured renderer.
-VIDEO_CHAIN = [
-    "fetch",
-    "prefilter",
-    "fetch_comments",
-    "enrich_articles",
-    "translate_titles",
-    "analyze_comments",
-    "judge_comments",
-    "write_script",
-    "draft_quick_news",
-    "normalize_video_structure",
-    "prepare_story_images",
-    "review_script",
-    "human_review",
-    "translate_comments",
-    "title",
-    "cover_image",
-    "cover_thumbnail",
-    "draft_storyboard",
-    "apply_storyboard",
-    "prepare_subtitles",
-    "synthesize_audio",
-    "prepare_render",
-    "render",
-]
+# The native workflow registry owns the actual execution order.
+VIDEO_CHAIN = list(VIDEO_PIPELINE_STEPS)
+VIDEO_PHASES = tuple(VIDEO_PHASE_PIPELINE_STEPS)
 
 DOWNSTREAM_FROM = {
     "draft_quick_news": ["draft_quick_news"],
-    "normalize_video_structure": [
-        "normalize_video_structure",
-        "prepare_story_images",
-        "review_script",
-        "human_review",
-        "translate_comments",
-        "title",
-        "cover_image",
-        "cover_thumbnail",
-        "draft_storyboard",
-        "apply_storyboard",
-        "prepare_subtitles",
-        "synthesize_audio",
-        "prepare_render",
-        "render",
-    ],
     "prepare_story_images": ["prepare_story_images"],
     "draft_storyboard": ["draft_storyboard"],
     "apply_storyboard": [
@@ -88,7 +51,6 @@ DOWNSTREAM_FROM = {
 
 DOWNSTREAM_ONLY_STEPS = {
     "draft_quick_news",
-    "normalize_video_structure",
     "prepare_story_images",
     "human_review",
     "draft_storyboard",
@@ -144,6 +106,9 @@ def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
         return DOWNSTREAM_FROM["prepare_subtitles"]
     if any(reason and "audio_manifest.json" in reason for reason in reasons):
         return DOWNSTREAM_FROM["prepare_subtitles"]
+    if any(reason and "publish_guide" in reason for reason in reasons):
+        # The guide is produced as part of final render preparation.
+        return DOWNSTREAM_FROM["prepare_render"]
     if "script.json is newer than cli_props.json" in reasons:
         return DOWNSTREAM_FROM["prepare_subtitles"]
     if (
@@ -176,18 +141,7 @@ def _manual_downloads_repaired(status: dict[str, Any]) -> bool:
     agent_tasks = status.get("agent_tasks") or {}
     if agent_tasks.get("exists") and agent_tasks.get("pending_count") == 0:
         return True
-    state = status.get("pipeline_state") or {}
-    missing = state.get("missing_manual_files") or []
-    if not missing:
-        return False
-    for item in missing:
-        html_path = item.get("expected_html")
-        pdf_path = item.get("expected_pdf")
-        has_html = bool(html_path and (ROOT / str(html_path)).exists())
-        has_pdf = bool(pdf_path and (ROOT / str(pdf_path)).exists())
-        if not has_html and not has_pdf:
-            return False
-    return True
+    return False
 
 
 def _manual_image_selections_repaired(status: dict[str, Any]) -> bool:
@@ -226,7 +180,18 @@ def _choose_steps(
     refresh_selection: bool = False,
     refresh_script: bool = False,
     refresh_variants: bool = False,
+    phase: str | None = None,
 ) -> list[str] | None:
+    if phase:
+        if phase not in VIDEO_PHASE_PIPELINE_STEPS:
+            raise ValueError(
+                f"Unknown --phase value: {phase}. "
+                f"Choose one of: {', '.join(VIDEO_PHASES)}"
+            )
+        # A phase is a deliberately narrow, resumable unit.  Upstream state
+        # must already be complete; the native workflow machine enforces that
+        # dependency when the selected phase starts.
+        return list(VIDEO_PHASE_PIPELINE_STEPS[phase])
     if from_step:
         chain = VIDEO_CHAIN
         if from_step not in chain:
@@ -279,6 +244,15 @@ def main() -> int:
         default=None,
         help="Run this step and all downstream pipeline steps",
     )
+    parser.add_argument(
+        "--phase",
+        choices=VIDEO_PHASES,
+        default=None,
+        help=(
+            "Run one compact workflow phase (upstream phases must already be "
+            "complete)"
+        ),
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--refresh-variants", action="store_true")
@@ -317,13 +291,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.steps and args.from_step:
-        parser.error("--steps and --from are mutually exclusive")
+    if sum(bool(value) for value in (args.steps, args.from_step, args.phase)) > 1:
+        parser.error("--steps, --from, and --phase are mutually exclusive")
     if args.approve_script and any(
-        (args.steps, args.from_step, args.refresh_script, args.refresh_variants)
+        (
+            args.steps,
+            args.from_step,
+            args.phase,
+            args.refresh_script,
+            args.refresh_variants,
+        )
     ):
         parser.error(
-            "--approve-script cannot be combined with --steps, --from, or script refresh"
+            "--approve-script cannot be combined with --steps, --from, --phase, or script refresh"
         )
 
     if args.approve_script:
@@ -372,6 +352,8 @@ def main() -> int:
 
     status = build_status(args.date)
     _print_json({"event": "agent_status", **status})
+    if (status.get("workflow") or {}).get("status") == "corrupt":
+        return 2
     if (
         status.get("pipeline_status") == "blocked"
         and not (
@@ -395,6 +377,7 @@ def main() -> int:
         refresh_selection=args.refresh_selection,
         refresh_script=args.refresh_script,
         refresh_variants=args.refresh_variants,
+        phase=args.phase,
     )
     if not steps:
         _print_json(

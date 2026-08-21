@@ -128,10 +128,6 @@ class TranslationManager:
     ) -> str:
         return comment_key(story_idx, item.source_id, comment, selected_idx)
 
-    @staticmethod
-    def _legacy_comment_translation_key(story_idx: int, selected_idx: int) -> str:
-        return f"comment_{story_idx}_{selected_idx}"
-
     def collect_comment_refs(
         self,
         content,
@@ -184,10 +180,7 @@ class TranslationManager:
                 stable_key = self._comment_translation_key(
                     story_idx, item, comment, selected_idx
                 )
-                legacy_key = self._legacy_comment_translation_key(
-                    story_idx, selected_idx
-                )
-                value = translations.get(stable_key) or translations.get(legacy_key)
+                value = translations.get(stable_key)
                 if value:
                     comment.content_cn = value
 
@@ -246,10 +239,5 @@ class TranslationManager:
                 stable_key = TranslationManager._comment_translation_key(
                     story_idx, item, selected[i], i
                 )
-                legacy_key = TranslationManager._legacy_comment_translation_key(
-                    story_idx, i
-                )
                 if stable_key in translations:
                     q["text_cn"] = translations[stable_key]
-                elif legacy_key in translations:
-                    q["text_cn"] = translations[legacy_key]

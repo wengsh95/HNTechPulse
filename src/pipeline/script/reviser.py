@@ -1,6 +1,6 @@
 """Apply LLM subtitle revisions back into a composed Script.
 
-The script-review step (``orchestrator._step_review_script``) asks the model to
+The automatic human-review pass (``orchestrator._auto_review_script``) asks the model to
 rewrite weak sub-segment narration. This module re-applies those rewrites into
 the composed ``story_scan`` segment, keeping the three derived locations in sync:
 ``meta["sub_segment_subtitle_texts"]``, ``meta["sub_segment_estimated_durations"]``,

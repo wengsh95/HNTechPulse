@@ -18,7 +18,7 @@ from tenacity import (
 from src.providers.fetcher.models import HNStory, HNComment
 from src.core.models import ContentItem, ContentComment, ContentPackage
 from src.core.interfaces import ContentFetcher
-from src.pipeline.paths import date_root, raw_path
+from src.pipeline.paths import raw_path
 from src.utils.atomic_io import atomic_write_json
 from src.utils.logger import setup_logger
 from src.utils.async_helper import run_async as _run_async
@@ -82,9 +82,7 @@ class HNFetcher(ContentFetcher):
         self.logger.info("=" * 60)
 
         raw_stories_path = raw_path(date, "raw_stories.json")
-        # Backward compat: also check old raw.json
-        raw_compat_path = date_root(date) / "raw.json"
-        cache_path = raw_stories_path if raw_stories_path.exists() else raw_compat_path
+        cache_path = raw_stories_path
 
         if cache_path.exists():
             self.logger.info(f"Cache hit, loading from {cache_path}")
@@ -750,13 +748,7 @@ class HNFetcher(ContentFetcher):
             raw_data = json.load(f)
 
         stories = [self._dict_to_story(d) for d in raw_data["stories"]]
-        # Old raw.json may include comments; new raw_stories.json won't
         comments = {}
-        if "comments" in raw_data:
-            comments = {
-                int(k): [self._dict_to_comment(c) for c in v]
-                for k, v in raw_data["comments"].items()
-            }
 
         return self._to_content_package(stories, comments, date)
 

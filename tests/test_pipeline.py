@@ -14,6 +14,7 @@ from src.core.models import (
 from src.core.interfaces import ContentFetcher, LLMProvider, TTSProvider, Renderer
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.script import ScriptWriter
+from src.pipeline.script.templates import generate_fixed_closing
 from src.pipeline.orchestrator import Orchestrator
 from src.pipeline.comment import save_comment_judgements
 
@@ -236,8 +237,7 @@ class TestScriptWriter:
         )
 
     def test_closing_card_omits_daily_signal_heading(self):
-        writer = ScriptWriter(_make_config(), MagicMock(), debug=True)
-        segment = writer._generate_fixed_closing(
+        segment = generate_fixed_closing(
             "2026-04-26",
             [
                 {
@@ -306,8 +306,6 @@ class TestLLMProviderInterface:
 
 class TestScriptTemplates:
     def test_opening_and_closing_are_bilibili_oriented(self):
-        from unittest.mock import MagicMock
-
         from src.pipeline.script.templates import (
             generate_fixed_closing,
             generate_fixed_opening,
@@ -338,25 +336,14 @@ class TestScriptTemplates:
             },
         ]
 
-        mock_llm = MagicMock()
-        mock_llm.complete_prompt.return_value = (
-            "欢迎收看HN每日观察，今天我们聊几个有趣的技术话题。"
-        )
-
-        opening = generate_fixed_opening(
-            "2026-06-07", highlight_entries=entries, llm_provider=mock_llm
-        )
+        opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
         closing = generate_fixed_closing("2026-06-07", entries)
 
-        assert (
-            opening.audio_text == "欢迎收看HN每日观察，今天我们聊几个有趣的技术话题。"
-        )
+        assert opening.audio_text.startswith("今天的HN观察，先看")
         assert "祝你今天顺利" in closing.audio_text
         assert "？" not in closing.audio_text
 
     def test_opening_and_closing_do_not_inject_thesis_templates(self):
-        from unittest.mock import MagicMock
-
         from src.pipeline.script.templates import (
             _closing_audio,
             generate_fixed_opening,
@@ -376,14 +363,7 @@ class TestScriptTemplates:
             },
         ]
 
-        mock_llm = MagicMock()
-        mock_llm.complete_prompt.return_value = (
-            "欢迎收看HN每日观察，今天我们聊几个有趣的技术话题。"
-        )
-
-        opening = generate_fixed_opening(
-            "2026-06-07", highlight_entries=entries, llm_provider=mock_llm
-        )
+        opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
         audio = opening.audio_text + _closing_audio(entries, weekday=2)
 
         assert "今天的主线" not in audio
@@ -442,8 +422,6 @@ class TestScriptTemplates:
         assert "工具效率变快后的成本问题" not in audio
 
     def test_opening_keeps_story_hooks_without_thesis_injection(self):
-        from unittest.mock import MagicMock
-
         from src.pipeline.script.templates import (
             _closing_audio,
             generate_fixed_opening,
@@ -468,14 +446,7 @@ class TestScriptTemplates:
             },
         ]
 
-        mock_llm = MagicMock()
-        mock_llm.complete_prompt.return_value = (
-            "欢迎收看HN每日观察，今天我们聊几个有趣的技术话题。"
-        )
-
-        opening = generate_fixed_opening(
-            "2026-06-07", highlight_entries=entries, llm_provider=mock_llm
-        )
+        opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
         closing = _closing_audio(entries, weekday=0)
 
         assert "控制权和兜底成本" not in opening.audio_text
@@ -526,9 +497,7 @@ class TestScriptTemplates:
         assert "评论区" not in out
         assert "变成" not in out
 
-    def test_opening_uses_llm_when_provider_available(self):
-        from unittest.mock import MagicMock
-
+    def test_opening_is_deterministic_without_provider(self):
         from src.pipeline.script.templates import generate_fixed_opening
 
         entries = [
@@ -539,15 +508,10 @@ class TestScriptTemplates:
             },
         ]
 
-        mock_llm = MagicMock()
-        mock_llm.complete_prompt.return_value = "今天我们来看几个值得关注的技术动态。"
+        opening = generate_fixed_opening("2026-06-07", highlight_entries=entries)
 
-        opening = generate_fixed_opening(
-            "2026-06-07", highlight_entries=entries, llm_provider=mock_llm
-        )
-
-        assert opening.audio_text == "今天我们来看几个值得关注的技术动态。"
-        mock_llm.complete_prompt.assert_called_once()
+        assert opening.audio_text.startswith("今天的HN观察，先看")
+        assert "MCP协议" in opening.audio_text
 
     def test_spoken_hook_prefers_complete_fallback_over_truncated_phrase(self):
         from src.pipeline.script.templates import _entry_spoken_hook

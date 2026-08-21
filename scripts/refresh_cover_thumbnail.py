@@ -17,8 +17,8 @@ if str(ROOT) not in sys.path:
 
 from src.pipeline.paths import (  # noqa: E402
     publish_path,
-    publish_root,
     render_remotion_dir,
+    render_path,
 )
 from src.providers.renderer.binary_finder import find_npx  # noqa: E402
 from src.utils.atomic_io import atomic_write_json  # noqa: E402
@@ -82,10 +82,10 @@ def refresh_cover(
     title_path = publish_path(date, "title.json")
     bg_path = publish_path(date, "cover_bg.png")
     if variant_output:
-        props_path = publish_root(date) / f"cover_props.{template}.json"
-        cover_path = publish_root(date) / f"cover_{template}.png"
+        props_path = render_path(date, "cover_props_v1.json")
+        cover_path = publish_path(date, "cover_b1_t1.png")
     else:
-        props_path = publish_path(date, "cover_props.json")
+        props_path = render_path(date, "cover_props_v1.json")
         cover_path = publish_path(date, "cover.png")
 
     if not title_path.exists():

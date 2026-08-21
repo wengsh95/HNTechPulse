@@ -7,7 +7,7 @@ Covers the most fragile parts of the LLM transport layer:
 - ``LLMClient._repair_json`` — trailing-comma, unquoted-key, prefix-prefix
   recovery passes.
 - ``_TEMPLATE_CACHE`` — mtime-based invalidation.
-- ``_TEMPLATE_CACHE`` — backward-compat with non-existent paths.
+- ``_TEMPLATE_CACHE`` — behavior for non-existent paths.
 """
 
 from __future__ import annotations

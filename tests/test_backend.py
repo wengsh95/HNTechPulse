@@ -15,9 +15,11 @@ def _make_config(**overrides):
 
 
 def _make_backend(monkeypatch, **config_overrides):
-    """Construct LLMBackend with OPENAI_API_KEY set so init doesn't raise."""
+    """Construct LLMBackend with an explicit test credential binding."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
-    return LLMBackend(_make_config(**config_overrides))
+    config = _make_config(**config_overrides)
+    config["llm"].setdefault("api_key_env", "OPENAI_API_KEY")
+    return LLMBackend(config)
 
 
 # ── Config parsing ─────────────────────────────────────────────────────
@@ -159,22 +161,11 @@ class TestResolveApiKey:
         backend = LLMBackend(_make_config(base_url="https://api.myproxy.io/v1"))
         assert backend.api_key == "sk-proxy"
 
-    def test_fallback_to_openai_key(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-fallback")
-        backend = LLMBackend({"llm": {}})
-        assert backend.api_key == "sk-fallback"
-
-    def test_fallback_to_deepseek_key(self, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
-        backend = LLMBackend({"llm": {}})
-        assert backend.api_key == "sk-ds"
-
-    def test_fallback_openai_before_deepseek(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-first")
-        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-second")
-        backend = LLMBackend({"llm": {}})
-        assert backend.api_key == "sk-openai-first"
+    def test_no_implicit_cross_provider_key_fallback(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek")
+        with pytest.raises(ValueError, match="No API key found"):
+            LLMBackend({"llm": {}})
 
     def test_no_key_found_raises(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -190,7 +181,7 @@ class TestCreateClient:
     def test_creates_client_with_api_key(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         with patch("src.providers.llm.backend.OpenAI") as mock_openai:
-            backend = LLMBackend({"llm": {}})
+            backend = LLMBackend(_make_config(api_key_env="OPENAI_API_KEY"))
             backend.create_client()
             call_kwargs = mock_openai.call_args.kwargs
             assert call_kwargs["api_key"] == "sk-test"
@@ -206,7 +197,7 @@ class TestCreateClient:
     def test_no_base_url_when_none(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         with patch("src.providers.llm.backend.OpenAI") as mock_openai:
-            backend = LLMBackend({"llm": {}})
+            backend = LLMBackend(_make_config(api_key_env="OPENAI_API_KEY"))
             backend.create_client()
             call_kwargs = mock_openai.call_args.kwargs
             assert "base_url" not in call_kwargs
@@ -214,7 +205,7 @@ class TestCreateClient:
     def test_timeout_override(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         with patch("src.providers.llm.backend.OpenAI") as mock_openai:
-            backend = LLMBackend({"llm": {}})
+            backend = LLMBackend(_make_config(api_key_env="OPENAI_API_KEY"))
             backend.create_client(read=120.0)
             call_kwargs = mock_openai.call_args.kwargs
             assert call_kwargs["timeout"].read == 120.0
@@ -237,7 +228,7 @@ class TestBackendIntegration:
 
     def test_key_cached_after_first_access(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-cached")
-        backend = LLMBackend({"llm": {}})
+        backend = LLMBackend(_make_config(api_key_env="OPENAI_API_KEY"))
         key1 = backend.api_key
         key2 = backend.api_key
         assert key1 == "sk-cached"

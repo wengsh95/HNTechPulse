@@ -32,10 +32,17 @@ from src.pipeline.agent_variants import (
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
-from src.pipeline.agent_state import (
-    AgentState,
+from src.workflow import (
+    BLOCK_MANUAL_DOWNLOAD,
+    BLOCK_MANUAL_IMAGE_SELECTION,
     BLOCK_INSUFFICIENT_CONTEXT,
     BLOCK_MANUAL_SCRIPT_REVIEW,
+    StateStatus,
+    VIDEO_PIPELINE_STEPS,
+    VIDEO_WORKFLOW_STEPS,
+    WorkflowMachine,
+    write_image_selection_tasks,
+    write_manual_download_tasks,
 )
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.human_review import (
@@ -79,7 +86,6 @@ from src.pipeline.tts_processor import TTSProcessor
 from src.utils.atomic_io import atomic_write_json, atomic_write_text
 from src.utils.logger import setup_logger
 from src.utils.text import normalize_cjk_mixed_spacing
-
 
 _PUBLISH_DISCUSSION_CLICHES = (
     "你怎么看，欢迎在评论区聊聊。",
@@ -139,6 +145,65 @@ def _downgrade_unsupported_publish_claims(text: str) -> str:
     return text
 
 
+def _normalize_cover_variants(raw: Any) -> list[dict[str, Any]]:
+    """Normalize the cover copy emitted by the title/editorial LLM call.
+
+    Cover copy uses the same focus story and comment analysis as the title, so
+    it is cheaper and more coherent to ask for both in one structured response.
+    Keep this parser deliberately tolerant: older cached title artifacts may
+    not contain ``cover_variants`` and will fall back to the single cover text.
+    """
+    if not isinstance(raw, list):
+        return []
+
+    variants: list[dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        title = _downgrade_unsupported_publish_claims(
+            str(entry.get("cover_title") or "")
+        ).strip()
+        if not title:
+            continue
+        subtitle = normalize_cjk_mixed_spacing(
+            str(entry.get("cover_subtitle") or "")
+        ).strip()
+        tags = [
+            normalize_cjk_mixed_spacing(str(tag)).strip()
+            for tag in (entry.get("cover_tags") or [])
+            if str(tag).strip()
+        ][:2]
+        highlights = [
+            normalize_cjk_mixed_spacing(str(word)).strip()
+            for word in (entry.get("cover_highlights") or [])
+            if str(word).strip()
+        ][:4]
+        variants.append(
+            {
+                "title": title,
+                "subtitle": subtitle,
+                "tags": tags,
+                "highlights": highlights,
+            }
+        )
+    return variants[:COVER_VARIANT_COUNT]
+
+
+def _normalize_cover_prompt(raw: Any) -> str:
+    """Keep a cached image prompt bounded and safe for the image provider."""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    text = text[:1200].rstrip(" ,.;。；")
+    safety_suffix = (
+        "No logos, no text, no watermarks, no brand references, no horizontal bars, "
+        "no vertical bars, no UI elements, no header bars, no footer bars."
+    )
+    if safety_suffix.lower() not in text.lower():
+        text = f"{text}, {safety_suffix}"
+    return text
+
+
 def _ensure_all_stories_in_description(
     description: str,
     focus_story: dict,
@@ -187,72 +252,24 @@ def _format_mmss(seconds: float | int | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-VIDEO_PIPELINE_ORDER = [
-    "fetch",
-    "prefilter",
-    "fetch_comments",
-    "enrich_articles",
-    "translate_titles",
-    "analyze_comments",
-    "judge_comments",
-    "write_script",
-    "draft_quick_news",
-    "normalize_video_structure",
-    "prepare_story_images",
-    "review_script",
-    "human_review",
-    "translate_comments",
-    "title",
-    "cover_image",
-    "cover_thumbnail",
-    "draft_storyboard",
-    "apply_storyboard",
-    "prepare_subtitles",
-    "synthesize_audio",
-    "prepare_render",
-    "render",
-]
-
+# The workflow registry is the single source of truth for the order and the
+# default managed chain.
+VIDEO_PIPELINE_ORDER = list(VIDEO_PIPELINE_STEPS)
+STANDALONE_STEPS = {"render", "preview"}
 PIPELINE_STEPS = [
-    "fetch",
-    "prefilter",
-    "fetch_comments",
-    "enrich_articles",
-    "translate_titles",
-    "analyze_comments",
-    "judge_comments",
-    "write_script",
-    "draft_quick_news",
-    "normalize_video_structure",
-    "prepare_story_images",
-    "review_script",
-    "human_review",
-    "translate_comments",
-    "prepare_subtitles",
-    "synthesize_audio",
-    "title",
-    "cover_image",
-    "cover_thumbnail",
-    "draft_storyboard",
-    "apply_storyboard",
-    "publish_guide",
-    "prepare_render",
+    step for step in VIDEO_PIPELINE_STEPS if step not in STANDALONE_STEPS
 ]
 OPTIONAL_PRODUCTION_STEPS = {
     "write_script",
     "draft_quick_news",
-    "normalize_video_structure",
     "prepare_story_images",
-    "review_script",
     "human_review",
-    "translate_comments",
     "title",
     "prepare_render",
     "cover_image",
     "cover_thumbnail",
     "draft_storyboard",
     "apply_storyboard",
-    "publish_guide",
     "prepare_subtitles",
     # TTS is a render-side branch only (prepare_render needs audio_dir +
     # actual_duration); title/cover/publish do not depend on it, so it is
@@ -262,17 +279,9 @@ OPTIONAL_PRODUCTION_STEPS = {
 CORE_PIPELINE_STEPS = [
     step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
 ]
-LEGACY_CORE_PIPELINE_STEPS = [
-    *CORE_PIPELINE_STEPS,
-    "write_script",
-    "review_script",
-    "human_review",
-    "translate_comments",
-    "title",
-]
-STANDALONE_STEPS = {"render", "preview"}
 ALL_STEPS = PIPELINE_STEPS + ["render", "preview"]
-DEFAULT_STEPS = list(VIDEO_PIPELINE_ORDER)
+_VALID_STEPS = set(ALL_STEPS)
+DEFAULT_STEPS = list(VIDEO_PIPELINE_STEPS)
 
 # Number of cover text variants generated for manual selection (shared background).
 COVER_VARIANT_COUNT = 3
@@ -280,12 +289,9 @@ COVER_VARIANT_COUNT = 3
 # Steps that need `script` in memory (consume from `write_script` or disk).
 SCRIPT_CONSUMING_STEPS = frozenset(
     {
-        "review_script",
         "human_review",
         "draft_quick_news",
-        "normalize_video_structure",
         "prepare_story_images",
-        "translate_comments",
         "prepare_subtitles",
         "synthesize_audio",
         "title",
@@ -293,7 +299,6 @@ SCRIPT_CONSUMING_STEPS = frozenset(
         "cover_thumbnail",
         "draft_storyboard",
         "apply_storyboard",
-        "publish_guide",
         "prepare_render",
         "render",
     }
@@ -304,10 +309,8 @@ SCRIPT_MUTATING_STEPS = frozenset(
     {
         "write_script",
         "draft_quick_news",
-        "normalize_video_structure",
         "prepare_story_images",
-        "review_script",
-        "translate_comments",
+        "human_review",
         "prepare_subtitles",
         "synthesize_audio",
         "title",
@@ -320,7 +323,6 @@ SCRIPT_MUTATING_STEPS = frozenset(
 # render recovery, so manually edited copy cannot bypass the checkpoint.
 HUMAN_REVIEW_PROTECTED_STEPS = frozenset(
     {
-        "translate_comments",
         "title",
         "cover_image",
         "cover_thumbnail",
@@ -328,7 +330,6 @@ HUMAN_REVIEW_PROTECTED_STEPS = frozenset(
         "apply_storyboard",
         "prepare_subtitles",
         "synthesize_audio",
-        "publish_guide",
         "prepare_render",
         "render",
         "preview",
@@ -338,22 +339,23 @@ HUMAN_REVIEW_PROTECTED_STEPS = frozenset(
 
 def _resolve_steps(requested: List[str]) -> List[str]:
     """Expand requested steps to include all prerequisites."""
-    valid = [s for s in requested if s in ALL_STEPS]
+    invalid = [s for s in requested if s not in _VALID_STEPS]
+    if invalid:
+        raise ValueError(
+            "Unknown pipeline step(s): "
+            + ", ".join(invalid)
+            + ". Use the canonical workflow steps."
+        )
+    valid = list(requested)
     if not valid:
         return []
 
     core_requested = [s for s in valid if s in CORE_PIPELINE_STEPS]
-    legacy_core_requested = [s for s in valid if s in LEGACY_CORE_PIPELINE_STEPS]
     optional_requested = [s for s in valid if s in OPTIONAL_PRODUCTION_STEPS]
     standalone_requested = [s for s in valid if s in STANDALONE_STEPS]
 
-    resolved = []
-    if legacy_core_requested:
-        max_idx = max(
-            LEGACY_CORE_PIPELINE_STEPS.index(s) for s in legacy_core_requested
-        )
-        resolved.extend(LEGACY_CORE_PIPELINE_STEPS[: max_idx + 1])
-    elif core_requested:
+    resolved: list[str] = []
+    if core_requested:
         max_idx = max(CORE_PIPELINE_STEPS.index(s) for s in core_requested)
         resolved.extend(CORE_PIPELINE_STEPS[: max_idx + 1])
 
@@ -363,10 +365,9 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     ):
         optional_requested = ["cover_image", *optional_requested]
 
-    # Legacy video maintenance: prepare_render needs audio synthesis, but it is
-    # itself a downstream step. Do not classify it as a legacy core step: an
-    # explicit prepare_render/render recovery must not expand back through the
-    # editorial chain and overwrite a manually edited script.
+    # prepare_render needs audio synthesis, but it is itself a downstream step.
+    # An explicit prepare_render/render recovery must not expand back through
+    # the editorial chain and overwrite a manually edited script.
     if (
         "prepare_render" in optional_requested
         and "synthesize_audio" not in optional_requested
@@ -398,9 +399,8 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     ):
         resolved.append("human_review")
 
-    # Optional steps are appended above for compatibility with the historical
-    # resolver. Reorder the final set by the real pipeline order so a video run
-    # always synthesizes audio before prepare_render.
+    # Reorder the final set by the real pipeline order so a video run always
+    # synthesizes audio before prepare_render.
     if any(
         step in resolved
         for step in (
@@ -449,7 +449,9 @@ class Orchestrator:
         self.refresh_variants = refresh_variants
         self.refresh_selection = refresh_selection
         self.refresh_script = refresh_script
-        self._agent_state: Optional[AgentState] = None
+        self._workflow: WorkflowMachine | None = None
+        self._workflow_completed_steps: set[str] = set()
+        self._workflow_expected_steps: dict[str, set[str]] = {}
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
@@ -482,18 +484,136 @@ class Orchestrator:
 
     @contextmanager
     def _tracked_step(self, name: str):
-        if self._agent_state:
-            self._agent_state.start_step(name)
+        self._workflow_start_step(name)
+        append_agent_event(self._progress.date, "step_started", step=name)
         try:
             with self._progress.step(name):
                 yield
         except Exception as e:
-            if self._agent_state:
-                self._agent_state.fail_step(name, e)
+            append_agent_event(
+                self._progress.date,
+                "step_failed",
+                step=name,
+                error_type=type(e).__name__,
+                message=str(e),
+            )
+            self._workflow_fail_step(name, e)
             raise
         else:
-            if self._agent_state:
-                self._agent_state.complete_step(name)
+            append_agent_event(self._progress.date, "step_completed", step=name)
+            self._workflow_complete_step(name)
+
+    def _workflow_start_step(self, step: str) -> None:
+        if self._workflow is None:
+            return
+        state = self._workflow.state_for_pipeline_step(step)
+        if state is None:
+            return
+        record = self._workflow.snapshot.states[state]
+        if record.status == StateStatus.PENDING:
+            self._workflow.mark_running(state)
+        self._workflow.update_metadata(
+            current_pipeline_step=step,
+            failed_pipeline_step=None,
+            execution_status="running",
+        )
+
+    def _workflow_complete_step(self, step: str) -> None:
+        if self._workflow is None:
+            return
+        self._workflow_completed_steps.add(step)
+        state = self._workflow.state_for_pipeline_step(step)
+        if state is None:
+            return
+        definition = self._workflow.get(state)
+        expected_steps = self._workflow_expected_steps.get(
+            state, set(definition.pipeline_steps)
+        )
+        if expected_steps and expected_steps.issubset(self._workflow_completed_steps):
+            self._workflow.mark_done(state)
+        self._workflow.update_metadata(
+            completed_pipeline_steps=sorted(self._workflow_completed_steps),
+            current_pipeline_step=None,
+        )
+
+    def _workflow_fail_step(self, step: str, error: BaseException) -> None:
+        if self._workflow is None:
+            return
+        state = self._workflow.state_for_pipeline_step(step)
+        if state is not None:
+            self._workflow.mark_failed(state, str(error))
+        self._workflow.update_metadata(
+            execution_status="failed",
+            current_pipeline_step=None,
+            failed_pipeline_step=step,
+            last_error={"type": type(error).__name__, "message": str(error)},
+        )
+
+    def _workflow_block(
+        self,
+        step: str,
+        reason: str,
+        *,
+        items: list[dict[str, Any]] | None = None,
+        task_file: str | None = None,
+    ) -> None:
+        if self._workflow is None:
+            return
+        state = self._workflow.state_for_pipeline_step(step)
+        if state is not None:
+            self._workflow.block(state, reason)
+        self._workflow.update_metadata(
+            execution_status="blocked",
+            current_pipeline_step=None,
+            failed_pipeline_step=step,
+            blocked_reason=reason,
+            blocked_items=items or [],
+            agent_task_file=task_file,
+        )
+        append_agent_event(
+            self._progress.date,
+            "run_blocked",
+            step=step,
+            reason=reason,
+            items=items or [],
+            task_file=task_file,
+        )
+
+    def _prepare_workflow(self, date: str, steps: list[str]) -> None:
+        self._workflow = WorkflowMachine(date, VIDEO_WORKFLOW_STEPS)
+        self._workflow.ensure(
+            metadata={
+                "workflow_model": "compact_5_stage",
+                "execution_mode": "native_orchestrator",
+                "requested_steps": list(steps),
+                "execution_status": "running",
+                "completed_pipeline_steps": [],
+                "current_pipeline_step": None,
+                "failed_pipeline_step": None,
+                "blocked_reason": None,
+                "blocked_items": [],
+                "degraded_items": [],
+                "last_error": None,
+            }
+        )
+        self._workflow_completed_steps = set()
+        self._workflow_expected_steps = {
+            state.name: set(state.pipeline_steps).intersection(steps)
+            for state in VIDEO_WORKFLOW_STEPS
+        }
+        first_state = next(
+            (
+                self._workflow.state_for_pipeline_step(step)
+                for step in steps
+                if self._workflow.state_for_pipeline_step(step) is not None
+            ),
+            None,
+        )
+        if first_state is None:
+            return
+        record = self._workflow.snapshot.states[first_state]
+        if record.status != StateStatus.PENDING:
+            self._workflow.reset(first_state)
 
     def run(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
@@ -504,13 +624,9 @@ class Orchestrator:
             steps = _resolve_steps(steps)
 
         self._progress = PipelineProgress(steps, date, self.config)
-        self._agent_state = (
-            AgentState(date, steps, self.config, product="video")
-            if self.agent_mode and not self.dry_run
-            else None
-        )
-        if self._agent_state:
-            self._agent_state.start_run()
+        if self.agent_mode and not self.dry_run:
+            self._prepare_workflow(date, steps)
+            append_agent_event(date, "run_started", steps=steps)
         if (
             self.agent_mode
             and not self.dry_run
@@ -557,18 +673,28 @@ class Orchestrator:
             if self.allow_degraded_enrichment:
                 self._mark_degraded_enrichment(failed_items)
             elif self.agent_mode:
-                if self._agent_state:
-                    insufficient = self._insufficient_context_items(failed_items)
-                    if insufficient:
-                        self._agent_state.block(
-                            "enrich_articles",
-                            BLOCK_INSUFFICIENT_CONTEXT,
-                            items=insufficient,
-                        )
-                    else:
-                        self._agent_state.block_for_manual_files(
-                            "enrich_articles", failed_items
-                        )
+                insufficient = self._insufficient_context_items(failed_items)
+                if insufficient:
+                    self._workflow_block(
+                        "enrich_articles",
+                        BLOCK_INSUFFICIENT_CONTEXT,
+                        items=insufficient,
+                    )
+                else:
+                    task_file = write_manual_download_tasks(date, failed_items)
+                    self._workflow_block(
+                        "enrich_articles",
+                        BLOCK_MANUAL_DOWNLOAD,
+                        items=[
+                            {
+                                "story_id": str(item.source_id),
+                                "title": item.title or "",
+                                "url": item.url or "",
+                            }
+                            for item in failed_items
+                        ],
+                        task_file=str(task_file).replace("\\", "/"),
+                    )
                 self._print_enrich_failure_guidance(failed_items)
                 return
             else:
@@ -579,17 +705,20 @@ class Orchestrator:
             self.article_enricher, "pending_image_selections", []
         )
         if pending_image_selections and self.agent_mode:
-            if self._agent_state:
-                self._agent_state.block_for_manual_image_selection(
-                    "enrich_articles", pending_image_selections
-                )
+            task_file = write_image_selection_tasks(date, pending_image_selections)
+            self._workflow_block(
+                "enrich_articles",
+                BLOCK_MANUAL_IMAGE_SELECTION,
+                items=pending_image_selections,
+                task_file=str(task_file).replace("\\", "/"),
+            )
             self.logger.warning(
                 "%d image selections need agent confirmation before continuing.",
                 len(pending_image_selections),
             )
             return
 
-        # ── 5. translate_titles ───────────────────────────────────────────
+        # ── 5. source-context gate ───────────────────────────────────────
         skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
         if (
             self.agent_mode
@@ -599,24 +728,14 @@ class Orchestrator:
         ):
             decision = self.agent_decision.evaluate_source_context(content, date)
             if not decision.should_continue:
-                if self._agent_state:
-                    self._agent_state.block(
-                        "enrich_articles",
-                        decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
-                        items=decision.blocked_items or [],
-                    )
+                self._workflow_block(
+                    "enrich_articles",
+                    decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
+                    items=decision.blocked_items or [],
+                )
                 return
 
-        if "translate_titles" in steps:
-            with self._tracked_step("translate_titles"):
-                content = self._step_translate_titles(content, date)
-
-        # ── 6. analyze_comments ───────────────────────────────────────────
-        if "analyze_comments" in steps:
-            with self._tracked_step("analyze_comments"):
-                content = self._step_analyze_comments(content, date)
-
-        # ── 7. judge_comments ─────────────────────────────────────────────
+        # ── 6. judge_comments ─────────────────────────────────────────────
         if "judge_comments" in steps:
             with self._tracked_step("judge_comments"):
                 content = self._step_judge_comments(content, date)
@@ -635,12 +754,11 @@ class Orchestrator:
                     content, script, date
                 )
                 if not decision.should_continue:
-                    if self._agent_state:
-                        self._agent_state.block(
-                            "write_script",
-                            decision.blocked_reason or "low_decision_confidence",
-                            items=decision.blocked_items or [],
-                        )
+                    self._workflow_block(
+                        "write_script",
+                        decision.blocked_reason or "low_decision_confidence",
+                        items=decision.blocked_items or [],
+                    )
                     return
         elif SCRIPT_CONSUMING_STEPS & set(steps):
             try:
@@ -656,80 +774,34 @@ class Orchestrator:
                     "Script not found on disk; downstream steps may fail"
                 )
 
-        # ── 9. review_script ──────────────────────────────────────────────
+        # ── 9. draft_quick_news + structure + comment translations ───────
         if "draft_quick_news" in steps:
             with self._tracked_step("draft_quick_news"):
-                script = self._step_draft_quick_news(script, date)
+                script = self._step_draft_quick_news(
+                    script,
+                    date,
+                    content=content,
+                )
 
-        # ── 10. normalize_video_structure ────────────────────────────────
-        if "normalize_video_structure" in steps:
-            with self._tracked_step("normalize_video_structure"):
-                script = self._step_normalize_video_structure(script, date)
-
-        # ── 11. prepare_story_images ──────────────────────────────────────
+        # ── 10. prepare_story_images ──────────────────────────────────────
         if "prepare_story_images" in steps:
             with self._tracked_step("prepare_story_images"):
                 image_result = self._step_prepare_story_images(script, content, date)
             if image_result.pending and self.agent_mode:
-                if self._agent_state:
-                    self._agent_state.block_for_manual_image_selection(
-                        "prepare_story_images", image_result.pending
-                    )
+                task_file = write_image_selection_tasks(date, image_result.pending)
+                self._workflow_block(
+                    "prepare_story_images",
+                    BLOCK_MANUAL_IMAGE_SELECTION,
+                    items=image_result.pending,
+                    task_file=str(task_file).replace("\\", "/"),
+                )
                 self.logger.warning(
                     "%d stories need confirmed images before continuing.",
                     len(image_result.pending),
                 )
                 return
 
-        # ── 10. review_script ─────────────────────────────────────────────
-        if "review_script" in steps:
-            with self._tracked_step("review_script"):
-                script = self._step_review_script(content, script, date)
-
-        # ── 11. human_review ──────────────────────────────────────────────
-        if "human_review" in steps:
-            with self._tracked_step("human_review"):
-                approved, review_page = self._step_human_review(script, date)
-            if not approved:
-                if self._agent_state:
-                    self._agent_state.block(
-                        "human_review",
-                        BLOCK_MANUAL_SCRIPT_REVIEW,
-                        items=[
-                            {
-                                "review_page": str(review_page).replace("\\", "/"),
-                                "approval_file": str(
-                                    agent_path(date, "script_approval.json")
-                                ).replace("\\", "/"),
-                                "approve_command": (
-                                    "uv run python scripts/agent_run.py "
-                                    f"--date {date} --approve-script"
-                                ),
-                            }
-                        ],
-                    )
-                self.logger.warning(
-                    "Human script review required before downstream production: %s",
-                    review_page,
-                )
-                return
-
-        # ── 12. translate_comments ────────────────────────────────────────
-        if "translate_comments" in steps:
-            with self._tracked_step("translate_comments"):
-                content, script = self._step_translate_comments(content, script, date)
-
-        # ── 11. prepare_subtitles ─────────────────────────────────────────
-        if "prepare_subtitles" in steps:
-            with self._tracked_step("prepare_subtitles"):
-                script = self._step_prepare_subtitles(script, date)
-
-        # ── 12. synthesize_audio ──────────────────────────────────────────
-        if "synthesize_audio" in steps:
-            with self._tracked_step("synthesize_audio"):
-                script = self._step_synthesize_audio(content, script, date)
-
-        # ── 13. title ─────────────────────────────────────────────────────
+        # ── 12. title ─────────────────────────────────────────────────────
         if "title" in steps:
             with self._tracked_step("title"):
                 script = self._step_title(content, script, date)
@@ -749,17 +821,52 @@ class Orchestrator:
             with self._tracked_step("draft_storyboard"):
                 self._step_draft_storyboard(script, date)
 
-        # ── 16. apply_storyboard ─────────────────────────────────────────
+        # ── 16. human_review ──────────────────────────────────────────────
+        if "human_review" in steps:
+            with self._tracked_step("human_review"):
+                approved, review_page = self._step_human_review(
+                    script, date, content=content
+                )
+            if not approved:
+                review_items = [
+                    {
+                        "review_page": str(review_page).replace("\\", "/"),
+                        "approval_file": str(
+                            agent_path(date, "script_approval.json")
+                        ).replace("\\", "/"),
+                        "approve_command": (
+                            "uv run python scripts/agent_run.py "
+                            f"--date {date} --approve-script"
+                        ),
+                    }
+                ]
+                self._workflow_block(
+                    "human_review",
+                    BLOCK_MANUAL_SCRIPT_REVIEW,
+                    items=review_items,
+                )
+                self.logger.warning(
+                    "Human script review required before downstream production: %s",
+                    review_page,
+                )
+                return
+
+        # ── 17. apply_storyboard ─────────────────────────────────────────
         if "apply_storyboard" in steps:
             with self._tracked_step("apply_storyboard"):
                 script = self._step_apply_storyboard(script, date)
 
-        # ── 17. publish_guide ─────────────────────────────────────────────
-        if "publish_guide" in steps:
-            with self._tracked_step("publish_guide"):
-                self._step_publish_guide(content, script, date)
+        # ── 19. prepare_subtitles ─────────────────────────────────────────
+        if "prepare_subtitles" in steps:
+            with self._tracked_step("prepare_subtitles"):
+                script = self._step_prepare_subtitles(script, date)
 
-        # ── 18. prepare_render ────────────────────────────────────────────
+        # ── 20. synthesize_audio ──────────────────────────────────────────
+        if "synthesize_audio" in steps:
+            with self._tracked_step("synthesize_audio"):
+                script = self._step_synthesize_audio(content, script, date)
+
+        # ── 21. prepare_render (+ publish guide) ──────────────────────────
         if "prepare_render" in steps:
             with self._tracked_step("prepare_render"):
                 self._step_prepare_render(content, script, date)
@@ -777,9 +884,17 @@ class Orchestrator:
         if script and SCRIPT_MUTATING_STEPS & set(steps) and not self.dry_run:
             save_transcript(script, date, content, logger=self.logger)
 
-        # report.md generation disabled
-        if self._agent_state:
-            self._agent_state.finish_run()
+        if self._workflow is not None:
+            self._workflow.update_metadata(
+                execution_status="complete",
+                current_pipeline_step=None,
+            )
+            append_agent_event(
+                date,
+                "run_finished",
+                status=self._workflow.status_report().get("status"),
+                steps=steps,
+            )
 
         self.logger.info("Pipeline completed")
 
@@ -805,7 +920,11 @@ class Orchestrator:
         return script
 
     def _step_human_review(
-        self, script: Optional[Script], date: str
+        self,
+        script: Optional[Script],
+        date: str,
+        *,
+        content: Optional[ContentPackage] = None,
     ) -> tuple[bool, Path]:
         self.logger.info("Step: Human review — require approval for current script")
         if script is None:
@@ -815,6 +934,9 @@ class Orchestrator:
         if self.dry_run:
             self.logger.info("Dry run: skipping human review gate")
             return True, review_page
+
+        # Automatic copy review is part of preparing the human-review packet.
+        self._auto_review_script(content, script, date)
 
         review_page = generate_script_review_page(
             script,
@@ -859,7 +981,11 @@ class Orchestrator:
         )
 
     def _step_draft_quick_news(
-        self, script: Optional[Script], date: str
+        self,
+        script: Optional[Script],
+        date: str,
+        *,
+        content: Optional[ContentPackage] = None,
     ) -> Optional[Script]:
         self.logger.info("Step: Draft quick news — agent selection")
         if script is None:
@@ -874,6 +1000,15 @@ class Orchestrator:
             config=self.config,
             logger=self.logger,
         )
+        # The quick-news segment is the final script shape mutation before
+        # image preparation. Normalize all story roles and translate the exact
+        # selected comments in this same tracked editorial step.
+        self._normalize_video_structure(script, date)
+        if content is not None:
+            _, translated_script = self._apply_comment_translations(
+                content, script, date, save_script=False
+            )
+            script = translated_script or script
         self.script_writer.save_script(script, date)
         return script
 
@@ -901,7 +1036,7 @@ class Orchestrator:
             self.script_writer.save_script(script, date)
         return result
 
-    def _step_normalize_video_structure(
+    def _normalize_video_structure(
         self, script: Optional[Script], date: str
     ) -> Optional[Script]:
         self.logger.info("Step: Normalize video structure — headline/focus/quick roles")
@@ -1052,11 +1187,10 @@ class Orchestrator:
 
         if self.article_enricher is None:
             self.logger.info("Article enricher not configured, skipping")
-            return content, []
-
-        enriched = self.article_enricher.enrich(content, date)
-        if enriched is not None:
-            content = enriched
+        else:
+            enriched = self.article_enricher.enrich(content, date)
+            if enriched is not None:
+                content = enriched
 
         failed_items = [
             item
@@ -1083,7 +1217,12 @@ class Orchestrator:
                 f"  Then re-run the pipeline. It will resume from this point."
             )
             self.content_preparer.save_content(content, date)
-        else:
+        if not failed_items or self.allow_degraded_enrichment:
+            # Persist the source/enrichment result before the title LLM call so
+            # a translation failure can resume without refetching articles.
+            self.content_preparer.save_content(content, date)
+            # Title translation belongs to the research/enrichment boundary.
+            content = self._translate_titles_in_enrichment(content, date)
             # Always persist enrichment results back to content.json, even on
             # the happy path. Without this, downstream steps (write_script,
             # title, …) see items with editor_angle=None and crash.
@@ -1091,47 +1230,19 @@ class Orchestrator:
 
         return content, failed_items
 
-    def _step_translate_titles(
+    def _translate_titles_in_enrichment(
         self, content: ContentPackage, date: str
     ) -> ContentPackage:
-        self.logger.info("Step: Translate titles — LLM batch title translation")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping title translation")
-            return content
-
+        """Fill title_cn as part of the research/enrichment boundary."""
         if all(item.title_cn for item in content.items):
             self.logger.info("  All titles already translated")
             return content
 
-        content = self.llm_provider.translate_titles(content, "translate.md", date)
-        self.content_preparer.save_content(content, date)
-        return content
-
-    def _step_analyze_comments(
-        self, content: ContentPackage, date: str
-    ) -> ContentPackage:
-        self.logger.info("Step: Analyze comments — VADER scoring")
-        if self.dry_run:
-            self.logger.info("Dry run: skipping comment analysis")
-            return content
-
-        analysis_path = pipeline_path(date, "comment_analysis.json")
-        if analysis_path.exists():
-            # Cache hit: skip re-scoring, but still run analyze() so that
-            # _load_from_cache() merges quality_score / sentiment back into
-            # the in-memory comments. Without this merge, downstream
-            # is_quotable_comment() filters (quality_score >= 0.22) silently
-            # drop every selected comment and the rendered video has no
-            # atmosphere_card quotes.
-            self.logger.info(
-                f"  Comment analysis cached at {analysis_path}, merging into content"
-            )
-        else:
-            self.logger.info("  No comment analysis cache; running fresh")
-
-        content = self.comment_analyzer.analyze(content, date)
-        self.content_preparer.save_content(content, date)
-        return content
+        self.logger.info(
+            "  Translating %d titles within enrichment (LLM batch)",
+            sum(1 for item in content.items if item.title and not item.title_cn),
+        )
+        return self.llm_provider.translate_titles(content, "translate.md", date)
 
     def _step_judge_comments(
         self, content: ContentPackage, date: str
@@ -1164,22 +1275,12 @@ class Orchestrator:
                         "Continue from a downstream step, or pass --refresh-script "
                         "to intentionally regenerate the script."
                     )
-            elif script_path.exists():
-                manifest_path = script_path.with_suffix(
-                    script_path.suffix + ".manifest.json"
+            elif self.agent_mode and script_path.exists():
+                raise RuntimeError(
+                    "Existing script.json has no script_lock.json. "
+                    "Continue from a downstream step, or pass --refresh-script "
+                    "to intentionally regenerate the script."
                 )
-                try:
-                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    manifest = None
-                if not isinstance(manifest, dict) or manifest.get(
-                    "artifact_hash"
-                ) != file_sha256(script_path):
-                    raise RuntimeError(
-                        "Existing script.json has untracked editorial changes. "
-                        "Continue from a downstream step, or pass --refresh-script "
-                        "to intentionally regenerate the script."
-                    )
         self.logger.info("=" * 50)
         self.logger.info("Step: Write script — narration generation")
         self.logger.info(f"Date: {date}, Stories: {len(content.items)}")
@@ -1253,10 +1354,15 @@ class Orchestrator:
         self.script_writer.save_script(script, date)
         return script
 
-    def _step_translate_comments(
-        self, content: ContentPackage, script: Optional[Script], date: str
+    def _apply_comment_translations(
+        self,
+        content: ContentPackage,
+        script: Optional[Script],
+        date: str,
+        *,
+        save_script: bool = True,
     ) -> Tuple[ContentPackage, Optional[Script]]:
-        self.logger.info("Step: Translate comments — LLM comment translation")
+        self.logger.info("  Translating selected comments")
         if self.dry_run:
             self.logger.info("Dry run: skipping comment translation")
             return content, script
@@ -1266,7 +1372,8 @@ class Orchestrator:
             return content, script
 
         content, script = self.translation_manager.translate(content, script, date)
-        self.script_writer.save_script(script, date)
+        if save_script:
+            self.script_writer.save_script(script, date)
         return content, script
 
     def _step_synthesize_audio(
@@ -1397,10 +1504,10 @@ class Orchestrator:
 
         return focus_story, comment_analysis
 
-    def _step_review_script(
+    def _auto_review_script(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> Optional[Script]:
-        self.logger.info("Step: Review script — LLM quality audit + auto-revise")
+        self.logger.info("  Automatic script review — LLM quality audit + auto-revise")
         if script is None:
             self.logger.warning("Script not loaded; skipping script review")
             return script
@@ -1451,7 +1558,7 @@ class Orchestrator:
             result = self.llm_provider.complete_prompt(
                 "prompts/script_review.md",
                 context,
-                label="review_script",
+                label="human_review_auto",
                 expect_json=True,
                 max_tokens=16384,
                 model=self.llm_provider.fast_model,
@@ -1489,7 +1596,7 @@ class Orchestrator:
         )
         write_artifact_manifest(
             cache_path,
-            step="review_script",
+            step="human_review_auto",
             date=date,
             inputs={
                 "source_subsegments_hash": current_hash,
@@ -1659,6 +1766,20 @@ class Orchestrator:
             for word in (result.get("cover_highlights") or [])
             if str(word).strip()
         ][:4]
+        cover_variants = _normalize_cover_variants(result.get("cover_variants"))
+        cover_prompt = _normalize_cover_prompt(result.get("cover_prompt"))
+        if not cover_variants and script.cover_title:
+            # Keep the title step useful even when an older/cheaper model omits
+            # the optional variants field. The cover stage can still render a
+            # coherent single candidate without another LLM round trip.
+            cover_variants = [
+                {
+                    "title": script.cover_title,
+                    "subtitle": script.cover_subtitle,
+                    "tags": script.cover_tags,
+                    "highlights": script.cover_highlights,
+                }
+            ]
 
         atomic_write_json(
             cache_path,
@@ -1674,6 +1795,8 @@ class Orchestrator:
                 "cover_tags": script.cover_tags,
                 "cover_highlights": script.cover_highlights,
                 "cover_subtitle": script.cover_subtitle,
+                "cover_variants": cover_variants,
+                "cover_prompt": cover_prompt,
                 "tags": script.tags,
             },
         )
@@ -1691,18 +1814,17 @@ class Orchestrator:
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info(
-            "Step: Cover image — generate AI image + 3 cover text variants"
+            "Step: Cover image — generate AI image + cached cover text variants"
         )
         bg_path = render_path(date, "cover_bg.png")
-        props_path = render_path(date, "cover_props.json")
         # CoverThumbnail composition in Remotion is 1920x1080 (16:9); the
         # generated image must match, otherwise objectFit:cover crops the
         # editorial illustration. The provider's config default may differ,
         # so we override explicitly here.
         cover_aspect_ratio = "16:9"
 
-        # Single-cover fallback text from the title step, used when the variant
-        # LLM call fails or returns fewer than COVER_VARIANT_COUNT variants.
+        # Single-cover fallback text from the title step, used when a model
+        # omits the optional multi-angle field.
         fallback_title = (
             script.cover_title
             if script and script.cover_title
@@ -1727,16 +1849,62 @@ class Orchestrator:
             fallback_subtitle = date
         date_label = date
 
-        # Freshness: the variant texts come from a non-deterministic LLM call,
-        # so a content hash would never be stable. Like the bg image, gate the
-        # variants on existence — if the bg and all variant props are present,
-        # skip entirely (no LLM call). Delete the props (or clear render cache)
-        # to regenerate.
+        cover_prompt = self._load_title_cover_prompt(date)
+        if not cover_prompt:
+            cover_prompt = (
+                "A bold editorial illustration about technology and software, "
+                "abstract central metaphor, no logos, no text."
+            )
+        cover_prompt_hash = stable_hash(cover_prompt)
+        cover_cfg = self.config.get("image_generator", {})
+        candidate_count = max(
+            1,
+            int(
+                os.environ.get("HN_COVER_CANDIDATES")
+                or cover_cfg.get("candidate_count", 1)
+                or 1
+            ),
+        )
+        cover_bg_inputs = {
+            "prompt_hash": cover_prompt_hash,
+            "aspect_ratio": cover_aspect_ratio,
+            "candidate_count": candidate_count,
+        }
+        bg_is_fresh = is_artifact_fresh(bg_path, cover_bg_inputs)
+
+        variants = self._load_title_cover_variants(date)
+        fallback_variant = {
+            "title": fallback_title,
+            "subtitle": fallback_subtitle,
+            "tags": fallback_tags,
+            "highlights": fallback_highlights,
+        }
+        if not variants:
+            variants = [fallback_variant]
+        while len(variants) < COVER_VARIANT_COUNT:
+            variants.append(dict(fallback_variant))
+        variants = variants[:COVER_VARIANT_COUNT]
+        variant_hash = stable_hash(variants)
+
+        # The title step now owns cover copy generation. Include its normalized
+        # output in the props manifest so a title refresh invalidates stale
+        # cover text without requiring another cover-specific LLM call.
         variant_paths = [
             render_path(date, f"cover_props_v{i}.json")
             for i in range(1, COVER_VARIANT_COUNT + 1)
         ]
-        if bg_path.exists() and all(p.exists() for p in variant_paths):
+        if bg_is_fresh and all(
+            is_artifact_fresh(
+                path,
+                {
+                    "background": bg_path.name,
+                    "variant_index": index,
+                    "title_cover_variants_hash": variant_hash,
+                    "cover_prompt_hash": cover_prompt_hash,
+                },
+            )
+            for index, path in enumerate(variant_paths, start=1)
+        ):
             self.logger.info("  Cover image + variants already done; skipping")
             self._mirror_cover_bg(date, bg_path)
             return
@@ -1745,94 +1913,60 @@ class Orchestrator:
             self.logger.info("Dry run: skipping cover image generation")
             return
 
-        if not bg_path.exists():
+        if not bg_is_fresh:
             if self.image_generator is None:
-                self.logger.warning(
-                    "No image_generator configured — cover step will be skipped. "
-                    "Set image_generator.enabled=true in config to enable."
-                )
-                return
-
-            highlight_entries = self._extract_highlight_entries(script, content)
-            context = {
-                "highlight_entries": json.dumps(
-                    highlight_entries, ensure_ascii=False, indent=2
-                ),
-            }
-            try:
-                result = self.llm_provider.complete_prompt(
-                    "prompts/cover_prompt.md",
-                    context,
-                    label="cover_prompt",
-                    expect_json=True,
-                    model=self.llm_provider.fast_model,
-                    temperature=self.llm_provider.fast_temperature,
-                )
-                cover_prompt = (result.get("cover_prompt") or "").strip()
-            except (ValueError, RuntimeError, OSError) as e:
-                self.logger.warning(
-                    f"Cover prompt generation failed ({type(e).__name__}: {e}); "
-                    f"using fallback static prompt. Cover will not reflect today's content."
-                )
-                cover_prompt = ""
-
-            if not cover_prompt:
-                cover_prompt = (
-                    "A bold editorial illustration about technology and software, "
-                    "abstract central metaphor, no logos, no text."
-                )
-
-            # Generate N candidates with different seeds for manual layout
-            # selection. Each candidate is written as cover_bg_v{i}.png. The
-            # first candidate also becomes the canonical cover_bg.png so
-            # downstream cover_thumbnail keeps working unchanged.
-            cover_cfg = self.config.get("image_generator", {})
-            candidate_count = max(
-                1,
-                int(
-                    os.environ.get("HN_COVER_CANDIDATES")
-                    or cover_cfg.get("candidate_count", 1)
-                    or 1
-                ),
-            )
-            candidate_seeds = [1001, 2002, 3003, 4004, 5005, 6006, 7007, 8008]
-
-            for i in range(1, candidate_count + 1):
-                if i == 1:
-                    candidate_path = bg_path
-                else:
-                    candidate_path = render_path(date, f"cover_bg_v{i}.png")
-                seed = candidate_seeds[(i - 1) % len(candidate_seeds)]
-                try:
-                    self.image_generator.generate(
-                        cover_prompt,
-                        str(candidate_path),
-                        aspect_ratio=cover_aspect_ratio,
-                        seed=seed,
-                    )
-                except (ValueError, RuntimeError, OSError) as e:
+                if not bg_path.exists():
                     self.logger.warning(
-                        f"Cover candidate {i} image generation failed "
-                        f"({type(e).__name__}: {e})"
+                        "No image_generator configured — cover step will be skipped. "
+                        "Set image_generator.enabled=true in config to enable."
                     )
-                    continue
-            if candidate_count > 1:
-                self.logger.info(
-                    f"  Generated {candidate_count} cover background candidates "
-                    f"({bg_path.name} + cover_bg_v*.png); review and pick the best."
+                    return
+                self.logger.warning(
+                    "No image_generator configured — keeping existing cover background."
                 )
+            else:
+                # The title/editorial call already has the same story and comment
+                # context. Reuse its cached visual prompt instead of making a
+                # second LLM request with an almost identical input.
+                candidate_seeds = [1001, 2002, 3003, 4004, 5005, 6006, 7007, 8008]
 
-        # Generate the cover text variants (3 editorial angles, shared bg).
-        variants = self._generate_cover_variants(content, script, date)
-        if not variants:
-            variants = [
-                {
-                    "title": fallback_title,
-                    "subtitle": fallback_subtitle,
-                    "tags": fallback_tags,
-                    "highlights": fallback_highlights,
-                }
-            ]
+                # Generate N candidates with different seeds for manual layout
+                # selection. Each candidate is written as cover_bg_v{i}.png. The
+                # first candidate also becomes the canonical cover_bg.png so
+                # downstream cover_thumbnail keeps working unchanged.
+                for i in range(1, candidate_count + 1):
+                    if i == 1:
+                        candidate_path = bg_path
+                    else:
+                        candidate_path = render_path(date, f"cover_bg_v{i}.png")
+                    seed = candidate_seeds[(i - 1) % len(candidate_seeds)]
+                    try:
+                        self.image_generator.generate(
+                            cover_prompt,
+                            str(candidate_path),
+                            aspect_ratio=cover_aspect_ratio,
+                            seed=seed,
+                        )
+                    except (ValueError, RuntimeError, OSError) as e:
+                        self.logger.warning(
+                            f"Cover candidate {i} image generation failed "
+                            f"({type(e).__name__}: {e})"
+                        )
+                        continue
+                if candidate_count > 1:
+                    self.logger.info(
+                        f"  Generated {candidate_count} cover background candidates "
+                        f"({bg_path.name} + cover_bg_v*.png); review and pick the best."
+                    )
+
+            if bg_path.exists():
+                write_artifact_manifest(
+                    bg_path,
+                    step="cover_image",
+                    date=date,
+                    inputs=cover_bg_inputs,
+                    config=self.config,
+                )
 
         for i, variant in enumerate(variants[:COVER_VARIANT_COUNT], start=1):
             props = {
@@ -1849,19 +1983,14 @@ class Orchestrator:
                 variant_path,
                 step="cover_image",
                 date=date,
-                inputs={"background": bg_path.name, "variant_index": i},
+                inputs={
+                    "background": bg_path.name,
+                    "variant_index": i,
+                    "title_cover_variants_hash": variant_hash,
+                    "cover_prompt_hash": cover_prompt_hash,
+                },
                 config=self.config,
             )
-            # v1 also written to the canonical cover_props.json (back-compat).
-            if i == 1:
-                atomic_write_json(props_path, props)
-                write_artifact_manifest(
-                    props_path,
-                    step="cover_image",
-                    date=date,
-                    inputs={"background": bg_path.name, "variant_index": 1},
-                    config=self.config,
-                )
 
         self._mirror_cover_bg(date, bg_path)
         self.logger.info(
@@ -1869,90 +1998,36 @@ class Orchestrator:
             f"written ({bg_path.name})"
         )
 
-    def _generate_cover_variants(
-        self, content: ContentPackage, script: Optional[Script], date: str
-    ) -> list[dict]:
-        """Generate up to COVER_VARIANT_COUNT cover text variants (3 angles).
+    def _load_title_cover_variants(self, date: str) -> list[dict[str, Any]]:
+        """Load cover copy emitted by the title step, if present.
 
-        Returns a list of ``{title, subtitle, tags, highlights}`` dicts with
-        CJK spacing normalized. Returns [] on failure so the caller can fall
-        back to the single-cover text from the title step.
+        The tolerant fallback is intentional for pre-consolidation artifacts:
+        once ``title.md`` changes, its manifest becomes stale and the title
+        step will rewrite the cache with the new field.
         """
-        focus_story, comment_analysis = self._build_focus_story_input(
-            script, content, date
-        )
-        if not focus_story:
+        title_path = publish_path(date, "title.json")
+        if not title_path.exists():
             return []
-
-        focus_id = focus_story.get("source_id", "")
-        other_stories = []
-        for item in content.items:
-            if str(item.source_id) == str(focus_id):
-                continue
-            other_stories.append(
-                {
-                    "title": item.title,
-                    "title_cn": item.title_cn or "",
-                    "editor_angle": item.editor_angle or "",
-                }
-            )
-
-        context = {
-            "focus_story_json": json.dumps(focus_story, ensure_ascii=False, indent=2),
-            "other_stories_json": json.dumps(
-                other_stories, ensure_ascii=False, indent=2
-            ),
-            "comments_json": json.dumps(comment_analysis, ensure_ascii=False, indent=2),
-            "date": date,
-        }
         try:
-            result = self.llm_provider.complete_prompt(
-                "prompts/cover_variants.md",
-                context,
-                label="cover_variants",
-                expect_json=True,
-                max_tokens=4096,
-                model=self.llm_provider.fast_model,
-                temperature=self.llm_provider.fast_temperature,
-            )
-        except Exception as e:
-            self.logger.warning(
-                f"  Cover variants LLM call failed ({type(e).__name__}: {e}); "
-                f"falling back to single cover text"
-            )
+            payload = json.loads(title_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
             return []
+        if not isinstance(payload, dict):
+            return []
+        return _normalize_cover_variants(payload.get("cover_variants"))
 
-        variants: list[dict] = []
-        for entry in result.get("variants") or []:
-            if not isinstance(entry, dict):
-                continue
-            title = normalize_cjk_mixed_spacing(
-                str(entry.get("cover_title") or "")
-            ).strip()
-            if not title:
-                continue
-            subtitle = normalize_cjk_mixed_spacing(
-                str(entry.get("cover_subtitle") or "")
-            ).strip()
-            tags = [
-                normalize_cjk_mixed_spacing(str(t)).strip()
-                for t in (entry.get("cover_tags") or [])
-                if str(t).strip()
-            ][:2]
-            highlights = [
-                normalize_cjk_mixed_spacing(str(w)).strip()
-                for w in (entry.get("cover_highlights") or [])
-                if str(w).strip()
-            ][:4]
-            variants.append(
-                {
-                    "title": title,
-                    "subtitle": subtitle or date,
-                    "tags": tags,
-                    "highlights": highlights,
-                }
-            )
-        return variants
+    def _load_title_cover_prompt(self, date: str) -> str:
+        """Load the visual prompt emitted with title metadata, if present."""
+        title_path = publish_path(date, "title.json")
+        if not title_path.exists():
+            return ""
+        try:
+            payload = json.loads(title_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+        if not isinstance(payload, dict):
+            return ""
+        return _normalize_cover_prompt(payload.get("cover_prompt"))
 
     def _mirror_cover_bg(self, date: str, bg_path: Path) -> None:
         """Mirror the cover background into the per-date Remotion runtime dir
@@ -1994,17 +2069,12 @@ class Orchestrator:
             if len(unique_bgs) >= 3:
                 break
 
-        # Collect text variants (cover_props_v{1..N}); fall back to cover_props.json.
+        # Collect the generated text variants.
         text_variants = [
             render_path(date, f"cover_props_v{i}.json")
             for i in range(1, COVER_VARIANT_COUNT + 1)
         ]
         text_variants = [p for p in text_variants if p.exists()]
-        if not text_variants:
-            single = render_path(date, "cover_props.json")
-            if single.exists():
-                text_variants = [single]
-
         if not unique_bgs or not text_variants:
             raise FileNotFoundError(
                 "  cover_thumbnail requires cover_bg*.png and cover_props_v*.json; "
@@ -2066,27 +2136,13 @@ class Orchestrator:
                         config=self.config,
                     )
 
-                # b1_t1 stays as canonical cover.png (back-compat).
+                # b1_t1 is the canonical cover.
                 if bg_idx == 1 and t_idx == 1:
                     canonical = publish_path(date, "cover.png")
                     if not is_artifact_fresh(canonical, thumb_inputs):
                         shutil.copy2(cover_path, canonical)
                         write_artifact_manifest(
                             canonical,
-                            step="cover_thumbnail",
-                            date=date,
-                            inputs=thumb_inputs,
-                            config=self.config,
-                        )
-
-                # For bg 1, also write cover_v{t_idx}.png (back-compat alias for
-                # the original 1-bg × 3-text layout).
-                if bg_idx == 1:
-                    legacy = publish_path(date, f"cover_v{t_idx}.png")
-                    if not is_artifact_fresh(legacy, thumb_inputs):
-                        shutil.copy2(cover_path, legacy)
-                        write_artifact_manifest(
-                            legacy,
                             step="cover_thumbnail",
                             date=date,
                             inputs=thumb_inputs,
@@ -2137,7 +2193,7 @@ class Orchestrator:
                 f"Cover render did not produce a valid file: {output_path}"
             )
 
-    def _step_publish_guide(
+    def _write_publish_guide(
         self, content: ContentPackage, script: Optional[Script], date: str
     ) -> None:
         self.logger.info(
@@ -2219,6 +2275,9 @@ class Orchestrator:
             return
 
         require_story_images(script, date)
+        # The guide depends only on the final content/title metadata, not on
+        # renderer props. Generate it at this final packaging boundary.
+        self._write_publish_guide(content, script, date)
 
         props_path = render_path(date, "cli_props.json")
         render_inputs = self._render_inputs(script, content, date)
@@ -2400,7 +2459,6 @@ class Orchestrator:
             script_path.with_name(script_path.name + ".manifest.json"),
             agent_path(date, "agent_decision.json"),
             agent_path(date, "agent_variant_decision.json"),
-            agent_path(date, "selected_variant.json"),
             agent_path(date, "script_lock.json"),
         ]
         for path in paths:
@@ -2468,10 +2526,17 @@ class Orchestrator:
                 item.category = "unknown"
             if not item.why_it_matters:
                 item.why_it_matters = item.editor_angle or item.title or ""
-        if self._agent_state:
-            self._agent_state.add_degraded_items(
-                "enrich_articles", failed_items, "enrichment_failed"
-            )
+        if self._workflow is not None:
+            degraded_items = [
+                {
+                    "story_id": str(item.source_id),
+                    "title": item.title or "",
+                    "reason": "enrichment_failed",
+                    "continued": True,
+                }
+                for item in failed_items
+            ]
+            self._workflow.update_metadata(degraded_items=degraded_items)
 
     def _insufficient_context_items(self, items: list) -> list[dict]:
         min_comments = int(

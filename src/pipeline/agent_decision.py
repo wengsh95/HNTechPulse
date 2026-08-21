@@ -9,13 +9,12 @@ from typing import Any
 from src.core.models import ContentPackage, Script
 from src.pipeline.agent_variants import (
     write_scorecard,
-    write_selected_variant,
     write_selection_brief,
 )
 from src.pipeline.agent_io import append_agent_event
-from src.pipeline.agent_state import BLOCK_INSUFFICIENT_CONTEXT
 from src.pipeline.paths import agent_path
 from src.utils.atomic_io import atomic_write_json
+from src.workflow import BLOCK_INSUFFICIENT_CONTEXT
 
 BLOCK_LOW_DECISION_CONFIDENCE = "low_decision_confidence"
 BLOCK_SOURCE_RISK_HIGH = "source_risk_high"
@@ -429,8 +428,6 @@ class AgentDecisionEngine:
         }
         self._write_variant_decision(date, decision)
         write_selection_brief(date, decision)
-        if status == "continue":
-            write_selected_variant(date, selected["variant_id"], decision=decision)
         return decision
 
     def write_decision(self, date: str, result: DecisionResult) -> Path:

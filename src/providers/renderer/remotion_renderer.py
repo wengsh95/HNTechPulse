@@ -104,17 +104,13 @@ class RemotionRenderer(Renderer):
     def write_props(
         self, script: Script, audio_dir: str, content=None, date: str = ""
     ) -> tuple[Path, str, None]:
-        data_dir = self._remotion_data_dir(date) if date else None
-        if data_dir:
-            audio_target_dir = data_dir / "public" / "audio"
-            image_target_dir = data_dir / "public" / "images"
-        else:
-            # Fallback: no date means nowhere under data/ to scope, so keep
-            # the historical "remotion/public" layout as a last resort.
-            audio_target_dir = self.remotion_dir / "public" / "audio"
-            image_target_dir = self.remotion_dir / "public" / "images"
+        if not date:
+            raise ValueError("RemotionRenderer.write_props requires a date string")
+        data_dir = self._remotion_data_dir(date)
+        audio_target_dir = data_dir / "public" / "audio"
+        image_target_dir = data_dir / "public" / "images"
         self._prepare_audio_assets(script, audio_dir, target_dir=audio_target_dir)
-        if content and date:
+        if content:
             self._prepare_image_assets(content, date, target_dir=image_target_dir)
         if data_dir:
             self._prepare_font_assets(data_dir / "public" / "fonts")
@@ -149,6 +145,8 @@ class RemotionRenderer(Renderer):
     def preview(
         self, script: Script, audio_dir: str, content=None, date: str = ""
     ) -> None:
+        if not date:
+            raise ValueError("RemotionRenderer.preview requires a date string")
         self.logger.info("Starting Remotion Studio for preview...")
         self.logger.info("Press Ctrl+C to stop the preview server.")
 
@@ -168,9 +166,8 @@ class RemotionRenderer(Renderer):
             "3000",
             f"--props={props_file}",
         ]
-        if date:
-            public_dir = (self._remotion_data_dir(date) / "public").resolve()
-            cmd.append(f"--public-dir={public_dir}")
+        public_dir = (self._remotion_data_dir(date) / "public").resolve()
+        cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
             cmd.append(f"--browser-executable={self.chrome_path}")
@@ -203,6 +200,8 @@ class RemotionRenderer(Renderer):
     def sync_props(
         self, script: Script, audio_dir: str, content=None, date: str = ""
     ) -> None:
+        if not date:
+            raise ValueError("RemotionRenderer.sync_props requires a date string")
         """Regenerate props.json and static assets without starting the studio."""
         self.logger.info("Syncing preview props...")
         _, props_json, _ = self.write_props(script, audio_dir, content, date=date)
@@ -219,6 +218,8 @@ class RemotionRenderer(Renderer):
         content=None,
         date: str = "",
     ) -> None:
+        if not date:
+            raise ValueError("RemotionRenderer.render requires a date string")
         self.logger.info(f"Rendering video to {output_path}")
         self.logger.info(f"Resolution: {self.width}x{self.height} @ {self.fps}fps")
 
@@ -272,9 +273,8 @@ class RemotionRenderer(Renderer):
             f"--height={self.height}",
             f"--props={cli_props_file}",
         ]
-        if date:
-            public_dir = (self._remotion_data_dir(date) / "public").resolve()
-            base_cmd.append(f"--public-dir={public_dir}")
+        public_dir = (self._remotion_data_dir(date) / "public").resolve()
+        base_cmd.append(f"--public-dir={public_dir}")
 
         if self.chrome_path:
             base_cmd.append(f"--browser-executable={self.chrome_path}")
@@ -843,15 +843,14 @@ class RemotionRenderer(Renderer):
             f"Prepared {copied} new font files in public/fonts/ (target: {target_dir})"
         )
 
-    def _prepare_image_assets(self, content, date: str, target_dir: Path | None = None):
+    def _prepare_image_assets(self, content, date: str, target_dir: Path):
         """Copy enriched images to the Remotion public/images/ for serving.
 
-        ``target_dir`` defaults to ``remotion/public/images`` for backwards
-        compatibility when no date is supplied.
+        ``target_dir`` is the date-scoped Remotion public image directory.
         """
         if content is None:
             return
-        image_subdir = target_dir or (self.remotion_dir / "public" / "images")
+        image_subdir = target_dir
         image_subdir.mkdir(parents=True, exist_ok=True)
 
         def _resolve_local(path: str) -> Path | None:
@@ -953,16 +952,13 @@ class RemotionRenderer(Renderer):
             )
         return str(cli_path)
 
-    def _write_props_file(self, props_json: str, date: str = "") -> str:
+    def _write_props_file(self, props_json: str, date: str) -> str:
         """Write props JSON to a persistent file and return its path.
 
         Avoids OS command-line length limits when passing large props to the
         Remotion CLI. The file is persisted under data/{month}/{date}/ for debugging.
         """
-        if date:
-            props_path = render_path(date, "cli_props.json")
-        else:
-            props_path = Path("data") / "cli_props.json"
+        props_path = render_path(date, "cli_props.json")
         props_path.parent.mkdir(parents=True, exist_ok=True)
         props_path.write_text(props_json, encoding="utf-8")
         self.logger.info(f"Props written to {props_path} ({len(props_json)} bytes)")
@@ -972,12 +968,11 @@ class RemotionRenderer(Renderer):
         """Return a chunk cache directory scoped to the exact render input.
 
         Chunks live under ``data/{month}/{date}/remotion/chunks/`` so the source tree
-        stays clean. Falls back to ``remotion/out/chunks/`` when no date is
-        supplied (test/legacy path).
+        stays clean.
         """
         date_label = re.sub(r"[^0-9A-Za-z_-]+", "_", date).strip("_") or "undated"
         props_hash = sha256(props_json.encode("utf-8")).hexdigest()[:12]
-        base = self._remotion_data_dir(date) if date else self.remotion_dir / "out"
+        base = self._remotion_data_dir(date)
         return base / "chunks" / f"{date_label}_{props_hash}"
 
     def _remotion_data_dir(self, date: str) -> Path:
