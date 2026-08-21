@@ -458,7 +458,7 @@ class TestStepQuickNews:
         orch._normalize_video_structure = MagicMock(return_value=script)
         orch.script_writer.save_script = MagicMock()
 
-        with patch("src.pipeline.orchestrator.draft_quick_news") as draft:
+        with patch("src.pipeline.stages.editorial.draft_quick_news") as draft:
             draft.return_value = MagicMock()
             result = orch._step_draft_quick_news(script, "2026-04-26")
 
@@ -474,7 +474,7 @@ class TestStepQuickNews:
         orch._apply_comment_translations = MagicMock(return_value=(content, script))
         orch.script_writer.save_script = MagicMock()
 
-        with patch("src.pipeline.orchestrator.draft_quick_news"):
+        with patch("src.pipeline.stages.editorial.draft_quick_news"):
             result = orch._step_draft_quick_news(script, "2026-04-26", content=content)
 
         assert result is script
