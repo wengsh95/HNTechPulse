@@ -9,7 +9,7 @@ Remotion card implementations. They are not the production render entry point.
 Reference template structure:
 
 ```text
-docs/design/hn-card-template-reference/
+docs/internal/design/hn-card-template-reference/
 ├── openingcard.html
 ├── eventcard.html
 ├── atmospherecard.html

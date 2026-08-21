@@ -8,10 +8,10 @@ and state files in this document over scraping human-readable logs.
 Agents must use the managed wrapper:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD
 ```
 
-`agent_run.py` performs the agent contract in order:
+`internal/agent/agent_run.py` performs the agent contract in order:
 
 ```text
 agent_preflight -> agent_status -> choose safe steps -> main.py --agent -> agent_status -> agent_audit
@@ -22,11 +22,11 @@ Use `--phase` when an upstream phase is already complete and only one phase
 needs to be retried:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --phase ingest
-uv run python scripts/agent_run.py --date YYYY-MM-DD --phase research
-uv run python scripts/agent_run.py --date YYYY-MM-DD --phase editorial
-uv run python scripts/agent_run.py --date YYYY-MM-DD --phase human_review
-uv run python scripts/agent_run.py --date YYYY-MM-DD --phase produce
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --phase ingest
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --phase research
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --phase editorial
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --phase human_review
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --phase produce
 ```
 
 `--phase` is an alias for the registered step slice in
@@ -96,13 +96,13 @@ debugging. Autonomous agents should not use `--direct-agent-run`.
 To inspect state without running the pipeline:
 
 ```bash
-uv run python scripts/agent_status.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_status.py --date YYYY-MM-DD
 ```
 
 To preview the managed command without mutating state:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --dry-run
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --dry-run
 ```
 
 If the pipeline blocks or fails, inspect JSON files:
@@ -116,7 +116,7 @@ data/YYYY-MM/YYYY-MM-DD/agent/agent_tasks.json
 After repairing the issue, resume:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume
 ```
 
 The managed wrapper resumes from the current native workflow metadata and
@@ -130,7 +130,7 @@ step and its downstream steps. For example, a manually edited video script
 should use:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --from synthesize_audio
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --from synthesize_audio
 ```
 
 `--steps` remains an explicit step list and does not implicitly run the
@@ -143,7 +143,7 @@ editorial chain.
 ```
 
 Enables machine-readable state tracking and structured blocking.
-In normal agent operation, this flag is supplied by `scripts/agent_run.py`.
+In normal agent operation, this flag is supplied by `scripts/internal/agent/agent_run.py`.
 Direct `main.py --agent` calls are rejected unless `--direct-agent-run` is also
 present for manual debugging.
 
@@ -151,7 +151,7 @@ present for manual debugging.
 --resume
 ```
 
-On `scripts/agent_run.py`, resumes from the native workflow state after
+On `scripts/internal/agent/agent_run.py`, resumes from the native workflow state after
 preflight and status checks. On `main.py`, resumes from the failed/current step
 and should only be used with `--direct-agent-run` for manual debugging.
 
@@ -224,7 +224,7 @@ article task:
 ```
 
 Use browser/MCP tools to fetch the URL. Save an HTML page when possible; save a
-PDF when the URL is a PDF. Then run `scripts/agent_run.py --resume`.
+PDF when the URL is a PDF. Then run `scripts/internal/agent/agent_run.py --resume`.
 
 For image review, a task has `task_type: "select_image"`, a `candidates` list,
 and a `selection_file`. Inspect each candidate's `local_path` with `view_image`,
@@ -247,7 +247,7 @@ Agent action:
 4. Run:
 
    ```bash
-   uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+   uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume
    ```
 
 ### `manual_image_selection_required`
@@ -268,7 +268,7 @@ Agent action:
 5. Resume:
 
    ```bash
-   uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+   uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume
    ```
 
 ### `insufficient_story_context`
@@ -478,11 +478,11 @@ videos. TTS and render happen only after the selected script has been promoted.
 To force a fresh variant run without refetching facts:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
 ```
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --refresh-script
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --refresh-script
 ```
 
 `--refresh-script` is the explicit opt-in for replacing a changed editorial
@@ -517,13 +517,13 @@ crop, factual wording, and pacing.
 ### Start a Date
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD
 ```
 
 ### Continue After Article Repair
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume
 ```
 
 ### Force a Degraded Draft
@@ -531,13 +531,13 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
 Use only when the user explicitly accepts incomplete source context:
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD --resume --allow-degraded-enrichment
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume --allow-degraded-enrichment
 ```
 
 ### Inspect Agent State
 
 ```bash
-uv run python scripts/agent_status.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_status.py --date YYYY-MM-DD
 ```
 
 The command prints JSON. Prefer this over reading logs when choosing the next
@@ -546,7 +546,7 @@ action.
 ### Manual Debugging Only
 
 ```bash
-uv run python scripts/agent_preflight.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_preflight.py --date YYYY-MM-DD
 uv run python main.py --date YYYY-MM-DD --agent --direct-agent-run --steps render
 ```
 

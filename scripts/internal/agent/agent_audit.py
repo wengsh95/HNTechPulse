@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -168,7 +168,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     f"{name}_exists",
                     f"Required artifact is missing: {path}",
                     path=path,
-                    recommendation=f"uv run python scripts/agent_run.py --date {date} --resume",
+                    recommendation=f"uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
                     why=(
                         f"{name}.json is produced by the pipeline. Either no run "
                         f"has been attempted for this date, or a previous run was "
@@ -215,7 +215,7 @@ def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
                     f"Publish guide inputs changed: {publish_guide}",
                     path=publish_guide,
                     recommendation=(
-                        f"uv run python scripts/agent_run.py --date {date} "
+                        f"uv run python scripts/internal/agent/agent_run.py --date {date} "
                         "--steps prepare_render"
                     ),
                     why=(
@@ -270,7 +270,7 @@ def _state_check(date: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]
                 "workflow_state_exists",
                 "Native workflow state is missing or unreadable.",
                 path=state_path,
-                recommendation=f"uv run python scripts/agent_run.py --date {date}",
+                recommendation=f"uv run python scripts/internal/agent/agent_run.py --date {date}",
             )
         ]
     if state.get("status") == "corrupt":
@@ -434,7 +434,7 @@ def _variant_check(
                     "script.json segments do not match the selected variant script.",
                     path=promoted_script,
                     recommendation=(
-                        "Rerun write_script through scripts/agent_run.py or promote the "
+                        "Rerun write_script through scripts/internal/agent/agent_run.py or promote the "
                         "selected variant."
                     ),
                 )
@@ -476,7 +476,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
         candidates.append(
             (
                 "workflow_state_error",
-                f"uv run python scripts/agent_run.py --date {date} --resume",
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
                 "A product-scoped pipeline state error needs --resume to retry the failed step.",
             )
         )
@@ -506,7 +506,7 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
             candidates.append(
                 (
                     check,
-                    f"uv run python scripts/agent_run.py --date {date} --steps {step}",
+                    f"uv run python scripts/internal/agent/agent_run.py --date {date} --steps {step}",
                     why,
                 )
             )

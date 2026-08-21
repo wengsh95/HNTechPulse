@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from scripts import agent_preflight
+from scripts.internal.agent import agent_preflight
 from src.pipeline.paths import agent_path
 
 

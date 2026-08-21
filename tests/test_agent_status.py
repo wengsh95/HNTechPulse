@@ -1,6 +1,6 @@
 import json
 
-from scripts.agent_status import (
+from scripts.internal.agent.agent_status import (
     _build_video_status,
     _has_stale_publish_guide,
     _pending_tasks,
@@ -259,7 +259,7 @@ def test_stale_publish_guide_requires_manifest_matching_current_context(
 
 def test_build_video_status_exposes_corrupt_workflow_recovery(monkeypatch):
     monkeypatch.setattr(
-        "scripts.agent_status._workflow_status",
+        "scripts.internal.agent.agent_status._workflow_status",
         lambda date: {"status": "corrupt", "error": "bad state"},
     )
 
@@ -273,7 +273,7 @@ def test_build_video_status_exposes_corrupt_workflow_recovery(monkeypatch):
 
 def test_build_video_status_prompts_approval_for_blocked_review(monkeypatch):
     monkeypatch.setattr(
-        "scripts.agent_status._workflow_status",
+        "scripts.internal.agent.agent_status._workflow_status",
         lambda date: {
             "status": "blocked",
             "metadata": {"blocked_reason": "manual_script_review_required"},

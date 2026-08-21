@@ -9,13 +9,13 @@ HN TechPulse is a Python CLI pipeline for turning Hacker News stories into a nar
 ```bash
 uv sync
 uv run python main.py --dry-run
-uv run python scripts/agent_run.py --date YYYY-MM-DD
-uv run python scripts/agent_status.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_status.py --date YYYY-MM-DD
 uv run python -m pytest
 uv run python scripts/quality_check.py
 ```
 
-Use `scripts/agent_run.py` for autonomous runs; it performs preflight, state checks, execution, and audit. Do not call `main.py --agent` directly. For Remotion changes, run `npm ci` and `npm run quality` from `src/providers/renderer/remotion/`.
+Use `scripts/internal/agent/agent_run.py` for autonomous runs; it performs preflight, state checks, execution, and audit. Do not call `main.py --agent` directly. For Remotion changes, run `npm ci` and `npm run quality` from `src/providers/renderer/remotion/`.
 
 ## Coding Style & Naming Conventions
 

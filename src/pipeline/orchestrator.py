@@ -505,7 +505,7 @@ class Orchestrator(
                             agent_path(date, "script_approval.json")
                         ).replace("\\", "/"),
                         "approve_command": (
-                            "uv run python scripts/agent_run.py "
+                            "uv run python scripts/internal/agent/agent_run.py "
                             f"--date {date} --approve-script"
                         ),
                     }

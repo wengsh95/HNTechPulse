@@ -64,13 +64,13 @@ Important CLI patterns:
 uv run python main.py
 uv run python main.py --date YYYY-MM-DD
 uv run python main.py --steps render
-uv run python scripts/agent_run.py --date YYYY-MM-DD
-uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
-uv run python scripts/agent_status.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --resume
+uv run python scripts/internal/agent/agent_status.py --date YYYY-MM-DD
 ```
 
 `main.py --agent` is an internal pipeline mode for structured state. Autonomous
-agents should enter through `scripts/agent_run.py`, which performs preflight,
+agents should enter through `scripts/internal/agent/agent_run.py`, which performs preflight,
 artifact-status checks, safe step selection, pipeline execution, and audit.
 Manual debugging can bypass the wrapper with `main.py --agent --direct-agent-run`.
 
@@ -308,24 +308,31 @@ suffix.
 
 ```text
 scripts/
-|-- agent_run.py
-|-- agent_status.py
-|-- agent_preflight.py
-|-- agent_audit.py
 |-- quality_check.py
 |-- encoding.ps1
-`-- _archive/
+|-- internal/
+|   `-- agent/
+|       |-- agent_run.py
+|       |-- agent_status.py
+|       |-- agent_preflight.py
+|       `-- agent_audit.py
+|   `-- tools/
+|       |-- generate_video_review.py
+|       |-- render_review_stills.py
+|       |-- organize_outputs.py
+|       `-- ...
+|   `-- archive/
 ```
 
-`agent_run.py` is the canonical autonomous entrypoint. It runs preflight and
+`internal/agent/agent_run.py` is the canonical autonomous entrypoint. It runs preflight and
 status checks, follows stale-artifact recovery recommendations, invokes the
 pipeline, and runs post-run status/audit checks.
 
-`agent_status.py` emits JSON about current state, stale artifacts, and
+`internal/agent/agent_status.py` emits JSON about current state, stale artifacts, and
 `safe_next_commands`. Prefer it over logs when choosing a repair path.
 
-`agent_preflight.py` is still useful for low-level environment checks, but
-autonomous pipeline execution should go through `agent_run.py`.
+`internal/agent/agent_preflight.py` is still useful for low-level environment checks, but
+autonomous pipeline execution should go through `internal/agent/agent_run.py`.
 
 `encoding.ps1` switches the current PowerShell session to UTF-8. Use it before
 reading Chinese logs or docs if console output is garbled.
@@ -347,7 +354,7 @@ Useful focused checks:
 
 ```bash
 uv run python -m pytest tests/test_agent_decision.py tests/test_orchestrator_steps.py tests/test_pipeline.py
-uv run ruff check main.py src/pipeline/ scripts/agent_run.py scripts/agent_status.py scripts/agent_preflight.py tests/test_agent_decision.py tests/test_orchestrator_steps.py
+uv run ruff check main.py src/pipeline/ scripts/internal/agent/ tests/test_agent_decision.py tests/test_orchestrator_steps.py
 ```
 
 Full quality check:
@@ -427,7 +434,7 @@ For human review or handoff, mirror the useful deliverables into a tidy
 date-scoped folder without moving the canonical pipeline files:
 
 ```bash
-uv run python scripts/organize_outputs.py --date YYYY-MM-DD --refresh
+uv run python scripts/internal/tools/organize_outputs.py --date YYYY-MM-DD --refresh
 ```
 
 This creates:

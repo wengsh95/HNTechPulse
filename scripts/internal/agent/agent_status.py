@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -215,21 +215,21 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
     if any("script.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} --refresh-script"
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} --refresh-script"
             ),
             "why": "Content changed after script generation; regenerate video artifacts.",
         }
     if any("script_approval.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} --from human_review"
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} --from human_review"
             ),
             "why": "The current editorial script has not passed the human checkpoint.",
         }
     if any("storyboard.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} "
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
                 "--from apply_storyboard"
             ),
             "why": "storyboard.json changed after script application; rebuild video visuals.",
@@ -237,7 +237,7 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
     if any("subtitle_plan.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} "
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
                 "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
             ),
             "why": "The local subtitle plan is missing or does not match script.json.",
@@ -245,14 +245,14 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
     if any("audio_manifest.json" in artifact for artifact in artifacts):
         return {
             "command": (
-                f"uv run python scripts/agent_run.py --date {date} "
+                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
                 "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
             ),
             "why": "The editorial script changed; regenerate audio and downstream video artifacts.",
         }
     return {
         "command": (
-            f"uv run python scripts/agent_run.py --date {date} "
+            f"uv run python scripts/internal/agent/agent_run.py --date {date} "
             "--steps prepare_subtitles,prepare_render,render"
         ),
         "why": "Render props/output look stale or incomplete.",
@@ -474,7 +474,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
     elif workflow is None:
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_run.py --date {date}",
+                "command": f"uv run python scripts/internal/agent/agent_run.py --date {date}",
                 "why": "No native workflow state exists for this date.",
             }
         )
@@ -485,7 +485,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
         safe_next_commands.append(
             {
                 "command": (
-                    f"uv run python scripts/agent_run.py --date {date} --approve-script"
+                    f"uv run python scripts/internal/agent/agent_run.py --date {date} --approve-script"
                 ),
                 "why": "Review script_review.html, then approve this exact script version.",
             }
@@ -493,7 +493,7 @@ def _build_video_status(date: str) -> dict[str, Any]:
     elif status in {"blocked", "failed", "running"}:
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_run.py --date {date} --resume",
+                "command": f"uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
                 "why": f"Pipeline state is {status}.",
             }
         )
@@ -502,14 +502,14 @@ def _build_video_status(date: str) -> dict[str, Any]:
     elif cli_props.exists():
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/render_review_stills.py --date {date}",
+                "command": f"uv run python scripts/internal/tools/render_review_stills.py --date {date}",
                 "why": "cli_props.json exists; review stills can be rendered without rerunning LLM/TTS.",
             }
         )
     if output.exists():
         safe_next_commands.append(
             {
-                "command": f"uv run python scripts/agent_audit.py --date {date}",
+                "command": f"uv run python scripts/internal/agent/agent_audit.py --date {date}",
                 "why": "Final video exists; run publishability audit.",
             }
         )

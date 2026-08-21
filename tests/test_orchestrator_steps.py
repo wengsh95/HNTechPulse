@@ -670,7 +670,9 @@ class TestRunDispatch:
             "synthesis_html",
         ]
         assert any(
-            line.endswith("scripts/agent_run.py --date 2026-04-26 --resume")
+            line.endswith(
+                "scripts/internal/agent/agent_run.py --date 2026-04-26 --resume"
+            )
             for line in tasks["tasks"][0]["repair_steps"]
         )
         assert "Do not fabricate" in tasks["tasks"][0]["failure_policy"]

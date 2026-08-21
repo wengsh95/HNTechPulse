@@ -1,44 +1,19 @@
-# Documentation
+# 维护文档
 
-This directory contains the project docs that are most useful for agents and
-maintainers.
-
-## Start Here
-
-- [Agent Runbook](AGENT_RUNBOOK.md): how an agent should run, resume, repair,
-  and audit the pipeline.
-- [Project Structure](PROJECT_STRUCTURE.md): where the major modules,
-  generated artifacts, configs, prompts, and tests live.
-
-## Common Agent Commands
+日常使用只需要看项目根目录的 [README.md](../README.md)，运行：
 
 ```bash
-uv run python scripts/agent_run.py --date YYYY-MM-DD
-uv run python scripts/agent_run.py --date YYYY-MM-DD --resume
-uv run python scripts/agent_status.py --date YYYY-MM-DD
-uv run python scripts/agent_run.py --date YYYY-MM-DD --steps write_script --refresh-variants
+uv run python main.py --date YYYY-MM-DD
 ```
 
-Autonomous agents should not call `main.py --agent` directly. Use
-`scripts/agent_run.py`; it performs preflight/status checks and chooses safe
-steps before invoking the pipeline.
-
-## Agent Output Contracts
-
-Prefer these machine-readable files over human-readable logs:
+项目始终沿着一条路走：
 
 ```text
-data/{month}/{date}/agent/workflow_video.json
-data/{month}/{date}/agent/agent_events.jsonl
-data/{month}/{date}/agent/agent_tasks.json
-data/{month}/{date}/agent/agent_decision.json
-data/{month}/{date}/agent/agent_variant_decision.json
-data/{month}/{date}/pipeline/variants/index.json
-data/{month}/{date}/pipeline/variants/selection_brief.md
+Hacker News → 内容 → 视频
 ```
 
-The normal publishable script is always promoted to:
+这里的其他文件是给维护者和自动化工具看的：
 
-```text
-data/{month}/{date}/pipeline/script.json
-```
+- [内部运行手册](internal/AGENT_RUNBOOK.md)：中断、恢复、审计。
+- [内部结构说明](internal/PROJECT_STRUCTURE.md)：代码、缓存和产物。
+- [自动代理指南](internal/AGENT_GUIDE.md)：只在维护自动运行时需要。

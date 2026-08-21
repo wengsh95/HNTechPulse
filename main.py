@@ -96,7 +96,7 @@ def main():
     ):
         parser.error(
             "--agent runs must use the managed wrapper: "
-            "uv run python scripts/agent_run.py --date YYYY-MM-DD. "
+            "uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD. "
             "For manual debugging only, add --direct-agent-run."
         )
 

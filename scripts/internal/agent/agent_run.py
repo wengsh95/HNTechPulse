@@ -12,12 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.agent_preflight import main as preflight_main  # noqa: E402
-from scripts.agent_status import build_status  # noqa: E402
+from scripts.internal.agent.agent_preflight import main as preflight_main  # noqa: E402
+from scripts.internal.agent.agent_status import build_status  # noqa: E402
 from src.pipeline.human_review import approve_current_script  # noqa: E402
 from src.workflow import VIDEO_PHASE_PIPELINE_STEPS, VIDEO_PIPELINE_STEPS  # noqa: E402
 
@@ -82,7 +82,7 @@ def _preflight(date: str, config: str) -> int:
     old_argv = sys.argv[:]
     try:
         sys.argv = [
-            "agent_preflight.py",
+            "scripts/internal/agent/agent_preflight.py",
             "--date",
             date,
             "--config",
@@ -388,7 +388,14 @@ def main() -> int:
             "exists"
         ):
             return _run(
-                ["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date]
+                [
+                    "uv",
+                    "run",
+                    "python",
+                    "scripts/internal/agent/agent_audit.py",
+                    "--date",
+                    args.date,
+                ]
             )
         return 0
 
@@ -431,7 +438,14 @@ def main() -> int:
         "exists"
     ):
         return _run(
-            ["uv", "run", "python", "scripts/agent_audit.py", "--date", args.date]
+            [
+                "uv",
+                "run",
+                "python",
+                "scripts/internal/agent/agent_audit.py",
+                "--date",
+                args.date,
+            ]
         )
     return 0
 

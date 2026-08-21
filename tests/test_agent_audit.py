@@ -1,7 +1,7 @@
 from pathlib import Path
 import json
 
-from scripts.agent_audit import (
+from scripts.internal.agent.agent_audit import (
     _artifact_check,
     _decision_check,
     _format_mmss,
@@ -35,7 +35,7 @@ def test_audit_helpers_format_and_normalize_issue_payload(tmp_path):
         "demo",
         "A message",
         path=tmp_path / "artifact.json",
-        recommendation="uv run python scripts/agent_run.py",
+        recommendation="uv run python scripts/internal/agent/agent_run.py",
         why="because",
         fixable_by_agent=True,
     )
@@ -45,7 +45,7 @@ def test_audit_helpers_format_and_normalize_issue_payload(tmp_path):
         "check": "demo",
         "message": "A message",
         "path": str(tmp_path / "artifact.json").replace("\\", "/"),
-        "recommendation": "uv run python scripts/agent_run.py",
+        "recommendation": "uv run python scripts/internal/agent/agent_run.py",
         "why": "because",
         "fixable_by_agent": True,
     }
@@ -89,7 +89,7 @@ def test_manifest_check_reports_missing_and_mismatched_manifests(tmp_path):
 def test_state_check_explains_human_review_block(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "scripts.agent_audit.load_workflow_report",
+        "scripts.internal.agent.agent_audit.load_workflow_report",
         lambda date: {
             "status": "blocked",
             "current_state": "human_review",
@@ -126,7 +126,7 @@ def test_next_command_prioritizes_explicit_recommendation_and_publish_tail():
         {
             "severity": "warning",
             "check": "title_exists",
-            "recommendation": "uv run python scripts/agent_run.py --date 2026-04-26 --resume",
+            "recommendation": "uv run python scripts/internal/agent/agent_run.py --date 2026-04-26 --resume",
         },
     ]
     next_command = _next_command("2026-04-26", issues)

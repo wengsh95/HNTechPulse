@@ -47,7 +47,7 @@ def write_manual_download_tasks(
                     "Prefer saving the rendered article HTML to save_as.html.",
                     "If the source is a PDF, save it to save_as.pdf.",
                     "If the original URL is blocked, use an authoritative mirror or official source.",
-                    f"Resume with: uv run python scripts/agent_run.py --date {date} --resume",
+                    f"Resume with: uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
                 ],
                 "failure_policy": "Do not fabricate article context; leave the task pending if no reliable source is available.",
             }
@@ -81,7 +81,7 @@ def write_image_selection_tasks(date: str, items: list[dict[str, Any]]) -> Path:
                     "Inspect every candidate image.",
                     "Choose the candidate that best matches the story subject.",
                     "Write one selected_image entry for every story.",
-                    f"Resume with: uv run python scripts/agent_run.py --date {date} --resume",
+                    f"Resume with: uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
                 ],
                 "failure_policy": "Do not invent an image path; leave the task pending when no candidate is usable.",
             }
@@ -106,7 +106,7 @@ def _write_tasks(
         "repair_contract": {
             "owner": "agent",
             "minimum_success_condition": condition,
-            "resume_command": f"uv run python scripts/agent_run.py --date {date} --resume",
+            "resume_command": f"uv run python scripts/internal/agent/agent_run.py --date {date} --resume",
         },
         "tasks": tasks,
     }

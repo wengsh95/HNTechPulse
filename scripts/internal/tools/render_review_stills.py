@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -173,7 +173,7 @@ def main() -> int:
                     "date": args.date,
                     "error": "missing_cli_props",
                     "path": str(props_path).replace("\\", "/"),
-                    "next_command": f"uv run python scripts/agent_run.py --date {args.date} --resume",
+                    "next_command": f"uv run python scripts/internal/agent/agent_run.py --date {args.date} --resume",
                 },
                 ensure_ascii=False,
                 indent=2,

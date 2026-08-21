@@ -127,9 +127,7 @@ def generate_script_review_page(
     )
     revision_count = len(automatic_review.get("revisions") or [])
     script_hash = script_editorial_hash(script)
-    approve_command = (
-        f"uv run python scripts/agent_run.py --date {date} --approve-script"
-    )
+    approve_command = f"uv run python scripts/internal/agent/agent_run.py --date {date} --approve-script"
     page = f"""<!doctype html>
 <html lang="zh-CN">
 <head>

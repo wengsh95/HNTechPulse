@@ -19,7 +19,7 @@
 启动视频生产：
 
 ```powershell
-uv run python scripts/agent_run.py --date YYYY-MM-DD
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD
 ```
 
 流程到达人工闸门后会生成：
@@ -34,14 +34,14 @@ data/YYYY-MM/YYYY-MM-DD/review/script_review.html
 确认页面中的当前版本后执行：
 
 ```powershell
-uv run python scripts/agent_run.py --date YYYY-MM-DD --approve-script
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --approve-script
 ```
 
 该命令会写入 `agent/script_approval.json`，并从 `human_review` 恢复后续生产。
 可以用 `--reviewer` 和 `--approval-note` 留下审查记录：
 
 ```powershell
-uv run python scripts/agent_run.py --date YYYY-MM-DD `
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD `
   --approve-script --reviewer editor --approval-note "事实与评论已核对"
 ```
 
@@ -50,7 +50,7 @@ uv run python scripts/agent_run.py --date YYYY-MM-DD `
 不要批准当前版本。先修改或重新生成 `pipeline/script.json`，再运行：
 
 ```powershell
-uv run python scripts/agent_run.py --date YYYY-MM-DD --from human_review
+uv run python scripts/internal/agent/agent_run.py --date YYYY-MM-DD --from human_review
 ```
 
 流程会为新脚本重新生成审查页并再次阻塞。批准记录绑定

@@ -75,20 +75,20 @@
 应用分镜并重做后续视频：
 
 ```powershell
-uv run python scripts/agent_run.py --date 2026-08-18 --from apply_storyboard
+uv run python scripts/internal/agent/agent_run.py --date 2026-08-18 --from apply_storyboard
 ```
 
 如果还没有分镜，先让 agent 生成一份不会覆盖人工编辑的初稿：
 
 ```powershell
-uv run python scripts/agent_run.py --date 2026-08-18 --steps draft_storyboard
-uv run python scripts/generate_video_review.py --date 2026-08-18
+uv run python scripts/internal/agent/agent_run.py --date 2026-08-18 --steps draft_storyboard
+uv run python scripts/internal/tools/generate_video_review.py --date 2026-08-18
 ```
 
 生成“台本段落 ↔ 对应镜头”的本地预览页：
 
 ```powershell
-uv run python scripts/generate_video_review.py --date 2026-08-18
+uv run python scripts/internal/tools/generate_video_review.py --date 2026-08-18
 ```
 
 输出在 `data/YYYY-MM/YYYY-MM-DD/review/video_review.html`。每个段落会先显示

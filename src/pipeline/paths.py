@@ -17,7 +17,7 @@ Layout::
     │                cover_bg.png, cover.png
     ├── agent/       workflow_video.json, agent_events.jsonl,
     │                agent_tasks.json, report.md
-    └── outputs/     (organize_outputs.py mirror — unchanged)
+    └── outputs/     (internal/tools/organize_outputs.py mirror — unchanged)
 
 The helpers return ``pathlib.Path`` so callers can ``.parent.mkdir`` /
 ``.write_text`` / etc. directly. Paths are not created on import; use

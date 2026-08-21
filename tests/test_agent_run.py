@@ -2,8 +2,8 @@ import sys
 
 import pytest
 
-import scripts.agent_run as agent_run
-from scripts.agent_run import (
+import scripts.internal.agent.agent_run as agent_run
+from scripts.internal.agent.agent_run import (
     VIDEO_CHAIN,
     VIDEO_PHASES,
     _choose_steps,
