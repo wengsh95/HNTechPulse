@@ -1,9 +1,13 @@
 # Project Structure
 
-HN TechPulse is a Python pipeline, not a web app. The managed workflow pulls
-Hacker News stories, enriches source context, analyzes comments, writes a
-narration script, then runs TTS and the Remotion renderer to produce an MP4
-video.
+HN TechPulse is a Python program that turns Hacker News into a narrated video.
+At the level a user needs to understand, it has three jobs:
+
+```text
+采集素材 → 生成内容 → 生成视频
+```
+
+The detailed steps below are implementation details for maintainers.
 
 The managed step chain is:
 

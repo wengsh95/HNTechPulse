@@ -37,9 +37,7 @@ def validate_date(value: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="HN TechPulse: Generate a narrated tech video from Hacker News"
-    )
+    parser = argparse.ArgumentParser(description="把 Hacker News 新闻变成科技短视频")
     parser.add_argument(
         "--date",
         type=validate_date,
@@ -51,60 +49,44 @@ def main():
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume from the selected product's failed/current/next step",
+        help="从上次中断的地方继续",
     )
-    parser.add_argument(
-        "--agent",
-        action="store_true",
-        help="Enable agent-friendly state tracking and structured blocking",
-    )
+    parser.add_argument("--agent", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--direct-agent-run",
         action="store_true",
-        help=(
-            "Bypass the agent_run.py wrapper guard. Intended for manual "
-            "debugging only; agents should use scripts/agent_run.py."
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--allow-degraded-enrichment",
         action="store_true",
-        help="In agent mode, continue after article enrichment failures",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--refresh-variants",
         action="store_true",
-        help="Clear script and variant caches before agent script generation",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--refresh-script",
         action="store_true",
-        help="Explicitly regenerate a manually changed editorial script",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--refresh-selection",
         action="store_true",
-        help="Explicitly allow agent prefilter to replace the locked story selection",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--force", action="store_true", help="Force re-render (clear render cache)"
+        "--force", action="store_true", help="重新生成视频（清理旧缓存）"
     )
     parser.add_argument(
         "--steps",
         type=str,
         default=",".join(VIDEO_PIPELINE_STEPS),
-        help=(
-            "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
-            "enrich_articles, judge_comments, write_script, draft_quick_news, "
-            "prepare_story_images, title, cover_image, cover_thumbnail, "
-            "draft_storyboard, human_review, apply_storyboard, prepare_subtitles, "
-            "synthesize_audio, prepare_render, render, preview). Default runs "
-            "the full managed video chain."
-        ),
+        help=argparse.SUPPRESS,
     )
-    parser.add_argument(
-        "--config", type=str, default="config/", help="Config directory or file path"
-    )
+    parser.add_argument("--config", type=str, default="config/", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if (
