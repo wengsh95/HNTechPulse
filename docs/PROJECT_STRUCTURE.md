@@ -173,11 +173,24 @@ src/pipeline/
 |-- agent_io.py
 |-- agent_decision.py
 |-- agent_variants.py
+|-- stages/
 |-- comment/
 `-- script/
 ```
 
 Key responsibilities:
+
+- `stages/workflow.py`: workflow state-machine lifecycle and tracked-step events.
+- `stages/research.py`: fetch, selection lock, prefilter, comments, enrichment,
+  and comment judgement stages.
+- `stages/script.py`: script generation/variants, selected-comment translation,
+  and TTS audio stages.
+- `stages/packaging.py`: cover stills and publish-guide packaging.
+- `stages/production.py`: renderer props, video render, preview, and renderer
+  cache cleanup.
+
+`orchestrator.py` keeps the step order, cross-stage coordination, and shared
+runtime wiring; stage mixins own the implementation details for each boundary.
 
 - `orchestrator.py`: step execution, prerequisite expansion, agent gates,
   resume behavior, and manifests.
