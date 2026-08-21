@@ -101,12 +101,18 @@ When segment-cache semantics change, bump `llm.cache_schema_version`.
 prompts/
 |-- article_enrich.md
 |-- comment_analyze.md
-|-- cover_prompt.md
+|-- comment_distribution.md
+|-- comment_stance_label.md
+|-- comment_stance_label_v2.md
+|-- image_entities.md
 |-- opening_closing.md
 |-- persona.md
 |-- prefilter.md
 |-- publish_guide.md
+|-- quick_news.md
+|-- script_review.md
 |-- story_script.md
+|-- storyboard_draft.md
 |-- title.md
 `-- translate.md
 ```
@@ -127,6 +133,23 @@ src/core/
 Core modules define shared provider interfaces, data models, and prompt
 rendering behavior.
 
+## Workflow Modules
+
+```text
+src/workflow/
+|-- model.py
+|-- machine.py
+|-- persistence.py
+|-- runtime.py
+`-- video.py
+```
+
+`video.py` is the single source of truth for the five workflow phases and the
+managed pipeline step order. `machine.py` owns phase transitions, blocked and
+failed states, while `persistence.py` stores the date-scoped
+`workflow_video.json` snapshot. `runtime.py` exposes the execution metadata
+used by the orchestrator and status/audit tools.
+
 ## Pipeline Modules
 
 ```text
@@ -134,6 +157,7 @@ src/pipeline/
 |-- orchestrator.py
 |-- content_io.py
 |-- prefilter.py
+|-- publish_guide_inputs.py
 |-- translation_manager.py
 |-- timing_engine.py
 |-- tts_processor.py
@@ -145,8 +169,8 @@ src/pipeline/
 |-- storyboard_draft.py
 |-- storyboard_linter.py
 |-- human_review.py
+|-- subtitle_planner.py
 |-- agent_io.py
-|-- agent_state.py
 |-- agent_decision.py
 |-- agent_variants.py
 |-- comment/
@@ -158,8 +182,7 @@ Key responsibilities:
 - `orchestrator.py`: step execution, prerequisite expansion, agent gates,
   resume behavior, and manifests.
 - `content_io.py`: date-scoped content artifact loading/writing.
-- `agent_state.py`: product-scoped pipeline state files and blocked/failed/complete state.
-- `agent_io.py`: JSONL events, state loading, artifact hashes, manifests.
+- `agent_io.py`: JSONL events, artifact hashes, and manifests.
 - `agent_decision.py`: source-context and script-quality decision gates.
 - `agent_variants.py`: script variants, scorecards, selected variant promotion.
 

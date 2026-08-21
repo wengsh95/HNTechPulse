@@ -2,7 +2,7 @@
 
 HN TechPulse 是一个 Python CLI 流水线（非 Web 应用），用于从 Hacker News 内容生成每日科技新闻视频简报。本指南面向运行该流水线的编码 Agent（自动化代理），提供操作规范与最佳实践。
 
-完整的项目结构与架构说明见 [CLAUDE.md](CLAUDE.md)；Agent 契约（状态文件、阻塞原因、决策门、步骤处理策略、变体）见 [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md)；模块清单见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
+完整的项目结构与架构说明见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)；Agent 契约（状态文件、阻塞原因、决策门、步骤处理策略、变体）见 [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md)。
 
 ## 快速开始
 
@@ -47,7 +47,7 @@ uv run python -m pytest
 
 ## 关键参考
 
-- **完整指南**：[CLAUDE.md](CLAUDE.md) — 架构、模式、陷阱、行为规则
+- **项目结构**：[docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) — 架构、模块和产物布局
 - **Agent 契约**：[docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) — 状态文件、阻塞原因、决策门、步骤处理策略、变体
 - **模块清单**：[docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
@@ -91,7 +91,7 @@ HN API → ingest → research → editorial → human_review → produce
 
 **关键原则**：CommentAnalyzer 打分 → CommentJudge 选出 `quote_candidates` → ScriptWriter 直接消费；下游不再做独立重选。
 
-详细数据流、缓存文件清单与产物布局，见 [CLAUDE.md](CLAUDE.md)。
+详细数据流、缓存文件清单与产物布局，见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
 
 ## 关键模式
 
@@ -130,4 +130,4 @@ h264+aac 要求输出文件名后缀为 `.mp4` / `.mkv` / `.mov`。使用 `.part
 
 ---
 
-> 本文件为中文版摘要；权威说明以 [CLAUDE.md](CLAUDE.md) 与 [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) 为准。英文 / 中文若有不一致，以英文为准。
+> 本文件为中文版摘要；权威说明以 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) 与 [docs/AGENT_RUNBOOK.md](docs/AGENT_RUNBOOK.md) 为准。
