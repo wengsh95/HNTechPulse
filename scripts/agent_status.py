@@ -285,11 +285,7 @@ def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, st
 def _build_video_status(date: str) -> dict[str, Any]:
     base = date_root(date)
     workflow = _workflow_status(date)
-    execution = (
-        workflow.get("metadata", {})
-        if isinstance(workflow, dict)
-        else {}
-    )
+    execution = workflow.get("metadata", {}) if isinstance(workflow, dict) else {}
     content = pipeline_path(date, "content.json")
     script = pipeline_path(date, "script.json")
     script_review = pipeline_path(date, "script_review.json")

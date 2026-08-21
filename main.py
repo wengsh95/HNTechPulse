@@ -144,11 +144,7 @@ def main():
             metadata.get("failed_pipeline_step")
             or metadata.get("current_pipeline_step")
             or next(
-                (
-                    step
-                    for step in requested_steps
-                    if step not in completed_steps
-                ),
+                (step for step in requested_steps if step not in completed_steps),
                 None,
             )
         )

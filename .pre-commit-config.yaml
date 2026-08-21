@@ -5,6 +5,7 @@ repos:
       - id: ruff
         args: [--extend-ignore, E402]
       - id: ruff-format
+        args: [--check]
 
   - repo: https://github.com/jendrikseipp/vulture
     rev: v2.16

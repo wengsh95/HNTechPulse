@@ -393,9 +393,7 @@ class TestStepEnrichArticles:
             content, "translate.md", "2026-04-26"
         )
 
-    def test_degraded_enrichment_still_translates_titles(
-        self, tmp_path, monkeypatch
-    ):
+    def test_degraded_enrichment_still_translates_titles(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         orch = _make_orchestrator(dry_run=False)
         orch.allow_degraded_enrichment = True
@@ -465,9 +463,7 @@ class TestStepQuickNews:
             result = orch._step_draft_quick_news(script, "2026-04-26")
 
         assert result is script
-        orch._normalize_video_structure.assert_called_once_with(
-            script, "2026-04-26"
-        )
+        orch._normalize_video_structure.assert_called_once_with(script, "2026-04-26")
         orch.script_writer.save_script.assert_called_once_with(script, "2026-04-26")
 
     def test_quick_news_applies_comment_translation_after_structure(self):
@@ -479,17 +475,14 @@ class TestStepQuickNews:
         orch.script_writer.save_script = MagicMock()
 
         with patch("src.pipeline.orchestrator.draft_quick_news"):
-            result = orch._step_draft_quick_news(
-                script, "2026-04-26", content=content
-            )
+            result = orch._step_draft_quick_news(script, "2026-04-26", content=content)
 
         assert result is script
-        orch._normalize_video_structure.assert_called_once_with(
-            script, "2026-04-26"
-        )
+        orch._normalize_video_structure.assert_called_once_with(script, "2026-04-26")
         orch._apply_comment_translations.assert_called_once_with(
             content, script, "2026-04-26", save_script=False
         )
+
 
 class TestStepCommentTranslations:
     def test_dry_run_returns_content_unchanged(self):
@@ -681,9 +674,7 @@ class TestStepCoverImage:
         title_path.parent.mkdir(parents=True)
         title_path.write_text(
             json.dumps(
-                {
-                    "cover_prompt": "cached visual prompt for today's conflict"
-                },
+                {"cover_prompt": "cached visual prompt for today's conflict"},
                 ensure_ascii=False,
             ),
             encoding="utf-8",
@@ -737,7 +728,9 @@ class TestStepCoverThumbnail:
 class TestWritePublishGuide:
     def test_dry_run_returns_none(self):
         orch = _make_orchestrator(dry_run=True)
-        result = orch._write_publish_guide(_make_content(), _make_script(), "2026-04-26")
+        result = orch._write_publish_guide(
+            _make_content(), _make_script(), "2026-04-26"
+        )
         assert result is None
 
     def test_regenerates_when_manifest_input_hash_is_missing(

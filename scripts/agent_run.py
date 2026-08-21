@@ -249,8 +249,7 @@ def main() -> int:
         choices=VIDEO_PHASES,
         default=None,
         help=(
-            "Run one compact workflow phase (upstream phases must already be "
-            "complete)"
+            "Run one compact workflow phase (upstream phases must already be complete)"
         ),
     )
     parser.add_argument("--resume", action="store_true")

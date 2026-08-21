@@ -256,9 +256,7 @@ def _format_mmss(seconds: float | int | None) -> str:
 # default managed chain.
 VIDEO_PIPELINE_ORDER = list(VIDEO_PIPELINE_STEPS)
 STANDALONE_STEPS = {"render", "preview"}
-PIPELINE_STEPS = [
-    step for step in VIDEO_PIPELINE_STEPS if step not in STANDALONE_STEPS
-]
+PIPELINE_STEPS = [step for step in VIDEO_PIPELINE_STEPS if step not in STANDALONE_STEPS]
 OPTIONAL_PRODUCTION_STEPS = {
     "write_script",
     "draft_quick_news",

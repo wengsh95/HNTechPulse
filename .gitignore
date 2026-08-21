@@ -73,6 +73,7 @@ tmp/
 
 # Local tool indexes (regenerate locally; not for production)
 .codegraph/
+.zcode/
 
 hn-deep-dive/
 
