@@ -222,35 +222,46 @@ class TTSProcessor:
         # Phase 3: align newly-synthesized audio (serial; CPU bound and the
         # Whisper model is now cached so reloading is free).
         for job in [*tts_jobs, *align_existing_jobs]:
-            ref_texts = job.get("ref_texts") or [job["text"]]
+            raw_ref_texts = job.get("ref_texts")
+            ref_texts = (
+                [str(text) for text in raw_ref_texts]
+                if isinstance(raw_ref_texts, list)
+                else [str(job["text"])]
+            )
+            audio_path = str(job["audio_path"])
+            text = str(job["text"])
+            raw_seg_idx = job.get("seg_idx")
+            if not isinstance(raw_seg_idx, int):
+                raise RuntimeError("TTS job is missing an integer segment index")
+            seg_idx = raw_seg_idx
+            raw_elem_idx = job.get("elem_idx")
+            job_elem_idx = raw_elem_idx if isinstance(raw_elem_idx, int) else None
             aligned = align_audio(
-                job["audio_path"],
+                audio_path,
                 ref_texts,
                 model_size=self.whisper_model,
                 model_path=self.whisper_model_path,
                 debug=self.debug,
             )
-            text_hash = self._text_hash(job["text"])
+            text_hash = self._text_hash(text)
             self._write_segment_manifest(
-                job["audio_path"],
+                audio_path,
                 text_hash,
                 aligned,
                 ref_texts_hash=self._text_hash("\n".join(ref_texts)),
             )
-            duration = get_audio_duration(job["audio_path"])
-            if job["elem_idx"] is not None:
+            duration = get_audio_duration(audio_path)
+            if job_elem_idx is not None:
                 # Fill the per-element entry that finalize will consume.
-                for entry in story_scan_elems[job["seg_idx"]]:
-                    if entry["elem_idx"] == job["elem_idx"]:
+                for entry in story_scan_elems[seg_idx]:
+                    if entry["elem_idx"] == job_elem_idx:
                         entry["aligned"] = aligned
                         entry["duration"] = duration
                         break
-                elem = script.segments[job["seg_idx"]].scene_elements[job["elem_idx"]]
+                elem = script.segments[seg_idx].scene_elements[job_elem_idx]
                 elem.props["audio_duration"] = duration
             else:
-                simple_info = next(
-                    s for s in simple_segs if s["seg_idx"] == job["seg_idx"]
-                )
+                simple_info = next(s for s in simple_segs if s["seg_idx"] == seg_idx)
                 simple_info["aligned"] = aligned
 
         # Phase 4: finalize segments.

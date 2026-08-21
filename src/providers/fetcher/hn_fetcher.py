@@ -748,7 +748,7 @@ class HNFetcher(ContentFetcher):
             raw_data = json.load(f)
 
         stories = [self._dict_to_story(d) for d in raw_data["stories"]]
-        comments = {}
+        comments: Dict[int, List[HNComment]] = {}
 
         return self._to_content_package(stories, comments, date)
 

@@ -17,12 +17,13 @@ from src.pipeline.script import apply_subtitle_revisions
 from src.pipeline.story_images import prepare_story_images
 from src.pipeline.storyboard import apply_storyboard
 from src.pipeline.storyboard_draft import draft_storyboard
+from src.pipeline.stages.context import OrchestratorContext
 from src.pipeline.subtitle_planner import prepare_subtitles
 from src.pipeline.video_structure import prepare_video_structure
 from src.utils.atomic_io import atomic_write_json
 
 
-class EditorialStageMixin:
+class EditorialStageMixin(OrchestratorContext):
     """Apply editorial shaping, review, storyboard, and image preparation."""
 
     def _step_prepare_subtitles(
@@ -261,7 +262,7 @@ class EditorialStageMixin:
         return focus_story, comment_analysis
 
     def _auto_review_script(
-        self, content: ContentPackage, script: Optional[Script], date: str
+        self, content: Optional[ContentPackage], script: Optional[Script], date: str
     ) -> Optional[Script]:
         self.logger.info("  Automatic script review — LLM quality audit + auto-revise")
         if script is None:

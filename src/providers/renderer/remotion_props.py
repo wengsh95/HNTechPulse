@@ -176,11 +176,13 @@ def _choose_event_image(item, image_index: Any = 0) -> tuple[str, str]:
     article_paths = [p for p in item.article_images if p and not _is_remote_url(p)]
     if article_paths:
         selected_path = article_paths[0]
-        candidate = next(
+        matched_candidate: Dict[str, Any] | None = next(
             (c for c in local_candidates if c.get("path") == selected_path),
             None,
         )
-        return selected_path, _image_type_from_candidate(candidate, selected_path)
+        return selected_path, _image_type_from_candidate(
+            matched_candidate, selected_path
+        )
 
     if local_candidates:
         idx = (

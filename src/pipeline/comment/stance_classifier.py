@@ -280,8 +280,13 @@ def train_stance_classifier(
     if len(trainable) < 12:
         raise ValueError("Need at least 12 labeled examples to train classifier")
 
-    texts = [example.text for example in trainable]
-    y = [example.label for example in trainable]
+    texts: list[str] = []
+    y: list[str] = []
+    for example in trainable:
+        if example.label is None:
+            continue
+        texts.append(example.text)
+        y.append(example.label)
     if backend == "sentence-transformers":
         model = SentenceTransformerStanceClassifier(
             embedding_model_name=embedding_model,

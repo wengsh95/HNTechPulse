@@ -979,7 +979,7 @@ class HyperFramesRenderer(Renderer):
                     copied.add(str(src))
             for attr in ("logo_image", "screenshot_image"):
                 val = getattr(item, attr, None)
-                src = _resolve(val)
+                src = _resolve(val) if isinstance(val, str) else None
                 if src and str(src) not in copied:
                     shutil.copy2(src, target / src.name)
                     copied.add(str(src))

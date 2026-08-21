@@ -257,6 +257,7 @@ def load_records(path: Path) -> list[StanceV2Record]:
     for row in rows:
         if not isinstance(row, dict):
             continue
+        depth_value = row.get("depth")
         record = StanceV2Record(
             id=str(row.get("id") or ""),
             story_id=str(row.get("story_id") or ""),
@@ -268,7 +269,7 @@ def load_records(path: Path) -> list[StanceV2Record]:
             parent_text=_clean(row.get("parent_text"), 420)
             if row.get("parent_text")
             else None,
-            depth=int(row.get("depth")) if row.get("depth") is not None else None,
+            depth=int(str(depth_value)) if depth_value is not None else None,
             context_sufficient=(
                 bool(row.get("context_sufficient"))
                 if row.get("context_sufficient") is not None

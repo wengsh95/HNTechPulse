@@ -6,6 +6,7 @@ from src.core.models import ContentPackage, Script
 from src.pipeline.agent_io import is_artifact_fresh
 from src.pipeline.agent_variants import promote_variant_script, write_variants_index
 from src.pipeline.paths import pipeline_path
+from src.pipeline.stages.context import OrchestratorContext
 from src.pipeline.script.io import (
     apply_audio_manifest,
     audio_manifest_is_usable,
@@ -17,7 +18,7 @@ from src.pipeline.script.io import (
 )
 
 
-class ScriptStageMixin:
+class ScriptStageMixin(OrchestratorContext):
     """Generate the script, apply selected translations, and synthesize audio."""
 
     def _step_write_script(self, content: ContentPackage, date: str) -> Script:

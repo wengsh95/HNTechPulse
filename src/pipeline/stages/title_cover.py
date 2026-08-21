@@ -16,6 +16,7 @@ from src.pipeline.agent_io import (
 )
 from src.pipeline.paths import publish_path, render_path, render_remotion_dir
 from src.pipeline.stages.packaging import COVER_VARIANT_COUNT
+from src.pipeline.stages.context import OrchestratorContext
 from src.utils.atomic_io import atomic_write_json
 from src.utils.text import normalize_cjk_mixed_spacing
 
@@ -169,7 +170,7 @@ def _ensure_all_stories_in_description(
     return description.rstrip("。；; ") + "。" + "。".join(extra_lines) + "。"
 
 
-class TitleCoverStageMixin:
+class TitleCoverStageMixin(OrchestratorContext):
     """Generate title metadata and cover backgrounds/props."""
 
     def _step_title(

@@ -1,6 +1,7 @@
 """Pipeline stage mixins used by the top-level orchestrator."""
 
 from src.pipeline.stages.packaging import COVER_VARIANT_COUNT, PackagingStageMixin
+from src.pipeline.stages.context import OrchestratorContext
 from src.pipeline.stages.editorial import EditorialStageMixin
 from src.pipeline.stages.production import ProductionStageMixin
 from src.pipeline.stages.research import ResearchStageMixin
@@ -19,4 +20,5 @@ __all__ = [
     "SupportStageMixin",
     "TitleCoverStageMixin",
     "WorkflowLifecycleMixin",
+    "OrchestratorContext",
 ]

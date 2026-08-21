@@ -516,7 +516,8 @@ def import_markdown_script(
     markdown_text = file_path.read_text(encoding="utf-8")
     script = parse_markdown_script(markdown_text, date=date, content=content)
 
-    saved_path = save_script(script, date=date)
+    saved_path = pipeline_path(date, "script.json")
+    save_script(script, date=date)
     save_script_lock(script, date=date, source="markdown_import")
 
     storyboard = build_storyboard(script, date=date)

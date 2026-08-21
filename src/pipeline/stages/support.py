@@ -11,9 +11,10 @@ from src.pipeline.paths import (
     pipeline_path,
     raw_downloaded_pages_dir,
 )
+from src.pipeline.stages.context import OrchestratorContext
 
 
-class SupportStageMixin:
+class SupportStageMixin(OrchestratorContext):
     """Keep cache refresh and degraded-run helpers out of stage code."""
 
     def _refresh_variant_outputs(self, date: str) -> None:

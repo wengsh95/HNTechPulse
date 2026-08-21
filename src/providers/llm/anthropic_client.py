@@ -4,6 +4,8 @@ Provides the same ``call_llm_with_json_retry`` interface as :class:`LLMClient`
 but talks to Anthropic-compatible endpoints (e.g. MiniMax).
 """
 
+from typing import Any
+
 import anthropic
 from tenacity import (
     retry,
@@ -67,6 +69,7 @@ class _AnthropicResponseAdapter:
 
 
 class AnthropicLLMClient(LLMClient):
+    client: Any
     """LLM client for Anthropic-compatible APIs (e.g. MiniMax).
 
     Overrides the OpenAI-specific parts of :class:`LLMClient` while reusing

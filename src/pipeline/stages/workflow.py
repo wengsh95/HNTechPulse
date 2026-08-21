@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from src.pipeline.agent_io import append_agent_event
+from src.pipeline.stages.context import OrchestratorContext
 from src.workflow import (
     StateStatus,
     VIDEO_WORKFLOW_STEPS,
@@ -11,7 +12,7 @@ from src.workflow import (
 )
 
 
-class WorkflowLifecycleMixin:
+class WorkflowLifecycleMixin(OrchestratorContext):
     """Keep compact workflow state updates separate from pipeline stages."""
 
     @contextmanager

@@ -113,9 +113,9 @@ def _check_subtitle_texts(card_index: int, texts: List[str]) -> List[str]:
         if "\uff1b" in t or ";" in t:
             violations.append(f"{tag} 含分号（禁止）：{t}")
         # Width / length
-        w = _subtitle_width(t)
-        if w > _SUBTITLE_MAX_WIDTH:
-            violations.append(f"{tag} 超长({w}宽>{_SUBTITLE_MAX_WIDTH})：{t}")
+        width = _subtitle_width(t)
+        if width > _SUBTITLE_MAX_WIDTH:
+            violations.append(f"{tag} 超长({width}宽>{_SUBTITLE_MAX_WIDTH})：{t}")
         # Multiple sentence-end punctuation in one element
         end_count = _sentence_end_count(t)
         if end_count > 1:
@@ -127,9 +127,9 @@ def _check_subtitle_texts(card_index: int, texts: List[str]) -> List[str]:
                 f"{tag} 逗号过多({comma_count}>{_SUBTITLE_MAX_COMMAS})：{t}"
             )
         # Forbidden words
-        for w in _SUBTITLE_FORBIDDEN_WORDS:
-            if w in t:
-                violations.append(f"{tag} 禁词[{w}]：{t}")
+        for word in _SUBTITLE_FORBIDDEN_WORDS:
+            if word in t:
+                violations.append(f"{tag} 禁词[{word}]：{t}")
     # Adjacent repetition
     for a, b in zip(texts, texts[1:]):
         ta, tb = (a or "").strip(), (b or "").strip()
@@ -504,7 +504,7 @@ class LLMProviderBase(LLMProvider):
         self, content: ContentPackage, prompt_template: str, date: str = ""
     ) -> ContentPackage:
         items_to_translate: Dict[str, str] = {}
-        items_by_key: Dict[str, Any] = {}
+        items_by_key: Dict[str, ContentItem] = {}
         for item in content.items:
             if item.title and item.source_id:
                 key = f"title_{item.source_id}"
@@ -535,9 +535,9 @@ class LLMProviderBase(LLMProvider):
             )
             if cached is not None:
                 for key, value in cached.items():
-                    item = items_by_key.get(key)
-                    if item is not None:
-                        item.title_cn = value
+                    cached_item = items_by_key.get(key)
+                    if cached_item is not None:
+                        cached_item.title_cn = value
                 self.logger.info(f"  Titles loaded from cache ({len(cached)} items)")
                 return content
 
@@ -558,9 +558,9 @@ class LLMProviderBase(LLMProvider):
 
         for key, value in translations.items():
             if key.startswith("title_"):
-                item = items_by_key.get(key)
-                if item is not None:
-                    item.title_cn = value
+                translated_item = items_by_key.get(key)
+                if translated_item is not None:
+                    translated_item.title_cn = value
 
         if date and translations:
             self._cache.save_dict_cache(

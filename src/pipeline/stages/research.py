@@ -6,10 +6,11 @@ from typing import Any
 from src.core.models import ContentPackage
 from src.pipeline.agent_io import append_agent_event, utc_now
 from src.pipeline.paths import agent_path, pipeline_path, raw_downloaded_pages_dir
+from src.pipeline.stages.context import OrchestratorContext
 from src.utils.atomic_io import atomic_write_json
 
 
-class ResearchStageMixin:
+class ResearchStageMixin(OrchestratorContext):
     """Fetch, select, enrich, and judge the content package."""
 
     @staticmethod

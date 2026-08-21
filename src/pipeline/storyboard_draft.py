@@ -237,8 +237,20 @@ def _normalize_agent_storyboard(
     for index, raw_shot in enumerate(result["shots"], start=1):
         if not isinstance(raw_shot, dict):
             raise ValueError(f"Storyboard agent shot #{index} must be an object")
-        segment_index = raw_shot.get("segment_index")
-        element_index = raw_shot.get("element_index")
+        raw_segment_index = raw_shot.get("segment_index")
+        raw_element_index = raw_shot.get("element_index")
+        if not (
+            isinstance(raw_segment_index, int)
+            and not isinstance(raw_segment_index, bool)
+            and isinstance(raw_element_index, int)
+            and not isinstance(raw_element_index, bool)
+        ):
+            raise ValueError(
+                f"Storyboard agent shot #{index} requires integer segment_index "
+                "and element_index"
+            )
+        segment_index = raw_segment_index
+        element_index = raw_element_index
         target = (segment_index, element_index)
         if target not in eligible:
             raise ValueError(
@@ -349,6 +361,7 @@ def _preferred_visual_props(element: SceneElement, template_id: str) -> dict[str
     title = _first_text(props, "editor_angle", "title_cn", "source_title", "title")
     image = _first_text(props, "image_src", "story_image")
     source_url = _first_text(props, "source_url")
+    result: dict[str, Any]
     if template_id == "headline_v1":
         result = {"title": title or "今日头条", "eyebrow": label or "头条"}
         subtitle = _first_text(props, "why_it_matters", "dek")
@@ -487,13 +500,16 @@ def _preferred_visual_props(element: SceneElement, template_id: str) -> dict[str
 def build_storyboard(script: Script, date: str) -> dict[str, Any]:
     """Return a stable, editable storyboard draft without mutating ``script``."""
 
-    event_story_indices = [
-        element.props.get("story_index")
-        for segment in script.segments
-        for element in segment.scene_elements
-        if element.element_type == "event_card"
-        and isinstance(element.props.get("story_index"), int)
-    ]
+    event_story_indices: list[int] = []
+    for segment in script.segments:
+        for element in segment.scene_elements:
+            story_index = element.props.get("story_index")
+            if (
+                element.element_type == "event_card"
+                and isinstance(story_index, int)
+                and not isinstance(story_index, bool)
+            ):
+                event_story_indices.append(story_index)
     first_story_index = min(event_story_indices) if event_story_indices else None
     seen_event = False
     shots: list[dict[str, Any]] = []

@@ -430,7 +430,7 @@ class ImageHandler:
 
             # Process downloads in order (sequential PIL processing)
             for r in results:
-                if isinstance(r, Exception):
+                if isinstance(r, BaseException):
                     self.logger.debug(f"Image download error: {r}")
                     continue
                 idx, url, dest, data, was_cached = r

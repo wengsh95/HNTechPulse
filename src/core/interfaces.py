@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import Any, TYPE_CHECKING, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from .models import Script, ContentPackage, ScriptSegment, ImageResult
@@ -29,6 +29,11 @@ class ContentFetcher(ABC):
 
 class LLMProvider(ABC):
     """LLM 抽象 —— R2: 逐条生成脚本"""
+
+    @property
+    def llm_client(self) -> Any:
+        """Underlying transport client used by enrichment/refinement helpers."""
+        raise NotImplementedError
 
     @abstractmethod
     def generate_single_story_segment(

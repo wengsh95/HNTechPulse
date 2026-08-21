@@ -885,7 +885,9 @@ def _normalize_stance_labels(
     return labels
 
 
-def _aggregate_stance_labels(labels: list[dict]) -> tuple[dict, dict]:
+def _aggregate_stance_labels(
+    labels: list[dict],
+) -> tuple[dict[str, float], dict[str, Any]]:
     stance_names = ("支持", "质疑", "中立")
     usable = [entry for entry in labels if entry.get("context_sufficient")]
     totals = {stance: 1.0 for stance in stance_names}  # symmetric Dirichlet prior
@@ -988,8 +990,8 @@ def normalize_story_judgement(
             debate_focus.append(entry.strip())
 
     stance_labels = _normalize_stance_labels(raw, item, distribution_ids)
-    stance_distribution = {}
-    stance_distribution_meta = {}
+    stance_distribution: dict[str, float] = {}
+    stance_distribution_meta: dict[str, Any] = {}
     if stance_labels:
         stance_distribution, stance_distribution_meta = _aggregate_stance_labels(
             stance_labels

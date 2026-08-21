@@ -3,8 +3,10 @@
 from src.pipeline.script.markdown_importer import (
     _clean_text,
     _split_into_sentences,
+    import_markdown_script,
     parse_markdown_script,
 )
+from src.pipeline.paths import date_root, pipeline_path
 
 
 SAMPLE_MARKDOWN = """# HN Daily 视频脚本：2026-08-18
@@ -96,3 +98,17 @@ def test_parse_markdown_script():
     assert len(closing_seg.scene_elements) == 1
     assert closing_seg.scene_elements[0].props["template_id"] == "closing_v1"
     assert len(closing_seg.scene_elements[0].props["summary_items"]) == 1
+
+
+def test_import_markdown_script_returns_saved_script_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-08-18"
+    source_path = date_root(date) / "video_script.md"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(SAMPLE_MARKDOWN, encoding="utf-8")
+
+    script, saved_path = import_markdown_script(date)
+
+    assert script.title.startswith("HN")
+    assert saved_path == pipeline_path(date, "script.json")
+    assert saved_path.exists()

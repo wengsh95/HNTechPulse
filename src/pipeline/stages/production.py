@@ -22,9 +22,10 @@ from src.pipeline.paths import (
 )
 from src.pipeline.render_inputs import build_render_inputs
 from src.pipeline.story_images import require_story_images
+from src.pipeline.stages.context import OrchestratorContext
 
 
-class ProductionStageMixin:
+class ProductionStageMixin(OrchestratorContext):
     """Implement the renderer-facing stages of the video workflow."""
 
     def _step_prepare_render(
