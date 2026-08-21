@@ -353,6 +353,8 @@ Stage behavior is covered in `test_editorial_stage.py`,
 `test_title_cover_stage.py`, `test_packaging_stage.py`, and
 `test_production_stage.py`; `test_orchestrator_steps.py` focuses on step
 resolution, research boundaries, and run-time dispatch.
+Agent-run recovery and publishability boundaries are covered in
+`test_agent_preflight.py`, `test_agent_status.py`, and `test_agent_audit.py`.
 
 Useful focused checks:
 
