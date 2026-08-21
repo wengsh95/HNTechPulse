@@ -185,7 +185,13 @@ Key responsibilities:
   and comment judgement stages.
 - `stages/script.py`: script generation/variants, selected-comment translation,
   and TTS audio stages.
+- `stages/editorial.py`: quick-news drafting, story-image preparation, and
+  editorial script assembly.
 - `stages/packaging.py`: cover stills and publish-guide packaging.
+- `stages/title_cover.py`: title metadata, cover-copy variants, and cover
+  background generation.
+- `stages/support.py`: degraded-enrichment handling, refresh flows, and local
+  editorial support artifacts.
 - `stages/production.py`: renderer props, video render, preview, and renderer
   cache cleanup.
 

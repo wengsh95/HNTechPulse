@@ -6,6 +6,7 @@ from src.pipeline.stages.production import ProductionStageMixin
 from src.pipeline.stages.research import ResearchStageMixin
 from src.pipeline.stages.script import ScriptStageMixin
 from src.pipeline.stages.support import SupportStageMixin
+from src.pipeline.stages.title_cover import TitleCoverStageMixin
 from src.pipeline.stages.workflow import WorkflowLifecycleMixin
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "ResearchStageMixin",
     "ScriptStageMixin",
     "SupportStageMixin",
+    "TitleCoverStageMixin",
     "WorkflowLifecycleMixin",
 ]
