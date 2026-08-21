@@ -102,8 +102,6 @@ prompts/
 |-- article_enrich.md
 |-- comment_analyze.md
 |-- comment_distribution.md
-|-- comment_stance_label.md
-|-- comment_stance_label_v2.md
 |-- image_entities.md
 |-- opening_closing.md
 |-- persona.md
@@ -234,7 +232,6 @@ src/pipeline/comment/
 |-- selection.py
 |-- judge.py
 |-- refiner.py
-|-- stance_classifier.py
 `-- text.py
 ```
 
@@ -246,15 +243,6 @@ judge_comments (ensures local comment analysis) -> quote_candidates -> write_scr
 
 Downstream script generation consumes `quote_candidates` directly. It should
 not independently reselect comments.
-
-`stance_classifier.py` contains the local CPU classifier used to estimate
-`支持 / 质疑 / 中立` distributions over all fetched comments. Training labels
-are generated once with the configured LLM via
-`scripts/train_comment_stance.py`; local reports are written to
-`data/{month}/{date}/stance_distribution.local.json` (a user-side training artifact,
-not part of the new bucket layout). See
-[Comment Stance Classifier](comment_stance_classifier.md) for the current
-findings and training strategy.
 
 ## Providers
 
@@ -320,7 +308,6 @@ scripts/
 |-- agent_status.py
 |-- agent_preflight.py
 |-- agent_audit.py
-|-- train_comment_stance.py
 |-- quality_check.py
 |-- encoding.ps1
 `-- _archive/

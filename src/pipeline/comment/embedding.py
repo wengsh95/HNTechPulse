@@ -9,7 +9,9 @@ unavailable or disabled.
 from __future__ import annotations
 
 import logging
+import os
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -54,10 +56,24 @@ _model = None
 # Whether embedding is enabled (set by configure_embeddings)
 _embedding_enabled: bool = True
 
-_DEFAULT_MODEL_NAME = (
-    "data/models/huggingface/models--sentence-transformers--all-MiniLM-L6-v2"
-    "/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+_LOCAL_MODELS_DIR = Path("data/models")
+_LOCAL_HF_HOME = _LOCAL_MODELS_DIR / "huggingface"
+_DEFAULT_MODEL_NAME = str(
+    _LOCAL_HF_HOME
+    / "models--sentence-transformers--all-MiniLM-L6-v2"
+    / "snapshots"
+    / "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
 )
+
+
+def _configure_local_model_environment() -> None:
+    """Keep sentence-transformer caches inside the project data directory."""
+    cache_dir = str(_LOCAL_HF_HOME)
+    os.environ["HF_HOME"] = cache_dir
+    os.environ["HF_HUB_CACHE"] = cache_dir
+    os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(
+        _LOCAL_MODELS_DIR / "sentence-transformers"
+    )
 
 
 def configure_embeddings(
@@ -92,11 +108,8 @@ def _load_model(model_name: Optional[str] = None):
         return None
     try:
         from sentence_transformers import SentenceTransformer
-        from src.pipeline.comment.stance_classifier import (
-            configure_local_ai_environment,
-        )
 
-        configure_local_ai_environment()
+        _configure_local_model_environment()
         name = model_name or _DEFAULT_MODEL_NAME
         _model = SentenceTransformer(name, device="cpu")
         logger.info(f"Loaded embedding model: {name}")
