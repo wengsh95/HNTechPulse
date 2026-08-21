@@ -29,7 +29,13 @@ from tests.stage_fixtures import (
     make_script as _make_script,
 )
 from src.workflow.machine import WorkflowMachine
-from src.workflow.video import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS
+from src.workflow.video import (
+    VIDEO_ALL_STEPS,
+    VIDEO_PIPELINE_EXECUTION_STEPS,
+    VIDEO_PIPELINE_STEPS,
+    VIDEO_STANDALONE_STEPS,
+    VIDEO_WORKFLOW_STEPS,
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -59,27 +65,32 @@ class TestStepList:
             "synthesize_audio",
             "prepare_render",
         ]
-        assert PIPELINE_STEPS == expected
+        assert list(VIDEO_PIPELINE_EXECUTION_STEPS) == expected
 
     def test_standalone_is_render(self):
-        assert STANDALONE_STEPS == {"render", "preview"}
+        assert VIDEO_STANDALONE_STEPS == {"render", "preview"}
 
     def test_default_steps_are_full_video_chain(self):
-        assert DEFAULT_STEPS[-1] == "render"
-        assert "write_script" in DEFAULT_STEPS
-        assert "synthesize_audio" in DEFAULT_STEPS
+        assert VIDEO_PIPELINE_STEPS[-1] == "render"
+        assert "write_script" in VIDEO_PIPELINE_STEPS
+        assert "synthesize_audio" in VIDEO_PIPELINE_STEPS
 
     def test_default_chain_resolves_without_expansion(self):
-        resolved = _resolve_steps(DEFAULT_STEPS)
-        assert resolved == DEFAULT_STEPS
+        resolved = _resolve_steps(list(VIDEO_PIPELINE_STEPS))
+        assert resolved == list(VIDEO_PIPELINE_STEPS)
 
     def test_orchestrator_step_views_are_derived_from_workflow_registry(self):
-        assert tuple(DEFAULT_STEPS) == VIDEO_PIPELINE_STEPS
-        assert tuple(ALL_STEPS) == VIDEO_PIPELINE_STEPS + ("preview",)
-        assert tuple(PIPELINE_STEPS) == tuple(
+        assert VIDEO_ALL_STEPS == VIDEO_PIPELINE_STEPS + ("preview",)
+        assert VIDEO_PIPELINE_EXECUTION_STEPS == tuple(
             step for step in VIDEO_PIPELINE_STEPS if step != "render"
         )
-        assert STANDALONE_STEPS == {"render", "preview"}
+        assert VIDEO_STANDALONE_STEPS == {"render", "preview"}
+
+    def test_legacy_orchestrator_views_remain_derived_compatibility_aliases(self):
+        assert tuple(DEFAULT_STEPS) == VIDEO_PIPELINE_STEPS
+        assert tuple(ALL_STEPS) == VIDEO_ALL_STEPS
+        assert tuple(PIPELINE_STEPS) == VIDEO_PIPELINE_EXECUTION_STEPS
+        assert STANDALONE_STEPS == set(VIDEO_STANDALONE_STEPS)
 
     def test_removed_compatibility_steps_are_rejected(self):
         with pytest.raises(ValueError, match="Unknown pipeline step"):

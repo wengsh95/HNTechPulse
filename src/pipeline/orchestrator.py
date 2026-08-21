@@ -54,11 +54,8 @@ def _format_mmss(seconds: float | int | None) -> str:
 
 
 # The workflow registry is the single source of truth for the order and the
-# default managed chain.
-# These list/set aliases remain for the native CLI and external callers, but
-# their values are derived from the registry rather than maintained separately.
-STANDALONE_STEPS = set(VIDEO_STANDALONE_STEPS)
-PIPELINE_STEPS = list(VIDEO_PIPELINE_EXECUTION_STEPS)
+# default managed chain. Policy sets below describe execution behaviour, not
+# another copy of the workflow's step order.
 OPTIONAL_PRODUCTION_STEPS = {
     "write_script",
     "draft_quick_news",
@@ -77,10 +74,19 @@ OPTIONAL_PRODUCTION_STEPS = {
     "synthesize_audio",
 }
 CORE_PIPELINE_STEPS = [
-    step for step in PIPELINE_STEPS if step not in OPTIONAL_PRODUCTION_STEPS
+    step
+    for step in VIDEO_PIPELINE_EXECUTION_STEPS
+    if step not in OPTIONAL_PRODUCTION_STEPS
 ]
+_VALID_STEPS = set(VIDEO_ALL_STEPS)
+
+# Compatibility views for callers that imported the old orchestrator-level
+# constants. New code should import the canonical registry from
+# ``src.workflow`` directly; these values intentionally contain no separate
+# workflow definition.
+STANDALONE_STEPS = set(VIDEO_STANDALONE_STEPS)
+PIPELINE_STEPS = list(VIDEO_PIPELINE_EXECUTION_STEPS)
 ALL_STEPS = list(VIDEO_ALL_STEPS)
-_VALID_STEPS = set(ALL_STEPS)
 DEFAULT_STEPS = list(VIDEO_PIPELINE_STEPS)
 
 # Steps that need `script` in memory (consume from `write_script` or disk).
@@ -149,7 +155,7 @@ def _resolve_steps(requested: List[str]) -> List[str]:
 
     core_requested = [s for s in valid if s in CORE_PIPELINE_STEPS]
     optional_requested = [s for s in valid if s in OPTIONAL_PRODUCTION_STEPS]
-    standalone_requested = [s for s in valid if s in STANDALONE_STEPS]
+    standalone_requested = [s for s in valid if s in VIDEO_STANDALONE_STEPS]
 
     resolved: list[str] = []
     if core_requested:
@@ -209,7 +215,7 @@ def _resolve_steps(requested: List[str]) -> List[str]:
     ):
         ordered = [step for step in VIDEO_PIPELINE_STEPS if step in resolved]
     else:
-        ordered = [step for step in PIPELINE_STEPS if step in resolved]
+        ordered = [step for step in VIDEO_PIPELINE_EXECUTION_STEPS if step in resolved]
     ordered.extend(step for step in standalone_requested if step not in ordered)
     return ordered
 
@@ -292,7 +298,7 @@ class Orchestrator(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
     ) -> None:
         if steps is None:
-            steps = DEFAULT_STEPS
+            steps = list(VIDEO_PIPELINE_STEPS)
         else:
             steps = _resolve_steps(steps)
 

@@ -16,9 +16,9 @@ from src.providers.factory import (  # noqa: E402
     create_renderer,
     create_image_generator,
 )
-from src.pipeline.orchestrator import DEFAULT_STEPS, Orchestrator  # noqa: E402
+from src.pipeline.orchestrator import Orchestrator  # noqa: E402
 from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
-from src.workflow import VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
 from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 
 
@@ -99,7 +99,7 @@ def main():
     parser.add_argument(
         "--steps",
         type=str,
-        default=",".join(DEFAULT_STEPS),
+        default=",".join(VIDEO_PIPELINE_STEPS),
         help=(
             "Steps to run (comma-separated: fetch, prefilter, fetch_comments, "
             "enrich_articles, judge_comments, write_script, draft_quick_news, "

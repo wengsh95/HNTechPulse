@@ -20,10 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.orchestrator import ALL_STEPS  # noqa: E402
 from src.pipeline.paths import agent_path  # noqa: E402
 from src.utils.config import load_config  # noqa: E402
-from src.workflow import load_workflow_report  # noqa: E402
+from src.workflow import VIDEO_ALL_STEPS, load_workflow_report  # noqa: E402
 
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
@@ -239,7 +238,7 @@ def main() -> int:
         "workflow_state": state,
         "agent_tasks": tasks,
         "last_run_summary": last_run,
-        "known_steps": list(ALL_STEPS),
+        "known_steps": list(VIDEO_ALL_STEPS),
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 2 if fatal else 1 if blocked else 0
