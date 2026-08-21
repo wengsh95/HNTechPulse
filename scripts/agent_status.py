@@ -154,17 +154,6 @@ def _pending_tasks(date: str) -> dict[str, Any]:
     }
 
 
-def _prepare_render_renderer(date: str) -> str:
-    manifest_path = render_path(date, "cli_props.json").with_suffix(
-        render_path(date, "cli_props.json").suffix + ".manifest.json"
-    )
-    manifest = _read_json(manifest_path)
-    if not isinstance(manifest, dict):
-        return ""
-    inputs = manifest.get("inputs") or {}
-    return str(inputs.get("renderer") or "") if isinstance(inputs, dict) else ""
-
-
 def _is_newer(a: Path, b: Path) -> bool:
     return a.exists() and b.exists() and a.stat().st_mtime > b.stat().st_mtime
 
@@ -285,7 +274,6 @@ def _build_video_status(date: str) -> dict[str, Any]:
     audio_manifest = pipeline_path(date, "audio_manifest.json")
     cli_props = render_path(date, "cli_props.json")
     public_props = render_remotion_dir(date) / "public" / "props.json"
-    hyperframes_index = base / "hyperframes_project" / "index.html"
     output = publish_path(date, "output.mp4")
     title = publish_path(date, "title.json")
     cover = publish_path(date, "cover.png")
@@ -441,27 +429,11 @@ def _build_video_status(date: str) -> dict[str, Any]:
                     "reason": "cli_props.json is newer than output.mp4",
                 }
             )
-    renderer_name = _prepare_render_renderer(date)
-    if (
-        cli_props.exists()
-        and renderer_name == "RemotionRenderer"
-        and not public_props.exists()
-    ):
+    if cli_props.exists() and not public_props.exists():
         stale.append(
             {
                 "artifact": str(public_props).replace("\\", "/"),
                 "reason": "public Remotion props mirror is missing",
-            }
-        )
-    if (
-        cli_props.exists()
-        and renderer_name == "HyperFramesRenderer"
-        and not hyperframes_index.exists()
-    ):
-        stale.append(
-            {
-                "artifact": str(hyperframes_index).replace("\\", "/"),
-                "reason": "HyperFrames project index is missing",
             }
         )
     if _has_stale_publish_guide(date, content, script, publish_guide):
@@ -569,7 +541,6 @@ def _build_video_status(date: str) -> dict[str, Any]:
             "audio_dir": _artifact(pipeline_audio_dir(date)),
             "cli_props": _artifact(cli_props),
             "public_props": _artifact(public_props),
-            "hyperframes_index": _artifact(hyperframes_index),
             "output": _artifact(output),
             "title": _artifact(title),
             "cover": _artifact(cover),

@@ -4,14 +4,7 @@ This directory preserves the visual reference templates originally iterated in
 `tmp/template`.
 
 Use these files as a design and layout reference when developing future
-HyperFrames or renderer card implementations. They are not the production render
-entry point.
-
-Production HyperFrames compositions live in:
-
-```text
-src/providers/renderer/hyperframes/compositions/
-```
+Remotion card implementations. They are not the production render entry point.
 
 Reference template structure:
 
@@ -40,5 +33,5 @@ Design decisions captured here:
   and comment highlights.
 - Closing cards use the same header and title system as the other cards.
 
-If future development changes the production HyperFrames cards, update this
+If future development changes the production Remotion cards, update this
 reference only when the visual system itself changes.

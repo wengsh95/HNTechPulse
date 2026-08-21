@@ -8,7 +8,7 @@
 - 文章正文抓取（Playwright + Bing 图片兜底）
 - 评论情绪/质量评分 → 代表观点筛选 → LLM 判断
 - LLM 生成结构化解说脚本（含人工审核门）
-- TTS 配音 + Remotion/HyperFrames 视频渲染，产出 MP4
+- TTS 配音 + Remotion 视频渲染，产出 MP4
 
 ## 快速开始
 

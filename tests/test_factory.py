@@ -62,12 +62,11 @@ class TestRegistryPopulated:
         assert _TTS_REGISTRY["mimo"] is MimoTTSProvider
         assert _TTS_REGISTRY["minimax"] is MinimaxTTSProvider
 
-    def test_renderer_registry_has_remotion_and_hyperframes(self):
-        from src.providers.renderer.hyperframes_renderer import HyperFramesRenderer
+    def test_renderer_registry_has_remotion(self):
         from src.providers.renderer.remotion_renderer import RemotionRenderer
 
         assert _RENDERER_REGISTRY["remotion"] is RemotionRenderer
-        assert _RENDERER_REGISTRY["hyperframes"] is HyperFramesRenderer
+        assert set(_RENDERER_REGISTRY) == {"remotion"}
 
     def test_image_generator_registry_has_noop_and_minimax(self):
         from src.providers.image_generator.minimax import MinimaxImageGenerator
@@ -114,8 +113,7 @@ class TestUnknownNameErrors:
             create_renderer("nonexistent", {})
         msg = str(exc.value)
         assert "Unknown renderer" in msg
-        assert "remotion" in msg
-        assert "hyperframes" in msg
+        assert "Available: ['remotion']" in msg
 
     def test_image_generator_unknown_lists_available(self):
         with pytest.raises(ValueError) as exc:

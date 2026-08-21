@@ -160,9 +160,9 @@ class Renderer(ABC):
         Returns ``(props_path, props_json, scenes_payload)``:
           - ``props_path``: absolute path to the props file written.
           - ``props_json``: serialized JSON string of the props.
-          - ``scenes_payload``: renderer-specific metadata (e.g. HyperFrames
-            scene spec). RemotionRenderer returns ``None`` since it doesn't
-            use this channel.
+          - ``scenes_payload``: optional renderer-specific metadata.
+            RemotionRenderer returns ``None`` because it serializes all props
+            into its standard props file.
         """
         pass
 

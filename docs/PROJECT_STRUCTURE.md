@@ -2,7 +2,7 @@
 
 HN TechPulse is a Python pipeline, not a web app. The managed workflow pulls
 Hacker News stories, enriches source context, analyzes comments, writes a
-narration script, then runs TTS and the configured renderer to produce an MP4
+narration script, then runs TTS and the Remotion renderer to produce an MP4
 video.
 
 The managed step chain is:
@@ -281,19 +281,15 @@ used for lower-cost tasks such as translation and comment judging.
 
 ## Renderers
 
-The video renderer is `remotion` (default) or `hyperframes`, selected via the
-`--renderer` CLI flag.
+The video renderer is Remotion.
 
 ```text
 src/providers/renderer/
 |-- remotion_renderer.py
 |-- remotion_props.py
-|-- hyperframes_renderer.py
-|-- hyperframes_props.py
 |-- cue_builder.py
 |-- chunk_planner.py
-|-- remotion/
-`-- hyperframes/
+`-- remotion/
 ```
 
 The Remotion app lives at:

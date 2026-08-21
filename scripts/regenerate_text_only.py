@@ -48,9 +48,7 @@ def main() -> int:
     tts_provider = create_tts_provider(
         config.get("tts", {}).get("provider", "edge-tts"), config, debug=False
     )
-    renderer = create_renderer(
-        config.get("renderer", {}).get("provider", "remotion"), config, debug=False
-    )
+    renderer = create_renderer("remotion", config, debug=False)
     image_generator = None
     img_cfg = config.get("image_generator", {})
     if img_cfg.get("enabled", False):

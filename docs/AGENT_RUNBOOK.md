@@ -36,7 +36,7 @@ be used to inspect the expanded command first. Use `--from STEP` for a narrow
 artifact recovery that crosses phase boundaries.
 
 The managed product is a narrated video. The managed chain runs the upstream
-editorial steps, then continues through TTS and the configured renderer:
+editorial steps, then continues through TTS and the Remotion renderer:
 
 ```text
 fetch -> prefilter -> fetch_comments -> enrich_articles -> judge_comments
@@ -77,7 +77,8 @@ ingest -> research -> editorial -> human_review -> produce
 append-only in `agent_events.jsonl`; blocked repair work is described in
 `agent_tasks.json`.
 
-The renderer is selected with `--renderer {remotion,hyperframes}`.
+Video rendering is provided by Remotion; render recovery commands do not need a
+renderer selector.
 
 Successful output:
 

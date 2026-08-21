@@ -87,13 +87,6 @@ def main():
         help="Explicitly allow agent prefilter to replace the locked story selection",
     )
     parser.add_argument(
-        "--renderer",
-        type=str,
-        choices=["remotion", "hyperframes"],
-        default=None,
-        help="Video renderer provider (overrides config.renderer.provider). Default: config or remotion.",
-    )
-    parser.add_argument(
         "--force", action="store_true", help="Force re-render (clear render cache)"
     )
     parser.add_argument(
@@ -189,11 +182,8 @@ def main():
         tts_provider_name = config.get("tts", {}).get("provider", "edge-tts")
         tts_provider = create_tts_provider(tts_provider_name, config, debug=args.debug)
 
-        renderer_name = args.renderer or config.get("renderer", {}).get(
-            "provider", "remotion"
-        )
-        renderer = create_renderer(renderer_name, config, debug=args.debug)
-        logger.info(f"Using renderer: {renderer_name}")
+        renderer = create_renderer("remotion", config, debug=args.debug)
+        logger.info("Using renderer: remotion")
 
         article_enricher = None
         enrich_config = config.get("enrich", {})

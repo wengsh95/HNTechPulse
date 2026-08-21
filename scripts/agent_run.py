@@ -23,7 +23,7 @@ from src.workflow import VIDEO_PHASE_PIPELINE_STEPS, VIDEO_PIPELINE_STEPS  # noq
 
 
 # The managed chain runs upstream editorial steps, then continues through TTS
-# and the configured renderer.
+# and the Remotion renderer.
 # The native workflow registry owns the actual execution order.
 VIDEO_CHAIN = list(VIDEO_PIPELINE_STEPS)
 VIDEO_PHASES = tuple(VIDEO_PHASE_PIPELINE_STEPS)
@@ -114,7 +114,6 @@ def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     if (
         "cli_props.json is newer than output.mp4" in reasons
         or "public Remotion props mirror is missing" in reasons
-        or "HyperFrames project index is missing" in reasons
     ):
         return DOWNSTREAM_FROM["prepare_subtitles"]
     return None
@@ -266,7 +265,6 @@ def main() -> int:
         help="Explicitly allow prefilter to replace the locked story selection",
     )
     parser.add_argument("--allow-degraded-enrichment", action="store_true")
-    parser.add_argument("--renderer", choices=["remotion", "hyperframes"], default=None)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -417,8 +415,6 @@ def main() -> int:
         cmd.append("--refresh-script")
     if args.refresh_selection:
         cmd.append("--refresh-selection")
-    if args.renderer:
-        cmd.extend(["--renderer", args.renderer])
     _print_json(
         {"event": "agent_run_command", "command": " ".join(cmd), "steps": steps}
     )

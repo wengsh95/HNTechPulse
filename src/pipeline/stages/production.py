@@ -171,7 +171,7 @@ class ProductionStageMixin(OrchestratorContext):
         self.renderer.preview(script, audio_dir, content, date=date)
 
     def _clear_render_cache(self, date: str) -> None:
-        # Renderer-specific caches (Remotion chunk dirs, HyperFrames project, etc.)
+        # Renderer-specific caches (Remotion chunk dirs, etc.)
         try:
             for path in self.renderer.cache_paths(date):
                 if path.exists():

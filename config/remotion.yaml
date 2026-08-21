@@ -1,8 +1,5 @@
 # ── Remotion 渲染配置 ──
 # 本文件**只**放 Remotion (provider=remotion) 的设置。
-# Hyperframes 的并发/质量等所有 `renderer.hyperframes.*` 设置都在 config/renderer.yaml,
-# 不要写到这里 —— 即便写了,字母序里 renderer.yaml 在后,会被覆盖。
-
 remotion:
   concurrency: 1                 # 并发渲染线程数，null=自动检测 CPU 核心数
   render_workers: 1                 # 同时渲染的 chunk 数（每个 chunk 启一个浏览器，2-3 合理）
