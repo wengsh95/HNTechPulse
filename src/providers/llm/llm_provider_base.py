@@ -8,7 +8,7 @@ stay small.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.core.models import (
     ContentItem,
@@ -353,6 +353,7 @@ class LLMProviderBase(LLMProvider):
         max_tokens: Optional[int] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        validator: Optional[Callable[[dict], None]] = None,
     ) -> Any:
         """Render a prompt template and call the LLM.
 
@@ -378,6 +379,7 @@ class LLMProviderBase(LLMProvider):
                 max_tokens=max_tokens,
                 model=model,
                 temperature=temperature,
+                validator=validator,
             )
             return self._extract_json(text)
         return self._client.call_llm_text(

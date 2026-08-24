@@ -15,6 +15,7 @@ class TestQuickNewsStage:
             result = orch._step_draft_quick_news(script, "2026-04-26")
 
         assert result is script
+        assert draft.call_args.kwargs["article_enricher"] is orch.article_enricher
         orch._normalize_video_structure.assert_called_once_with(script, "2026-04-26")
         orch.script_writer.save_script.assert_called_once_with(script, "2026-04-26")
 

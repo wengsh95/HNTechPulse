@@ -123,6 +123,7 @@ class EditorialStageMixin(OrchestratorContext):
             script,
             date,
             llm_provider=self.llm_provider,
+            article_enricher=self.article_enricher,
             config=self.config,
             logger=self.logger,
         )

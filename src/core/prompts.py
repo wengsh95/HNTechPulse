@@ -26,6 +26,7 @@ PH_EDITOR_ANGLE = "editor_angle"
 PH_KEYWORDS = "keywords"
 PH_URL = "url"
 PH_CANDIDATES_JSON = "candidates_json"
+PH_QUICK_NEWS_COUNT = "quick_news_count"
 PH_STORY_INDEX = "story_index"
 PH_STORIES_JSON = "stories_json"
 PH_HIGHLIGHT_ENTRIES = "highlight_entries"
@@ -57,6 +58,7 @@ _KNOWN_PLACEHOLDERS = frozenset(
         PH_KEYWORDS,
         PH_URL,
         PH_CANDIDATES_JSON,
+        PH_QUICK_NEWS_COUNT,
         PH_STORY_INDEX,
         PH_STORIES_JSON,
         PH_HIGHLIGHT_ENTRIES,

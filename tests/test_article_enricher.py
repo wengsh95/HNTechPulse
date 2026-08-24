@@ -42,6 +42,34 @@ def _make_enricher(**config_overrides):
     return ArticleEnricher(_make_llm_provider(), _make_config(**config_overrides))
 
 
+def test_enrichment_cache_merge_preserves_other_story_entries(tmp_path):
+    enricher = _make_enricher()
+    cache = tmp_path / "enrichment.json"
+    cache.write_text(
+        json.dumps(
+            {"date": "2026-04-26", "items": {"deep": {"article_summary": "deep"}}}
+        ),
+        encoding="utf-8",
+    )
+    quick = ContentPackage(
+        date="2026-04-26",
+        items=[
+            ContentItem(
+                source="hackernews",
+                source_id="quick",
+                title="Quick",
+                url="https://example.com",
+                article_summary="quick",
+            )
+        ],
+    )
+
+    enricher._save_to_cache(quick, cache)
+
+    items = json.loads(cache.read_text(encoding="utf-8"))["items"]
+    assert set(items) == {"deep", "quick"}
+
+
 # ── _make_headers ─────────────────────────────────────────────────────
 
 

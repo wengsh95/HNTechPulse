@@ -70,12 +70,21 @@ class TestNormalizeAgentResult:
         assert result[0]["fact"] == "事实。"
         assert result[1]["source_url"] == "https://example.com/2"
 
-    def test_falls_back_to_prefilter_candidates_when_agent_returns_too_few(self):
-        result = _normalize_agent_result([], _candidates())
+    def test_rejects_too_few_agent_items_instead_of_copying_titles(self):
+        with pytest.raises(ValueError, match="at least two"):
+            _normalize_agent_result([], _candidates())
 
-        assert len(result) == 3
-        assert result[0]["story_id"] == "1"
-        assert all(item["fact"].endswith("。") for item in result)
+    def test_rejects_a_fact_that_merely_repeats_the_source_title(self):
+        with pytest.raises(ValueError, match="repeats its title"):
+            _normalize_agent_result(
+                {
+                    "items": [
+                        {"story_id": "1", "title": "第一条", "fact": "第一条"},
+                        {"story_id": "2", "title": "第二条", "fact": "发布了新版本"},
+                    ]
+                },
+                _candidates(),
+            )
 
     def test_raises_when_fewer_than_two_candidates_exist(self):
         with pytest.raises(ValueError, match="Not enough"):
@@ -86,7 +95,13 @@ class TestQuickNewsDraft:
     def test_existing_segment_is_idempotent(self):
         script = _script_with_closing()
         script.segments.insert(
-            1, _build_segment([{"story_id": "1", "title": "一", "fact": "事实"}])
+            1,
+            _build_segment(
+                [
+                    {"story_id": "1", "title": "一", "fact": "第一个具体事实"},
+                    {"story_id": "2", "title": "二", "fact": "第二个具体事实"},
+                ]
+            ),
         )
 
         result = draft_quick_news(script, "2026-04-26", llm_provider=None, config={})
@@ -107,19 +122,20 @@ class TestQuickNewsDraft:
         artifact.write_text(
             json.dumps(
                 {
+                    "schema_version": 2,
                     "items": [
                         {
                             "story_id": "7",
                             "title": "缓存速览",
-                            "fact": "缓存事实",
+                            "fact": "缓存中保留了具体事实",
                             "source_url": "https://example.com/7",
                         },
                         {
                             "story_id": "8",
                             "title": "第二速览",
-                            "fact": "第二事实",
+                            "fact": "第二条也有具体事实",
                         },
-                    ]
+                    ],
                 },
                 ensure_ascii=False,
             ),
@@ -133,6 +149,7 @@ class TestQuickNewsDraft:
         assert [item["story_id"] for item in result.items] == ["7", "8"]
         assert script.segments[1].segment_type == "quick_news"
         assert script.segments[1].scene_elements[0].props["quick_story_id"] == "7"
+        assert script.segments[1].audio_text.startswith("接下来是两条速览。")
 
     def test_generates_from_approved_candidates_and_writes_artifact(
         self, tmp_path, monkeypatch
@@ -185,13 +202,32 @@ class TestQuickNewsDraft:
                     ]
                 }
 
+        enriched_ids = []
+
+        class Enricher:
+            def enrich(self, package, run_date):
+                assert run_date == date
+                for item in package.items:
+                    item.article_summary = f"{item.title}的正文摘要"
+                    item.key_points = [{"fact": "具体变化"}]
+                    item.enrichment_source = "test"
+                    enriched_ids.append(item.source_id)
+                return package
+
         script = _script_with_closing()
-        result = draft_quick_news(script, date, llm_provider=Provider(), config={})
+        result = draft_quick_news(
+            script,
+            date,
+            llm_provider=Provider(),
+            article_enricher=Enricher(),
+            config={},
+        )
 
         assert result.changed is True
+        assert enriched_ids == ["2", "3"]
         artifact = pipeline_path(date, "quick_news.json")
         assert artifact.exists()
-        assert (
-            json.loads(artifact.read_text(encoding="utf-8"))["items"][0]["story_id"]
-            == "2"
-        )
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+        assert payload["schema_version"] == 2
+        assert payload["items"][0]["story_id"] == "2"
+        assert payload["items"][0]["source_context"]["article_summary"]

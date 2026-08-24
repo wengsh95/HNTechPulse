@@ -1291,6 +1291,17 @@ class ArticleEnricher:
     def _save_to_cache(self, content: ContentPackage, cache_path: Path):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         items_dict: Dict[str, Dict[str, Any]] = {}
+        # Enrichment also runs on the lightweight quick-news package.  Merge
+        # with the existing per-date cache so enriching two quick stories does
+        # not erase the three deep-story entries prepared earlier.
+        if cache_path.exists():
+            try:
+                cached_payload = json.loads(cache_path.read_text(encoding="utf-8"))
+                cached_items = cached_payload.get("items") or {}
+                if isinstance(cached_items, dict):
+                    items_dict.update(cached_items)
+            except (OSError, json.JSONDecodeError, AttributeError):
+                pass
         for item in content.items:
             if item.article_text is not None or item.article_summary is not None:
                 items_dict[str(item.source_id)] = {
