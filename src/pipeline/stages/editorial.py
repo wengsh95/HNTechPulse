@@ -13,7 +13,10 @@ from src.pipeline.human_review import (
 )
 from src.pipeline.paths import date_root, pipeline_path
 from src.pipeline.quick_news import draft_quick_news
-from src.pipeline.script import apply_subtitle_revisions
+from src.pipeline.script import (
+    apply_script_review_revisions,
+    collect_script_review_units,
+)
 from src.pipeline.story_images import prepare_story_images
 from src.pipeline.storyboard import apply_storyboard
 from src.pipeline.storyboard_draft import draft_storyboard
@@ -270,31 +273,26 @@ class EditorialStageMixin(OrchestratorContext):
             self.logger.warning("Script not loaded; skipping script review")
             return script
 
-        segment = next(
-            (s for s in script.segments if s.segment_type == "story_scan"), None
-        )
-        sub_texts = (
-            segment.meta.get("sub_segment_subtitle_texts") if segment else None
-        ) or []
-        if not sub_texts:
-            self.logger.info("  No story_scan sub-segments to review; skipping")
+        review_units = collect_script_review_units(script)
+        if not review_units:
+            self.logger.info("  No spoken script units to review; skipping")
             return script
 
         cache_path = pipeline_path(date, "script_review.json")
 
         def _apply(revisions: dict[int, list[str]]) -> None:
-            changed, warnings = apply_subtitle_revisions(script, revisions)
+            changed, warnings = apply_script_review_revisions(script, revisions)
             for warning in warnings:
                 self.logger.info(f"  Review: {warning}")
             self.logger.info(f"  Review: applied {changed} subtitle revision(s)")
 
-        current_hash = stable_hash(sub_texts)
+        current_hash = stable_hash(review_units)
         if cache_path.exists():
             try:
                 cached = json.loads(cache_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 cached = {}
-            if cached.get("result_subsegments_hash") == current_hash:
+            if cached.get("result_review_units_hash") == current_hash:
                 self.logger.info("  Script already matches cached review; skipping")
                 return script
 
@@ -302,9 +300,7 @@ class EditorialStageMixin(OrchestratorContext):
             self.logger.info("Dry run: skipping script review")
             return script
 
-        payload = [
-            {"index": i, "subtitle_texts": texts} for i, texts in enumerate(sub_texts)
-        ]
+        payload = review_units
         context = {
             "subsegments_json": json.dumps(payload, ensure_ascii=False, indent=2),
             "date": date,
@@ -326,17 +322,10 @@ class EditorialStageMixin(OrchestratorContext):
             )
             return script
 
-        revisions = self._parse_review_revisions(result, len(sub_texts))
+        revisions = self._parse_review_revisions(result, len(review_units))
         _apply(revisions)
 
-        result_segment = next(
-            (s for s in script.segments if s.segment_type == "story_scan"), None
-        )
-        result_texts = (
-            result_segment.meta.get("sub_segment_subtitle_texts")
-            if result_segment
-            else sub_texts
-        )
+        result_units = collect_script_review_units(script)
         atomic_write_json(
             cache_path,
             {
@@ -345,7 +334,7 @@ class EditorialStageMixin(OrchestratorContext):
                     for i, texts in sorted(revisions.items())
                 ],
                 "overall_assessment": str(result.get("overall_assessment") or ""),
-                "result_subsegments_hash": stable_hash(result_texts),
+                "result_review_units_hash": stable_hash(result_units),
             },
         )
         write_artifact_manifest(

@@ -17,7 +17,11 @@ from src.pipeline.script.templates import (
     generate_fixed_closing,
     build_highlight_entries,
 )
-from src.pipeline.script.reviser import apply_subtitle_revisions
+from src.pipeline.script.reviser import (
+    apply_script_review_revisions,
+    apply_subtitle_revisions,
+    collect_script_review_units,
+)
 
 __all__ = [
     "save_script",
@@ -36,4 +40,6 @@ __all__ = [
     "generate_fixed_closing",
     "build_highlight_entries",
     "apply_subtitle_revisions",
+    "apply_script_review_revisions",
+    "collect_script_review_units",
 ]

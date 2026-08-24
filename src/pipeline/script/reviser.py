@@ -20,6 +20,146 @@ def _estimate_duration(texts: list[str]) -> float:
     return sum(max(2.0, len(t) / SPEECH_CPS) for t in texts)
 
 
+def collect_script_review_units(script: Script) -> list[dict]:
+    """Flatten every spoken section into stable, globally indexed review units."""
+
+    units: list[dict] = []
+    for segment_index, segment in enumerate(script.segments):
+        groups = segment.meta.get("sub_segment_subtitle_texts") or []
+        if groups:
+            for local_index, texts in enumerate(groups):
+                cleaned = extract_subtitle_texts({"subtitle_texts": texts})
+                if cleaned:
+                    units.append(
+                        {
+                            "index": len(units),
+                            "segment_index": segment_index,
+                            "segment_type": segment.segment_type,
+                            "local_index": local_index,
+                            "element_index": None,
+                            "subtitle_texts": cleaned,
+                        }
+                    )
+            continue
+
+        element_units = 0
+        for element_index, element in enumerate(segment.scene_elements):
+            cleaned = extract_subtitle_texts(
+                {"subtitle_texts": element.props.get("subtitle_texts") or []}
+            )
+            if not cleaned:
+                continue
+            units.append(
+                {
+                    "index": len(units),
+                    "segment_index": segment_index,
+                    "segment_type": segment.segment_type,
+                    "local_index": None,
+                    "element_index": element_index,
+                    "subtitle_texts": cleaned,
+                }
+            )
+            element_units += 1
+        if not element_units and segment.audio_text.strip():
+            units.append(
+                {
+                    "index": len(units),
+                    "segment_index": segment_index,
+                    "segment_type": segment.segment_type,
+                    "local_index": None,
+                    "element_index": None,
+                    "subtitle_texts": [segment.audio_text.strip()],
+                }
+            )
+    return units
+
+
+def apply_script_review_revisions(
+    script: Script, revisions: dict[int, list[str]]
+) -> tuple[int, list[str]]:
+    """Apply global review-unit revisions across opening, stories, quick news, and closing."""
+
+    units = collect_script_review_units(script)
+    by_index = {unit["index"]: unit for unit in units}
+    changed_segments: set[int] = set()
+    changed_locals: dict[int, set[int]] = {}
+    warnings: list[str] = []
+    changed = 0
+
+    for index, raw in revisions.items():
+        unit = by_index.get(index)
+        if unit is None:
+            warnings.append(f"index {index} out of range; skipped")
+            continue
+        cleaned = extract_subtitle_texts({"subtitle_texts": raw})
+        if not cleaned:
+            warnings.append(f"index {index} revision cleaned to empty; kept original")
+            continue
+        if cleaned == unit["subtitle_texts"]:
+            continue
+
+        segment_index = unit["segment_index"]
+        segment = script.segments[segment_index]
+        local_index = unit["local_index"]
+        element_index = unit["element_index"]
+        if local_index is not None:
+            groups = segment.meta.get("sub_segment_subtitle_texts") or []
+            if local_index >= len(groups):
+                warnings.append(f"index {index} local group disappeared; skipped")
+                continue
+            groups[local_index] = cleaned
+            segment.meta["sub_segment_subtitle_texts"] = groups
+            for element in segment.scene_elements:
+                if element.sub_segment_index == local_index:
+                    element.props["subtitle_texts"] = cleaned
+                    if segment.segment_type == "quick_news":
+                        if len(cleaned) > 1:
+                            element.props["title"] = cleaned[0].rstrip("。！？.!?")
+                            element.props["fact"] = "".join(cleaned[1:])
+                        else:
+                            element.props["fact"] = cleaned[0]
+            changed_locals.setdefault(segment_index, set()).add(local_index)
+        elif element_index is not None and element_index < len(segment.scene_elements):
+            segment.scene_elements[element_index].props["subtitle_texts"] = cleaned
+        else:
+            segment.audio_text = " ".join(cleaned)
+
+        changed += 1
+        changed_segments.add(segment_index)
+
+    for segment_index in changed_segments:
+        segment = script.segments[segment_index]
+        groups = segment.meta.get("sub_segment_subtitle_texts") or []
+        if groups:
+            durations = [_estimate_duration(texts) for texts in groups]
+            segment.meta["sub_segment_estimated_durations"] = durations
+            intro = str(segment.meta.get("intro_text") or "").strip()
+            body = " ".join(text for texts in groups for text in texts)
+            segment.audio_text = f"{intro} {body}".strip()
+            segment.duration = sum(durations) + (
+                _estimate_duration([intro]) if intro else 0
+            )
+        else:
+            element_texts = [
+                text
+                for element in segment.scene_elements
+                for text in extract_subtitle_texts(
+                    {"subtitle_texts": element.props.get("subtitle_texts") or []}
+                )
+            ]
+            if element_texts:
+                segment.audio_text = " ".join(element_texts)
+                segment.duration = _estimate_duration(element_texts)
+
+        subtitle_audios = segment.meta.get("subtitle_audios")
+        if isinstance(subtitle_audios, list):
+            for local_index in changed_locals.get(segment_index, set()):
+                if 0 <= local_index < len(subtitle_audios):
+                    subtitle_audios[local_index] = None
+
+    return changed, warnings
+
+
 def apply_subtitle_revisions(
     script: Script, revisions: dict[int, list[str]]
 ) -> tuple[int, list[str]]:
