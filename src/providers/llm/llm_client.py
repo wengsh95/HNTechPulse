@@ -209,6 +209,10 @@ class LLMClient:
                 cached = getattr(details, "cached_tokens", 0) if details else 0
                 if not cached:
                     cached = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
+                # Some compatible APIs report cumulative cache tokens that can
+                # exceed this request's prompt total.  Clamp display-only
+                # metrics so logs never show a negative cache miss count.
+                cached = max(0, min(cached, usage.prompt_tokens))
                 miss = usage.prompt_tokens - cached
                 hit_pct = (
                     (cached / usage.prompt_tokens * 100) if usage.prompt_tokens else 0
