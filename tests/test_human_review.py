@@ -67,3 +67,26 @@ def test_cannot_approve_a_stale_review_page(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="missing or stale"):
         approve_current_script(date)
+
+
+def test_review_page_includes_publish_metadata_and_cover_candidates(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    date = "2026-08-18"
+    script = _script()
+    script.cover_title = "封面主标"
+    save_script(script, date)
+    cover = tmp_path / "data" / date[:7] / date / "publish" / "cover_b1_t1.png"
+    cover.parent.mkdir(parents=True)
+    cover.write_bytes(b"first-cover")
+
+    page = generate_script_review_page(script, date)
+    html = page.read_text(encoding="utf-8")
+
+    assert "发布信息与封面" in html
+    assert "每日技术简报" in html
+    assert "cover_b1_t1.png" in html
+    approve_current_script(date)
+    cover.write_bytes(b"changed-cover")
+    assert not script_approval_is_current(date, script)

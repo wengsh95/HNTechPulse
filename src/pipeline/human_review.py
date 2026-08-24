@@ -14,7 +14,13 @@ from src.pipeline.agent_io import (
     utc_now,
     write_artifact_manifest,
 )
-from src.pipeline.paths import agent_path, date_root, pipeline_path
+from src.pipeline.paths import (
+    agent_path,
+    date_root,
+    pipeline_path,
+    publish_path,
+    publish_root,
+)
 from src.pipeline.script.io import load_script, script_editorial_hash
 from src.utils.atomic_io import atomic_write_json, atomic_write_text
 
@@ -24,9 +30,15 @@ def script_review_page_path(date: str) -> Path:
 
 
 def _review_page_inputs(date: str, script: Script) -> dict[str, Any]:
+    cover_hashes = {
+        path.name: file_sha256(path)
+        for path in sorted(publish_root(date).glob("cover_b*_t*.png"))
+    }
     return {
         "script_hash": script_editorial_hash(script),
         "automatic_review_hash": file_sha256(pipeline_path(date, "script_review.json")),
+        "title_metadata_hash": file_sha256(publish_path(date, "title.json")),
+        "cover_candidate_hashes": cover_hashes,
     }
 
 
@@ -104,6 +116,56 @@ def _segment_sections(script: Script) -> str:
     return "".join(sections)
 
 
+def _publication_section(script: Script, date: str) -> str:
+    title_payload: dict[str, Any] = {}
+    title_path = publish_path(date, "title.json")
+    if title_path.exists():
+        try:
+            loaded = json.loads(title_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                title_payload = loaded
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    candidates = title_payload.get("title_candidates") or [script.title]
+    candidate_rows = "".join(
+        f"<li><span>{index + 1:02d}</span><p>{_esc(title)}</p></li>"
+        for index, title in enumerate(candidates)
+        if str(title).strip()
+    )
+    covers = sorted(publish_root(date).glob("cover_b*_t*.png"))
+    cover_cards = "".join(
+        (
+            '<figure class="cover-card">'
+            f'<img src="../publish/{_esc(path.name)}" alt="{_esc(path.stem)}">'
+            f"<figcaption>{_esc(path.stem)}</figcaption></figure>"
+        )
+        for path in covers
+    )
+    if not cover_cards:
+        cover_cards = '<p class="empty">尚未生成封面候选。</p>'
+
+    return f"""
+    <section class="publication">
+      <div class="section-head"><h2>发布信息与封面</h2><small>批准会绑定这些文件</small></div>
+      <div class="publish-grid">
+        <article class="copy-card">
+          <div class="copy-head"><span>主标题</span><b>{_esc(script.title)}</b></div>
+          <p class="publish-copy">{_esc(script.description)}</p>
+          <p class="tag-line">标签：{_esc(" / ".join(script.tags))}</p>
+        </article>
+        <article class="copy-card">
+          <div class="copy-head"><span>封面文案</span><b>{_esc(script.cover_title)}</b></div>
+          <p class="publish-copy">{_esc(script.cover_subtitle)}</p>
+          <p class="tag-line">封面标签：{_esc(" / ".join(script.cover_tags))}</p>
+        </article>
+      </div>
+      <details open><summary>标题候选</summary><ol>{candidate_rows}</ol></details>
+      <div class="cover-grid">{cover_cards}</div>
+    </section>
+    """
+
+
 def generate_script_review_page(
     script: Script,
     date: str,
@@ -154,7 +216,12 @@ def generate_script_review_page(
     .copy-head b {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
     ol {{ list-style:none; margin:0; padding:7px 13px 10px; }} li {{ display:grid; grid-template-columns:28px 1fr; gap:8px; border-bottom:1px solid #edf0f4; }}
     li:last-child {{ border-bottom:0; }} li span {{ color:#98a2b3; font:11px/1.9 ui-monospace,monospace; }} li p {{ margin:4px 0; }} .empty {{ color:var(--muted); padding:8px 0; }}
-    @media (max-width:720px) {{ .copy-grid {{ grid-template-columns:1fr; }} header {{ padding:22px; }} }}
+    .publish-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }}
+    .publish-copy,.tag-line {{ margin:0; padding:12px 14px; }} .tag-line {{ padding-top:0; color:var(--muted); font-size:13px; }}
+    .cover-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }}
+    .cover-card {{ margin:0; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f7f8fa; }}
+    .cover-card img {{ display:block; width:100%; aspect-ratio:16/9; object-fit:cover; }} .cover-card figcaption {{ padding:7px 10px; color:var(--muted); font-size:12px; }}
+    @media (max-width:720px) {{ .copy-grid,.publish-grid {{ grid-template-columns:1fr; }} .cover-grid {{ grid-template-columns:1fr; }} header {{ padding:22px; }} }}
   </style>
 </head>
 <body><main>
@@ -162,10 +229,11 @@ def generate_script_review_page(
     <h1>文案人工审查</h1>
     <div class="meta">{_esc(date)} · script {_esc(script_hash[:12])} · 自动改写 {revision_count} 段</div>
     <div class="assessment"><b>自动审校：</b>{_esc(assessment)}</div>
-    <p>请重点检查：信息是否讲透、HN 评论是否具体、头条与重点是否有层级、速览是否过密。任何文案修改都会使当前批准失效。</p>
+    <p>请重点检查：发布标题是否越界、开场与结尾是否顺、速览事实是否具体、封面方案是否真有差异。任何文案或封面修改都会使当前批准失效。</p>
     <p><b>确认当前版本后执行：</b></p>
     <div class="command">{_esc(approve_command)}</div>
   </header>
+  {_publication_section(script, date)}
   {_segment_sections(script)}
 </main></body></html>"""
 
@@ -196,11 +264,13 @@ def load_script_approval(date: str) -> dict[str, Any] | None:
 def script_approval_is_current(date: str, script: Script | None = None) -> bool:
     script = script or load_script(date)
     approval = load_script_approval(date)
+    current_inputs = _review_page_inputs(date, script)
     return bool(
         approval
         and approval.get("status") == "approved"
         and approval.get("date") == date
         and approval.get("script_hash") == script_editorial_hash(script)
+        and approval.get("review_inputs") == current_inputs
     )
 
 
@@ -231,6 +301,7 @@ def approve_current_script(
             "reviewer": reviewer.strip() or "human",
             "note": note.strip(),
             "script_hash": script_editorial_hash(script),
+            "review_inputs": inputs,
             "review_page": str(page).replace("\\", "/"),
             "review_page_hash": file_sha256(page),
             "automatic_review_hash": inputs["automatic_review_hash"],
