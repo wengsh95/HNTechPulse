@@ -46,7 +46,6 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
             "title",
             "cover_image",
             "cover_thumbnail",
-            "draft_storyboard",
         ),
         produces=(
             "pipeline/script.json",
@@ -58,7 +57,6 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
             "pipeline/translations.json",
             "publish/title.json",
             "publish/cover.png",
-            "pipeline/storyboard.json",
         ),
         consumes=("pipeline/content.json", "pipeline/comment_judgement.json"),
     ),
@@ -71,7 +69,6 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         consumes=(
             "pipeline/script.json",
             "publish/title.json",
-            "pipeline/storyboard.json",
         ),
     ),
     WorkflowStep(
@@ -79,6 +76,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         title="媒体生产与视频渲染",
         deps=("human_review",),
         pipeline_steps=(
+            "draft_storyboard",
             "apply_storyboard",
             "prepare_subtitles",
             "synthesize_audio",
@@ -86,6 +84,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
             "render",
         ),
         produces=(
+            "pipeline/storyboard.json",
             "pipeline/subtitle_plan.json",
             "pipeline/audio/*",
             "pipeline/audio_manifest.json",

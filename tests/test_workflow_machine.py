@@ -51,7 +51,7 @@ def test_phase_pipeline_aliases_are_derived_from_workflow():
     from src.workflow.video import VIDEO_PHASE_PIPELINE_STEPS
 
     assert VIDEO_PHASE_PIPELINE_STEPS["human_review"] == ("human_review",)
-    assert VIDEO_PHASE_PIPELINE_STEPS["produce"][0] == "apply_storyboard"
+    assert VIDEO_PHASE_PIPELINE_STEPS["produce"][0] == "draft_storyboard"
 
 
 def _machine(tmp_path, monkeypatch) -> WorkflowMachine:

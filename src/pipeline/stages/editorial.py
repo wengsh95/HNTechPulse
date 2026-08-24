@@ -17,7 +17,7 @@ from src.pipeline.script import (
     apply_script_review_revisions,
     collect_script_review_units,
 )
-from src.pipeline.story_images import prepare_story_images
+from src.pipeline.story_images import StoryImagePreparation, prepare_story_images
 from src.pipeline.storyboard import apply_storyboard
 from src.pipeline.storyboard_draft import draft_storyboard
 from src.pipeline.stages.context import OrchestratorContext
@@ -152,7 +152,8 @@ class EditorialStageMixin(OrchestratorContext):
         if script is None:
             raise ValueError("Script not loaded; cannot prepare story images")
         if self.dry_run:
-            return prepare_story_images(script, content, date, agent_mode=False)
+            self.logger.info("Dry run: skipping story-image preparation")
+            return StoryImagePreparation(stories=[], pending=[], changed=False)
         result = prepare_story_images(
             script,
             content,

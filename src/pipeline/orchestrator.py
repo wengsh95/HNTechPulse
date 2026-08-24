@@ -375,18 +375,13 @@ class Orchestrator(
             self.article_enricher, "pending_image_selections", []
         )
         if pending_image_selections and self.agent_mode:
-            task_file = write_image_selection_tasks(date, pending_image_selections)
-            self._workflow_block(
-                "enrich_articles",
-                BLOCK_MANUAL_IMAGE_SELECTION,
-                items=pending_image_selections,
-                task_file=str(task_file).replace("\\", "/"),
-            )
-            self.logger.warning(
-                "%d image selections need agent confirmation before continuing.",
+            # Do not stop here: quick-news stories do not exist yet.  The
+            # prepare_story_images step merges these deep-story candidates
+            # with quick-story candidates and opens one complete image gate.
+            self.logger.info(
+                "%d deep-story image selections deferred to the unified gate.",
                 len(pending_image_selections),
             )
-            return
 
         # ── 5. source-context gate ───────────────────────────────────────
         skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
@@ -487,9 +482,7 @@ class Orchestrator(
                 self._step_cover_thumbnail(content, script, date)
 
         # ── 15. draft_storyboard ─────────────────────────────────────────
-        if "draft_storyboard" in steps:
-            with self._tracked_step("draft_storyboard"):
-                self._step_draft_storyboard(script, date)
+        # Storyboard drafting runs after the approval block below.
 
         # ── 16. human_review ──────────────────────────────────────────────
         if "human_review" in steps:
@@ -522,6 +515,12 @@ class Orchestrator(
                 return
 
         # ── 17. apply_storyboard ─────────────────────────────────────────
+        # Automatic review may revise any spoken section. Draft shots only
+        # after human approval so they cannot be stale or wasted.
+        if "draft_storyboard" in steps:
+            with self._tracked_step("draft_storyboard"):
+                self._step_draft_storyboard(script, date)
+
         if "apply_storyboard" in steps:
             with self._tracked_step("apply_storyboard"):
                 script = self._step_apply_storyboard(script, date)

@@ -36,6 +36,19 @@ class TestQuickNewsStage:
             content, script, "2026-04-26", save_script=False
         )
 
+    def test_story_image_dry_run_does_not_call_preparer(self):
+        orch = make_orchestrator(dry_run=True)
+        script = make_script()
+
+        with patch("src.pipeline.stages.editorial.prepare_story_images") as prepare:
+            result = orch._step_prepare_story_images(
+                script, make_content(), "2026-04-26"
+            )
+
+        prepare.assert_not_called()
+        assert result.stories == []
+        assert result.pending == []
+
 
 class TestEditorialHelpers:
     def test_parse_review_revisions_discards_invalid_entries(self):

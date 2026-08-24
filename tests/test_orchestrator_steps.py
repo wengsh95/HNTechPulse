@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from pathlib import Path
 
@@ -54,8 +55,8 @@ class TestStepList:
             "title",
             "cover_image",
             "cover_thumbnail",
-            "draft_storyboard",
             "human_review",
+            "draft_storyboard",
             "apply_storyboard",
             "prepare_subtitles",
             "synthesize_audio",
@@ -718,6 +719,34 @@ class TestRunDispatch:
         assert workflow_state["metadata"]["execution_status"] == "complete"
         assert workflow_state["metadata"]["degraded_items"][0]["story_id"] == "123"
         assert workflow_state["metadata"]["degraded_items"][0]["continued"] is True
+
+    def test_agent_defers_deep_image_confirmation_until_unified_story_gate(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_content()
+        script = _make_script()
+        orch.content_preparer.load_content = MagicMock(return_value=content)
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, []))
+        orch.article_enricher = MagicMock()
+        orch.article_enricher.pending_image_selections = [{"story_id": "deep"}]
+        orch.agent_decision.evaluate_source_context = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+        orch._step_write_script = MagicMock(return_value=script)
+
+        orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
+        )
+
+        orch._step_write_script.assert_called_once_with(content, "2026-04-26")
 
     def test_refresh_variants_clears_script_outputs_only(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
