@@ -116,7 +116,11 @@ def test_task_checks_reports_missing_manual_article_files(tmp_path, monkeypatch)
 
     data, issues = agent_preflight._task_checks(date)
 
-    assert data["tasks"]
+    assert data["pending_count"] == 2
+    assert {task["task_type"] for task in data["pending"]} == {
+        "fetch_article",
+        "select_image",
+    }
     assert issues[0]["check"] == "missing_article_files"
     assert issues[0]["blocked_reason"] == "manual_download_required"
 

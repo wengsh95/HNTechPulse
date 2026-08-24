@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 from src.pipeline.paths import agent_path  # noqa: E402
 from src.utils.config import load_config  # noqa: E402
 from src.workflow import VIDEO_ALL_STEPS, load_workflow_report  # noqa: E402
+from scripts.internal.agent.agent_status import _pending_tasks  # noqa: E402
 
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
@@ -179,7 +180,7 @@ def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
     if not path.exists():
         return None, []
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         return None, [
             {
@@ -189,15 +190,16 @@ def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
             }
         ]
 
-    pending = []
-    for task in data.get("tasks", []):
-        if task.get("task_type") != "fetch_article":
-            continue
-        save_as = task.get("save_as", {})
-        html_path = Path(save_as.get("html", ""))
-        pdf_path = Path(save_as.get("pdf", ""))
-        if not html_path.exists() and not pdf_path.exists():
-            pending.append(task)
+    # Resolve tasks from their current output artifacts instead of echoing the
+    # historical status written when the gate was first created.  This keeps
+    # preflight and agent_status from disagreeing after an image or article has
+    # already been supplied.
+    task_status = _pending_tasks(date)
+    pending = [
+        task
+        for task in task_status.get("pending") or []
+        if task.get("task_type") == "fetch_article"
+    ]
     issues = []
     if pending:
         issues.append(
@@ -208,7 +210,7 @@ def _task_checks(date: str) -> tuple[dict[str, Any] | None, list[dict]]:
                 "message": f"{len(pending)} article fetch task(s) still pending",
             }
         )
-    return data, issues
+    return task_status, issues
 
 
 def main() -> int:

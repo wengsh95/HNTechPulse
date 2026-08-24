@@ -8,15 +8,22 @@ from scripts.internal.agent.agent_run import (
     VIDEO_PHASES,
     _choose_steps,
     _failed_recovery_steps,
+    _final_status_exit_code,
     _is_explicit_downstream_request,
     _stale_recovery_steps,
 )
 
 
+def test_blocked_or_failed_final_status_returns_nonzero_exit_code():
+    assert _final_status_exit_code({"pipeline_status": "blocked"}) == 2
+    assert _final_status_exit_code({"pipeline_status": "failed"}) == 2
+    assert _final_status_exit_code({"pipeline_status": "complete"}) == 0
+
+
 def test_video_chain_restores_storyboard_tts_and_render_steps():
     assert VIDEO_CHAIN[-7:] == [
-        "draft_storyboard",
         "human_review",
+        "draft_storyboard",
         "apply_storyboard",
         "prepare_subtitles",
         "synthesize_audio",
@@ -222,6 +229,19 @@ def test_only_downstream_step_requests_bypass_upstream_block_gate():
     assert not _is_explicit_downstream_request(
         requested_steps="write_script",
         from_step=None,
+    )
+
+
+def test_editorial_rework_can_start_from_title_at_human_review_gate():
+    assert _is_explicit_downstream_request(
+        requested_steps=None,
+        from_step="title",
+        blocked_reason="manual_script_review_required",
+    )
+    assert not _is_explicit_downstream_request(
+        requested_steps=None,
+        from_step="title",
+        blocked_reason="manual_download_required",
     )
 
 

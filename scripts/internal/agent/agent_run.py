@@ -70,6 +70,13 @@ def _print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def _final_status_exit_code(status: dict[str, Any]) -> int:
+    """Expose blocked/failed workflow outcomes to shells and schedulers."""
+
+    pipeline_status = status.get("pipeline_status")
+    return 2 if pipeline_status in {"blocked", "failed", "corrupt"} else 0
+
+
 def _run(cmd: list[str], *, env: dict[str, str] | None = None) -> int:
     merged_env = dict(os.environ)
     if env:
@@ -158,10 +165,19 @@ def _manual_script_review_repaired(status: dict[str, Any]) -> bool:
 
 
 def _is_explicit_downstream_request(
-    *, requested_steps: str | None, from_step: str | None
+    *,
+    requested_steps: str | None,
+    from_step: str | None,
+    blocked_reason: str | None = None,
 ) -> bool:
     """Return whether the request is safe to run without upstream context."""
-    allowed = DOWNSTREAM_ONLY_STEPS
+    allowed = set(DOWNSTREAM_ONLY_STEPS)
+    if blocked_reason == "manual_script_review_required":
+        # Reworking any editorial output after seeing the review page is an
+        # intentional local operation.  The native workflow still enforces
+        # upstream dependencies, and the changed artifacts invalidate the old
+        # approval before media production can continue.
+        allowed.update(VIDEO_CHAIN[VIDEO_CHAIN.index("write_script") :])
     if from_step:
         return from_step in allowed
     if not requested_steps:
@@ -338,6 +354,7 @@ def main() -> int:
         explicit_downstream = _is_explicit_downstream_request(
             requested_steps=args.steps,
             from_step=args.from_step,
+            blocked_reason=preflight_status.get("blocked_reason"),
         )
         # Explicit downstream work may operate on an already-reviewed local
         # script, even when an unrelated upstream enrichment task is blocked.
@@ -362,6 +379,7 @@ def main() -> int:
         and not _is_explicit_downstream_request(
             requested_steps=args.steps,
             from_step=args.from_step,
+            blocked_reason=status.get("blocked_reason"),
         )
     ):
         return 2
@@ -434,6 +452,9 @@ def main() -> int:
 
     final_status = build_status(args.date)
     _print_json({"event": "agent_status_after_run", **final_status})
+    final_code = _final_status_exit_code(final_status)
+    if final_code:
+        return final_code
     if not args.skip_audit and final_status.get("artifacts", {}).get("output", {}).get(
         "exists"
     ):
