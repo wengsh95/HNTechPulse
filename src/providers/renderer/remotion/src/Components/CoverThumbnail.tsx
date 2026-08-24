@@ -260,6 +260,7 @@ const textBoxStyle = (
 ): React.CSSProperties => {
   const base: React.CSSProperties = {
     position: "absolute",
+    zIndex: 1,
     display: "flex",
     flexDirection: "column",
     gap: d.scaled(COVER_FS.contentGap),
@@ -310,6 +311,7 @@ const topBarStyle = (
 ): React.CSSProperties => {
   const base: React.CSSProperties = {
     position: "absolute",
+    zIndex: 2,
     top: d.scaled(54),
     left: d.scaled(COVER_FS.contentLeft),
     right: d.scaled(COVER_FS.contentRight),
@@ -353,7 +355,7 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
   const d = useDesign();
   const topicTags = (tags ?? []).slice(0, 2);
   const { kicker, impact } = splitTitle(title);
-  const { lead, rest } = splitImpactParts(impact);
+  const impactLines = impact.split(/\r?\n/).filter(Boolean);
   const compactTitle = titleLength(impact) > 16;
   const template = coverTemplate;
   const isBottomBanner = template === "bottom-banner";
@@ -451,30 +453,37 @@ export const CoverThumbnail: React.FC<CoverThumbnailProps> = ({
                 : d.scaled(1500),
           }}
         >
-          {lead ? (
-            <>
-              <HighlightedTitle
-                text={lead}
-                highlights={highlights}
-                style={{
-                  color: COLORS.brand,
-                  fontSize: "inherit",
-                  letterSpacing: "0",
-                  WebkitTextStroke: `${d.scaled(2)}px rgba(255,255,255,0.12)`,
-                }}
-              />
-              {rest ? (
-                <>
-                  {" "}
-                  <HighlightedTitle text={rest} highlights={highlights} />
-                </>
-              ) : (
-                ""
-              )}
-            </>
-          ) : (
-            <HighlightedTitle text={impact} highlights={highlights} />
-          )}
+          {impactLines.map((line, index) => {
+            const { lead, rest } = splitImpactParts(line);
+            return (
+              <span key={`${line}-${index}`} style={{ display: "block" }}>
+                {lead ? (
+                  <>
+                    <HighlightedTitle
+                      text={lead}
+                      highlights={highlights}
+                      style={{
+                        color: COLORS.brand,
+                        fontSize: "inherit",
+                        letterSpacing: "0",
+                        WebkitTextStroke: `${d.scaled(2)}px rgba(255,255,255,0.12)`,
+                      }}
+                    />
+                    {rest ? (
+                      <>
+                        {" "}
+                        <HighlightedTitle text={rest} highlights={highlights} />
+                      </>
+                    ) : (
+                      ""
+                    )}
+                  </>
+                ) : (
+                  <HighlightedTitle text={line} highlights={highlights} />
+                )}
+              </span>
+            );
+          })}
         </h1>
 
         {topicTags.length > 0 && (

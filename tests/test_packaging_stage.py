@@ -42,6 +42,39 @@ class TestCoverThumbnailStage:
             with pytest.raises(FileNotFoundError, match="npx not found"):
                 orch._step_cover_thumbnail(make_content(), make_script(), date)
 
+    def test_duplicate_text_variants_fail_before_remotion_render(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        render_root(date).mkdir(parents=True)
+        (render_root(date) / "cover_bg.png").write_bytes(b"png")
+        for index in range(1, 4):
+            render_path(date, f"cover_props_v{index}.json").write_text(
+                json.dumps({"title": "重复方案", "tags": ["同一"]}),
+                encoding="utf-8",
+            )
+        orch = make_orchestrator(dry_run=False)
+
+        with pytest.raises(ValueError, match="duplicated"):
+            orch._step_cover_thumbnail(make_content(), make_script(), date)
+
+    def test_oversized_cover_title_fails_before_remotion_render(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        date = "2026-04-26"
+        render_root(date).mkdir(parents=True)
+        (render_root(date) / "cover_bg.png").write_bytes(b"png")
+        render_path(date, "cover_props_v1.json").write_text(
+            json.dumps({"title": "Claude Code\n付费用户疑似被纳入测试"}),
+            encoding="utf-8",
+        )
+        orch = make_orchestrator(dry_run=False)
+
+        with pytest.raises(ValueError, match="two-line safe area"):
+            orch._step_cover_thumbnail(make_content(), make_script(), date)
+
 
 class TestPublishGuideStage:
     def test_dry_run_returns_none(self):

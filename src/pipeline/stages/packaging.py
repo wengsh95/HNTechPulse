@@ -24,6 +24,37 @@ from src.providers.renderer.binary_finder import find_npx
 from src.utils.atomic_io import atomic_write_json, atomic_write_text
 
 COVER_VARIANT_COUNT = 3
+REPO_ROOT = Path(__file__).resolve().parents[3]
+COVER_RENDERER_FILES = (
+    REPO_ROOT
+    / "src"
+    / "providers"
+    / "renderer"
+    / "remotion"
+    / "src"
+    / "Components"
+    / "CoverThumbnail.tsx",
+    REPO_ROOT
+    / "src"
+    / "providers"
+    / "renderer"
+    / "remotion"
+    / "src"
+    / "Components"
+    / "design.ts",
+)
+
+
+def _validate_cover_title_for_render(title: str, props_path: Path) -> None:
+    """Reject text that would wrap outside the two-line thumbnail safe area."""
+
+    lines = str(title or "").splitlines() or [""]
+    widths = [sum(1 if ord(char) < 128 else 2 for char in line) for line in lines]
+    if len(lines) > 2 or any(width > 16 for width in widths) or sum(widths) > 32:
+        raise ValueError(
+            f"Cover title exceeds the two-line safe area in {props_path}; "
+            "regenerate title metadata before rendering thumbnails"
+        )
 
 
 class PackagingStageMixin(OrchestratorContext):
@@ -66,6 +97,29 @@ class PackagingStageMixin(OrchestratorContext):
                 "run --steps cover_image first"
             )
 
+        text_signatures: set[str] = set()
+        for props_path in text_variants:
+            try:
+                props = json.loads(props_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"Invalid cover props: {props_path}") from exc
+            _validate_cover_title_for_render(props.get("title") or "", props_path)
+            text_signatures.add(
+                json.dumps(
+                    {
+                        key: props.get(key)
+                        for key in ("title", "subtitle", "tags", "highlights")
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+        if len(text_signatures) != len(text_variants):
+            raise ValueError(
+                "Cover text variants are duplicated; regenerate title metadata "
+                "before rendering thumbnails"
+            )
+
         npx_path = find_npx()
         if not npx_path:
             raise FileNotFoundError(
@@ -81,6 +135,10 @@ class PackagingStageMixin(OrchestratorContext):
 
         n_bgs = len(unique_bgs)
         n_texts = len(text_variants)
+        renderer_inputs = {
+            f"renderer_source_{index}_hash": file_sha256(path)
+            for index, path in enumerate(COVER_RENDERER_FILES, start=1)
+        }
         self.logger.info(
             f"  Rendering {n_bgs} bg(s) × {n_texts} text(s) = {n_bgs * n_texts} covers"
         )
@@ -108,6 +166,7 @@ class PackagingStageMixin(OrchestratorContext):
                 thumb_inputs = {
                     "props_hash": file_sha256(combined_path),
                     "bg_hash": file_sha256(bg_path),
+                    **renderer_inputs,
                 }
                 if is_artifact_fresh(cover_path, thumb_inputs):
                     self.logger.info(f"  cover_b{bg_idx}_t{t_idx} already rendered")
