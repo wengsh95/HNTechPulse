@@ -19,7 +19,13 @@ if str(ROOT) not in sys.path:
 from scripts.internal.agent.agent_preflight import main as preflight_main  # noqa: E402
 from scripts.internal.agent.agent_status import build_status  # noqa: E402
 from src.pipeline.human_review import approve_current_script  # noqa: E402
-from src.workflow import VIDEO_PHASE_PIPELINE_STEPS, VIDEO_PIPELINE_STEPS  # noqa: E402
+from src.workflow import (  # noqa: E402
+    VIDEO_PHASE_PIPELINE_STEPS,
+    VIDEO_PIPELINE_STEPS,
+    downstream_tail,
+    fail_recovery_slice,
+    from_step_tail,
+)
 
 
 # The managed chain runs upstream editorial steps, then continues through TTS
@@ -28,27 +34,9 @@ from src.workflow import VIDEO_PHASE_PIPELINE_STEPS, VIDEO_PIPELINE_STEPS  # noq
 VIDEO_CHAIN = list(VIDEO_PIPELINE_STEPS)
 VIDEO_PHASES = tuple(VIDEO_PHASE_PIPELINE_STEPS)
 
-DOWNSTREAM_FROM = {
-    "draft_quick_news": ["draft_quick_news"],
-    "prepare_story_images": ["prepare_story_images"],
-    "draft_storyboard": ["draft_storyboard"],
-    "apply_storyboard": [
-        "apply_storyboard",
-        "prepare_subtitles",
-        "synthesize_audio",
-        "prepare_render",
-        "render",
-    ],
-    "prepare_subtitles": [
-        "prepare_subtitles",
-        "synthesize_audio",
-        "prepare_render",
-        "render",
-    ],
-    "prepare_render": ["prepare_render", "render"],
-    "render": ["render"],
-}
-
+# Steps that may run standalone from a CLI ``--from`` after an unrelated
+# upstream block.  Editorial rework steps are appended when reworking a
+# manually reviewed script; the native workflow enforces upstream deps.
 DOWNSTREAM_ONLY_STEPS = {
     "draft_quick_news",
     "prepare_story_images",
@@ -108,21 +96,21 @@ def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     if any("script_approval.json" in reason for reason in reasons if reason):
         return VIDEO_CHAIN[VIDEO_CHAIN.index("human_review") :]
     if any(reason and "storyboard.json is newer" in reason for reason in reasons):
-        return DOWNSTREAM_FROM["apply_storyboard"]
+        return downstream_tail("apply_storyboard")
     if any(reason and "subtitle_plan.json" in reason for reason in reasons):
-        return DOWNSTREAM_FROM["prepare_subtitles"]
+        return downstream_tail("prepare_subtitles")
     if any(reason and "audio_manifest.json" in reason for reason in reasons):
-        return DOWNSTREAM_FROM["prepare_subtitles"]
+        return downstream_tail("prepare_subtitles")
     if any(reason and "publish_guide" in reason for reason in reasons):
         # The guide is produced as part of final render preparation.
-        return DOWNSTREAM_FROM["prepare_render"]
+        return downstream_tail("prepare_render")
     if "script.json is newer than cli_props.json" in reasons:
-        return DOWNSTREAM_FROM["prepare_subtitles"]
+        return downstream_tail("prepare_subtitles")
     if (
         "cli_props.json is newer than output.mp4" in reasons
         or "public Remotion props mirror is missing" in reasons
     ):
-        return DOWNSTREAM_FROM["prepare_subtitles"]
+        return downstream_tail("prepare_subtitles")
     return None
 
 
@@ -130,15 +118,7 @@ def _failed_recovery_steps(status: dict[str, Any]) -> list[str] | None:
     failed = status.get("failed_step") or status.get("current_step")
     if not failed:
         return None
-    failed = str(failed)
-    chain = VIDEO_CHAIN
-    if failed == "prepare_story_images":
-        # Image selection can block after script recovery.  Rehydrate quick
-        # news and its visual structure before continuing the video tail.
-        return chain[chain.index("draft_quick_news") :]
-    if failed in chain:
-        return chain[chain.index(failed) :]
-    return chain
+    return fail_recovery_slice(str(failed))
 
 
 def _manual_downloads_repaired(status: dict[str, Any]) -> bool:
@@ -208,15 +188,9 @@ def _choose_steps(
         # dependency when the selected phase starts.
         return list(VIDEO_PHASE_PIPELINE_STEPS[phase])
     if from_step:
-        chain = VIDEO_CHAIN
-        if from_step not in chain:
+        if from_step not in VIDEO_CHAIN:
             raise ValueError(f"Unknown --from step: {from_step}")
-        if from_step in {"synthesize_audio", "prepare_render"}:
-            # Subtitle selection is a local-agent prerequisite for every
-            # downstream video recovery, even when the caller names an older
-            # audio/render entry point.
-            return VIDEO_CHAIN[VIDEO_CHAIN.index("prepare_subtitles") :]
-        return chain[chain.index(from_step) :]
+        return from_step_tail(from_step)
     if requested_steps:
         return [step.strip() for step in requested_steps.split(",") if step.strip()]
 

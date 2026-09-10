@@ -1,19 +1,31 @@
-"""High-level state definitions for the managed video product."""
+"""High-level state definitions for the managed video product.
+
+The canonical step table lives in :mod:`src.workflow.steps`; everything here
+is derived from it.  ``WorkflowStep`` keeps the machine-facing state (deps,
+produces, consumes); the concrete ``pipeline_steps`` of each phase and every
+flattened view are computed from ``STEP_SPECS`` so adding a step never means
+editing this file or a second list.
+"""
 
 from __future__ import annotations
 
 from src.workflow.model import WorkflowStep
+from src.workflow.steps import STEP_SPECS, VIDEO_STANDALONE_STEPS
+
+
+def _pipeline_steps_for(phase: str) -> tuple[str, ...]:
+    return tuple(
+        spec.name
+        for spec in STEP_SPECS
+        if spec.phase == phase and spec.name != "preview"
+    )
 
 
 VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
     WorkflowStep(
         name="ingest",
         title="采集与候选整理",
-        pipeline_steps=(
-            "fetch",
-            "prefilter",
-            "fetch_comments",
-        ),
+        pipeline_steps=_pipeline_steps_for("ingest"),
         produces=(
             "raw/raw_stories.json",
             "pipeline/content.json",
@@ -24,10 +36,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         name="research",
         title="统一研究与评论判断",
         deps=("ingest",),
-        pipeline_steps=(
-            "enrich_articles",
-            "judge_comments",
-        ),
+        pipeline_steps=_pipeline_steps_for("research"),
         produces=(
             "pipeline/enrichment.json",
             "pipeline/comment_analysis.json",
@@ -39,14 +48,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         name="editorial",
         title="脚本与完整编辑包",
         deps=("research",),
-        pipeline_steps=(
-            "write_script",
-            "draft_quick_news",
-            "prepare_story_images",
-            "title",
-            "cover_image",
-            "cover_thumbnail",
-        ),
+        pipeline_steps=_pipeline_steps_for("editorial"),
         produces=(
             "pipeline/script.json",
             "pipeline/quick_news.json",
@@ -64,7 +66,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         name="human_review",
         title="人工审核与内容冻结",
         deps=("editorial",),
-        pipeline_steps=("human_review",),
+        pipeline_steps=_pipeline_steps_for("human_review"),
         produces=("agent/script_approval.json", "pipeline/script_review.json"),
         consumes=(
             "pipeline/script.json",
@@ -75,14 +77,7 @@ VIDEO_WORKFLOW_STEPS: tuple[WorkflowStep, ...] = (
         name="produce",
         title="媒体生产与视频渲染",
         deps=("human_review",),
-        pipeline_steps=(
-            "draft_storyboard",
-            "apply_storyboard",
-            "prepare_subtitles",
-            "synthesize_audio",
-            "prepare_render",
-            "render",
-        ),
+        pipeline_steps=_pipeline_steps_for("produce"),
         produces=(
             "pipeline/storyboard.json",
             "pipeline/subtitle_plan.json",
@@ -103,9 +98,7 @@ VIDEO_WORKFLOW_BY_NAME = {step.name: step for step in VIDEO_WORKFLOW_STEPS}
 # Wrappers and the native orchestrator should not maintain a second copy of
 # the video chain; recovery code can still choose a narrower tail explicitly.
 VIDEO_PIPELINE_STEPS: tuple[str, ...] = tuple(
-    pipeline_step
-    for workflow_step in VIDEO_WORKFLOW_STEPS
-    for pipeline_step in workflow_step.pipeline_steps
+    spec.name for spec in STEP_SPECS if not spec.standalone or spec.name == "render"
 )
 
 # The CLI exposes two kinds of steps in addition to the managed workflow
@@ -113,7 +106,6 @@ VIDEO_PIPELINE_STEPS: tuple[str, ...] = tuple(
 # ``preview`` is a renderer-only action that is not part of the persisted
 # product workflow. Keep these views beside the registry so callers do not
 # rebuild a second step list by hand.
-VIDEO_STANDALONE_STEPS: frozenset[str] = frozenset({"render", "preview"})
 VIDEO_PIPELINE_EXECUTION_STEPS: tuple[str, ...] = tuple(
     step for step in VIDEO_PIPELINE_STEPS if step not in VIDEO_STANDALONE_STEPS
 )

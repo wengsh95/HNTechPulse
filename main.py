@@ -20,6 +20,7 @@ from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E40
 from src.providers.renderer.remotion_renderer import RemotionRenderer  # noqa: E402
 from src.workflow import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
 from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
+from src.workflow.planner import resume_tail  # noqa: E402
 
 
 def get_default_date() -> str:
@@ -127,10 +128,10 @@ def main():
             parser.error(
                 "--resume requested but the selected product state has no pending step"
             )
-        if requested_steps and str(resume_step) in requested_steps:
-            steps = requested_steps[requested_steps.index(str(resume_step)) :]
-        else:
-            steps = [str(resume_step)]
+        steps = resume_tail(
+            str(resume_step),
+            context=[str(s) for s in requested_steps] or None,
+        )
     else:
         steps = [s.strip() for s in args.steps.split(",")]
 

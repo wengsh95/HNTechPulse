@@ -16,11 +16,12 @@ from src.workflow import (
     BLOCK_MANUAL_IMAGE_SELECTION,
     BLOCK_INSUFFICIENT_CONTEXT,
     BLOCK_MANUAL_SCRIPT_REVIEW,
+    SCRIPT_CONSUMING_STEPS,
+    SCRIPT_MUTATING_STEPS,
     VIDEO_ALL_STEPS,
-    VIDEO_PIPELINE_EXECUTION_STEPS,
     VIDEO_PIPELINE_STEPS,
-    VIDEO_STANDALONE_STEPS,
     WorkflowMachine,
+    resolve_steps,
     write_image_selection_tasks,
     write_manual_download_tasks,
 )
@@ -53,162 +54,18 @@ def _format_mmss(seconds: float | int | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-# The workflow registry is the single source of truth for the order and the
-# default managed chain. Policy sets below describe execution behaviour, not
-# another copy of the workflow's step order.
-OPTIONAL_PRODUCTION_STEPS = {
-    "write_script",
-    "draft_quick_news",
-    "prepare_story_images",
-    "human_review",
-    "title",
-    "prepare_render",
-    "cover_image",
-    "cover_thumbnail",
-    "draft_storyboard",
-    "apply_storyboard",
-    "prepare_subtitles",
-    # TTS is a render-side branch only (prepare_render needs audio_dir +
-    # actual_duration); title/cover/publish do not depend on it, so it is
-    # optional rather than a forced core prerequisite of write_script.
-    "synthesize_audio",
-}
-CORE_PIPELINE_STEPS = [
-    step
-    for step in VIDEO_PIPELINE_EXECUTION_STEPS
-    if step not in OPTIONAL_PRODUCTION_STEPS
-]
+# The workflow registry and its planner are the single source of truth for
+# step order and execution policy; step descriptors there carry the optional/
+# core, script-threading, and human-review-protected flags.
 _VALID_STEPS = set(VIDEO_ALL_STEPS)
-
-# Steps that need `script` in memory (consume from `write_script` or disk).
-SCRIPT_CONSUMING_STEPS = frozenset(
-    {
-        "human_review",
-        "draft_quick_news",
-        "prepare_story_images",
-        "prepare_subtitles",
-        "synthesize_audio",
-        "title",
-        "cover_image",
-        "cover_thumbnail",
-        "draft_storyboard",
-        "apply_storyboard",
-        "prepare_render",
-        "render",
-    }
-)
-
-# Steps that mutate `script`; trigger transcript save.
-SCRIPT_MUTATING_STEPS = frozenset(
-    {
-        "write_script",
-        "draft_quick_news",
-        "prepare_story_images",
-        "human_review",
-        "prepare_subtitles",
-        "synthesize_audio",
-        "title",
-        "apply_storyboard",
-    }
-)
-
-# Any production work after copy review must use the exact script version a
-# human approved. The resolver injects ``human_review`` even for a direct
-# render recovery, so manually edited copy cannot bypass the checkpoint.
-HUMAN_REVIEW_PROTECTED_STEPS = frozenset(
-    {
-        "title",
-        "cover_image",
-        "cover_thumbnail",
-        "draft_storyboard",
-        "apply_storyboard",
-        "prepare_subtitles",
-        "synthesize_audio",
-        "prepare_render",
-        "render",
-        "preview",
-    }
-)
 
 
 def _resolve_steps(requested: List[str]) -> List[str]:
-    """Expand requested steps to include all prerequisites."""
-    invalid = [s for s in requested if s not in _VALID_STEPS]
-    if invalid:
-        raise ValueError(
-            "Unknown pipeline step(s): "
-            + ", ".join(invalid)
-            + ". Use the canonical workflow steps."
-        )
-    valid = list(requested)
-    if not valid:
-        return []
+    """Expand requested steps to include all prerequisites.
 
-    core_requested = [s for s in valid if s in CORE_PIPELINE_STEPS]
-    optional_requested = [s for s in valid if s in OPTIONAL_PRODUCTION_STEPS]
-    standalone_requested = [s for s in valid if s in VIDEO_STANDALONE_STEPS]
-
-    resolved: list[str] = []
-    if core_requested:
-        max_idx = max(CORE_PIPELINE_STEPS.index(s) for s in core_requested)
-        resolved.extend(CORE_PIPELINE_STEPS[: max_idx + 1])
-
-    if (
-        "cover_thumbnail" in optional_requested
-        and "cover_image" not in optional_requested
-    ):
-        optional_requested = ["cover_image", *optional_requested]
-
-    # prepare_render needs audio synthesis, but it is itself a downstream step.
-    # An explicit prepare_render/render recovery must not expand back through
-    # the editorial chain and overwrite a manually edited script.
-    if (
-        "prepare_render" in optional_requested
-        and "synthesize_audio" not in optional_requested
-    ):
-        optional_requested = ["synthesize_audio", *optional_requested]
-
-    # Subtitle selection is a local-agent prerequisite for every video-side
-    # audio/render recovery. It never expands into the editorial chain.
-    if (
-        any(
-            step in optional_requested
-            for step in ("synthesize_audio", "prepare_render")
-        )
-        and "prepare_subtitles" not in optional_requested
-    ):
-        optional_requested = ["prepare_subtitles", *optional_requested]
-
-    for step in optional_requested:
-        if step not in resolved:
-            resolved.append(step)
-
-    for step in standalone_requested:
-        if step not in resolved:
-            resolved.append(step)
-
-    if (
-        HUMAN_REVIEW_PROTECTED_STEPS.intersection(resolved)
-        and "human_review" not in resolved
-    ):
-        resolved.append("human_review")
-
-    # Reorder the final set by the real pipeline order so a video run always
-    # synthesizes audio before prepare_render.
-    if any(
-        step in resolved
-        for step in (
-            "prepare_subtitles",
-            "synthesize_audio",
-            "prepare_render",
-            "render",
-        )
-    ):
-        ordered = [step for step in VIDEO_PIPELINE_STEPS if step in resolved]
-    else:
-        ordered = [step for step in VIDEO_PIPELINE_EXECUTION_STEPS if step in resolved]
-    ordered.extend(step for step in standalone_requested if step not in ordered)
-    return ordered
+    Thin delegation to the workflow planner, which owns the expansion rules.
+    """
+    return resolve_steps(requested)
 
 
 class Orchestrator(
