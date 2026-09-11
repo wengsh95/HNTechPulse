@@ -17,13 +17,13 @@ from src.core.models import (
 from src.pipeline.agent_io import write_artifact_manifest
 from src.pipeline.content_io import ContentPreparer
 from src.pipeline.paths import pipeline_path, raw_path
+from src.pipeline.script import SPEECH_CPS
 from src.pipeline.script.io import save_script_lock, script_editorial_hash
 from src.utils.atomic_io import atomic_write_json
 
 
 QUICK_NEWS_SCHEMA_VERSION = 2
 QUICK_NEWS_COUNT = 3
-SPEECH_CPS = 3.5
 
 
 @dataclass(frozen=True)
