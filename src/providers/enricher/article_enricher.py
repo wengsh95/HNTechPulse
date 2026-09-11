@@ -17,12 +17,146 @@ from src.providers.enricher.page_fetcher import (
 )
 from src.providers.enricher.image_handler import ImageHandler
 from src.providers.enricher.relevance import assess_article_relevance
+from src.pipeline.asset_resolver import resolve_local_path
 from src.pipeline.paths import (
     media_images_dir,
     pipeline_path,
     raw_downloaded_pages_dir,
 )
 from src.utils.async_helper import run_async
+
+
+def _keyword_key(value: Any) -> str:
+    if value is None:
+        return ""
+    return "".join(str(value).lower().split())
+
+
+def _normalize_keywords(
+    keywords: Any,
+    category: Optional[str] = None,
+    fallback_values: Optional[list[Any]] = None,
+) -> list[str]:
+    """Keep LLM keywords useful as compact video labels and highlight anchors."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    category_key = _keyword_key(category)
+
+    def add(value: Any) -> None:
+        if value is None or len(normalized) >= 3:
+            return
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                add(item)
+            return
+
+        text = str(value).strip()
+        if not text:
+            return
+        text = text.strip(" #，,、。；;：:|/\\()（）[]【】{}<>《》\"'`")
+        text = " ".join(text.split())
+        if not text:
+            return
+
+        key = _keyword_key(text)
+        if not key or key in seen:
+            return
+        if category_key and key == category_key:
+            return
+        if text in ArticleEnricher.LOW_VALUE_KEYWORDS:
+            return
+        if len(text) == 1:
+            return
+
+        seen.add(key)
+        normalized.append(text)
+
+    add(keywords)
+    for value in fallback_values or []:
+        add(value)
+        if len(normalized) >= 3:
+            break
+
+    return normalized[:3]
+
+
+#: The per-item state a fresh extraction must clear before writing new values,
+#: shared by every phase-2 path and the exception handler.
+ENRICHMENT_CLEAR_FIELDS = (
+    "article_text",
+    "article_images",
+    "article_summary",
+    "editor_angle",
+    "dek",
+    "key_points",
+    "keywords",
+    "category",
+    "why_it_matters",
+    "screenshot_image",
+)
+
+
+class EnrichedItem:
+    """Accumulator for one ContentItem's enrichment fields.
+
+    Centralizes the clear-then-apply sequence that every phase-2 path and the
+    cache loader used to write by hand (6 copies of the clear, 3 of the
+    ``enrich_result`` mapping, 4 of keyword normalization).  ``apply`` resets
+    the mutable fields first so a failed extraction can never leave stale
+    values behind, then maps the LLM result and normalizes keywords once.
+    """
+
+    def __init__(self, item: Any):
+        self.item = item
+
+    def clear(self, *, source: str, error: str | None = None) -> None:
+        for field in ENRICHMENT_CLEAR_FIELDS:
+            setattr(self.item, field, None if field != "article_images" else [])
+        self.item.enrichment_source = source
+        self.item.enrichment_error = error
+
+    def apply_keywords(
+        self,
+        *,
+        category: str | None = None,
+        fallback_values: list[Any] | None = None,
+    ) -> None:
+        self.item.keywords = _normalize_keywords(
+            self.item.keywords,
+            category=category,
+            fallback_values=fallback_values,
+        )
+
+    def apply_enrich_result(self, enrich_result: dict | None) -> None:
+        """Write LLM extraction output onto the item.
+
+        ``article_text`` and ``article_images`` are the responsibility of the
+        caller (the PDF path computes images before the LLM call); everything
+        the result maps is applied here.  ``article_summary`` is always set
+        (None on failure); the editorial fields are only overwritten when the
+        result is present, matching the legacy per-path mapping.  Keywords are
+        normalized against the item's own title/editorial fields.
+        """
+        self.item.article_summary = (
+            enrich_result.get("article_summary") if enrich_result else None
+        )
+        if not enrich_result:
+            return
+        self.item.editor_angle = enrich_result.get("editor_angle")
+        self.item.dek = enrich_result.get("dek")
+        self.item.key_points = enrich_result.get("key_points")
+        self.item.category = enrich_result.get("category")
+        self.item.why_it_matters = enrich_result.get("why_it_matters")
+        self.item.keywords = enrich_result.get("keywords")
+        self.apply_keywords(
+            category=self.item.category,
+            fallback_values=[
+                self.item.editor_angle,
+                self.item.dek,
+                self.item.why_it_matters,
+                self.item.title,
+            ],
+        )
 
 
 class ArticleEnricher:
@@ -196,18 +330,19 @@ class ArticleEnricher:
 
     @staticmethod
     def _clear_enrichment(item, *, source: str, error: str) -> None:
-        item.article_text = None
-        item.article_images = []
-        item.article_summary = None
-        item.editor_angle = None
-        item.dek = None
-        item.key_points = None
-        item.keywords = None
-        item.category = None
-        item.why_it_matters = None
-        item.screenshot_image = None
-        item.enrichment_source = source
-        item.enrichment_error = error
+        EnrichedItem(item).clear(source=source, error=error)
+
+    @classmethod
+    def _normalize_keywords(
+        cls,
+        keywords: Any,
+        category: Optional[str] = None,
+        fallback_values: Optional[list[Any]] = None,
+    ) -> list[str]:
+        """Compatibility alias for the module-level keyword normalizer."""
+        return _normalize_keywords(
+            keywords, category=category, fallback_values=fallback_values
+        )
 
     def _mark_content_mismatch(self, item, article_text: str) -> bool:
         relevance = assess_article_relevance(
@@ -273,17 +408,7 @@ class ArticleEnricher:
             if self.skip_domains:
                 host = (urlparse(item.url).hostname or "").lower().lstrip(".")
                 if any(host == d or host.endswith("." + d) for d in self.skip_domains):
-                    item.enrichment_source = "skipped"
-                    item.article_text = None
-                    item.article_images = []
-                    item.article_summary = None
-                    item.editor_angle = None
-                    item.dek = None
-                    item.key_points = None
-                    item.keywords = None
-                    item.category = None
-                    item.why_it_matters = None
-                    item.screenshot_image = None
+                    EnrichedItem(item).clear(source="skipped", error=None)
                     result["skipped"].append(item)
                     continue
 
@@ -404,17 +529,7 @@ class ArticleEnricher:
             headed_failed = headless_failed
 
         for item in headed_failed:
-            item.enrichment_source = "fetch_failed"
-            item.article_text = None
-            item.article_images = []
-            item.article_summary = None
-            item.editor_angle = None
-            item.dek = None
-            item.key_points = None
-            item.keywords = None
-            item.category = None
-            item.why_it_matters = None
-            item.screenshot_image = None
+            EnrichedItem(item).clear(source="fetch_failed", error=None)
             self.logger.info(f"[fetch_failed] {item.title[:50]} ({item.url})")
 
     async def _phase1_fetch_one_aiohttp(self, item, pages_dir: Path) -> Optional[str]:
@@ -480,24 +595,9 @@ class ArticleEnricher:
             item.enrichment_source = "extraction_failed"
             return
 
+        accumulator = EnrichedItem(item)
         item.article_text = article_text[: self.max_text_length]
-        if enrich_result:
-            item.article_summary = enrich_result.get("article_summary")
-            item.editor_angle = enrich_result.get("editor_angle")
-            item.dek = enrich_result.get("dek")
-            item.key_points = enrich_result.get("key_points")
-            item.category = enrich_result.get("category")
-            item.why_it_matters = enrich_result.get("why_it_matters")
-            item.keywords = self._normalize_keywords(
-                enrich_result.get("keywords"),
-                category=item.category,
-                fallback_values=[
-                    item.editor_angle,
-                    item.dek,
-                    item.why_it_matters,
-                    item.title,
-                ],
-            )
+        accumulator.apply_enrich_result(enrich_result)
         item.enrichment_source = "self_post"
         self.logger.info(f"[self_post] {item.title[:50]} — {len(article_text)} chars")
 
@@ -536,16 +636,7 @@ class ArticleEnricher:
 
                     article_text = self._extract_pdf_text(pdf_path)
                     if not article_text:
-                        item.article_text = None
-                        item.article_images = []
-                        item.article_summary = None
-                        item.editor_angle = None
-                        item.dek = None
-                        item.key_points = None
-                        item.keywords = None
-                        item.category = None
-                        item.why_it_matters = None
-                        item.enrichment_source = "extraction_failed"
+                        EnrichedItem(item).clear(source="extraction_failed", error=None)
                         self.logger.debug(f"PDF extraction empty: {item.title[:50]}")
                         return
 
@@ -583,23 +674,7 @@ class ArticleEnricher:
                     item.article_images = self.image_handler.candidate_paths(
                         image_candidates, preferred_path=selected_path
                     )
-                    item.article_summary = article_summary
-                    if enrich_result:
-                        item.editor_angle = enrich_result.get("editor_angle")
-                        item.dek = enrich_result.get("dek")
-                        item.key_points = enrich_result.get("key_points")
-                        item.category = enrich_result.get("category")
-                        item.why_it_matters = enrich_result.get("why_it_matters")
-                        item.keywords = self._normalize_keywords(
-                            enrich_result.get("keywords"),
-                            category=item.category,
-                            fallback_values=[
-                                item.editor_angle,
-                                item.dek,
-                                item.why_it_matters,
-                                item.title,
-                            ],
-                        )
+                    EnrichedItem(item).apply_enrich_result(enrich_result)
                     item.enrichment_source = "pdf"
                     item.image_candidates = image_candidates
 
@@ -621,16 +696,7 @@ class ArticleEnricher:
 
                 article_text = self._extract_text(html, item.url or "")
                 if not article_text:
-                    item.article_text = None
-                    item.article_images = []
-                    item.article_summary = None
-                    item.editor_angle = None
-                    item.dek = None
-                    item.key_points = None
-                    item.keywords = None
-                    item.category = None
-                    item.why_it_matters = None
-                    item.enrichment_source = "extraction_failed"
+                    EnrichedItem(item).clear(source="extraction_failed", error=None)
                     self.logger.debug(f"Phase 2 extraction empty: {item.title[:50]}")
                     return
 
@@ -767,23 +833,7 @@ class ArticleEnricher:
                 item.article_images = self.image_handler.candidate_paths(
                     image_candidates, preferred_path=selected_path
                 )
-                item.article_summary = article_summary
-                if enrich_result:
-                    item.editor_angle = enrich_result.get("editor_angle")
-                    item.dek = enrich_result.get("dek")
-                    item.key_points = enrich_result.get("key_points")
-                    item.category = enrich_result.get("category")
-                    item.why_it_matters = enrich_result.get("why_it_matters")
-                    item.keywords = self._normalize_keywords(
-                        enrich_result.get("keywords"),
-                        category=item.category,
-                        fallback_values=[
-                            item.editor_angle,
-                            item.dek,
-                            item.why_it_matters,
-                            item.title,
-                        ],
-                    )
+                EnrichedItem(item).apply_enrich_result(enrich_result)
                 if (
                     not item.enrichment_source
                     or item.enrichment_source == "fetch_failed"
@@ -801,19 +851,9 @@ class ArticleEnricher:
 
             except Exception as e:
                 self.logger.info(f"Phase 2 failed for {item.url}: {e}", exc_info=True)
-                item.article_text = None
-                item.article_images = []
-                item.article_summary = None
-                item.editor_angle = None
-                item.dek = None
-                item.key_points = None
-                item.keywords = None
-                item.category = None
+                acc = EnrichedItem(item)
+                acc.clear(source="error", error=f"{type(e).__name__}: {e}")
                 item.visual_hint = None
-                item.why_it_matters = None
-                item.enrichment_source = "error"
-                item.enrichment_error = f"{type(e).__name__}: {e}"
-                item.screenshot_image = None
 
     def _extract_text(self, html: str, base_url: str) -> Optional[str]:
         return self.image_handler.extract_text(
@@ -1023,61 +1063,6 @@ class ArticleEnricher:
         )
         return None
 
-    @classmethod
-    def _normalize_keywords(
-        cls,
-        keywords: Any,
-        category: Optional[str] = None,
-        fallback_values: Optional[list[Any]] = None,
-    ) -> list[str]:
-        """Keep LLM keywords useful as compact video labels and highlight anchors."""
-        normalized: list[str] = []
-        seen: set[str] = set()
-        category_key = cls._keyword_key(category)
-
-        def add(value: Any) -> None:
-            if value is None or len(normalized) >= 3:
-                return
-            if isinstance(value, (list, tuple, set)):
-                for item in value:
-                    add(item)
-                return
-
-            text = str(value).strip()
-            if not text:
-                return
-            text = text.strip(" #，,、。；;：:|/\\()（）[]【】{}<>《》\"'`")
-            text = " ".join(text.split())
-            if not text:
-                return
-
-            key = cls._keyword_key(text)
-            if not key or key in seen:
-                return
-            if category_key and key == category_key:
-                return
-            if text in cls.LOW_VALUE_KEYWORDS:
-                return
-            if len(text) == 1:
-                return
-
-            seen.add(key)
-            normalized.append(text)
-
-        add(keywords)
-        for value in fallback_values or []:
-            add(value)
-            if len(normalized) >= 3:
-                break
-
-        return normalized[:3]
-
-    @staticmethod
-    def _keyword_key(value: Any) -> str:
-        if value is None:
-            return ""
-        return "".join(str(value).lower().split())
-
     # ── Image Selection ────────────────────────────────────────
 
     def _select_image_candidate(
@@ -1112,12 +1097,7 @@ class ArticleEnricher:
 
     @staticmethod
     def _candidate_local_path(date: str, path: str) -> Path:
-        candidate_path = Path(path)
-        if candidate_path.is_absolute():
-            return candidate_path
-        if candidate_path.parts and candidate_path.parts[0].lower() == "images":
-            return media_images_dir(date) / Path(*candidate_path.parts[1:])
-        return candidate_path
+        return resolve_local_path(date, path)
 
     def _image_selection_task(
         self,
@@ -1349,7 +1329,7 @@ class ArticleEnricher:
                     item.key_points = cached.get("key_points")
                     item.category = cached.get("category")
                     item.why_it_matters = cached.get("why_it_matters")
-                    item.keywords = self._normalize_keywords(
+                    item.keywords = _normalize_keywords(
                         cached.get("keywords"),
                         category=item.category,
                         fallback_values=[
