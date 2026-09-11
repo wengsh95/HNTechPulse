@@ -56,14 +56,6 @@ class ScriptWriter:
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
-    @staticmethod
-    def _prompt_for_presentation(mode: str) -> str:
-        return "prompts/story_script.md"
-
-    @staticmethod
-    def _expected_card_types(mode: str) -> list[str]:
-        return ["event_card", "atmosphere_card"]
-
     def _calculate_max_workers(self, story_indices: list[int]) -> int:
         max_workers = int(self.config.get("llm", {}).get("max_workers", 1) or 1)
         return max(1, min(max_workers, len(story_indices) or 1))
@@ -104,7 +96,6 @@ class ScriptWriter:
             story_idx = spec["story_index"]
             item = content.items[story_idx]
             judgement = comment_judgements.get(comment_judgement_key(item), {})
-            mode = spec.get("presentation_mode", "deep")
             cache_segment_type = (
                 "story_scan_item"
                 if variant_strategy == "balanced"
@@ -114,10 +105,10 @@ class ScriptWriter:
                 content=content,
                 story_index=story_idx,
                 segment_type=cache_segment_type,
-                prompt_template_path=self._prompt_for_presentation(mode),
+                prompt_template_path="prompts/story_script.md",
                 date=date,
                 comments_data=judgement or None,
-                expected_card_types=self._expected_card_types(mode),
+                expected_card_types=["event_card", "atmosphere_card"],
             )
             segment.segment_type = "story_scan_item"
             segment.meta["variant_strategy"] = variant_strategy

@@ -9,6 +9,7 @@ from typing import Any
 
 from src.core.models import Script
 from src.pipeline.agent_io import (
+    agent_run_command,
     file_sha256,
     is_artifact_fresh,
     utc_now,
@@ -189,7 +190,7 @@ def generate_script_review_page(
     )
     revision_count = len(automatic_review.get("revisions") or [])
     script_hash = script_editorial_hash(script)
-    approve_command = f"uv run python scripts/internal/agent/agent_run.py --date {date} --approve-script"
+    approve_command = agent_run_command(date, "--approve-script")
     page = f"""<!doctype html>
 <html lang="zh-CN">
 <head>

@@ -348,7 +348,6 @@ class Prefilter:
             "project_fit_weight": prefilter_cfg.get("project_fit_weight", 1.5),
             "ai_relevance_weight": prefilter_cfg.get("ai_relevance_weight", 1.5),
             "target_story_count": pipeline_cfg.get("target_story_count", 10),
-            "scoring_strategy": "bilibili_shareability_editor_v2",
             "comment_preview_enabled": prefilter_cfg.get(
                 "comment_preview_enabled", True
             ),

@@ -47,6 +47,19 @@ def stable_hash(data: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def agent_run_command(date: str, *flags: str) -> str:
+    """Build the canonical ``agent_run.py`` CLI command for a date.
+
+    The command text is surfaced to humans in review pages and repair
+    suggestions; keeping the prefix in one place means the script path and
+    flag spelling cannot drift between the review page, the orchestrator's
+    block payload, and the freshness repair suggestions.
+    """
+    parts = ["uv run python scripts/internal/agent/agent_run.py", f"--date {date}"]
+    parts.extend(str(flag) for flag in flags)
+    return " ".join(parts)
+
+
 def is_artifact_fresh(artifact_path: Path | str, inputs: dict[str, Any]) -> bool:
     """Return True if `artifact_path` exists and its sidecar manifest's
     ``input_hash`` matches ``stable_hash(inputs)``.

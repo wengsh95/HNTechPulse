@@ -10,7 +10,7 @@ from src.core.interfaces import (
 )
 from src.core.models import ContentPackage, Script
 from src.pipeline.agent_decision import AgentDecisionEngine
-from src.pipeline.agent_io import append_agent_event
+from src.pipeline.agent_io import agent_run_command, append_agent_event
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.workflow import (
     BLOCK_INSUFFICIENT_CONTEXT,
@@ -357,10 +357,7 @@ class Orchestrator(
                 "approval_file": str(agent_path(date, "script_approval.json")).replace(
                     "\\", "/"
                 ),
-                "approve_command": (
-                    "uv run python scripts/internal/agent/agent_run.py "
-                    f"--date {date} --approve-script"
-                ),
+                "approve_command": agent_run_command(date, "--approve-script"),
             }
         ]
         self.logger.warning(
