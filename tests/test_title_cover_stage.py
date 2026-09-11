@@ -5,18 +5,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.core.models import ContentItem, ContentPackage
-from src.pipeline.stages.title_cover import (
+from src.pipeline.publish_copy import (
     _clean_publish_description,
     _downgrade_unsupported_publish_claims,
     _ensure_all_stories_in_description,
-    _normalize_cover_prompt,
     _normalize_cover_variants,
     _preserve_source_uncertainty,
     _publish_title_width,
+    _validate_cover_title_shape,
     _validate_title_grounding,
     _validate_title_payload,
-    _validate_cover_title_shape,
 )
+from src.pipeline.stages.title_cover import _normalize_cover_prompt
 from tests.stage_fixtures import make_content, make_orchestrator, make_script
 
 

@@ -19,11 +19,11 @@ from src.pipeline.paths import (
     render_root,
 )
 from src.pipeline.publish_guide_inputs import publish_guide_manifest_inputs
+from src.pipeline.publish_copy import COVER_VARIANT_COUNT
 from src.pipeline.stages.context import OrchestratorContext
 from src.providers.renderer.binary_finder import find_npx
 from src.utils.atomic_io import atomic_write_json, atomic_write_text
 
-COVER_VARIANT_COUNT = 3
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COVER_RENDERER_FILES = (
     REPO_ROOT

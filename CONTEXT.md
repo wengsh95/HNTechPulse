@@ -59,3 +59,12 @@ glossary below records domain terms as they crystallize; ADRs in
   `agent_audit.publish_step_for_check` existence views on one presence table
   (and fix the dead `cover_props_exists`/`cover_thumbnail_exists` check-name
   mapping to the real `cover_exists` produced by the audit).
+- **publish_copy (发布文案策略)**: the pure-function module
+  (`src/pipeline/publish_copy.py`) that shapes and polices the metadata
+  published with the video — title/description/tags/cover-copy validation,
+  grounding, description cleaning, and uncertainty preservation.  Lifted
+  unchanged out of `src/pipeline/stages/title_cover.py` so the stage module
+  keeps only orchestration (LLM call, caching, image + props rendering); the
+  copy rules are pinned by `tests/test_title_cover_stage.py`.  Also owns
+  `COVER_VARIANT_COUNT`, now imported by the packaging and title/cover
+  stages instead of a local constant.
