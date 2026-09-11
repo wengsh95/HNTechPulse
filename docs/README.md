@@ -17,3 +17,4 @@ Hacker News → 内容 → 视频
 - [内部运行手册](internal/AGENT_RUNBOOK.md)：中断、恢复、审计。
 - [内部结构说明](internal/PROJECT_STRUCTURE.md)：代码、缓存和产物。
 - [自动代理指南](internal/AGENT_GUIDE.md)：只在维护自动运行时需要。
+- [架构决策记录](adr/)：值得不再重议的架构决策。

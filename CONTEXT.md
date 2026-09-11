@@ -1,8 +1,9 @@
 # Domain Context
 
 This project turns Hacker News stories into narrated tech videos.  The
-glossary below records domain terms as they crystallize; ADRs in
-`docs/adr/` would record decisions worth not re-litigating (none exist yet).
+glossary below records domain terms as they crystallize; ADRs in `docs/adr/`
+record the decisions worth not re-litigating (step registry, freshness
+module, run-outcome protocol, presence fact table, publishing-copy module).
 
 ## Workflow terms
 
