@@ -7,14 +7,18 @@ composition.  Handles cue building and element props expansion.
 
 from pathlib import Path
 import json
-import shutil
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from src.core.models import Script
+from src.pipeline.asset_resolver import (
+    content_item_for_story,
+    is_remote,
+    load_story_image_paths as _load_story_image_paths,
+    stage_content_images,
+)
 from src.pipeline.paths import (
     date_root,
-    pipeline_path,
     render_path,
     render_remotion_dir,
 )
@@ -33,7 +37,7 @@ from src.utils.logger import setup_logger
 
 
 def _is_remote_url(path: str) -> bool:
-    return path.startswith(("http://", "https://"))
+    return is_remote(path)
 
 
 def _extract_domain(url: str) -> str:
@@ -50,26 +54,17 @@ def _extract_domain(url: str) -> str:
 
 def _to_filename(path: str) -> str:
     """Extract bare filename from a local path or remote URL."""
-    if _is_remote_url(path):
+    if is_remote(path):
         return Path(urlparse(path).path).name
     return Path(path).name
 
 
 def load_story_image_paths(date: str) -> list[str]:
-    """Load selected story-image paths, including quick-news stories."""
+    """Load selected story-image paths, including quick-news stories.
 
-    path = pipeline_path(date, "story_images.json")
-    if not path.exists():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    return [
-        str(story["selected_image"])
-        for story in payload.get("stories", [])
-        if isinstance(story, dict) and story.get("selected_image")
-    ]
+    Delegates to the canonical reader in :mod:`src.pipeline.asset_resolver`.
+    """
+    return _load_story_image_paths(date)
 
 
 def _validate_quote_claim(text: str, max_chars: int = 50) -> str:
@@ -93,50 +88,17 @@ def _safe_get_item(content, idx):
 
 
 def _resolve_item(content, props):
-    """Find the ContentItem for a script element.
+    """Find the ContentItem a script element refers to.
 
-    The script's ``story_index`` is the position within the *script's* ranked
-    list (0..N-1), not the index in ``content.items``. When ``write_script``
-    drops a story from content but the script still references it, the naive
-    index lookup returns the wrong item and downstream quote/keyword resolution
-    silently fails (e.g. ``quotes: []`` on the atmosphere card).
-
-    Fallback: match the props' ``source_title`` (LLM-supplied, always present
-    for story-related cards) against ``content.items[i].title``. The titles
-    are stable across reorders, so this finds the right item even when indices
-    diverge.
+    Thin wrapper over :func:`asset_resolver.content_item_for_story`: a script
+    element's ``story_index`` is the position in the *script's* ranked list,
+    not the index in ``content.items``.  When ``write_script`` drops a story
+    from content but the script still references it, the naive index lookup
+    returns the wrong item and downstream quote/keyword resolution silently
+    fails (e.g. ``quotes: []`` on the atmosphere card).  The fallback matches
+    the props' stable ``source_title`` against item titles.
     """
-    if content is None or not getattr(content, "items", None):
-        return None
-    props = props or {}
-    idx = props.get("story_index")
-    item = _safe_get_item(content, idx)
-    if item is not None:
-        target_title = (props.get("source_title") or "").strip()
-        if not target_title:
-            return item
-        # If story_index pointed to a real item AND its title matches props,
-        # trust the index.
-        if item.title and item.title.strip() == target_title:
-            return item
-        # Otherwise, try to find a content item whose title matches props.
-        for candidate in content.items:
-            if (
-                candidate.title
-                and candidate.title.strip() == target_title
-                and target_title
-            ):
-                return candidate
-        # No title match — fall back to the index lookup, but only if the
-        # props don't carry a different title.
-        return item
-    # story_index was None or out of range: try title-based lookup.
-    target_title = (props.get("source_title") or "").strip()
-    if target_title:
-        for candidate in content.items:
-            if candidate.title and candidate.title.strip() == target_title:
-                return candidate
-    return None
+    return content_item_for_story(content, props)
 
 
 def _safe_get_comment(item, idx):
@@ -707,57 +669,7 @@ def regenerate_preview_props(date: str, config: dict, logger=None) -> str:
     image_subdir = data_remotion / "public" / "images"
     image_subdir.mkdir(parents=True, exist_ok=True)
 
-    def _is_remote(p: str) -> bool:
-        return p.startswith(("http://", "https://"))
-
-    def _resolve_local(p: str) -> Path | None:
-        if _is_remote(p):
-            return None
-        src = Path(p)
-        if not src.is_absolute():
-            src = date_root(date) / p
-            if not src.exists():
-                alt = date_root(date) / "media" / p
-                src = alt if alt.exists() else src
-        return src if src.exists() else None
-
-    copied = 0
-    for item in content.items:
-        for img_path in item.article_images:
-            src = _resolve_local(img_path)
-            if src:
-                dest = image_subdir / src.name
-                if not dest.exists():
-                    shutil.copy2(src, dest)
-                    copied += 1
-        for candidate in item.image_candidates:
-            if not isinstance(candidate, dict):
-                continue
-            cand_path: str | None = candidate.get("path")
-            if not cand_path:
-                continue
-            src = _resolve_local(cand_path)
-            if src:
-                dest = image_subdir / src.name
-                if not dest.exists():
-                    shutil.copy2(src, dest)
-                    copied += 1
-        for attr in ("logo_image", "screenshot_image"):
-            val = getattr(item, attr, None)
-            if val:
-                src = _resolve_local(val)
-                if src:
-                    dest = image_subdir / src.name
-                    if not dest.exists():
-                        shutil.copy2(src, dest)
-                        copied += 1
-    for image_path in load_story_image_paths(date):
-        src = _resolve_local(image_path)
-        if src:
-            dest = image_subdir / src.name
-            if not dest.exists():
-                shutil.copy2(src, dest)
-                copied += 1
+    copied = stage_content_images(content, date, image_subdir, include_candidates=True)
     if copied > 0:
         logger.info(f"Copied {copied} images to public/images/")
 

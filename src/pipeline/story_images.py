@@ -15,6 +15,12 @@ from typing import Any
 
 from src.core.models import ContentPackage, Script
 from src.pipeline.agent_io import write_artifact_manifest
+from src.pipeline.asset_resolver import (
+    content_item_for_story,
+    is_remote,
+    relative_image_path,
+    resolve_local_path,
+)
 from src.pipeline.paths import media_images_dir, pipeline_path
 from src.pipeline.script.io import save_script_lock, script_editorial_hash
 from src.utils.async_helper import run_async
@@ -70,23 +76,15 @@ def _load_json(path: Path, default: Any) -> Any:
 
 
 def _is_remote(path: str) -> bool:
-    return path.startswith(("http://", "https://"))
+    return is_remote(path)
 
 
 def _local_path(date: str, path: str) -> Path:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        return candidate
-    if candidate.parts and candidate.parts[0].lower() == "images":
-        return media_images_dir(date) / Path(*candidate.parts[1:])
-    return media_images_dir(date) / candidate
+    return resolve_local_path(date, path)
 
 
 def _relative_image_path(path: str) -> str:
-    candidate = Path(path)
-    if candidate.parts and candidate.parts[0].lower() == "images":
-        return "/".join(candidate.parts)
-    return f"images/{candidate.name}"
+    return relative_image_path(path)
 
 
 def _candidate(path: str, *, source: str, label: str, rank: int) -> dict[str, Any]:
@@ -99,19 +97,7 @@ def _candidate(path: str, *, source: str, label: str, rank: int) -> dict[str, An
 
 
 def _content_item_for_story(content: ContentPackage | None, props: dict[str, Any]):
-    if content is None:
-        return None
-    story_index = props.get("story_index")
-    source_title = str(props.get("source_title") or "").strip()
-    if isinstance(story_index, int) and 0 <= story_index < len(content.items):
-        item = content.items[story_index]
-        if not source_title or item.title == source_title:
-            return item
-    if source_title:
-        return next(
-            (item for item in content.items if item.title == source_title), None
-        )
-    return None
+    return content_item_for_story(content, props)
 
 
 def _story_refs(script: Script, content: ContentPackage | None) -> list[dict[str, Any]]:

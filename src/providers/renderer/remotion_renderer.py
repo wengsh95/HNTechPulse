@@ -24,9 +24,9 @@ from typing import Dict
 
 from src.core.models import Script
 from src.core.interfaces import Renderer
-from src.pipeline.paths import date_root, render_path, render_remotion_dir
+from src.pipeline.asset_resolver import stage_content_images
+from src.pipeline.paths import render_path, render_remotion_dir
 from src.providers.renderer.remotion_props import (
-    load_story_image_paths,
     script_to_props,
 )
 from src.providers.renderer.binary_finder import (
@@ -804,10 +804,6 @@ class RemotionRenderer(Renderer):
 
         self.logger.info(f"Prepared {len(copied_files)} audio files in public/")
 
-    @staticmethod
-    def _is_remote_url(path: str) -> bool:
-        return path.startswith(("http://", "https://"))
-
     def stage_fonts(self, date: str) -> None:
         """Stage vendored fonts into the per-date ``public/fonts/`` for ``date``.
 
@@ -848,48 +844,9 @@ class RemotionRenderer(Renderer):
 
         ``target_dir`` is the date-scoped Remotion public image directory.
         """
-        if content is None:
-            return
-        image_subdir = target_dir
-        image_subdir.mkdir(parents=True, exist_ok=True)
-
-        def _resolve_local(path: str) -> Path | None:
-            """Resolve a path to an existing local file, skipping remote URLs."""
-            if self._is_remote_url(path):
-                return None
-            src = Path(path)
-            if not src.is_absolute():
-                src = date_root(date) / path
-                if not src.exists():
-                    alt = date_root(date) / "media" / path
-                    src = alt if alt.exists() else src
-            return src if src.exists() else None
-
-        def _copy(src: Path) -> bool:
-            dest = image_subdir / src.name
-            if not dest.exists():
-                shutil.copy2(src, dest)
-                return True
-            return False
-
-        copied = 0
-        for item in content.items:
-            for img_path in item.article_images:
-                src = _resolve_local(img_path)
-                if src and _copy(src):
-                    copied += 1
-            if item.logo_image:
-                src = _resolve_local(item.logo_image)
-                if src and _copy(src):
-                    copied += 1
-            if item.screenshot_image:
-                src = _resolve_local(item.screenshot_image)
-                if src and _copy(src):
-                    copied += 1
-        for image_path in load_story_image_paths(date):
-            src = _resolve_local(image_path)
-            if src and _copy(src):
-                copied += 1
+        copied = stage_content_images(
+            content, date, target_dir, include_candidates=True
+        )
         if copied > 0:
             self.logger.info(f"Copied {copied} images to public/images/")
 
