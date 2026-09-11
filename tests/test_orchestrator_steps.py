@@ -812,3 +812,170 @@ class TestRunDispatch:
             workflow_state["metadata"]["blocked_reason"] == "insufficient_story_context"
         )
         assert workflow_state["metadata"]["blocked_items"][0]["comment_count"] == 0
+
+    def test_agent_mode_blocks_on_source_context_decision(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_content()
+        script = _make_script()
+        orch.content_preparer.load_content = MagicMock(return_value=content)
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, []))
+        orch.agent_decision.evaluate_source_context = MagicMock(
+            return_value=SimpleNamespace(
+                should_continue=False,
+                blocked_reason="source_risk_high",
+                blocked_items=[{"story_id": "1"}],
+            )
+        )
+        orch._step_write_script = MagicMock(return_value=script)
+
+        outcome = orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
+        )
+
+        orch._step_write_script.assert_not_called()
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "enrich_articles"
+        assert outcome.reason == "source_risk_high"
+        assert outcome.items[0]["story_id"] == "1"
+
+    def test_agent_mode_blocks_on_script_quality_decision(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_content()
+        script = _make_script()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, []))
+        orch.agent_decision.evaluate_source_context = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+        orch.agent_decision.evaluate_script_quality = MagicMock(
+            return_value=SimpleNamespace(
+                should_continue=False,
+                blocked_reason="low_decision_confidence",
+                blocked_items=[{"story_id": "1"}],
+            )
+        )
+        orch._step_write_script = MagicMock(return_value=script)
+
+        outcome = orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
+        )
+
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "write_script"
+        assert outcome.reason == "low_decision_confidence"
+        assert outcome.items[0]["story_id"] == "1"
+
+    def test_agent_mode_blocks_on_pending_story_images(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_content()
+        script = _make_script()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, []))
+        orch._step_judge_comments = MagicMock(return_value=content)
+        orch._step_write_script = MagicMock(return_value=script)
+        image_result = SimpleNamespace(
+            pending=[{"story_id": "1", "title": "t", "url": "u", "candidates": []}],
+            stories=[],
+            changed=False,
+        )
+        orch._step_prepare_story_images = MagicMock(return_value=image_result)
+        orch.agent_decision.evaluate_source_context = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+        orch.agent_decision.evaluate_script_quality = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+
+        outcome = orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script", "prepare_story_images"],
+            force=False,
+        )
+
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "prepare_story_images"
+        assert outcome.reason == "manual_image_selection_required"
+        assert outcome.items[0]["story_id"] == "1"
+
+    def test_agent_mode_blocks_on_unapproved_human_review(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = True
+        content = _make_content()
+        script = _make_script()
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, []))
+        orch._step_judge_comments = MagicMock(return_value=content)
+        orch._step_write_script = MagicMock(return_value=script)
+        orch.agent_decision.evaluate_source_context = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+        orch.agent_decision.evaluate_script_quality = MagicMock(
+            return_value=SimpleNamespace(should_continue=True)
+        )
+        review_page = Path("data/2026-04/2026-04-26/review/script_review.html")
+        orch._step_human_review = MagicMock(return_value=(False, review_page))
+
+        outcome = orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script", "human_review"],
+            force=False,
+        )
+
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "human_review"
+        assert outcome.reason == "manual_script_review_required"
+        assert outcome.items[0]["review_page"].endswith(
+            "data/2026-04/2026-04-26/review/script_review.html"
+        )
+
+    def test_non_agent_enrich_failure_returns_failed_outcome(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        orch = _make_orchestrator(dry_run=False)
+        orch.agent_mode = False
+        content = _make_failed_content_with_comments()
+        orch.content_preparer.load_content = MagicMock(return_value=content)
+        orch._step_fetch = MagicMock(return_value=content)
+        orch._step_prefilter = MagicMock(return_value=content)
+        orch._step_fetch_comments = MagicMock(return_value=content)
+        orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
+
+        outcome = orch.run(
+            "2026-04-26",
+            steps=["enrich_articles", "write_script"],
+            force=False,
+        )
+
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.FAILED
+        assert outcome.exit_code == 1
+        assert outcome.step == "enrich_articles"

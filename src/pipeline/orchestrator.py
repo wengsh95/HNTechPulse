@@ -1,4 +1,5 @@
-from typing import List, Optional
+from pathlib import Path
+from typing import Any, List, Optional
 
 from src.core.interfaces import (
     ContentFetcher,
@@ -197,38 +198,12 @@ class Orchestrator(
         if "enrich_articles" in steps:
             with self._tracked_step("enrich_articles"):
                 content, failed_items = self._step_enrich_articles(content, date)
-        if failed_items:
-            # --allow-degraded-enrichment works in both agent and non-agent modes:
-            # mark missing article_text as degraded and keep the rest of the chain
-            # running with whatever context is available.
-            if self.allow_degraded_enrichment:
-                self._mark_degraded_enrichment(failed_items)
-            elif self.agent_mode:
-                self._print_enrich_failure_guidance(failed_items)
-                insufficient = self._insufficient_context_items(failed_items)
-                if insufficient:
-                    return self._workflow_block(
-                        "enrich_articles",
-                        BLOCK_INSUFFICIENT_CONTEXT,
-                        items=insufficient,
-                    )
-                task_file = write_manual_download_tasks(date, failed_items)
-                return self._workflow_block(
-                    "enrich_articles",
-                    BLOCK_MANUAL_DOWNLOAD,
-                    items=[
-                        {
-                            "story_id": str(item.source_id),
-                            "title": item.title or "",
-                            "url": item.url or "",
-                        }
-                        for item in failed_items
-                    ],
-                    task_file=str(task_file).replace("\\", "/"),
-                )
-            else:
-                self._print_enrich_failure_guidance(failed_items)
-                return
+        if outcome := self._guard_enrich_outcome(failed_items, content, date):
+            return outcome
+        if outcome := self._guard_source_context(
+            failed_items, content, date, enrich_in_steps="enrich_articles" in steps
+        ):
+            return outcome
 
         pending_image_selections = getattr(
             self.article_enricher, "pending_image_selections", []
@@ -242,22 +217,6 @@ class Orchestrator(
                 len(pending_image_selections),
             )
 
-        # ── 5. source-context gate ───────────────────────────────────────
-        skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
-        if (
-            self.agent_mode
-            and content is not None
-            and "enrich_articles" in steps
-            and not skip_source_gate
-        ):
-            decision = self.agent_decision.evaluate_source_context(content, date)
-            if not decision.should_continue:
-                return self._workflow_block(
-                    "enrich_articles",
-                    decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
-                    items=decision.blocked_items or [],
-                )
-
         # ── 6. judge_comments ─────────────────────────────────────────────
         if "judge_comments" in steps:
             with self._tracked_step("judge_comments"):
@@ -267,21 +226,8 @@ class Orchestrator(
         if "write_script" in steps:
             with self._tracked_step("write_script"):
                 script = self._step_write_script(content, date)
-            if (
-                self.agent_mode
-                and script is not None
-                and content is not None
-                and not self.allow_degraded_enrichment
-            ):
-                decision = self.agent_decision.evaluate_script_quality(
-                    content, script, date
-                )
-                if not decision.should_continue:
-                    return self._workflow_block(
-                        "write_script",
-                        decision.blocked_reason or BLOCK_LOW_DECISION_CONFIDENCE,
-                        items=decision.blocked_items or [],
-                    )
+            if outcome := self._guard_script_quality(content, script, date):
+                return outcome
         elif SCRIPT_CONSUMING_STEPS & set(steps):
             try:
                 script = self.script_writer.load_script(
@@ -309,18 +255,8 @@ class Orchestrator(
         if "prepare_story_images" in steps:
             with self._tracked_step("prepare_story_images"):
                 image_result = self._step_prepare_story_images(script, content, date)
-            if image_result.pending and self.agent_mode:
-                task_file = write_image_selection_tasks(date, image_result.pending)
-                self.logger.warning(
-                    "%d stories need confirmed images before continuing.",
-                    len(image_result.pending),
-                )
-                return self._workflow_block(
-                    "prepare_story_images",
-                    BLOCK_MANUAL_IMAGE_SELECTION,
-                    items=image_result.pending,
-                    task_file=str(task_file).replace("\\", "/"),
-                )
+            if outcome := self._guard_story_images(image_result, date):
+                return outcome
 
         # ── 12. title ─────────────────────────────────────────────────────
         if "title" in steps:
@@ -346,28 +282,8 @@ class Orchestrator(
                 approved, review_page = self._step_human_review(
                     script, date, content=content
                 )
-            if not approved:
-                review_items = [
-                    {
-                        "review_page": str(review_page).replace("\\", "/"),
-                        "approval_file": str(
-                            agent_path(date, "script_approval.json")
-                        ).replace("\\", "/"),
-                        "approve_command": (
-                            "uv run python scripts/internal/agent/agent_run.py "
-                            f"--date {date} --approve-script"
-                        ),
-                    }
-                ]
-                self.logger.warning(
-                    "Human script review required before downstream production: %s",
-                    review_page,
-                )
-                return self._workflow_block(
-                    "human_review",
-                    BLOCK_MANUAL_SCRIPT_REVIEW,
-                    items=review_items,
-                )
+            if outcome := self._guard_human_review(approved, review_page, date):
+                return outcome
 
         # ── 17. apply_storyboard ─────────────────────────────────────────
         # Automatic review may revise any spoken section. Draft shots only
@@ -422,5 +338,142 @@ class Orchestrator(
 
         self.logger.info("Pipeline completed")
         return RunOutcome.completed(steps)
+
+    # ── Gate guards ──────────────────────────────────────────────────────
+    # Each guard inspects a step's result and returns a terminal RunOutcome if
+    # the run should stop there, or None to continue.  They keep the five
+    # interruption points (enrichment failure, source-context, script quality,
+    # image selection, human review) out of the run() body without forcing the
+    # step methods into a uniform signature.
+
+    def _guard_human_review(
+        self, approved: bool, review_page: Optional[Path], date: str
+    ) -> Optional[RunOutcome]:
+        if approved:
+            return None
+        review_items = [
+            {
+                "review_page": str(review_page).replace("\\", "/"),
+                "approval_file": str(agent_path(date, "script_approval.json")).replace(
+                    "\\", "/"
+                ),
+                "approve_command": (
+                    "uv run python scripts/internal/agent/agent_run.py "
+                    f"--date {date} --approve-script"
+                ),
+            }
+        ]
+        self.logger.warning(
+            "Human script review required before downstream production: %s",
+            review_page,
+        )
+        return self._workflow_block(
+            "human_review",
+            BLOCK_MANUAL_SCRIPT_REVIEW,
+            items=review_items,
+        )
+
+    def _guard_story_images(self, image_result: Any, date: str) -> Optional[RunOutcome]:
+        if not (image_result.pending and self.agent_mode):
+            return None
+        task_file = write_image_selection_tasks(date, image_result.pending)
+        self.logger.warning(
+            "%d stories need confirmed images before continuing.",
+            len(image_result.pending),
+        )
+        return self._workflow_block(
+            "prepare_story_images",
+            BLOCK_MANUAL_IMAGE_SELECTION,
+            items=image_result.pending,
+            task_file=str(task_file).replace("\\", "/"),
+        )
+
+    def _guard_script_quality(
+        self, content: Optional[ContentPackage], script: Optional[Script], date: str
+    ) -> Optional[RunOutcome]:
+        if not (
+            self.agent_mode
+            and script is not None
+            and content is not None
+            and not self.allow_degraded_enrichment
+        ):
+            return None
+        decision = self.agent_decision.evaluate_script_quality(content, script, date)
+        if decision.should_continue:
+            return None
+        return self._workflow_block(
+            "write_script",
+            decision.blocked_reason or BLOCK_LOW_DECISION_CONFIDENCE,
+            items=decision.blocked_items or [],
+        )
+
+    def _guard_source_context(
+        self,
+        failed_items: list,
+        content: Optional[ContentPackage],
+        date: str,
+        *,
+        enrich_in_steps: bool = True,
+    ) -> Optional[RunOutcome]:
+        """Gate the source-context decision after enrichment.
+
+        ``enrich_in_steps`` mirrors the legacy gate's ``"enrich_articles" in
+        steps`` condition: the decision only makes sense when the enrichment
+        step ran in this invocation.
+        """
+        skip_source_gate = bool(failed_items and self.allow_degraded_enrichment)
+        if not (
+            self.agent_mode
+            and content is not None
+            and enrich_in_steps
+            and not skip_source_gate
+        ):
+            return None
+        decision = self.agent_decision.evaluate_source_context(content, date)
+        if decision.should_continue:
+            return None
+        return self._workflow_block(
+            "enrich_articles",
+            decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
+            items=decision.blocked_items or [],
+        )
+
+    def _guard_enrich_outcome(
+        self, failed_items: list, content: Optional[ContentPackage], date: str
+    ) -> Optional[RunOutcome]:
+        if not failed_items:
+            return None
+        if self.allow_degraded_enrichment:
+            self._mark_degraded_enrichment(failed_items)
+            return None
+        if not self.agent_mode:
+            self._print_enrich_failure_guidance(failed_items)
+            return RunOutcome.failed(
+                "enrich_articles",
+                self._steps,
+                reason=f"{len(failed_items)} stories failed enrichment",
+            )
+        self._print_enrich_failure_guidance(failed_items)
+        insufficient = self._insufficient_context_items(failed_items)
+        if insufficient:
+            return self._workflow_block(
+                "enrich_articles",
+                BLOCK_INSUFFICIENT_CONTEXT,
+                items=insufficient,
+            )
+        task_file = write_manual_download_tasks(date, failed_items)
+        return self._workflow_block(
+            "enrich_articles",
+            BLOCK_MANUAL_DOWNLOAD,
+            items=[
+                {
+                    "story_id": str(item.source_id),
+                    "title": item.title or "",
+                    "url": item.url or "",
+                }
+                for item in failed_items
+            ],
+            task_file=str(task_file).replace("\\", "/"),
+        )
 
     # ── Step implementations ─────────────────────────────────────────────

@@ -68,3 +68,12 @@ glossary below records domain terms as they crystallize; ADRs in
   copy rules are pinned by `tests/test_title_cover_stage.py`.  Also owns
   `COVER_VARIANT_COUNT`, now imported by the packaging and title/cover
   stages instead of a local constant.
+- **gate guards (运行守卫)**: the five `_guard_*` methods derived from the
+  interruption points in `Orchestrator.run()` — enrichment failure,
+  source-context, script quality, story-image selection, and human-review
+  approval.  Each returns a terminal `RunOutcome` or `None` to continue,
+  keeping the step-sequence body linear without forcing the heterogeneous
+  `_step_*` signatures into a uniform interface.  Also fixed a RunOutcome
+  migration bug: a non-agent enrichment failure previously `return`ed `None`
+  (breaking the `-> RunOutcome` contract and making `main.py` crash into a
+  generic exit 1); it now returns an explicit `RunOutcome.failed`.
