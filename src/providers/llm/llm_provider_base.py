@@ -663,6 +663,7 @@ class LLMProviderBase(LLMProvider):
             model=self.fast_model,
             temperature=0.1,
             extra_body=self._comment_judge_extra_body(),
+            strict_truncation=True,
         )
         result = self._extract_json(response_text)
         distribution_ids = {

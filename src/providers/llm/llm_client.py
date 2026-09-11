@@ -155,7 +155,15 @@ class LLMClient:
         temperature: float | None = None,
         extra_body: Optional[Dict[str, Any]] = None,
         validator: Optional[Callable[[dict], None]] = None,
+        strict_truncation: bool = False,
     ) -> str:
+        """LLM round trip with JSON parse/repair retry.
+
+        ``strict_truncation`` marks callers (e.g. the comment judge) that must
+        fail on a truncated response instead of asking the model to retry —
+        the judge's schema has no repair path, so doubling tokens there would
+        only burn budget.
+        """
         current_messages = list(messages)
         effective_max_tokens = max_tokens or self.max_tokens
         effective_model = model or self.model
@@ -232,7 +240,7 @@ class LLMClient:
                         f"This usually means the compatible API/model consumed the token budget "
                         f"without producing visible content."
                     )
-                    if label.startswith("comment_judge_"):
+                    if strict_truncation:
                         raise ValueError(
                             f"[{label}] Empty truncated response from comment judge"
                         )
@@ -249,7 +257,7 @@ class LLMClient:
                         }
                     ]
                     continue
-                if label.startswith("comment_judge_"):
+                if strict_truncation:
                     raise ValueError(f"[{label}] Truncated comment judge response")
                 if effective_max_tokens >= self.max_completion_tokens_cap:
                     raise ValueError(
