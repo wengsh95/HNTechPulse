@@ -41,6 +41,13 @@ glossary below records domain terms as they crystallize; ADRs in
   reason strings (test-pinned).
 - **StaleArtifact (过期产物记录)**: one freshness result — artifact path,
   code, and derived reason, plus the repair step that recovers from it.
+- **RunOutcome (运行结果)**: the typed result returned by
+  `Orchestrator.run()` — `RunStatus` (completed / blocked / failed), the
+  blocking step/reason/items, the executed step sequence, and a derived shell
+  `exit_code`.  Before this, a blocked run was communicated only through
+  workflow metadata side effects and re-derived from strings by `agent_run`;
+  the outcome makes block the return value itself while the metadata/event
+  side effects are kept as the durable record.
 - **candidate-8 跟踪项**: `pipeline_progress._check_cache` and
   `agent_audit.publish_step_for_check` still keep their own "is X present"
   views; unifying them remains tracked (not part of the freshness module,

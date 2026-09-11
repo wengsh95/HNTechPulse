@@ -15,6 +15,8 @@ BLOCK_MANUAL_SCRIPT_REVIEW = "manual_script_review_required"
 BLOCK_MISSING_CREDENTIALS = "missing_credentials"
 BLOCK_EXTERNAL_TOOL_MISSING = "external_tool_missing"
 BLOCK_INSUFFICIENT_CONTEXT = "insufficient_story_context"
+BLOCK_LOW_DECISION_CONFIDENCE = "low_decision_confidence"
+BLOCK_SOURCE_RISK_HIGH = "source_risk_high"
 
 
 def _task_path(date: str) -> Path:

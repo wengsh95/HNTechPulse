@@ -26,6 +26,7 @@ from tests.stage_fixtures import (
     make_script as _make_script,
 )
 from src.workflow.machine import WorkflowMachine
+from src.workflow.outcome import RunOutcome, RunStatus
 from src.workflow.video import (
     VIDEO_ALL_STEPS,
     VIDEO_PIPELINE_EXECUTION_STEPS,
@@ -619,8 +620,12 @@ class TestRunDispatch:
         content = _make_content()
         orch._step_fetch = MagicMock(return_value=content)
 
-        orch.run("2026-04-26", steps=["fetch"], force=False)
+        outcome = orch.run("2026-04-26", steps=["fetch"], force=False)
 
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.COMPLETED
+        assert outcome.exit_code == 0
+        assert "fetch" in outcome.steps
         assert Path("data/2026-04/2026-04-26/agent/workflow_video.json").exists()
 
     def test_agent_mode_blocks_after_enrichment_failure(self, tmp_path, monkeypatch):
@@ -636,13 +641,19 @@ class TestRunDispatch:
         orch._step_judge_comments = MagicMock(return_value=content)
         orch._step_write_script = MagicMock(return_value=script)
 
-        orch.run(
+        outcome = orch.run(
             "2026-04-26",
             steps=["enrich_articles", "write_script"],
             force=False,
         )
 
         orch._step_write_script.assert_not_called()
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "enrich_articles"
+        assert outcome.reason == "manual_download_required"
+        assert outcome.items[0]["story_id"] == "123"
         workflow_state = json.loads(
             Path("data/2026-04/2026-04-26/agent/workflow_video.json").read_text(
                 encoding="utf-8"
@@ -779,12 +790,18 @@ class TestRunDispatch:
         orch._step_prefilter = MagicMock(return_value=content)
         orch._step_fetch_comments = MagicMock(return_value=content)
         orch._step_enrich_articles = MagicMock(return_value=(content, content.items))
-        orch.run(
+        outcome = orch.run(
             "2026-04-26",
             steps=["enrich_articles"],
             force=False,
         )
 
+        assert isinstance(outcome, RunOutcome)
+        assert outcome.status is RunStatus.BLOCKED
+        assert outcome.exit_code == 2
+        assert outcome.step == "enrich_articles"
+        assert outcome.reason == "insufficient_story_context"
+        assert outcome.items[0]["comment_count"] == 0
         workflow_state = json.loads(
             Path("data/2026-04/2026-04-26/agent/workflow_video.json").read_text(
                 encoding="utf-8"

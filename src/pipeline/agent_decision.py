@@ -14,11 +14,11 @@ from src.pipeline.agent_variants import (
 from src.pipeline.agent_io import append_agent_event
 from src.pipeline.paths import agent_path
 from src.utils.atomic_io import atomic_write_json
-from src.workflow import BLOCK_INSUFFICIENT_CONTEXT
-
-BLOCK_LOW_DECISION_CONFIDENCE = "low_decision_confidence"
-BLOCK_SOURCE_RISK_HIGH = "source_risk_high"
-BLOCK_HUMAN_REVIEW_REQUIRED = "human_review_required"
+from src.workflow import (
+    BLOCK_INSUFFICIENT_CONTEXT,
+    BLOCK_LOW_DECISION_CONFIDENCE,
+    BLOCK_SOURCE_RISK_HIGH,
+)
 
 
 @dataclass

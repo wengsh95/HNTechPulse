@@ -18,7 +18,12 @@ from src.providers.factory import (  # noqa: E402
 from src.pipeline.orchestrator import Orchestrator  # noqa: E402
 from src.providers.enricher.article_enricher import ArticleEnricher  # noqa: E402
 from src.providers.renderer.remotion_renderer import RemotionRenderer  # noqa: E402
-from src.workflow import VIDEO_PIPELINE_STEPS, VIDEO_WORKFLOW_STEPS, WorkflowMachine  # noqa: E402
+from src.workflow import (  # noqa: E402
+    RunStatus,
+    VIDEO_PIPELINE_STEPS,
+    VIDEO_WORKFLOW_STEPS,
+    WorkflowMachine,
+)
 from src.workflow.persistence import WorkflowCorruptError  # noqa: E402
 from src.workflow.planner import resume_tail  # noqa: E402
 
@@ -203,14 +208,22 @@ def main():
             refresh_script=args.refresh_script,
         )
 
-        orchestrator.run(
+        outcome = orchestrator.run(
             date=args.date,
             steps=steps,
             force=args.force,
         )
 
+        if outcome.status is RunStatus.BLOCKED:
+            logger.warning(
+                "Pipeline blocked at %s: %s",
+                outcome.step,
+                outcome.reason,
+            )
+            return outcome.exit_code
+
         logger.info("Pipeline completed successfully")
-        return 0
+        return outcome.exit_code
 
     except Exception as e:
         logger.error(f"Pipeline failed: {e}", exc_info=True)

@@ -12,10 +12,12 @@ from src.pipeline.agent_decision import AgentDecisionEngine
 from src.pipeline.agent_io import append_agent_event
 from src.pipeline.comment import CommentAnalyzer, CommentJudge, CommentRefiner
 from src.workflow import (
+    BLOCK_INSUFFICIENT_CONTEXT,
+    BLOCK_LOW_DECISION_CONFIDENCE,
     BLOCK_MANUAL_DOWNLOAD,
     BLOCK_MANUAL_IMAGE_SELECTION,
-    BLOCK_INSUFFICIENT_CONTEXT,
     BLOCK_MANUAL_SCRIPT_REVIEW,
+    RunOutcome,
     SCRIPT_CONSUMING_STEPS,
     SCRIPT_MUTATING_STEPS,
     VIDEO_ALL_STEPS,
@@ -112,6 +114,7 @@ class Orchestrator(
         self._workflow: WorkflowMachine | None = None
         self._workflow_completed_steps: set[str] = set()
         self._workflow_expected_steps: dict[str, set[str]] = {}
+        self._steps: list[str] = []
         log_level = config.get("logging", {}).get("level")
         self.logger = setup_logger(__name__, debug=debug, level=log_level)
 
@@ -144,11 +147,12 @@ class Orchestrator(
 
     def run(
         self, date: str, steps: Optional[List[str]] = None, force: bool = False
-    ) -> None:
+    ) -> RunOutcome:
         if steps is None:
             steps = list(VIDEO_PIPELINE_STEPS)
         else:
             steps = _resolve_steps(steps)
+        self._steps = list(steps)
 
         self._progress = PipelineProgress(steps, date, self.config)
         if self.agent_mode and not self.dry_run:
@@ -200,30 +204,28 @@ class Orchestrator(
             if self.allow_degraded_enrichment:
                 self._mark_degraded_enrichment(failed_items)
             elif self.agent_mode:
+                self._print_enrich_failure_guidance(failed_items)
                 insufficient = self._insufficient_context_items(failed_items)
                 if insufficient:
-                    self._workflow_block(
+                    return self._workflow_block(
                         "enrich_articles",
                         BLOCK_INSUFFICIENT_CONTEXT,
                         items=insufficient,
                     )
-                else:
-                    task_file = write_manual_download_tasks(date, failed_items)
-                    self._workflow_block(
-                        "enrich_articles",
-                        BLOCK_MANUAL_DOWNLOAD,
-                        items=[
-                            {
-                                "story_id": str(item.source_id),
-                                "title": item.title or "",
-                                "url": item.url or "",
-                            }
-                            for item in failed_items
-                        ],
-                        task_file=str(task_file).replace("\\", "/"),
-                    )
-                self._print_enrich_failure_guidance(failed_items)
-                return
+                task_file = write_manual_download_tasks(date, failed_items)
+                return self._workflow_block(
+                    "enrich_articles",
+                    BLOCK_MANUAL_DOWNLOAD,
+                    items=[
+                        {
+                            "story_id": str(item.source_id),
+                            "title": item.title or "",
+                            "url": item.url or "",
+                        }
+                        for item in failed_items
+                    ],
+                    task_file=str(task_file).replace("\\", "/"),
+                )
             else:
                 self._print_enrich_failure_guidance(failed_items)
                 return
@@ -250,12 +252,11 @@ class Orchestrator(
         ):
             decision = self.agent_decision.evaluate_source_context(content, date)
             if not decision.should_continue:
-                self._workflow_block(
+                return self._workflow_block(
                     "enrich_articles",
                     decision.blocked_reason or BLOCK_INSUFFICIENT_CONTEXT,
                     items=decision.blocked_items or [],
                 )
-                return
 
         # ── 6. judge_comments ─────────────────────────────────────────────
         if "judge_comments" in steps:
@@ -276,12 +277,11 @@ class Orchestrator(
                     content, script, date
                 )
                 if not decision.should_continue:
-                    self._workflow_block(
+                    return self._workflow_block(
                         "write_script",
-                        decision.blocked_reason or "low_decision_confidence",
+                        decision.blocked_reason or BLOCK_LOW_DECISION_CONFIDENCE,
                         items=decision.blocked_items or [],
                     )
-                    return
         elif SCRIPT_CONSUMING_STEPS & set(steps):
             try:
                 script = self.script_writer.load_script(
@@ -311,17 +311,16 @@ class Orchestrator(
                 image_result = self._step_prepare_story_images(script, content, date)
             if image_result.pending and self.agent_mode:
                 task_file = write_image_selection_tasks(date, image_result.pending)
-                self._workflow_block(
+                self.logger.warning(
+                    "%d stories need confirmed images before continuing.",
+                    len(image_result.pending),
+                )
+                return self._workflow_block(
                     "prepare_story_images",
                     BLOCK_MANUAL_IMAGE_SELECTION,
                     items=image_result.pending,
                     task_file=str(task_file).replace("\\", "/"),
                 )
-                self.logger.warning(
-                    "%d stories need confirmed images before continuing.",
-                    len(image_result.pending),
-                )
-                return
 
         # ── 12. title ─────────────────────────────────────────────────────
         if "title" in steps:
@@ -360,16 +359,15 @@ class Orchestrator(
                         ),
                     }
                 ]
-                self._workflow_block(
-                    "human_review",
-                    BLOCK_MANUAL_SCRIPT_REVIEW,
-                    items=review_items,
-                )
                 self.logger.warning(
                     "Human script review required before downstream production: %s",
                     review_page,
                 )
-                return
+                return self._workflow_block(
+                    "human_review",
+                    BLOCK_MANUAL_SCRIPT_REVIEW,
+                    items=review_items,
+                )
 
         # ── 17. apply_storyboard ─────────────────────────────────────────
         # Automatic review may revise any spoken section. Draft shots only
@@ -423,5 +421,6 @@ class Orchestrator(
             )
 
         self.logger.info("Pipeline completed")
+        return RunOutcome.completed(steps)
 
     # ── Step implementations ─────────────────────────────────────────────

@@ -6,6 +6,7 @@ from typing import Any, Iterator
 from src.pipeline.agent_io import append_agent_event
 from src.pipeline.stages.context import OrchestratorContext
 from src.workflow import (
+    RunOutcome,
     StateStatus,
     VIDEO_WORKFLOW_STEPS,
     WorkflowMachine,
@@ -89,26 +90,32 @@ class WorkflowLifecycleMixin(OrchestratorContext):
         *,
         items: list[dict[str, Any]] | None = None,
         task_file: str | None = None,
-    ) -> None:
-        if self._workflow is None:
-            return
-        state = self._workflow.state_for_pipeline_step(step)
-        if state is not None:
-            self._workflow.block(state, reason)
-        self._workflow.update_metadata(
-            execution_status="blocked",
-            current_pipeline_step=None,
-            failed_pipeline_step=step,
-            blocked_reason=reason,
-            blocked_items=items or [],
-            agent_task_file=task_file,
-        )
-        append_agent_event(
-            self._progress.date,
-            "run_blocked",
-            step=step,
-            reason=reason,
-            items=items or [],
+    ) -> RunOutcome:
+        if self._workflow is not None:
+            state = self._workflow.state_for_pipeline_step(step)
+            if state is not None:
+                self._workflow.block(state, reason)
+            self._workflow.update_metadata(
+                execution_status="blocked",
+                current_pipeline_step=None,
+                failed_pipeline_step=step,
+                blocked_reason=reason,
+                blocked_items=items or [],
+                agent_task_file=task_file,
+            )
+            append_agent_event(
+                self._progress.date,
+                "run_blocked",
+                step=step,
+                reason=reason,
+                items=items or [],
+                task_file=task_file,
+            )
+        return RunOutcome.blocked(
+            step,
+            reason,
+            list(self._steps),
+            items=items,
             task_file=task_file,
         )
 

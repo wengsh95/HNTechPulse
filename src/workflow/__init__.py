@@ -18,13 +18,16 @@ from src.workflow.video import (
 from src.workflow.runtime import (
     BLOCK_EXTERNAL_TOOL_MISSING,
     BLOCK_INSUFFICIENT_CONTEXT,
+    BLOCK_LOW_DECISION_CONFIDENCE,
     BLOCK_MANUAL_DOWNLOAD,
     BLOCK_MANUAL_IMAGE_SELECTION,
     BLOCK_MANUAL_SCRIPT_REVIEW,
     BLOCK_MISSING_CREDENTIALS,
+    BLOCK_SOURCE_RISK_HIGH,
     write_image_selection_tasks,
     write_manual_download_tasks,
 )
+from src.workflow.outcome import RunOutcome, RunStatus
 from src.workflow.reporting import load_workflow_report
 from src.workflow.planner import (
     resolve_steps,
@@ -66,12 +69,16 @@ __all__ = [
     "WorkflowStep",
     "BLOCK_EXTERNAL_TOOL_MISSING",
     "BLOCK_INSUFFICIENT_CONTEXT",
+    "BLOCK_LOW_DECISION_CONFIDENCE",
     "BLOCK_MANUAL_DOWNLOAD",
     "BLOCK_MANUAL_IMAGE_SELECTION",
     "BLOCK_MANUAL_SCRIPT_REVIEW",
     "BLOCK_MISSING_CREDENTIALS",
+    "BLOCK_SOURCE_RISK_HIGH",
     "write_image_selection_tasks",
     "write_manual_download_tasks",
+    "RunOutcome",
+    "RunStatus",
     "load_workflow_report",
     "StepSpec",
     "STEP_SPECS",
