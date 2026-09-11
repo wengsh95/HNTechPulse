@@ -438,6 +438,17 @@ def select_representative_comments(
     return selected[:max_n]
 
 
+def _quotable_comments_by_id(
+    comments: Iterable[ContentComment], min_quality: float
+) -> dict[str, ContentComment]:
+    """Index comments by source_id, keeping only quotable ones."""
+    return {
+        str(c.source_id): c
+        for c in comments
+        if c.source_id is not None and is_quotable_comment(c, min_quality)
+    }
+
+
 def select_comments_by_ids(
     comments: Iterable[ContentComment],
     selected_ids: Iterable,
@@ -450,11 +461,7 @@ def select_comments_by_ids(
     ]
     if not id_order:
         return []
-    comments_by_id = {
-        str(c.source_id): c
-        for c in comments
-        if c.source_id is not None and is_quotable_comment(c, min_quality)
-    }
+    comments_by_id = _quotable_comments_by_id(comments, min_quality)
     selected = []
     seen = set()
     for comment_id in id_order:
@@ -493,11 +500,7 @@ def select_quote_comments(
     if len(selected) < max_n:
         judged_fillers = []
         if judgement:
-            comments_by_id = {
-                str(c.source_id): c
-                for c in comments_list
-                if c.source_id is not None and is_quotable_comment(c, min_quality)
-            }
+            comments_by_id = _quotable_comments_by_id(comments_list, min_quality)
             for candidate in judgement.get("quote_candidates", []) or []:
                 if candidate.get("reject_for_quote") or not candidate.get(
                     "has_viewpoint", True
