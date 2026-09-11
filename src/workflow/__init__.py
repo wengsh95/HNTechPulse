@@ -28,6 +28,11 @@ from src.workflow.runtime import (
     write_manual_download_tasks,
 )
 from src.workflow.outcome import RunOutcome, RunStatus
+from src.workflow.artifact_presence import (
+    ArtifactPresence,
+    presence_for_step,
+    publish_presence,
+)
 from src.workflow.reporting import load_workflow_report
 from src.workflow.planner import (
     resolve_steps,
@@ -79,6 +84,9 @@ __all__ = [
     "write_manual_download_tasks",
     "RunOutcome",
     "RunStatus",
+    "ArtifactPresence",
+    "presence_for_step",
+    "publish_presence",
     "load_workflow_report",
     "StepSpec",
     "STEP_SPECS",

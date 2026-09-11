@@ -48,7 +48,14 @@ glossary below records domain terms as they crystallize; ADRs in
   workflow metadata side effects and re-derived from strings by `agent_run`;
   the outcome makes block the return value itself while the metadata/event
   side effects are kept as the durable record.
-- **candidate-8 跟踪项**: `pipeline_progress._check_cache` and
-  `agent_audit.publish_step_for_check` still keep their own "is X present"
-  views; unifying them remains tracked (not part of the freshness module,
-  which deliberately excludes existence-only checks).
+- **ArtifactPresence (产物存在性事实)**: the typed record
+  (`src/workflow/artifact_presence.py`) answering "is the artifact backing
+  step X ready, and in one line why".  `presence_for_step` is the single
+  source for the run-start progress summary (`PipelineProgress._check_cache`)
+  and `publish_presence` for the publish tail used by the pre-publish audit.
+  The two consumers keep their distinct outputs (progress text vs
+  `{name}_exists` issues); only the shared path/ready fact is unified.
+  Candidate-8: land `pipeline_progress._check_cache` and
+  `agent_audit.publish_step_for_check` existence views on one presence table
+  (and fix the dead `cover_props_exists`/`cover_thumbnail_exists` check-name
+  mapping to the real `cover_exists` produced by the audit).

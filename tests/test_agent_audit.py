@@ -137,6 +137,11 @@ def test_next_command_prioritizes_explicit_recommendation_and_publish_tail():
     )
     assert publish_command["command"].endswith("--steps prepare_render")
 
+    cover_command = _next_command(
+        "2026-04-26", [{"severity": "warning", "check": "cover_exists"}]
+    )
+    assert cover_command["command"].endswith("--steps cover_thumbnail")
+
 
 def test_summarize_blocks_separates_agent_human_and_unknown_issues():
     summary = _summarize_blocks(

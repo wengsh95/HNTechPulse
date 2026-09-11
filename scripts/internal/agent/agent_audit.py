@@ -31,7 +31,11 @@ from src.pipeline.paths import (  # noqa: E402
     publish_path,
     raw_downloaded_pages_dir,
 )
-from src.workflow import load_workflow_report  # noqa: E402
+from src.workflow import (  # noqa: E402
+    load_workflow_report,
+    presence_for_step,
+    publish_presence,
+)
 
 
 def _default_date() -> str:
@@ -150,14 +154,13 @@ def _issue(
 
 def _artifact_check(date: str, base: Path) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
+    step_presence = {presence.name: presence for presence in presence_for_step(date)}
     required = {
-        "content": pipeline_path(date, "content.json"),
-        "script": pipeline_path(date, "script.json"),
+        "content": step_presence["fetch"].path,
+        "script": step_presence["write_script"].path,
     }
     optional_publish = {
-        "title": publish_path(date, "title.json"),
-        "cover": publish_path(date, "cover.png"),
-        "publish_guide": publish_path(date, "publish_guide.md"),
+        presence.name: presence.path for presence in publish_presence(date)
     }
 
     for name, path in required.items():
@@ -481,18 +484,14 @@ def _next_command(date: str, issues: list[dict[str, Any]]) -> dict[str, str] | N
             )
         )
 
-    # Publish-tail ordering: title depends on the script; cover depends on
-    # title; prepare_render also writes publish_guide.md.
+    # Publish-tail ordering: title depends on the script; cover.png is written
+    # by cover_thumbnail; prepare_render also writes publish_guide.md.
     publish_step_for_check = {
         "title_exists": (
             "title",
             "Title.json is missing — generate it from script.json.",
         ),
-        "cover_props_exists": (
-            "cover_image",
-            "Cover image not yet generated — needs the title to drive cover_prompt.",
-        ),
-        "cover_thumbnail_exists": (
+        "cover_exists": (
             "cover_thumbnail",
             "Cover thumbnail (title overlay) is missing — run after cover_image.",
         ),

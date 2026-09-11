@@ -1,11 +1,10 @@
 """Pipeline progress tracking: execution summary, step timer, cache status."""
 
-import json
 import time
 from contextlib import contextmanager
 
-from src.pipeline.paths import pipeline_path
 from src.utils.logger import setup_logger
+from src.workflow import presence_for_step
 
 
 class PipelineProgress:
@@ -49,127 +48,11 @@ class PipelineProgress:
             raise
 
     def _check_cache(self) -> list[tuple[str, str, str]]:
-        date = self.date
-        entries: list[tuple[str, str, str]] = []
-
-        content_data: dict | None = None
-        content_path = pipeline_path(date, "content.json")
-        if content_path.exists():
-            try:
-                content_data = json.loads(content_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        # 1. fetch
-        if content_data is not None:
-            n = len(content_data.get("items", []))
-            entries.append(("fetch", "✓", f"{n} items cached"))
-        else:
-            entries.append(("fetch", "-", "will fetch"))
-
-        # 2-5. content-mutating steps (state read from content.json)
-        if content_data is not None:
-            items = content_data.get("items", [])
-
-            if pipeline_path(date, "prefilter.json").exists():
-                entries.append(("prefilter", "✓", "prefilter cached"))
-            else:
-                entries.append(("prefilter", "-", "will prefilter"))
-
-            if items and all(i.get("comment_count", 0) > 0 for i in items):
-                entries.append(("fetch_comments", "✓", "comments attached"))
-            else:
-                entries.append(("fetch_comments", "-", "will fetch comments"))
-
-            pending_states = {None, "pending", "fetch_failed", "extraction_failed"}
-            pending = [i for i in items if i.get("enrichment_source") in pending_states]
-            if items and not pending:
-                entries.append(("enrich_articles", "✓", "articles enriched"))
-            else:
-                entries.append(
-                    (
-                        "enrich_articles",
-                        "-",
-                        f"{len(pending)}/{len(items)} need enrichment",
-                    )
-                )
-
-        else:
-            for step in (
-                "prefilter",
-                "fetch_comments",
-                "enrich_articles",
-            ):
-                entries.append((step, "-", "fetch first"))
-
-        # Comment judgement + script
-        for step, filename, label in [
-            ("judge_comments", "comment_judgement.json", "comment judgement"),
-            ("write_script", "script.json", "script"),
-        ]:
-            if pipeline_path(date, filename).exists():
-                entries.append((step, "✓", f"{label} cached"))
-            else:
-                entries.append((step, "-", f"will generate {label}"))
-
-        # 9. synthesize_audio
-        from src.pipeline.paths import (
-            pipeline_audio_dir,
-            publish_path,
-            render_path,
-        )
-
-        audio_dir = pipeline_audio_dir(date)
-        if audio_dir.exists() and any(audio_dir.iterdir()):
-            entries.append(("synthesize_audio", "✓", "audio cached"))
-        else:
-            entries.append(("synthesize_audio", "-", "will synthesize"))
-
-        # 11. title
-        if publish_path(date, "title.json").exists():
-            entries.append(("title", "✓", "title cached"))
-        else:
-            entries.append(("title", "-", "will generate title"))
-
-        # 12. cover_image
-        if render_path(date, "cover_bg.png").exists():
-            entries.append(("cover_image", "✓", "cover image cached"))
-        else:
-            entries.append(("cover_image", "-", "will generate cover image"))
-
-        # 13. cover_thumbnail
-        if publish_path(date, "cover.png").exists():
-            entries.append(("cover_thumbnail", "✓", "cover thumbnail cached"))
-        else:
-            entries.append(("cover_thumbnail", "-", "will render cover thumbnail"))
-
-        if pipeline_path(date, "storyboard.json").exists():
-            entries.append(("draft_storyboard", "✓", "storyboard cached"))
-            entries.append(("apply_storyboard", "✓", "storyboard cached"))
-        else:
-            entries.append(("draft_storyboard", "-", "will draft storyboard"))
-            entries.append(
-                ("apply_storyboard", "-", "no storyboard; keep generated templates")
-            )
-
-        # 15. prepare_render (also writes publish_guide.md)
-        props_file = render_path(date, "cli_props.json")
-        guide_file = publish_path(date, "publish_guide.md")
-        if props_file.exists():
-            detail = "props.json cached"
-            if guide_file.exists():
-                detail += "; publish guide cached"
-            entries.append(("prepare_render", "✓", detail))
-        else:
-            entries.append(
-                (
-                    "prepare_render",
-                    "-",
-                    "will write props.json + publish guide",
-                )
-            )
-
-        return entries
+        """Step-ready triples for the summary, from the shared presence table."""
+        return [
+            (presence.name, "✓" if presence.ready else "-", presence.detail)
+            for presence in presence_for_step(self.date)
+        ]
 
     def _build_summary(self, force: bool) -> list[str]:
         config = self.config
