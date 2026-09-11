@@ -34,6 +34,14 @@ from src.workflow.planner import (
     resume_tail,
     validation_errors,
 )
+from src.workflow.freshness import (
+    FreshnessReport,
+    StaleArtifact,
+    StaleCode,
+    check_freshness,
+    command_for,
+    recovery_tail,
+)
 from src.workflow.steps import (
     StepSpec,
     STEP_SPECS,
@@ -78,6 +86,12 @@ __all__ = [
     "HUMAN_REVIEW_PROTECTED_STEPS",
     "DOWNSTREAM_REENTRY",
     "FAILURE_REENTRY",
+    "FreshnessReport",
+    "StaleArtifact",
+    "StaleCode",
+    "check_freshness",
+    "command_for",
+    "recovery_tail",
 ]
 
 

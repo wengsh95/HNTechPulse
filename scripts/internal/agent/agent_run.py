@@ -22,9 +22,9 @@ from src.pipeline.human_review import approve_current_script  # noqa: E402
 from src.workflow import (  # noqa: E402
     VIDEO_PHASE_PIPELINE_STEPS,
     VIDEO_PIPELINE_STEPS,
-    downstream_tail,
     fail_recovery_slice,
     from_step_tail,
+    recovery_tail,
 )
 
 
@@ -89,29 +89,12 @@ def _preflight(date: str, config: str) -> int:
 
 
 def _stale_recovery_steps(status: dict[str, Any]) -> list[str] | None:
-    """Recover the stale planning/rendering tail."""
-    reasons = {item.get("reason") for item in status.get("stale_artifacts") or []}
-    if any(reason and reason.startswith("content.json is newer") for reason in reasons):
-        return VIDEO_CHAIN[VIDEO_CHAIN.index("write_script") :]
-    if any("script_approval.json" in reason for reason in reasons if reason):
-        return VIDEO_CHAIN[VIDEO_CHAIN.index("human_review") :]
-    if any(reason and "storyboard.json is newer" in reason for reason in reasons):
-        return downstream_tail("apply_storyboard")
-    if any(reason and "subtitle_plan.json" in reason for reason in reasons):
-        return downstream_tail("prepare_subtitles")
-    if any(reason and "audio_manifest.json" in reason for reason in reasons):
-        return downstream_tail("prepare_subtitles")
-    if any(reason and "publish_guide" in reason for reason in reasons):
-        # The guide is produced as part of final render preparation.
-        return downstream_tail("prepare_render")
-    if "script.json is newer than cli_props.json" in reasons:
-        return downstream_tail("prepare_subtitles")
-    if (
-        "cli_props.json is newer than output.mp4" in reasons
-        or "public Remotion props mirror is missing" in reasons
-    ):
-        return downstream_tail("prepare_subtitles")
-    return None
+    """Recover the stale planning/rendering tail.
+
+    Delegates to the freshness module's single recovery resolver, which owns
+    the code→step mapping and the legacy reason fallback (no parsing here).
+    """
+    return recovery_tail(status.get("stale_artifacts") or [])
 
 
 def _failed_recovery_steps(status: dict[str, Any]) -> list[str] | None:

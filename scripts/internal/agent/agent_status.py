@@ -14,11 +14,6 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline.agent_io import (  # noqa: E402
-    file_sha256,
-    is_artifact_fresh,
-    stable_hash,
-)
 from src.pipeline.paths import (  # noqa: E402
     agent_path,
     date_root,
@@ -29,18 +24,14 @@ from src.pipeline.paths import (  # noqa: E402
     render_path,
     render_remotion_dir,
 )
-from src.pipeline.script.io import (  # noqa: E402
-    audio_manifest_is_usable,
-    load_audio_manifest,
-    load_script,
-    script_audio_input_hash,
-    script_editorial_hash,
-)
 from src.pipeline.human_review import (  # noqa: E402
-    script_approval_is_current,
     script_review_page_path,
 )
 from src.workflow import load_workflow_report  # noqa: E402
+from src.workflow.freshness import (  # noqa: E402
+    check_freshness,
+    command_for,
+)
 
 
 def _default_date() -> str:
@@ -161,102 +152,27 @@ def _is_newer(a: Path, b: Path) -> bool:
 def _publish_guide_context(
     date: str, content_path: Path, script_path: Path
 ) -> dict[str, Any] | None:
-    content_data = _read_json(content_path)
-    script_data = _read_json(script_path)
-    if not isinstance(content_data, dict) or not isinstance(script_data, dict):
-        return None
-    title_data = _read_json(publish_path(date, "title.json"))
-    if not isinstance(title_data, dict):
-        title_data = {}
-    items_payload = []
-    for item in content_data.get("items") or []:
-        if not isinstance(item, dict):
-            continue
-        items_payload.append(
-            {
-                "title_cn": item.get("title_cn") or item.get("title"),
-                "title": item.get("title"),
-                "editor_angle": item.get("editor_angle") or item.get("dek") or "",
-                "category": item.get("category") or "",
-                "keywords": item.get("keywords") or [],
-                "score": item.get("score"),
-                "comment_count": item.get("comment_count"),
-            }
-        )
-    return {
-        "script_title": title_data.get("title")
-        or script_data.get("title")
-        or "HN每日观察",
-        "script_description": title_data.get("description")
-        or script_data.get("description")
-        or "",
-        "items_json": json.dumps(items_payload, ensure_ascii=False, indent=2),
-        "prompt_hash": file_sha256(Path("prompts/publish_guide.md")),
-        "date": date,
-    }
+    """Build the publish-guide input context (delegated to freshness)."""
+    from src.workflow.freshness import publish_guide_context
+
+    return publish_guide_context(date, content_path, script_path)
 
 
 def _has_stale_publish_guide(
     date: str, content_path: Path, script_path: Path, guide_path: Path
 ) -> bool:
-    if not guide_path.exists():
-        return False
-    context = _publish_guide_context(date, content_path, script_path)
-    if context is None:
-        return False
-    manifest = _read_json(guide_path.with_suffix(guide_path.suffix + ".manifest.json"))
-    return not isinstance(manifest, dict) or manifest.get("input_hash") != stable_hash(
-        context
-    )
+    """Check whether the publish guide is stale (delegated to freshness)."""
+    from src.workflow.freshness import has_stale_publish_guide
+
+    return has_stale_publish_guide(date, content_path, script_path, guide_path)
 
 
 def _video_stale_command(date: str, stale: list[dict[str, str]]) -> dict[str, str]:
-    artifacts = [item.get("artifact", "") for item in stale]
-    if any("script.json" in artifact for artifact in artifacts):
-        return {
-            "command": (
-                f"uv run python scripts/internal/agent/agent_run.py --date {date} --refresh-script"
-            ),
-            "why": "Content changed after script generation; regenerate video artifacts.",
-        }
-    if any("script_approval.json" in artifact for artifact in artifacts):
-        return {
-            "command": (
-                f"uv run python scripts/internal/agent/agent_run.py --date {date} --from human_review"
-            ),
-            "why": "The current editorial script has not passed the human checkpoint.",
-        }
-    if any("storyboard.json" in artifact for artifact in artifacts):
-        return {
-            "command": (
-                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
-                "--from apply_storyboard"
-            ),
-            "why": "storyboard.json changed after script application; rebuild video visuals.",
-        }
-    if any("subtitle_plan.json" in artifact for artifact in artifacts):
-        return {
-            "command": (
-                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
-                "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
-            ),
-            "why": "The local subtitle plan is missing or does not match script.json.",
-        }
-    if any("audio_manifest.json" in artifact for artifact in artifacts):
-        return {
-            "command": (
-                f"uv run python scripts/internal/agent/agent_run.py --date {date} "
-                "--steps prepare_subtitles,synthesize_audio,prepare_render,render"
-            ),
-            "why": "The editorial script changed; regenerate audio and downstream video artifacts.",
-        }
-    return {
-        "command": (
-            f"uv run python scripts/internal/agent/agent_run.py --date {date} "
-            "--steps prepare_subtitles,prepare_render,render"
-        ),
-        "why": "Render props/output look stale or incomplete.",
-    }
+    """Recommended repair command for stale artifacts.
+
+    Delegates to the freshness module, which owns the repair routing.
+    """
+    return command_for(date, stale)
 
 
 def _build_video_status(date: str) -> dict[str, Any]:
@@ -267,7 +183,6 @@ def _build_video_status(date: str) -> dict[str, Any]:
     script = pipeline_path(date, "script.json")
     script_review = pipeline_path(date, "script_review.json")
     script_review_page = script_review_page_path(date)
-    script_approval = agent_path(date, "script_approval.json")
     storyboard = pipeline_path(date, "storyboard.json")
     story_images = pipeline_path(date, "story_images.json")
     subtitle_plan = pipeline_path(date, "subtitle_plan.json")
@@ -278,171 +193,11 @@ def _build_video_status(date: str) -> dict[str, Any]:
     title = publish_path(date, "title.json")
     cover = publish_path(date, "cover.png")
     publish_guide = publish_path(date, "publish_guide.md")
+    script_approval = agent_path(date, "script_approval.json")
 
-    stale: list[dict[str, str]] = []
-    if _is_newer(content, script):
-        stale.append(
-            {
-                "artifact": str(script).replace("\\", "/"),
-                "reason": "content.json is newer than script.json",
-            }
-        )
-    if _is_newer(storyboard, script):
-        stale.append(
-            {
-                "artifact": str(storyboard).replace("\\", "/"),
-                "reason": "storyboard.json is newer than script.json",
-            }
-        )
-    if (
-        script.exists()
-        and not story_images.exists()
-        and (workflow is not None or cli_props.exists() or output.exists())
-    ):
-        stale.append(
-            {
-                "artifact": str(story_images).replace("\\", "/"),
-                "reason": "story_images.json is missing; every story needs a local image",
-            }
-        )
-    approval_current = False
-    if script.exists():
-        try:
-            loaded_script = load_script(date)
-            approval_current = script_approval_is_current(date, loaded_script)
-            if not approval_current:
-                stale.append(
-                    {
-                        "artifact": str(script_approval).replace("\\", "/"),
-                        "reason": (
-                            "script_approval.json is missing or does not match "
-                            "script.json"
-                        ),
-                    }
-                )
-            render_manifest = _read_json(
-                cli_props.with_suffix(cli_props.suffix + ".manifest.json")
-            )
-            render_inputs = (
-                render_manifest.get("inputs")
-                if isinstance(render_manifest, dict)
-                else None
-            )
-            if not isinstance(render_inputs, dict) or any(
-                render_inputs.get(key) != expected
-                for key, expected in {
-                    "script_editorial_hash": script_editorial_hash(loaded_script),
-                    "audio_manifest_hash": file_sha256(audio_manifest),
-                    "content_hash": file_sha256(content),
-                }.items()
-            ):
-                if _is_newer(script, cli_props) or not cli_props.exists():
-                    stale.append(
-                        {
-                            "artifact": str(cli_props).replace("\\", "/"),
-                            "reason": "script.json is newer than cli_props.json",
-                        }
-                    )
-            subtitle_plan_data = _read_json(subtitle_plan)
-            if not subtitle_plan.exists():
-                if workflow is not None or cli_props.exists() or output.exists():
-                    stale.append(
-                        {
-                            "artifact": str(subtitle_plan).replace("\\", "/"),
-                            "reason": "subtitle_plan.json is missing",
-                        }
-                    )
-            elif not isinstance(subtitle_plan_data, dict) or subtitle_plan_data.get(
-                "audio_input_hash_after"
-            ) != script_audio_input_hash(loaded_script):
-                stale.append(
-                    {
-                        "artifact": str(subtitle_plan).replace("\\", "/"),
-                        "reason": "subtitle_plan.json does not match script.json",
-                    }
-                )
-            audio_inputs = {
-                "audio_input_hash": script_audio_input_hash(loaded_script),
-                "segment_count": len(loaded_script.segments),
-            }
-            if audio_manifest.exists():
-                manifest = load_audio_manifest(date)
-                if not is_artifact_fresh(audio_manifest, audio_inputs):
-                    reason = "audio_manifest.json input hash does not match script.json"
-                elif manifest is not None and not audio_manifest_is_usable(
-                    manifest, expected_segment_count=len(loaded_script.segments)
-                ):
-                    reason = "audio_manifest.json references missing audio files"
-                else:
-                    reason = ""
-                if reason:
-                    stale.append(
-                        {
-                            "artifact": str(audio_manifest).replace("\\", "/"),
-                            "reason": reason,
-                        }
-                    )
-            elif (
-                pipeline_audio_dir(date).exists()
-                or cli_props.exists()
-                or output.exists()
-            ):
-                stale.append(
-                    {
-                        "artifact": str(audio_manifest).replace("\\", "/"),
-                        "reason": "audio_manifest.json is missing",
-                    }
-                )
-        except (OSError, ValueError, TypeError):
-            stale.append(
-                {
-                    "artifact": str(audio_manifest).replace("\\", "/"),
-                    "reason": "cannot validate audio manifest against script.json",
-                }
-            )
-    if _is_newer(cli_props, output):
-        output_manifest = _read_json(
-            output.with_suffix(output.suffix + ".manifest.json")
-        )
-        output_inputs = (
-            output_manifest.get("inputs") if isinstance(output_manifest, dict) else None
-        )
-        output_matches_current = False
-        if isinstance(output_inputs, dict) and script.exists():
-            try:
-                current_script = load_script(date)
-                output_matches_current = not any(
-                    output_inputs.get(key) != expected
-                    for key, expected in {
-                        "script_editorial_hash": script_editorial_hash(current_script),
-                        "audio_manifest_hash": file_sha256(audio_manifest),
-                        "content_hash": file_sha256(content),
-                        "props_hash": file_sha256(cli_props),
-                    }.items()
-                )
-            except (OSError, ValueError, TypeError):
-                output_matches_current = False
-        if not output_matches_current:
-            stale.append(
-                {
-                    "artifact": str(output).replace("\\", "/"),
-                    "reason": "cli_props.json is newer than output.mp4",
-                }
-            )
-    if cli_props.exists() and not public_props.exists():
-        stale.append(
-            {
-                "artifact": str(public_props).replace("\\", "/"),
-                "reason": "public Remotion props mirror is missing",
-            }
-        )
-    if _has_stale_publish_guide(date, content, script, publish_guide):
-        stale.append(
-            {
-                "artifact": str(publish_guide).replace("\\", "/"),
-                "reason": "publish_guide.md input hash does not match content/script",
-            }
-        )
+    freshness = check_freshness(date)
+    stale: list[dict[str, str]] = [record.as_wire_dict() for record in freshness.stale]
+    approval_current = freshness.approval_current
 
     if workflow is None:
         status = "not_started"
